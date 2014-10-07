@@ -1,0 +1,7 @@
+
+# Example provided in this folder:
+#   main.cpp depends on bas.hpp
+#   bas.hpp depends on dep.hpp (and dep.cpp)
+#   dep.cpp depends on dep.hpp
+#   int.cpp depends on dep.hpp (and dep.cpp)
+#   int.cpp depends on int.hpp

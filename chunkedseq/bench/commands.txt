@@ -1,0 +1,167 @@
+
+
+
+# study perf   ## hiding chunkedseq_ptrx
+
+make fifo
+./run -prog ./bench.exe -scenario lifo -sequence stl_deque,chunkedseq -chunk_size 512 -n 50000000 -r 1,3,10,100,300,1000,3000,10000,30000 -timeout 60 
+./plot -x length --xlog -y exectime -ignore r -curve sequence --open 
+
+# compare small to big benchmark programs
+
+make do_fifo
+./run -prog ./do_fifo.exe_full -scenario fifo -sequence stl_deque,chunkedseq -n 100000000 -r 1,3,10 -timeout 60 
+./run -prog ./do_fifo.exe_full -scenario lifo -sequence stl_deque,chunkedseq -n 100000000 -r 1,3,10 -timeout 60 
+./run -prog ./bench.exe -scenario lifo -sequence stl_deque,chunkedseq -chunk_size 512 -n 100000000 -r 1,3,10 -timeout 60 
+
+./plot -x length --xlog -y exectime -ignore r -curve sequence --open 
+
+# paper
+
+./run -prog ./do_fifo.exe_full -scenario lifo,fifo -sequence stl_deque,chunkedseq -n 1000000000 -r 1,1000,1000000 -timeout 60  -chunk_size 512
+
+
+
+# study fifo lifo on the small bench program
+
+./run -prog ./do_fifo.exe -scenario lifo,fifo -sequence stl_deque,chunkedseq -n 200000000 -r 1,3,10,100,300,1000,3000 -chunk_size 512 -timeout 60 
+./plot -x length --xlog -y exectime -ignore r -curve sequence --open 
+
+
+./run -prog ./do_fifo.exe -scenario lifo -sequence stl_deque,chunkedseq_ptrx -n 100000000 -r 1,3,10,100,300,1000,3000 -chunk_size 512 -timeout 60 
+./plot -x length --xlog -y exectime -ignore r -curve sequence 
+
+
+# study -O3 effect on fifo lifo on the small bench program
+
+./run -prog ./do_fifo.exe2,./do_fifo.exe3 -scenario lifo,fifo -sequence stl_deque,chunkedseq -n 100000000 -r 1,3,10,100,300,1000,3000 -timeout 60 
+./run -prog ./do_fifo.exe2,./do_fifo.exe3 -scenario fifo,lifo -sequence stl_deque,chunkedseq -n 300000000 -r 1,3,10,100,300,1000,3000 -timeout 60 
+./plot -x length --xlog -y exectime -ignore r -curve prog,sequence --open  -legend bottomleft
+./run -prog ./do_fifo.exe2,./do_fifo.exe3 -scenario lifo,fifo -sequence stl_deque,chunkedseq,chunkedseq_ptrx -n 100000000 -r 1,3,10,100,300,1000,3000 -timeout 60 
+
+
+
+# study chunksize
+
+make chunk
+./run -prog ./bench.exe -scenario lifo -sequence chunkedseq -chunk_size 64,128,256,512,1024,2048,4096,8192 -n 50000000 -r 1,100 -timeout 60 
+./plot -x chunk_size --xlog -y exectime -ignore h,p -curve scenario,r --open 
+./run -prog ./bench.exe -scenario split_merge -sequence chunkedseq -chunk_size 64,128,256,512,1024,2048,4096,8192 -n 100000000 -p 5 -r 100000 -h 0 -timeout 60  --append
+./plot -x chunk_size --xlog -y exectime -ignore h,p -curve scenario,r --open 
+
+
+# study perf at large 
+
+make fifo
+./run -prog ./bench.exe -scenario lifo -sequence stl_deque,chunkedseq,chunkedseq_ptrx -chunk_size 2048,4096,8192 -n 50000000 -r 1,3,10 -timeout 60 
+./plot -x length --xlog -y exectime -ignore r -curve sequence,chunk_size --open -legend bottomleft
+
+make fifo
+./run -prog ./bench.exe -scenario lifo -sequence stl_deque -chunk_size 512 -n 50000000 -r 1,3,10,100,300 -timeout 60 && ./run -prog ./bench.exe -scenario lifo -sequence chunkedseq_ptrx -chunk_size 512,2048,4096,8192 -n 50000000 -r 1,3,10,100,300 -timeout 60 --append
+./plot -x length --xlog -y exectime -ignore r -curve sequence,chunk_size --open -legend bottomleft
+
+# fifo / lifo speed compare
+
+./run -prog ./bench.exe -scenario fifo,lifo -sequence stl_deque,chunkedseq -chunk_size 512 -n 50000000 -r 1,3,10,100,300 -timeout 60 
+./plot -x length --xlog -y exectime -ignore r -curve sequence,chunk_size --open -legend bottomleft
+
+
+./run -prog ./bench.exe -scenario fifo,lifo -sequence stl_deque,chunkedseq -chunk_size 512 -n 100000000 -r 1,3,10,100,300 -timeout 60 
+
+
+# compare difference between binaries
+
+./run -prog ./bench.exe_fifolifo,./bench.exe_chunksize -scenario lifo -sequence stl_deque,chunkedseq_ptrx -chunk_size 512 -n 50000000 -r 1,10,100,1000 -timeout 60  
+./plot -x length --xlog -y exectime -ignore r -curve sequence,prog --open -legend bottomleft
+
+
+# compare scenarios
+
+./run -prog ./bench.exe_chunksize -scenario lifo,fifo -sequence chunkedseq_bag,chunkedseq_ptrx -chunk_size 512 -n 50000000 -r 1,10,100,1000 -timeout 60 
+
+# optimize boot chunk size
+
+make fifo
+// change in chunkedseq.hpp
+//    static constexpr int middle_chunk_capacity = 64; 
+make fifo && cp bench.exe bench64.exe
+./run -prog ./bench.exe,./bench64.exe -scenario lifo -sequence stl_deque,chunkedseq -chunk_size 512 -n 50000000 -r 1,3,10,100,300 -timeout 60 
+./plot -x length --xlog -y exectime -ignore r -curve prog,sequence --open -legend bottomleft
+
+
+# boot chunk size split-merge
+
+// build as above
+./run -prog ./bench16.exe,./bench32.exe,./bench64.exe -scenario split_merge -sequence chunkedseq -chunk_size 512 -n 100000000 -p 5 -r 100000 -h 0 -timeout 60 
+
+./run -prog ./bench32.exe,./bench40.exe,./bench64.exe,./bench80.exe,./bench128.exe -scenario split_merge -sequence chunkedseq -chunk_size 512 -n 100000000 -p 5 -r 100000 -h 0 -timeout 60 
+
+# boot chunk size fifo
+
+./run -prog ./bench32.exe,./bench64.exe,./bench128.exe -scenario lifo -sequence chunkedseq -chunk_size 512 -n 100000000 -r 1,3,10,100,300 -timeout 60  -runs 5
+./plot -x length --xlog -y exectime -ignore r -curve prog --open -legend bottomleft
+
+
+
+=====================================
+
+# compare with deque on fifo,lifo
+make fifo
+./run -prog ./bench.exe -scenario lifo -sequence deque,chunkedseq_ringbuffer_ptr,chunkedseq_ringbuffer_ptrx -chunk_size 512 -n 50000000 -r 1,3,10,100,300,1000,3000,10000,30000 -timeout 60 
+./plot -x length --xlog -y exectime -ignore r -curve sequence --open 
+
+
+./run -prog ./bench.exe -scenario lifo -sequence deque,chunkedseq_ringbuffer_ptr,chunkedseq_ringbuffer_ptrx -chunk_size 512 -n 100000000 -r 1,3,10,100,300,1000,3000,10000,30000 -timeout 60 
+
+
+# study chunksize effect
+make chunk
+./run -prog ./bench.exe -scenario lifo -sequence chunkedseq -chunk_size 256,512,1024,2048,4096 -n 50000000 -r 1,100 -timeout 60 
+./plot -x chunk_size --xlog -y exectime -ignore r -curve length --open 
+
+
+
+
+
+./run -prog ./bench.exe -scenario lifo -sequence deque,chunkedseq_ringbuffer_ptr,chunkedseq_ringbuffer_ptrx -chunk_size 511,512,1023,1024 -n 50000000 -r 1,3,10,100 -timeout 60 
+./plot -x length --xlog -y exectime -ignore r -curve chunk_size --open 
+./plot -x length --xlog -y exectime -ignore r -curve seq --open 
+./plot -x chunk_size --xlog -y exectime -curve seq -legend bottomright --xlog --open 
+
+
+
+./run -prog ./bench.exe -scenario lifo -sequence deque,chunkedseq_ringbuffer_ptr,chunkedseq_ringbuffer_ptrx -chunk_size 512 -n 50000000 -r 1,3,10,100 -timeout 60 
+./plot -x length --xlog -y exectime -ignore r -curve sequence --open 
+
+
+./run -prog ./bench.exe -scenario lifo -sequence deque,chunkedseq_ringbuffer_ptr,chunkedseq_ringbuffer_ptrx -chunk_size 512,1024 -n 100000000 -r 1,3,10,100 -timeout 60 -runs 3
+./plot -x length --xlog -y exectime -ignore r -curve sequence --open 
+
+
+
+./run -prog ./bench.exe -scenario lifo -sequence deque,chunkedseq_ringbuffer_ptrx -chunk_size 512 -n 50000000 -r 1 -timeout 60 
+./plot -x length --xlog -y exectime -ignore r -curve sequence --open 
+
+./run -prog ./bench.exe -scenario fill_back -sequence deque,chunkedseq_ringbuffer_ptrx -chunk_size 512 -n 50000000 -r 1 -timeout 60 
+
+
+
+==========
+ ./run -prog ./bench.exe -scenario fill_back,lifo,fifo -sequence deque,chunkedseq_single,chunkedseq -chunk_size 512 -n 50000000 -r 1 -timeout 60 
+
+
+ ./run -prog ./bench.exe -scenario fill_back,lifo,fifo -sequence stl_deque,chunkedseq_single,chunkedseq -chunk_size 512,1024 -n 50000000 -r 1,10,100,10000 -timeout 60 -runs 2
+
+
+ ./run -prog ./bench.exe -scenario fifo -sequence stl_deque,chunkedseq_single,chunkedseq -chunk_size 1024 -n 100000000 -r 1,10,30,100,10000 -timeout 60 
+ -runs 2
+./plot -x length --xlog -y exectime -ignore r -curve sequence --open 
+
+ ./run -prog ./bench.exe -scenario fifo -sequence stl_deque,chunkedseq_single,chunkedseq -chunk_size 1024 -n 100000000 -r 1 -timeout 60 
+make fifo && ./run -prog ./bench.exe -scenario lifo -sequence stl_deque,chunkedseq_single,chunkedseq -chunk_size 1024 -n 100000000 -r 1 -timeout 60 
+
+
+
+./run -prog ./bench.exe -scenario fill_back,lifo,fifo -sequence stl_deque,chunkedseq_single,chunkedseq_bool,chunkedseq -chunk_size 512 -n 100000000 -r 1
+
+./run -prog ./bench.exe -scenario fill_back,lifo,fifo -sequence stl_deque,chunkedseq_single,chunkedseq_bool,chunkedseq -chunk_size 512 -n 100000000 -r 1,10,30,100,10000 

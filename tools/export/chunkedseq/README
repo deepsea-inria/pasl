@@ -1,0 +1,16 @@
+- Implementation files stored in:
+  chunkedseq/include/*.hpp
+  chunkedseq/examples/*.hpp
+
+- Sequence-specific benchmarking code in:
+  chunkedseq/bench/bench.cpp
+
+- Graph-search benchmarking code in:  (only in benchmarking tarball)
+  graph/bench/search.cpp
+  graph/include/*.hpp
+
+- Experiment on STL deque worst case in:
+  chunkedseq/stl/pushpop.cpp
+
+For instructions on how to repeat our experiments, see:
+http://deepsea.inria.fr/chunkedseq/

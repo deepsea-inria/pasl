@@ -1,0 +1,57 @@
+
+
+
+./search.opt2 -load from_file -infile _data/chain_large.adj_bin -bits 64 -source 0 -idempotent 1 -proc 40 -algo our_pbfs -our_pbfs_cutoff 1024
+
+
+
+
+
+
+
+
+
+
+To run a DFS on a graph file:
+
+make search.elision3
+search.elision3 -bits 64 -load from_file -infile ~/graphdata/square_grid.adj_bin -algo dfs_by_vertexid_frontier -frontier bootseq_stack -source 0
+
+Same as above, but generates the graph on the fly:
+
+search.elision3 -bits 64 -load by_generator -generator tree -nb_edges_target 10000000 -algo dfs_by_vertexid_frontier -frontier bootseq_stack -source 0
+
+
+============= testing the study script ==============
+
+=========
+# to generate a graph :
+
+make graphfile.elision2
+./graphfile.elision2 -generator tree -bits 64 -proc 1 -outfile ~/data/tree.adj_bin -nb_edges_target 4000000
+
+=========
+# to build the executable
+
+make search.opt2
+
+=========
+# to compile pbench and add it to path
+
+make -C ~/pbench/trunk
+PATH=~/pbench/trunk:$PATH
+
+=========
+# to run the study
+
+pbench -open study.pbh "bfs()"
+
+
+
+## combined:
+
+make -C ~/pbench/trunk && pbench -open study.pbh "bfs()"
+
+
+
+./search.dbg -frontier chunkedseq_stack -bits 64 -load by_generator -generator tree -branching_factor 2 -height 9 -algo pbfs -proc 1 -pbfs_cutoff 4

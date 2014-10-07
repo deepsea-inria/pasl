@@ -1,0 +1,133 @@
+
+
+MODULES   := sub
+# scheduler clib
+
+SRC_DIR   := $(addprefix src/,$(MODULES))
+BUILD_OPT_DIR = $(addprefix _build/opt/,$(MODULES))
+BUILD_DBG_DIR = $(addprefix _build/dbg/,$(MODULES))
+
+SRC       := $(foreach module,$(MODULES),$(wildcard src/$(module)/*.cpp))
+OBJ_OPT   := $(patsubst src/%.cpp,_build/opt/%.o,$(SRC))
+OBJ_DBG   := $(patsubst src/%.cpp,_build/dbg/%.o,$(SRC))
+INCLUDES  := $(addprefix -I ,$(SRC_DIR))
+
+FLAGS_OPT := -O2
+FLAGS_DBG := -DDEBUG
+
+CC        := g++
+
+#-------------
+
+define object-rule
+
+_build/opt/$1/%.o : src/$1/%.cpp build_subdir
+	$(CC) $(FLAGS_OPT) $(INCLUDES) -c $$< -o $$@
+
+_build/dbg/$1/%.o : src/$1/%.cpp build_subdir
+	$(CC) $(FLAGS_DBG) $(INCLUDES) -c $$< -o $$@
+
+endef
+
+$(foreach module,$(MODULES),$(eval $(call object-rule,$(module))))
+
+#-------------
+
+%.exe_opt : src/%.cpp $(OBJ_OPT) 
+	$(CC) $(FLAGS_OPT) $(INCLUDES) $^ -o $@
+ 
+%.exe_dbg : src/%.cpp $(OBJ_DBG) 
+	$(CC) $(FLAGS_DBG) $(INCLUDES) $^ -o $@
+
+#.PHONY checkdirs all
+
+all : main.exe_opt main.exe_dbg
+
+#-------------
+
+# $(BUILD_OPT_DIR) $(BUILD_DBG_DIR)
+
+build_subdir : 
+	@mkdir -p $(BUILD_OPT_DIR) $(BUILD_DBG_DIR)
+	touch build_subdir
+
+#-------------
+
+clean:
+	@rm -rf _build *.exe_* build_subdir
+
+#-------------
+
+test:
+	echo $(SRC_DIR)
+	echo $(SRC)
+	echo $(OBJ_OPT)
+	echo $(BUILD_OPT_DIR)
+
+
+
+define testing
+foo.$1: $(BUILD)/$1
+	echo 
+endef
+$(foreach key,$(KEYS),$(eval $(call testing,$(key))))
+
+
+
+
+
+
+
+
+
+# Compilation options for each key
+
+ifeq ($KEY,exe)
+	COMPILE_OPTIONS=-O2 -DNDEBUG
+else ifeq ($KEY,dbg)
+	COMPILE_OPTIONS=-O0 -g -DDEBUG
+else
+	$(error invalid key $KEY)
+endif
+
+
+
+
+
+# Compilation options for each key
+
+ifeq ($KEY,exe)
+	$(BUILD)/$(KEY)/%.o:
+		$(INCLUDES) -o $@
+	
+	COMPILE_FOR_KEY=$(COMPILE) $(COMPILE_OPTIONS_FOR_exe)
+else ifeq ($KEY,dbg)
+	COMPILE_FOR_KEY=$(COMPILE) $(COMPILE_OPTIONS_FOR_dbg)
+else
+	$(error invalid key $KEY)
+endif
+
+
+
+
+# Compilation options specific to keys
+
+ifeq ($KEY,exe)
+	COMPILE_FOR_KEY=$(COMPILE) $(COMPILE_OPTIONS_FOR_exe)
+else ifeq ($KEY,dbg)
+	COMPILE_FOR_KEY=$(COMPILE) $(COMPILE_OPTIONS_FOR_dbg)
+else
+	$(error invalid key $KEY)
+endif
+
+endef
+
+$(foreach key,$(KEYS),$(eval $(call def-compile-options-for-key,$(key))))
+
+#	else 
+#		$(error Bad key code $1)
+
+
+
+
+#	

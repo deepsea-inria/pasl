@@ -1,0 +1,62 @@
+
+Navigation
+-------------------------
+
+- Example application programs:
+  example/*.cpp
+
+- Serial and parallel implementations of graph-connectivity algorithms:
+  graph/include/bfs.hpp
+  graph/include/dfs.hpp
+
+- Graph-connectivity benchmarkoing code:
+  graph/bench/search.cpp
+
+
+
+Prerequisites
+-------------------------
+
+- a 64-bit x86 machine running either a recent Linux or Mac OS
+- GCC (version >= 4.8.0)
+- hwloc (optional; version >= 1.8) *
+
+* hwloc is currently useful only for dealing with performance issues
+  relating to NUMA. As such, if you do not have a NUMA machine or do
+  not know what NUMA is and you are having trouble with hwloc, you can
+  disable hwloc support. To disable hwloc, you need to set the
+  following variable in the file `pasl/example/Makefile`:
+
+      USE_HWLOC=0  # was originally 1
+
+
+Getting started
+-------------------------
+
+Let us build and run our simplest example program, namely fib. We
+assume that we start from the root folder of pasl and that our machine
+has at least eight cores.
+
+      cd example/
+      make -j fib.opt
+      ./fib.opt -n 45 -proc 8
+
+Suppose you want to create your own program, say `foo.cpp`, and build
+the program against the PASL library. To get started, you must first
+put `foo.cpp` in `pasl/exapmles/`. Then register `foo.cpp` in the
+makefile in the same directory:
+
+      PROGRAMS=\
+	fib.cpp \
+	hull.cpp \
+	bhut.cpp \
+        foo.cpp         # add the name of your source file here
+
+Now you can build `foo.cpp` in the same way that we built fib.opt
+above. 
+
+      make -j foo.opt
+
+If you want to build a debugging binary, namely `foo.dbg`, try:
+
+      make -j foo.dbg

@@ -1,0 +1,15 @@
+
+# checking the linearity of the costs of pushpop
+
+./run -prog ./pushpop.exe -runs 3 -nb_repeat 10000000,20000000,50000000,100000000,200000000,500000000,1000000000,2000000000 -offset 0
+ ./plot --xlog --ylog -x nb_repeat -y exectime --open
+
+
+# effect of offset
+
+./run -prog ./pushpop.exe -runs 1 -nb_repeat 200000000 -offset 0,1,2,510,511,512,513
+./plot --xzero --yzero -x offset -y exectime --open
+
+
+# --> 18x fold slowdown
+# --> 34x fold slowdown without bareer

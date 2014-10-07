@@ -1,0 +1,307 @@
+
+
+####################################################################
+# Paths to PASL
+
+# Path to the present file, relative to the working directory $(CURDIR)
+# Warning: use "eval" to obtain this value, as shown further below
+
+PATH_TO_CURRENT_MAKEFILE=$(word $(words $(MAKEFILE_LIST)),$(MAKEFILE_LIST))
+
+# Path to the tools folder, relative to the working directory $(CURDIR)
+
+$(eval BUILD_TOOLS_PATH=$(dir $(PATH_TO_CURRENT_MAKEFILE)))
+
+# Path to the root of PASL, relative to the working directory $(CURDIR)
+
+PASL_ROOT_PATH=$(BUILD_TOOLS_PATH)/../..
+
+
+####################################################################
+# Paths to folders
+
+SEQUTIL_PATH=$(PASL_ROOT_PATH)/sequtil
+PARUTIL_PATH=$(PASL_ROOT_PATH)/parutil
+SCHED_PATH=$(PASL_ROOT_PATH)/sched
+CHUNKEDSEQ_PATH=$(PASL_ROOT_PATH)/chunkedseq/include
+CHUNKEDSEQ_BENCH_PATH=$(PASL_ROOT_PATH)/chunkedseq/bench
+FFTREE_PATH=$(PASL_ROOT_PATH)/fftree/include
+FFTREE_BENCH_PATH=$(PASL_ROOT_PATH)/fftree/benchmark
+GRAPH_PATH=$(PASL_ROOT_PATH)/graph/include
+PBBS_PATH=$(PASL_ROOT_PATH)/tools/pbbs
+
+ifeq ($(BENCHTOOLS_PATH),)
+	BENCHTOOLS_PATH=$(PASL_ROOT_PATH)/benchtools
+endif
+
+
+####################################################################
+# Paths to tools
+
+TOOLS_PATH=$(PASL_ROOT_PATH)/tools
+
+ifeq ($(HWLOC_PATH),)
+   HWLOC_PATH=$(TOOLS_PATH)/hwloc
+endif
+
+ifeq ($(MISER_PATH),)
+   MISER_PATH=$(TOOLS_PATH)/miser
+endif
+
+ifeq ($(HOARD_PATH),)
+   HOARD_PATH=$(TOOLS_PATH)/hoard
+endif
+
+ifeq ($(TCMALLOC_PATH),)
+   TCMALLOC_PATH=$(TOOLS_PATH)/tcmalloc
+endif
+
+ifeq ($(JEMALLOC_PATH),)
+   JEMALLOC_PATH=$(TOOLS_PATH)/jemalloc
+endif
+
+ifeq ($(QUICKCHECK_PATH),)
+   QUICKCHECK_PATH=$(TOOLS_PATH)/quickcheck
+endif
+
+ifeq ($(MATRIX_MARKET_PATH),)
+   MATRIX_MARKET_PATH=$(TOOLS_PATH)/matrix_market
+endif
+
+ifeq ($(PBBS_PATH),)
+   PBBS_PATH=$(TOOLS_PATH)/pbbs
+endif
+
+ifeq ($(MALLOC_COUNT_PATH),)
+   MALLOC_COUNT_PATH=$(TOOLS_PATH)/malloc_count
+endif
+
+ifeq ($(HWLOC_INSTALL_PATH),)
+   HWLOC_INSTALL_PATH=$(TOOLS_PATH)/hwloc
+endif
+
+ifeq ($(CILKRTS_PATH),)
+   CILKRTS_PATH=$(PASL_ROOT_PATH)/external/libcilkrts
+endif
+
+
+####################################################################
+# Target OS detection (linux or macos)
+
+UNAME=$(shell uname -s)
+
+ifeq ($(UNAME),Darwin)
+   OPERATING_SYSTEM=MacOS
+else ifeq ($(UNAME),Linux)
+   OPERATING_SYSTEM=Linux
+else
+   OPERATING_SYSTEM=Unknown
+endif
+
+
+####################################################################
+# Makefile verbosity
+
+# To show all command lines performed by make, use VERBOSE_MAKE=1
+
+ifeq ($(VERBOSE_MAKE),)
+   VERBOSE_MAKE=0
+endif
+
+# To show all dependencies generated, use VERBOSE_DEPENDENCIES=1
+
+ifeq ($(VERBOSE_DEPENDENCIES),)
+   VERBOSE_DEPENDENCIES=0
+endif
+
+
+####################################################################
+# Compiler
+
+# Default compiler is g++ with C++11 option
+# To select an alternative compiler, e.g., COMPILER=llvm, clang
+
+ifeq ($(COMPILER),)
+   COMPILER=g++
+endif
+
+COMPILER+= -std=gnu++1y #-std=gnu++11
+
+
+####################################################################
+# Compiler optimization flags
+
+OPTIONS_ARCH_NATIVE=-march=native
+OPTIONS_DEBUG=-O0 -g -DDEBUG
+OPTIONS_O2=-O2 -DNDEBUG
+OPTIONS_O3=-O3 -DNDEBUG
+
+
+####################################################################
+# Compiler warnings
+
+
+ifeq ($(OPTION_WARNINGS),)
+   OPTION_WARNINGS=-D_GNU_SOURCE
+	ifeq ($(COMPILER),g++)
+		OPTION_WARNINGS+= -fpermissive
+   endif
+endif
+
+OPTION_WALL=-Wall
+ifeq ($(strip $(USE_WALL)),1)
+   OPTION_WARNINGS+= $(OPTION_WALL)
+endif
+
+OPTION_FATAL_ERRORS=-Wfatal-errors
+ifeq ($(strip $(USE_FATAL_ERRORS)),1)
+   OPTION_WARNINGS+= $(OPTION_FATAL_ERRORS)
+endif
+
+OPTION_ANSI=-ansi
+ifeq ($(strip $(USE_ANSI)),1)
+   OPTION_WARNINGS+= $(OPTION_ANSI)
+endif
+
+
+####################################################################
+# Compiler view optimized code
+
+# Depend COMPILER_DUMPTREE
+
+OPTIONS_OPTIMIZED=
+ifeq ($(strip $(COMPILER)),g++)
+   ifeq ($(COMPILER_DUMPTREE),1)
+      OPTIONS_OPTIMIZED=-fdump-tree-optimized-raw
+   endif
+endif
+
+
+####################################################################
+# Architecture flags
+
+# TODO: -DARCH=foo option
+
+OPTIONS_ARCH=-m64 -DTARGET_X86_64
+ifeq ($(OPERATING_SYSTEM), Linux)
+   OPTIONS_ARCH+= -DTARGET_LINUX
+else ifeq ($(OPSYS), MacOS)
+   OPTIONS_ARCH+= -DTARGET_MAC_OS
+endif
+
+
+####################################################################
+# Math library
+
+MATH_LIB=
+ifeq ($(strip $(USE_MATH)),1)
+   ifeq ($(OPERATING_SYSTEM), MacOS)
+      MATH_LIB=
+   else
+      MATH_LIB=-lm
+   endif
+endif
+
+
+####################################################################
+# PThreads and affinity support
+
+# Arguments USE_PTHREADS and USE_AFFINITY
+# TODO: check interaction between -DHAVE_SCHED_SETAFFINITY and HWLOC
+
+ifeq ($(strip $(USE_PTHREADS)),1)
+   OPTIONS_PTHREADS=-pthread
+   ifeq ($(USE_AFFINITY),1)
+      OPTIONS_PTHREADS+= -DHAVE_SCHED_SETAFFINITY
+   endif
+else
+   OPTIONS_PTHREADS=
+endif
+
+
+####################################################################
+# Thread-local-storage (TLS) support
+
+# only available if USE_PTHREADS=1
+
+ifeq ($(strip $(USE_PTHREADS)),1)
+   ifeq ($(OPERATING_SYSTEM),MacOS)
+      OPTIONS_TLS=-DHAVE_PTHREAD_BARRIER
+   else
+      OPTIONS_TLS=-DHAVE_GCC_TLS
+   endif
+endif
+
+####################################################################
+# PASL sequential-elision support
+
+ifeq ($(strip $(USE_SEQUENTIAL_ELISION)),1)
+      OPTIONS_PASL += -DSEQUENTIAL_ELISION
+endif
+
+####################################################################
+# Cilk alternative runtime support
+
+OPTIONS_cilk=-I$(CILKRTS_PATH)/include -L$(CILKRTS_PATH)/lib -fcilkplus -lcilkrts -lnuma -DUSE_CILK_RUNTIME
+
+####################################################################
+# HWLOC support
+
+OPTIONS_HWLOC=
+ifeq ($(strip $(USE_HWLOC)),1)
+   HWLOC_FLAGS=$(shell pkg-config --define-variable=HWLOC_INSTALL=$(HWLOC_INSTALL_PATH) --cflags $(HWLOC_PATH)/lib/pkgconfig/hwloc.pc)
+   HWLOC_LIBS=$(shell pkg-config --define-variable=HWLOC_INSTALL=$(HWLOC_INSTALL_PATH) --libs $(HWLOC_PATH)/lib/pkgconfig/hwloc.pc)
+   OPTIONS_HWLOC=-DHAVE_HWLOC $(HWLOC_FLAGS) $(HWLOC_LIBS)
+endif
+
+
+
+####################################################################
+# NUMA support
+
+OPTIONS_NUMA=
+ifeq ($(strip $(USE_NUMA)),1)
+   OPTIONS_NUMA=-lnuma
+endif
+
+
+####################################################################
+# Custom allocators
+
+# USE_ALLOCATOR should be one of:
+#   [empty], default, miser, hoard, tcmalloc, jemalloc
+
+ifeq ($(USE_ALLOCATOR),)
+   USE_ALLOCATOR=default
+endif
+
+ifeq ($(USE_ALLOCATOR),miser)
+   OPTIONS_ALLOC=-lmiser -L$(MISER_PATH)/linux64r
+else ifeq ($(USE_ALLOCATOR),hoard)
+   OPTIONS_ALLOC=-lhoard -L$(HOARD_PATH)
+else ifeq ($(USE_ALLOCATOR),tcmalloc)
+   OPTIONS_ALLOC=-ltcmalloc -L$(TCMALLOC_PATH)
+   ifneq ($(KEEP_TCMALLOC_LARGE_ALLOC_REPORTS),1)
+      TCMALLOC_LARGE_ALLOC_REPORT_THRESHOLD=1000000000000
+   endif
+else ifeq ($(USE_ALLOCATOR),jemalloc)
+   OPTIONS_ALLOC=-ljemalloc -L$(JEMALLOC_PATH)
+else ifeq ($(USE_ALLOCATOR),malloc_count)
+   OPTIONS_ALLOC=-DUSE_MALLOC_COUNT $(MALLOC_COUNT_PATH)/malloc_count.o -ldl
+else ifeq ($(USE_ALLOCATOR),default)
+   OPTIONS_ALLOC=
+else
+   $(error Invalid value for USE_ALLOCATOR)
+endif
+
+
+####################################################################
+# Option packages
+
+OPTIONS_COMPILATION=$(OPTIONS_OPTIMIZED) $(OPTION_WARNINGS)
+OPTIONS_ARCH_DEPENDENT=$(OPTIONS_ARCH) $(MATH_LIB)
+OPTIONS_PARALLELISM=$(OPTIONS_PTHREADS) $(OPTIONS_TLS) $(OPTIONS_HWLOC) $(OPTIONS_NUMA) $(OPTIONS_PASL)
+OPTIONS_ALLOCATORS=$(OPTIONS_ALLOC)
+OPTIONS_EXTRA_TOOLS=$(OPTIONS_SHERIFF)
+
+OPTIONS_ALL=$(OPTIONS_COMPILATION) $(OPTIONS_ARCH_DEPENDENT) $(OPTIONS_PARALLELISM) $(OPTIONS_ALLOCATORS) $(OPTIONS_EXTRA_TOOLS)

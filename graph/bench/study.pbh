@@ -1,0 +1,285 @@
+(*--------------------------------------------------------------*)
+
+
+(*--------------------------------------------------------------*)
+
+let tera_proc = [(*1;*)40]
+let par_proc=40
+let nb_runs = 1
+let idempotent = 1
+let is_virtual = 1
+
+(*--------------------------------------------------------------*)
+(* Graph-file generation *)
+
+let graphfile = (prog="./graphfile.opt2" & loop_cutoff=1000)
+
+let produce_graphs () =
+   run(virtual=is_virtual,args=(graphfile & generator="tree" & bits=64 & proc=par_proc & branching_factor=2 & height=25 & outfile="_data/tree.adj_bin")) ;
+   run(virtual=is_virtual,args=(graphfile & generator="chain" & bits=64 & proc=par_proc & nb_edges=100000000 & outfile="_data/chain.adj_bin")) ;
+   run(virtual=is_virtual,args=(graphfile & generator="square_grid" & bits=64 & proc=par_proc & nb_on_side=10000 & outfile="_data/square_grid.adj_bin")) ;
+   run(virtual=is_virtual,args=(graphfile & generator="phased" & bits=64 & proc=par_proc & nb_phases=100 & nb_vertices_per_phase=1000 & outfile="_data/phased.adj_bin"))
+
+let generate_my_graphs () =
+   system("mkdir -p _data");
+   system("make graphfile.opt2 -j");
+   produce_graphs()
+
+let graphfiles_small =   (infile="_data/tree.adj_bin"             & source=0)
+    		      ++ (infile="_data/phased.adj_bin"           & source=0)
+
+let graphfiles =    graphfiles_small
+                 ++ (infile="_data/chain.adj_bin"            & source=0)
+		 ++ (infile="_data/square_grid.adj_bin"      & source=0)
+                 ++ (infile="~/data/friendster.adj_bin"      & source=123)
+
+let graphsearch_from_file_cmd = (prog="./search.opt2" & bits=64 & load="from_file")
+let graphsearch = (graphsearch_from_file_cmd & graphfiles)
+
+
+(*--------------------------------------------------------------*)
+(* Experiments that vary settings of manual cutoff *)
+
+let prepare_for_cutoff_experiments () =
+  system("mkdir -p _cutoff_results")
+
+
+let ls_pbfs_cutoff () =
+  prepare_for_cutoff_experiments () &&
+  scatter_runplot(
+      virtual=is_virtual,
+      runs=nb_runs,
+      output="_cutoff_results/ls_pbfs_cutoff.pdf",
+      results="_cutoff_results/ls_pbfs_cutoff.txt",
+      charts=(graphsearch_from_file_cmd & proc=40 & algo="ls_pbfs" & idempotent=idempotent & frontier="ls_bag" & graphfiles),
+      x=(ls_pbfs_cutoff_code=["11";"12";"21";"22";"13";"31";"32";"23";"33"]),
+      y=exectime,
+      ylabel="exectime"
+    )
+
+let baseline_our_pbfs_cutoff = 8192
+
+let our_pbfs_cutoff () =
+   bar_runplot(
+      virtual=is_virtual,
+      runs=nb_runs,
+      results="_cutoff_results/results_our_pbfs_cutoff.txt",
+      output="_cutoff_results/our_pbfs_cutoff.pdf",
+      charts=(graphsearch_from_file_cmd & algo="our_pbfs" & idempotent=idempotent & graphfiles_small),
+      series=(our_pbfs_cutoff=[baseline_our_pbfs_cutoff;32768;65536;131072]),
+      x=(proc=40),
+      y= exectime / (mean_of(results_values("exectime",
+         results_select(_all_results, prog=prog & our_pbfs_cutoff=baseline_our_pbfs_cutoff)))),
+      yzero=1,
+      ylabel="exectime, normalized to our_pbfs_cutoff=8192",
+      label_rotation="horizontal")
+
+let baseline_cong_pseudodfs_cutoff = 8192
+
+let cong_pseudodfs_cutoff () =
+  bar_runplot(
+    virtual=is_virtual,
+    runs=nb_runs,
+    results="_cutoff_results/results_cong_pseudodfs_cutoff.txt",
+    output="_cutoff_results/cong_pseudodfs_cutoff.pdf",
+    charts=(graphsearch_from_file_cmd & algo="cong_pseudodfs" & frontier="stl_deque" & idempotent=idempotent & graphfiles_small),
+    series=(cong_pseudodfs_cutoff=[baseline_cong_pseudodfs_cutoff;32768;65536;131072]),
+    x=(proc=40),
+    y= exectime / (mean_of(results_values("exectime",
+        results_select(_all_results, prog=prog & cong_pseudodfs_cutoff=baseline_cong_pseudodfs_cutoff)))),
+    yzero=1,
+    ylabel="exectime, normalized to cong_pseudodfs_cutoff=smallest",
+    label_rotation="horizontal")
+
+let baseline_our_pseudodfs_cutoff = 8192
+
+let our_pseudodfs_cutoff () =
+  bar_runplot(
+    virtual=is_virtual,
+    runs=nb_runs,
+    results="_cutoff_results/results_our_pseudodfs_cutoff.txt",
+    output="_cutoff_results/our_pseudodfs_cutoff.pdf",
+    charts=(graphsearch_from_file_cmd & algo="our_pseudodfs" & idempotent=idempotent & graphfiles_small),
+    series=(our_pseudodfs_cutoff=[baseline_our_pseudodfs_cutoff;32768;65536;131072]),
+    x=(proc=40),
+    y= exectime / (mean_of(results_values("exectime",
+        results_select(_all_results, prog=prog & our_pseudodfs_cutoff=baseline_our_pseudodfs_cutoff)))),
+    yzero=1,
+    ylabel="exectime, normalized to our_pseudodfs_cutoff=smallest",
+    label_rotation="horizontal")
+
+(*--------------------------------------------------------------*)
+(* Shootouts *)
+
+let prepare_for_shootout () =
+  system("mkdir -p _shootout_results") &&
+  system("make search.opt2 -j")
+
+(* Serial BFS *)
+
+let serial_bfs_algos = (    (algo="bfs_by_array")
+                        ++  (algo="bfs_by_dynamic_array" & frontier="stl_deque")
+                        ++  (algo="bfs_by_dual_arrays")
+                        ++  (algo="bfs_by_dual_frontiers_and_foreach" & frontier="stl_deque")
+			++  (algo="bfs_by_dual_frontiers_and_pushpop" & frontier="stl_deque")
+			++  (algo="bfs_by_frontier_segment")  )
+
+let serial_bfs () =
+  prepare_for_shootout() &&
+  bar_runplot(
+    virtual=is_virtual,
+    runs=nb_runs,
+    results="_shootout_results/results_serial_bfs.txt",
+    output="_shootout_results/serialbfs.pdf",
+    charts=graphsearch,
+    series=serial_bfs_algos,
+    x=(proc=0),
+    y= exectime,
+    yzero=1,
+    ylabel="exectime",
+    label_rotation="horizontal")
+
+let serial_dfs_algos = (    (algo="dfs_by_vertexid_array")
+    		         ++ (algo="dfs_by_vertexid_frontier" & frontier="stl_deque")
+			 ++ (algo="dfs_by_frontier_segment")  )
+
+let serial_dfs () =
+  prepare_for_shootout () &&
+  bar_runplot(
+    virtual=is_virtual,
+    runs=nb_runs,
+    results="_shootout_results/results_serial_dfs.txt",
+    output="_shootout_results/serialdfs.pdf",
+    charts=graphsearch,
+    series=serial_dfs_algos,
+    x=(proc=0),
+    y= exectime,
+    yzero=1,
+    ylabel="exectime",
+    label_rotation="horizontal")
+
+let serial_shootout () = serial_bfs(); serial_dfs()
+
+(* Parallel BFS *)
+
+let best_serial_bfs = (algo="bfs_by_array")
+
+let pbfs_algos = (   (algo="ls_pbfs" & idempotent=idempotent & frontier="chunkedseq_bag" & ls_pbfs_cutoff_code=12)
+                  ++ (algo="ls_pbfs" & idempotent=idempotent & frontier="ls_bag" & ls_pbfs_cutoff_code=12)
+                  ++ (algo="pbbs_pbfs" & idempotent=idempotent & loop_cutoff=1000)
+                  ++ (algo="our_pbfs" & idempotent=idempotent & loop_cutoff=1000 & our_pbfs_cutoff=90000) )
+
+let pbfs_plot() =
+   bar_plot(
+      virtual=is_virtual,
+      runs=nb_runs,
+      results=["_shootout_results/results_pbfs_base.txt";"_shootout_results/results_pbfs.txt"],
+      output="_shootout_results/pbfs.pdf",
+      charts=graphsearch,
+      series=(best_serial_bfs ++ pbfs_algos),
+      x=(proc=tera_proc),
+      y= exectime,
+      yzero=1,
+      ylabel="exectime",
+      label_rotation="horizontal")
+
+let pbfs () =
+   prepare_for_shootout() &&
+   run(
+     output="_shootout_results/results_pbfs_base.txt",
+     virtual=is_virtual,
+     args = (graphsearch & best_serial_bfs & proc=tera_proc));
+   run(
+    virtual=is_virtual,
+    runs=nb_runs,
+    output="_shootout_results/results_pbfs.txt",
+    args=( graphsearch & pbfs_algos & (proc=tera_proc)));
+    pbfs_plot()
+
+(* Parallel pseudo DFS *)
+
+let best_serial_dfs = (algo="dfs_by_vertexid_array")
+
+let pseudodfs_algos = (    (algo="our_pseudodfs" & idempotent=idempotent & our_pseudodfs_cutoff=16000)
+                        ++ (algo="cong_pseudodfs" & idempotent=idempotent & frontier="stl_deque" & cong_pseudodfs_cutoff=32768))
+
+let pseudodfs_plot() =
+   bar_plot(
+      virtual=is_virtual,
+      runs=nb_runs,
+      results=["_shootout_results/results_pseudodfs_base.txt";"_shootout_results/results_pseudodfs.txt"],
+      output="_shootout_results/pseudodfs.pdf",
+      charts=graphsearch,
+      series=(best_serial_dfs ++ pseudodfs_algos),
+      x=(proc=tera_proc),
+      y= exectime,
+      yzero=1,
+      ylabel="exectime",
+      label_rotation="horizontal")
+
+let pseudodfs () =
+   prepare_for_shootout() &&
+   run(
+     output="_shootout_results/results_pseudodfs_base.txt",
+     args = (graphsearch & best_serial_dfs  & proc=tera_proc));
+   run(
+    virtual=is_virtual,
+    runs=nb_runs,
+    output="_shootout_results/results_pseudodfs.txt",
+    args=( graphsearch & pseudodfs_algos & (proc=tera_proc)));
+    pseudodfs_plot()
+
+(* for later:   x=((mode="seq") ++ (mode="par" & proc=tera_proc))*)
+
+let mymain () = pseudodfs() && pbfs()
+
+let all () =
+   ls_pbfs_cutoff(); our_pbfs_cutoff();
+   cong_pseudodfs_cutoff(); our_pseudodfs_cutoff();
+   pbfs(); pseudodfs()
+   (* could add others *)
+
+
+(* graph_source=file graph_file="foo"
+   graph_source=generator graph_generator=""
+
+*)
+
+let demo_graph_onthefly2 () =
+   bar_runplot(
+      runs=nb_runs,
+      results="results_onthefly.txt",
+      charts=(prog="./search.opt2" & frontier="stl_deque" & bits=64 & load="by_generator" & generator="parallel_paths" & algo="bfs_by_array" & nb_edges_target=30000000),
+      series=(nb_phases=1),
+      x=(nb_paths_per_phase=10^(0@5)),
+      other_args=(nb_edges_per_path=(nb_edges_target/nb_phases/nb_paths_per_phase)),
+      y=exectime,
+      yzero=1,
+      ylabel="exectime",
+      label_rotation="horizontal")
+
+let demo_graph_onthefly () =
+   bar_runplot(
+      runs=1,
+      results="results_onthefly.txt",
+      charts=(prog="./search.opt2" & frontier="stl_deque" & bits=64 & load="by_generator" & generator="parallel_paths" & algo="bfs_by_array"),
+      series=(nb_phases=1 & nb_paths_per_phase=1),
+      x=(nb_edges_per_path=[1;2;5]*10**(4@6)),
+      y=exectime,
+      yzero=1,
+      ylabel="exectime",
+      label_rotation="horizontal")
+
+let main () =
+  mymain()
+
+(* make study
+make -C ~/pbench/trunk pbench &&	~/pbench/trunk/pbench -open study.pbh "pbfs()"
+or:
+
+	make -C ~/pbench/trunk pbench &&	~/pbench/trunk/pbench -open study.pbh "demo_graph_onthefly()"
+
+
+
+	make -C ~/pbench/trunk pbench &&	~/pbench/trunk/pbench -open study.pbh "generate_my_graphs ()"
+*)

@@ -1,0 +1,349 @@
+
+# Assumptions:
+# - File extensions are .hpp and .cpp
+# - A .cpp file does not include another .cpp file
+# - All included files should have distinct base names.
+
+# Extension used:
+# .hpp : header file (or .hh or .h)
+# .cpp : source file
+# .d   : dependency file
+# .o   : compiled source file
+# .p   : fake compiled header file (always empty)
+# .ok  : asserts that .p, and .o (if .cpp exists) are both up to date
+
+
+####################################################################
+# Makefile parameters
+
+HEADER_EXTENSIONS=hpp hh h
+
+# define recognized suffixes
+
+.SUFFIXES:
+.SUFFIXES: $(addprefix .,$(HEADER_EXTENSIONS)) .cpp .S .d .p .o .ok $(addprefix ., $(MODES)) 
+
+# forced target
+
+force:
+
+####################################################################
+# List of sources with "main" functions
+
+# If $(PROGRAMS) is defined, use its value
+# Else if $(PROGRAMS_FOLDERS) is defined, use $(PROGRAMS_FOLDERS)/*.cpp
+# Else, use ./*.cpp
+
+ifeq ($(PROGRAMS_FOLDERS),)
+   PROGRAMS_FOLDERS=./
+endif
+ifeq ($(PROGRAMS),)
+	PROGRAMS=$(wildcard $(addsuffix /*.cpp, $(PROGRAMS_FOLDERS)))
+endif
+
+
+####################################################################
+# Paths of files and folders used
+
+# Where to put obj files --they will be in $(BUILD)/$(MODE)/*.o
+BUILD:=_build
+
+BUILD_FOLDERS=$(addprefix $(BUILD)/,$(MODES))
+
+# todo: factorize pattern below:
+HEADERS=$(foreach ext,$(HEADER_EXTENSIONS),$(wildcard $(addsuffix /*.$(ext), $(FOLDERS))))
+IMPLEMS=$(wildcard $(addsuffix /*.cpp, $(FOLDERS)))
+ASMIMPLEMS=$(wildcard $(addsuffix /*.S, $(FOLDERS)))
+HEADERS_AND_IMPLEMS=$(HEADERS) $(IMPLEMS)
+
+DEPENDS_FILENAMES=$(addsuffix .d,$(notdir $(HEADERS_AND_IMPLEMS)))
+DEPENDS=$(foreach mode,$(MODES),$(addprefix $(BUILD)/,$(addprefix $(mode),$(addprefix /,$(DEPENDS_FILENAMES)))))
+
+COMPILESH=compile.sh
+
+HEADERS_NODIR=$(foreach f,$(HEADERS),$(notdir $(f)))
+IMPLEMS_NODIR=$(foreach f,$(IMPLEMS),$(notdir $(f))) $(foreach f,$(ASMIMPLEMS),$(notdir $(f)))
+
+
+####################################################################
+# Makefile options
+
+ifeq ($(VERBOSE_MAKE),0)
+   VERBOSE=@
+else
+   VERBOSE=
+endif
+
+ifeq ($(VERBOSE_DEPENDENCIES),0)
+   report_dep=
+   report_dep_file=
+else
+   report_dep=$(if $2,$(info $1 $2),)
+   report_dep_file=$(if $(wildcard $2),$(if $(shell cat $2),$(info $1 $(shell cat $2)),))
+endif
+
+
+####################################################################
+# Check for duplicates
+
+define error-if-duplicates
+$(foreach f,$1,$(if $(word 2,$(filter $(f),$1)),$(error duplicated file $(f)),))
+endef
+	
+ifeq ($(findstring $(MAKECMDGOALS),clean),)
+   $(call error-if-duplicates,$(HEADERS_NODIR))
+   $(call error-if-duplicates,$(IMPLEMS_NODIR))
+endif
+
+
+####################################################################
+# Compilation options
+
+INCLUDES_DIRECTIVE=$(addprefix -I ,$(INCLUDES))
+
+# Helper: "compile-script-for $1" returns the content of the compile
+# script for mode $1
+DOLLAR=$$
+compile-script-for=$(COMPILER) $(COMPILE_OPTIONS_FOR_$1) $(COMPILE_OPTIONS_COMMON) $(INCLUDES_DIRECTIVE) -I $(BUILD)/$1 $(DOLLAR)*
+
+
+####################################################################
+# Generation of build folders
+
+# rules for created build folders,
+# and order-only prerequisite rule for performing creation when needed
+
+define generate-build-folder
+$(BUILD)/$1/%: | $(BUILD)/$1 
+$(BUILD)/$1: 
+	$(VERBOSE)mkdir -p $$@
+endef
+$(foreach mode,$(MODES),$(eval $(call generate-build-folder,$(mode))))
+
+build_folders: $(BUILD_FOLDERS)
+
+
+####################################################################
+# Generation of targets for "compile.sh" scripts
+
+# Rules for generating a compile.sh script in each folder;
+# This compile script is used to produce .o and binary files.
+# The file $(BUILD)/$(MODE)/compile.sh needs to be regenerated when
+# the value of $(call compile-script-for,$(MODE)) changes.
+# So, if the file already exists and has up-to-date content,
+# we do not generate a creation rule for it
+
+# Helper: "file_exists $1" returns $1 if the file $1 exists, empty otherwise
+file_exists=$(shell if [ -f $1 ] ; then echo $1 ; fi)
+
+# Helper: "eq $1 $2" tests whether two (nonempty) strings are equal; 
+# returns the string if so, or empty otherwise
+eq=$(and $(findstring $(1),$(2)),$(findstring $(2),$(1)))
+
+# Helper: escape dollars occuring in a string to be passed to echo
+escape_echo_arg=$(subst $$,\$$$$,$1)
+
+# Helper: "file_has_content $1 $2" returns $2 if file $1 has (nonempty)
+# content $2 and returns empty otherwise
+file_has_content=$(and $(call file_exists,$1),$(call eq,$(call escape_echo_arg,$2),$(call escape_echo_arg,$(shell cat $1))))
+
+define generate-compile-script
+$(BUILD)/$1/$(COMPILESH): force | $(BUILD)/$1 
+	$(VERBOSE)echo "$(call escape_echo_arg,$(call compile-script-for,$1))" > $$@
+	$(VERBOSE)chmod +x $$@
+endef
+
+VERBOSE_COMPILESH=0
+
+$(foreach mode,$(MODES),$(eval \
+   $(if $(call file_has_content,$(BUILD)/$(mode)/$(COMPILESH),$(call compile-script-for,$(mode))),\
+      $(if $(call eq,$(VERBOSE_COMPILESH),1),$(info $(BUILD)/$(mode)/$(COMPILESH) already up to date),),\
+      $(eval $(call generate-compile-script,$(mode))))))
+
+build_compile_scripts: build_folders $(addsuffix /$(COMPILESH),$(BUILD_FOLDERS))
+
+
+####################################################################
+# Generation of .d targets
+
+# See file depend.sh for documentation
+
+DEPEND_SCRIPT=$(BUILD_TOOLS_PATH)/depend.sh
+FILTEROBJ_SCRIPT=$(BUILD_TOOLS_PATH)/filterobj.sh
+
+define generate-dep-rule
+$(BUILD)/$1/$(notdir $2).d: $2 | $(BUILD)/$1
+	$(DEPEND_SCRIPT) $2 $(BUILD)/$1 > $$@ 
+endef
+$(foreach mode,$(MODES),$(foreach f,$(HEADERS_AND_IMPLEMS),$(eval $(call generate-dep-rule,$(mode),$(f)))))
+
+depend: $(DEPENDS) 
+
+
+
+####################################################################
+# Include all dependency (.d) files
+
+# import .d files, if the goal is not "clean" or "depend", or "test"
+
+define import-dep-files
+-include $(BUILD)/$1/$(notdir $2).d
+$(call report_dep_file,-->,$(BUILD)/$1/$(notdir $2).d)
+endef
+
+ifeq ($(findstring $(MAKECMDGOALS),clean depend test),)
+$(foreach mode,$(MODES),$(foreach f,$(HEADERS_AND_IMPLEMS),$(eval $(call import-dep-files,$(mode),$(f)))))
+endif
+
+
+####################################################################
+# Generation of .p targets
+
+# generation of .p targets, by touch;
+# note that additional dependencies come from the generated dependency files
+
+define generate-p-rule
+$(BUILD)/$1/$(notdir $(basename $2)).p: $2 | $(BUILD)/$1
+	$(VERBOSE)touch $$@
+endef
+$(foreach mode,$(MODES),$(foreach f,$(HEADERS),$(eval $(call generate-p-rule,$(mode),$(f)))))
+
+
+####################################################################
+# Generation of .o targets from .cpp
+
+# generation of .o targets, by compilation;
+# note that additional dependencies come from the generated dependency files
+
+define generate-o-rule
+$(call report_dep,~~>,$(BUILD)/$1/$(notdir $(basename $2)).o: $(BUILD)/$1/$(notdir $2).d $2)
+$(BUILD)/$1/$(notdir $(basename $2)).o: $(BUILD)/$1/$(notdir $2).d $2 $(BUILD)/$1/$(COMPILESH)
+	./$(BUILD)/$1/$(COMPILESH) -o $$@ -c $2
+endef
+$(foreach mode,$(MODES),$(foreach f,$(IMPLEMS),$(eval $(call generate-o-rule,$(mode),$(f)))))
+
+
+####################################################################
+# Generation of .o targets from .S
+
+# TODO: add the report_dep
+
+define generate-o-rule
+$(BUILD)/$1/$(notdir $(basename $2)).o: $2 $(BUILD)/$1/$(COMPILESH)
+	./$(BUILD)/$1/$(COMPILESH) -o $$@ -c $2
+endef
+$(foreach mode,$(MODES),$(foreach f,$(ASMIMPLEMS),$(eval $(call generate-o-rule,$(mode),$(f)))))
+
+
+####################################################################
+# Generation of .ok targets
+
+# The target %.ok depends %.p if %.hpp exists, and 
+# it depends on %.o if %.cpp or %.S exists.
+
+
+# compute the %.cpp associated with a %.hpp file named $1, 
+# if there exists a corresponding implementation file, empty otherwise
+cpp_of_hpp=$(filter $(basename $(notdir $1)).cpp,$(IMPLEMS_NODIR))
+
+# compute the %.cpp associated with a %.S file named $1, 
+# if there exists a corresponding implementation file, empty otherwise
+S_of_hpp=$(filter $(basename $(notdir $1)).S,$(IMPLEMS_NODIR))
+
+# compute the %.S or %.cpp associated with a %.hpp file named $1, 
+# if there exists a corresponding implementation file, empty otherwise
+cpp_or_S_of_hpp=$(call cpp_of_hpp,$1)$(call S_of_hpp,$1)
+
+# compute the $build/$1/%.o associated with a %.hpp file named $2, 
+# if the %.cpp or %.S exists (both should not coexist), empty otherwise
+o_of_hpp=$(addprefix $(BUILD)/$1/,$(addsuffix .o,$(basename $(notdir $(call cpp_or_S_of_hpp,$2)))))
+
+# generation of .ok targets : dependency on the *.d file,
+# on the .p file, and on the .o file if the corresponding .cpp/.S file exists;
+# note that additional dependencies come from the generated dependency files.
+
+define generate-ok-rule
+$(call report_dep,==>,$(BUILD)/$1/$(notdir $(basename $2)).ok: $(BUILD)/$1/$(notdir $2).d $(call p_of_hpp,$1,$2) $(call o_of_hpp,$1,$2))
+$(BUILD)/$1/$(notdir $(basename $2)).ok: $(BUILD)/$1/$(notdir $2).d $(call p_of_hpp,$1,$2) $(call o_of_hpp,$1,$2) | $(BUILD)/$1
+	$(VERBOSE)touch $$@
+endef
+$(foreach mode,$(MODES),$(foreach f,$(HEADERS),$(eval $(call generate-ok-rule,$(mode),$(f)))))
+
+
+####################################################################
+# Generation of .$(mode) targets
+
+# Helper function: computes the list of .ok files that are required
+# for building a given basename
+ok_files_for_prog=$(shell php $(BUILD_TOOLS_PATH)/filterobjdfs.php $(BUILD)/$1 $2)
+
+# Helper function: computes the list of .o files that are required
+# for building a given basename
+obj_files_for_prog=$(strip $(foreach f,$(call ok_files_for_prog,$1,$2),$(call o_of_hpp,$1,$f)))
+
+# generation of "foo.mode" main programs.
+# note that additional dependencies come from the generated dependency files.
+# bonus: generation of "foo.mode.show_depend" targets for debugging dependencies.
+
+define generate-main-rule
+$(notdir $(basename $2)).$1: $(call obj_files_for_prog,$1,$(notdir $(basename $2)))
+	@echo =================
+	@echo `cat ./$(BUILD)/$1/${COMPILESH}` $$^ -o $$@
+	@echo =================
+	$(VERBOSE)./$(BUILD)/$1/$(COMPILESH) $$^ -o $$@
+
+$(notdir $(basename $2)).$1.show_depend: depend
+	@echo SRC_DEPENDENCIES=$(notdir $(basename $(call ok_files_for_prog,$1,$(notdir $(basename $2)))))
+	@echo OBJ_DEPENDENCIES=$(notdir $(basename $(notdir $(call obj_files_for_prog,$1,$(notdir $(basename $2))))))
+endef
+
+# note: generation is deactivated if goal is clean
+ifeq ($(findstring $(MAKECMDGOALS),clean),)
+$(foreach mode,$(MODES),$(foreach f,$(PROGRAMS),$(eval $(call generate-main-rule,$(mode),$(f)))))
+endif
+
+# deactivated for efficiency: $(call report_dep,==>,$(notdir $(basename $2)).$1: $(call obj_files_for_prog,$1,$(notdir $(basename $2))))
+# remark: we assume compile.sh was not modified by hand,i.e.: $(notdir $(basename $2)).$1: $(BUILD)/$1/$(COMPILESH)
+
+
+####################################################################
+# Targets
+
+# Helper function to build a binary in all modes
+all_modes_for=$(foreach mode,$(MODES),$1.$(mode))
+
+
+####################################################################
+# Clean
+
+clean_build:
+	rm -Rf _build/
+
+# Be careful, this could be dangerous if $(MODES) conflicts with existing extensions!
+
+clean_modes:
+	rm -f $(addprefix ./*.,$(MODES))
+
+
+####################################################################
+# Debug
+
+show_files:
+	@echo HEADERS=$(HEADERS) 
+	@echo IMPLEMS=$(IMPLEMS)
+
+show_bases:
+	@echo $(HEADERS_NODIR)
+	@echo $(IMPLEMS_NODIR)
+
+show_compil:
+	ls $(BUILD)/*/$(COMPILESH)
+	cat $(BUILD)/*/$(COMPILESH)
+
+
+####################################################################
+# Target for building bench_tools
+
+benchtools:
+	make -C $(BENCHTOOLS_PATH) all
+
