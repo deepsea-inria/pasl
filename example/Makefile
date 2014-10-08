@@ -17,9 +17,9 @@ USE_MATH=1
 ####################################################################
 # Default options
 
-USE_ALLOCATOR=tcmalloc
-USE_HWLOC=1
-USE_NUMA=1
+USE_ALLOCATOR=
+USE_HWLOC=0
+USE_NUMA=0
 
 # todo activate? USE_ANSI=1
 
@@ -30,14 +30,8 @@ VERBOSE_DEPENDENCIES=0
 PROGRAMS=\
 	fib.cpp \
 	hull.cpp \
-	bhut.cpp \
-	mergesort.cpp \
-	super_parallel_array.cpp \
-	super_parallel_array_mike.cpp \
-	loops.cpp \
-	cilk-pwhile.cpp \
-	parallel_while_cas_ri.cpp
-
+	bhut.cpp 
+#       add reference to your cpp source here
 
 ####################################################################
 # Makefile options
