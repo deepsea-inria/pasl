@@ -126,12 +126,16 @@ supported. However, it is possible to build from an XCode project.
 3. In the "build phases" configuration page of the new target binary,
    add to the "Compile Sources" box the contents of the following
    directories.
+
 - `sequtil`
 - `parutil`
 - `sched`       (except for `pasl.S`; this file should not be imported)
+
 4. Add to the `CFLAGS` of the target binary the following flags.
+
 - `-DTARGET_MAC_OS`
 - `-D_XOPEN_SOURCE`
+
 5. Add to your project the remaining source files that you want to
    compile. Remember to add one file which defines the `main()`
    routine. For example, you could add `examples/fib.cpp` if you want
