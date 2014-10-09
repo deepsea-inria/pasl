@@ -60,6 +60,10 @@ ifeq ($(JEMALLOC_PATH),)
    JEMALLOC_PATH=$(TOOLS_PATH)/jemalloc
 endif
 
+ifeq ($(MALLOC_COUNT_PATH),)
+   MALLOC_COUNT_PATH=$(TOOLS_PATH)/malloc_count
+endif
+
 ifeq ($(QUICKCHECK_PATH),)
    QUICKCHECK_PATH=$(TOOLS_PATH)/quickcheck
 endif
@@ -72,10 +76,6 @@ ifeq ($(PBBS_PATH),)
    PBBS_PATH=$(TOOLS_PATH)/pbbs
 endif
 
-ifeq ($(MALLOC_COUNT_PATH),)
-   MALLOC_COUNT_PATH=$(TOOLS_PATH)/malloc_count
-endif
-
 ifeq ($(HWLOC_INSTALL_PATH),)
    HWLOC_INSTALL_PATH=$(TOOLS_PATH)/hwloc
 endif
@@ -83,7 +83,6 @@ endif
 ifeq ($(CILKRTS_PATH),)
    CILKRTS_PATH=$(PASL_ROOT_PATH)/external/libcilkrts
 endif
-
 
 ####################################################################
 # Target OS detection (linux or macos)
@@ -268,8 +267,10 @@ endif
 ####################################################################
 # Custom allocators
 
+OPTIONS_MALLOC_COUNT=-DUSE_MALLOC_COUNT $(MALLOC_COUNT_PATH)/malloc_count.o -ldl
+
 # USE_ALLOCATOR should be one of:
-#   [empty], default, miser, hoard, tcmalloc, jemalloc
+#   [empty], default, miser, hoard, tcmalloc, jemalloc, malloc_count
 
 ifeq ($(USE_ALLOCATOR),)
    USE_ALLOCATOR=default
@@ -287,7 +288,7 @@ else ifeq ($(USE_ALLOCATOR),tcmalloc)
 else ifeq ($(USE_ALLOCATOR),jemalloc)
    OPTIONS_ALLOC=-ljemalloc -L$(JEMALLOC_PATH)
 else ifeq ($(USE_ALLOCATOR),malloc_count)
-   OPTIONS_ALLOC=-DUSE_MALLOC_COUNT $(MALLOC_COUNT_PATH)/malloc_count.o -ldl
+   OPTIONS_ALLOC=$(OPTIONS_MALLOC_COUNT)
 else ifeq ($(USE_ALLOCATOR),default)
    OPTIONS_ALLOC=
 else
