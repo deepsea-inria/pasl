@@ -72,9 +72,7 @@ public:
   
 };
 
-using array_move = array&&;
 using array_ref = array&;
-using const_array_move = const array&&;
 using const_array_ref = const array&;
 
 std::ostream& operator<<(std::ostream& out, const_array_ref xs) {
@@ -87,11 +85,6 @@ std::ostream& operator<<(std::ostream& out, const_array_ref xs) {
   }
   out << "]";
   return out;
-}
-
-template< class T >
-typename std::remove_reference<T>::type&& mv( T&& t ) {
-  return std::move(t);
 }
 
 /*---------------------------------------------------------------------*/
@@ -112,6 +105,10 @@ auto min_fct = [] (value_type x, value_type y) {
   return std::min(x, y);
 };
 
+auto and_fct = [] (value_type x, value_type y) {
+  return x and y;
+};
+
 auto plus1_fct = [] (value_type x) {
   return plus_fct(x, 1);
 };
@@ -127,13 +124,13 @@ auto is_even_fct = [] (value_type x) {
 /*---------------------------------------------------------------------*/
 
 template <class Func>
-void iter(const Func& f, array_move xs) {
+void iter(const Func& f, array_ref xs) {
   for (long i = 0; i < xs.size(); i++)
     f(xs[i]);
 }
 
 template <class Func>
-array map(const Func& f, const_array_move xs) {
+array map(const Func& f, const_array_ref xs) {
   long sz = xs.size();
   array tmp = array(sz);
   for (long i = 0; i < sz; i++)
@@ -141,7 +138,7 @@ array map(const Func& f, const_array_move xs) {
   return tmp;
 }
 
-array take(const_array_move xs, long n) {
+array take(const_array_ref xs, long n) {
   assert(n <= xs.size());
   assert(n >= 0);
   array tmp = array(n);
@@ -150,7 +147,7 @@ array take(const_array_move xs, long n) {
   return tmp;
 }
 
-array drop(const_array_move xs, long n) {
+array drop(const_array_ref xs, long n) {
   long sz = xs.size();
   assert(n <= sz);
   assert(n >= 0);
@@ -161,12 +158,12 @@ array drop(const_array_move xs, long n) {
   return tmp;
 }
 
-array copy(const_array_move xs) {
-  return take(mv(xs), xs.size());
+array copy(const_array_ref xs) {
+  return take(xs, xs.size());
 }
 
 template <class Assoc_op, class Lift_func>
-value_type reduce(const Assoc_op& op, const Lift_func& lift, value_type id, const_array_move xs) {
+value_type reduce(const Assoc_op& op, const Lift_func& lift, value_type id, const_array_ref xs) {
   value_type x = id;
   for (long i = 0; i < xs.size(); i++)
     x = op(x, lift(xs[i]));
@@ -174,28 +171,28 @@ value_type reduce(const Assoc_op& op, const Lift_func& lift, value_type id, cons
 }
 
 template <class Assoc_op>
-value_type reduce(const Assoc_op& op, value_type id, const_array_move xs) {
-  return reduce(op, identity_fct, id, mv(xs));
+value_type reduce(const Assoc_op& op, value_type id, const_array_ref xs) {
+  return reduce(op, identity_fct, id, xs);
 }
 
-value_type sum(value_type id, const_array_move xs) {
-  return reduce(plus_fct, id, mv(xs));
+value_type sum(value_type id, const_array_ref xs) {
+  return reduce(plus_fct, id, xs);
 }
 
-value_type sum(const_array_move xs) {
-  return reduce(plus_fct, 0, mv(xs));
+value_type sum(const_array_ref xs) {
+  return reduce(plus_fct, 0, xs);
 }
 
-value_type max(const_array_move xs) {
-  return reduce(max_fct, LONG_MIN, mv(xs));
+value_type max(const_array_ref xs) {
+  return reduce(max_fct, LONG_MIN, xs);
 }
 
-value_type min(const_array_move xs) {
-  return reduce(min_fct, LONG_MAX, mv(xs));
+value_type min(const_array_ref xs) {
+  return reduce(min_fct, LONG_MAX, xs);
 }
 
 template <class Assoc_op, class Lift_func>
-array scan(const Assoc_op& op, const Lift_func& lift, value_type id, const_array_move xs) {
+array scan(const Assoc_op& op, const Lift_func& lift, value_type id, const_array_ref xs) {
   long sz = xs.size();
   value_type x = id;
   array tmp = array(sz);
@@ -207,20 +204,20 @@ array scan(const Assoc_op& op, const Lift_func& lift, value_type id, const_array
 }
 
 template <class Assoc_op>
-array scan(const Assoc_op& op, value_type id, const_array_move xs) {
-  return scan(op, identity_fct, id, mv(xs));
+array scan(const Assoc_op& op, value_type id, const_array_ref xs) {
+  return scan(op, identity_fct, id, xs);
 }
 
-array partial_sums(value_type id, const_array_move xs) {
-  return scan(plus_fct, identity_fct, id, mv(xs));
+array partial_sums(value_type id, const_array_ref xs) {
+  return scan(plus_fct, identity_fct, id, xs);
 }
 
-array partial_sums(const_array_move xs) {
-  return scan(plus_fct, identity_fct, 0, mv(xs));
+array partial_sums(const_array_ref xs) {
+  return scan(plus_fct, identity_fct, 0, xs);
 }
 
-array pack(const_array_move flags, const_array_move xs) {
-  array offsets = partial_sums(mv(flags));
+array pack(const_array_ref flags, const_array_ref xs) {
+  array offsets = partial_sums(flags);
   long n = xs.size();
   long last = n-1;
   value_type m = offsets[last] + flags[last];
@@ -232,34 +229,34 @@ array pack(const_array_move flags, const_array_move xs) {
 }
 
 template <class Pred>
-array filter(const Pred& p, const_array_move xs) {
-  array flags = map(p, mv(xs));
-  return pack(mv(flags), mv(xs));
+array filter(const Pred& p, const_array_ref xs) {
+  array flags = map(p, xs);
+  return pack(flags, xs);
 }
 
-array just_evens(const_array_move xs) {
-  return filter(is_even_fct, mv(xs));
+array just_evens(const_array_ref xs) {
+  return filter(is_even_fct, xs);
 }
 
 /*---------------------------------------------------------------------*/
 
-array duplicate(const_array_move xs) {
+array duplicate(const_array_ref xs) {
   array tmp(xs.size());
   return tmp;
 }
 
-array ktimes(const_array_move xs) {
+array ktimes(const_array_ref xs) {
   array tmp(xs.size());
   return tmp;
 }
 
 template <class Pred, class Assoc_op, class Lift_func>
-value_type filter_reduce(const Pred& p, const Assoc_op& op, const Lift_func& lift, value_type id, const_array_move xs) {
+value_type filter_reduce(const Pred& p, const Assoc_op& op, const Lift_func& lift, value_type id, const_array_ref xs) {
   return id;
 }
 
 template <class Pred, class Func>
-array filter_map(const Pred& p, const Func& f, const_array_move xs) {
+array filter_map(const Pred& p, const Func& f, const_array_ref xs) {
   array tmp(xs.size());
   return tmp;
 }
@@ -293,7 +290,7 @@ array from_parens(std::string str) {
   return tmp;
 }
 
-std::string to_parens(const_array_move xs) {
+std::string to_parens(const_array_ref xs) {
   long sz = xs.size();
   std::string str(sz, 'x');
   for (long i = 0; i < sz; i++)
@@ -301,30 +298,45 @@ std::string to_parens(const_array_move xs) {
   return str;
 }
 
-bool matching_parens(const_array_move xs) {
-  return true;
+bool matching_parens(const_array_ref parens) {
+  long n = parens.size();
+  auto lift1_fct = [] (value_type v) {
+    return (v == open_paren) ? 1l : -1l;
+  };
+  array ks = scan(plus_fct, lift1_fct, 0l, parens);
+  auto lift2_fct = [] (value_type x) {
+    return x >= 0;
+  };
+  long last = n-1;
+  if (ks[last] + lift1_fct(parens[last]) != 0)
+    return false;
+  return reduce(and_fct, lift2_fct, true, ks);
+}
+
+bool matching_parens(const std::string& xs) {
+  return matching_parens(from_parens(xs));
 }
 
 /*---------------------------------------------------------------------*/
 
 void doit() {
   array xs = { 0, 1, 2, 3, 4, 5, 6 };
-  iter(incr_fct, mv(xs));
+  iter(incr_fct, xs);
   std::cout << "xs=" << xs << std::endl;
-  array ys = map(plus1_fct, mv(xs));
-  std::cout << "xs(copy)=" << copy(mv(xs)) << std::endl;
+  array ys = map(plus1_fct, xs);
+  std::cout << "xs(copy)=" << copy(xs) << std::endl;
   std::cout << "ys=" << ys << std::endl;
-  value_type v = sum(mv(ys));
+  value_type v = sum(ys);
   std::cout << "v=" << v << std::endl;
-  array zs = partial_sums(mv(xs));
+  array zs = partial_sums(xs);
   std::cout << "zs=" << zs << std::endl;
-  std::cout << "max=" << max(mv(ys)) << std::endl;
-  std::cout << "min=" << min(mv(ys)) << std::endl;
+  std::cout << "max=" << max(ys) << std::endl;
+  std::cout << "min=" << min(ys) << std::endl;
   std::cout << "tmp=" << map(plus1_fct, array({100, 101})) << std::endl;
-  std::cout << "evens=" << just_evens(mv(ys)) << std::endl;
+  std::cout << "evens=" << just_evens(ys) << std::endl;
   
-  std::cout << "take=" << take(mv(xs), 3) << std::endl;
-  std::cout << "drop=" << drop(mv(xs), 4) << std::endl;
+  std::cout << "take=" << take(xs, 3) << std::endl;
+  std::cout << "drop=" << drop(xs, 4) << std::endl;
   
   std::cout << "parens=" << to_parens(from_parens("()()((()))")) << std::endl;
   std::cout << "matching=" << matching_parens(from_parens("()()((()))")) << std::endl;
@@ -332,6 +344,9 @@ void doit() {
 
   std::cout << "empty=" << array({}) << std::endl;
   
+  std::cout << matching_parens("()(())(") << std::endl;
+  std::cout << matching_parens("()(())((((()()))))") << std::endl;
+
 }
 
 int main(int argc, char** argv) {
