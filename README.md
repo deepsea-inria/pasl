@@ -55,8 +55,8 @@ Package dependencies
 --------------------
 
 ----------------------------------------------------------------------------------------
-        Package                     Version     Details
----------------                   ----------    ----------------------------------------
+                        Package   Version     Details
+-------------------------------   ----------    ----------------------------------------
 [gcc](https://gcc.gnu.org/)       >= 4.9.0      Recent gcc is required because PASL 
                                                 makes heavy use of recent features
                                                 of C++ / C++1x, such as lambda 

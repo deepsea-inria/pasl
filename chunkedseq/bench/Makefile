@@ -38,7 +38,7 @@ include $(TOOLS_BUILD_FOLDER)/Makefile_options
 # (If extending the list, need to add cases for the definition
 # of COMPILE_OPTIONS_FOR further below, and also for "clean".
 
-KEYS=exe dbg
+KEYS=exe dbg mct
 KINDS=full fifolifo chunksize filter splitmerge map
 MODES=$(KEYS) $(foreach key,$(KEYS),$(addprefix $(key)_,$(KINDS))) 
 
@@ -50,9 +50,12 @@ MODES=$(KEYS) $(foreach key,$(KEYS),$(addprefix $(key)_,$(KINDS)))
 
 # Compilation options for each mode
 
-COMPILE_OPTIONS_COMMON=$(OPTIONS_ALL) $(OPTIONS_SETTINGS_SH)
+COMPILE_OPTIONS_COMMON=$(OPTIONS_COMPILATION) $(OPTIONS_ARCH_DEPENDENT) $(OPTIONS_PARALLELISM) $(OPTIONS_EXTRA_TOOLS) 
+
+#COMPILE_OPTIONS_COMMON=$(OPTIONS_ALL) $(OPTIONS_SETTINGS_SH)
 OPTIONS_dbg=$(OPTIONS_DEBUG)
-OPTIONS_exe=$(OPTIONS_O2)
+OPTIONS_exe=$(OPTIONS_O2) $(OPTIONS_ALLOCATORS)
+OPTIONS_mct=$(OPTIONS_O2) $(OPTIONS_MALLOC_COUNT)
 
 SKIP_STRUCT=-DSKIP_DEQUE -DSKIP_CHUNKEDSEQ -DSKIP_CHUNKEDSEQ_OPT -DSKIP_CHUNKEDSEQ_RINGBUFFER -DSKIP_MAP
 SKIP_ALL=$(SKIP_STRUCT) -DSKIP_ITEMSIZE -DSKIP_CHUNKSIZE

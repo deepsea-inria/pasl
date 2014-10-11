@@ -12,6 +12,10 @@
 #include "chunkedseq.hpp"
 #include "cachedmeasure.hpp"
 
+#ifdef USE_MALLOC_COUNT
+#include "malloc_count.h"
+#endif
+
 
 using namespace pasl;
 using namespace pasl::util;
@@ -180,6 +184,9 @@ int main(int argc, char** argv) {
 
   printf ("exectime %lf\n", exec_time);
   printf("result %lld\n", (long long)res);
+  #ifdef USE_MALLOC_COUNT
+  malloc_pasl_report();
+  #endif
 
   return 0;
 }
