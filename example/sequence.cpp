@@ -12,7 +12,7 @@ using value_type = long;
 class array {
 public:
   
-  using value_type = value_type;
+  //  using value_type = value_type;
   
 private:
   
