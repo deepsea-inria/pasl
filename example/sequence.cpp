@@ -264,7 +264,7 @@ array filter_map(const Pred& p, const Func& f, const_array_ref xs) {
 /*---------------------------------------------------------------------*/
 
 const value_type open_paren = 1;
-const value_type close_paren = 0;
+const value_type close_paren = -1;
 
 value_type p(char c) {
   assert(c == '(' || c == ')');
@@ -300,17 +300,15 @@ std::string to_parens(const_array_ref xs) {
 
 bool matching_parens(const_array_ref parens) {
   long n = parens.size();
-  auto lift1_fct = [] (value_type v) {
-    return (v == open_paren) ? 1l : -1l;
-  };
-  array ks = scan(plus_fct, lift1_fct, 0l, parens);
-  auto lift2_fct = [] (value_type x) {
+  // ks[i]: nbr. of open parens in positions < i
+  array ks = scan(plus_fct, 0l, parens);
+  auto lift_fct = [] (value_type x) {
     return x >= 0;
   };
   long last = n-1;
-  if (ks[last] + lift1_fct(parens[last]) != 0)
+  if (ks[last] + parens[last] != 0)
     return false;
-  return reduce(and_fct, lift2_fct, true, ks);
+  return reduce(and_fct, lift_fct, true, ks);
 }
 
 bool matching_parens(const std::string& xs) {
