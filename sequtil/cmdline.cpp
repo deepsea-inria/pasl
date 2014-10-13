@@ -316,6 +316,25 @@ std::string parse_or_default_string(std::string name, std::string d, bool expect
   }
 }
 
+bool exists(std::string name)
+{
+  check_set();  
+  for (int a = 1; a < global_argc; a++)  
+  {
+    if (*(global_argv[a]) != '-') 
+      failure();
+    char* arg_name = global_argv[a] + 1;
+    if (arg_name[0] == '-') {
+      if (name.compare(arg_name+1) == 0) {
+        return true;
+      }
+    } else {
+      a++;
+    }
+  }
+  return false;
+}
+
 /*---------------------------------------------------------------------*/
 /* Could add support for parsing several arguments 
 

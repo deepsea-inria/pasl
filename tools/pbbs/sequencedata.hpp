@@ -103,6 +103,40 @@ namespace dataGen {
     });
     return A;
   }
-  
+  template <class intT>
+  intT* random_array(intT n, int seed) {
+    intT* result = newA(intT, n);
+    std::srand(seed);
+    for (int i = 0; i < n; i++) {
+      result[i] = (intT)std::rand();
+    }
+
+    return result;
+  }
+
+  template <class intT>
+  intT* increasing_array(intT n, int seed) {
+    intT* result = newA(intT, n);
+    std::srand(seed);
+    result[0] = 0;
+    for (int i = 1; i < n; i++) {
+      result[i] = (intT)(std::rand() % 100 + result[i - 1]);
+    }
+
+    return result;
+  }
+
+  template <class intT>
+  intT* decreasing_array(intT n, int seed) {
+    intT* result = newA(intT, n);
+    std::srand(23);
+    result[0] = 0;
+    for (int i = 1; i < n; i++) {
+      result[i] = (intT)(result[i - 1] - std::rand() % 100);
+    }
+
+    return result;
+  }
+ 
 }
 }
