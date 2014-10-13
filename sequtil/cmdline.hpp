@@ -100,7 +100,10 @@ double parse_or_default_double(std::string name, double d, bool expected=true);
 float parse_or_default_float(std::string name, float f, bool expected=true);
 
 std::string parse_or_default_string(std::string name, std::string d, bool expected=true);
+/** @} */
 
+/*---------------------------------------------------------------------*/
+bool exists(std::string name);
 /** @} */
   
 /*---------------------------------------------------------------------*/
