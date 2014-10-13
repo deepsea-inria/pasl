@@ -9,11 +9,33 @@
 
 using value_type = long;
 
+namespace prim {
+  
+  using pointer_type = value_type*;
+  using const_pointer_type = const value_type*;
+  
+  void pcopy(const_pointer_type first, const_pointer_type last, pointer_type d_first) {
+    const size_t cutoff = 10000;
+    size_t nb = last-first;
+    if (nb <= cutoff) {
+      std::copy(first, last, d_first);
+    } else {
+      size_t m = nb/2;
+      pcopy(first,   first+m, d_first);
+      pcopy(first+m, last,    d_first+m);
+    }
+  }
+  
+  void pcopy(const_pointer_type src, pointer_type dst,
+             long lo_src, long hi_src, long lo_dst) {
+    pcopy(&src[lo_src], &src[hi_src], &dst[lo_dst]);
+  }
+  
+}
+
+/*---------------------------------------------------------------------*/
+
 class array {
-public:
-  
-  //  using value_type = value_type;
-  
 private:
   
   class Deleter {
@@ -24,9 +46,10 @@ private:
   };
   
   std::unique_ptr<value_type[], Deleter> ptr;
-  long sz = -1l;
+  const long sz = -1l;
   
   void alloc() {
+    assert(sz >= 0);
     value_type* p = (value_type*)malloc(sizeof(value_type) * sz);
     assert(p != nullptr);
     ptr.reset(p);
@@ -45,8 +68,8 @@ public:
     alloc();
   }
   
-  array(std::initializer_list<value_type> xs) {
-    sz = xs.size();
+  array(std::initializer_list<value_type> xs)
+  : sz(xs.size()) {
     alloc();
     long i = 0;
     for (auto it = xs.begin(); it != xs.end(); it++)
@@ -113,37 +136,18 @@ auto plus1_fct = [] (value_type x) {
   return plus_fct(x, 1);
 };
 
-auto incr_fct = [] (value_type& x) {
-  x++;
-};
-
 auto is_even_fct = [] (value_type x) {
   return x % 2 == 0;
 };
 
 /*---------------------------------------------------------------------*/
 
-template <class Func>
-void iter(const Func& f, array_ref xs) {
-  for (long i = 0; i < xs.size(); i++)
-    f(xs[i]);
-}
-
-template <class Func>
-array map(const Func& f, const_array_ref xs) {
-  long sz = xs.size();
-  array tmp = array(sz);
-  for (long i = 0; i < sz; i++)
-    tmp[i] = f(xs[i]);
-  return tmp;
-}
-
 array take(const_array_ref xs, long n) {
   assert(n <= xs.size());
   assert(n >= 0);
   array tmp = array(n);
-  for (long i = 0; i < n; i++)
-    tmp[i] = xs[i];
+  if (n > 0)
+    prim::pcopy(&xs[0], &xs[n-1]+1, &tmp[0]);
   return tmp;
 }
 
@@ -153,8 +157,8 @@ array drop(const_array_ref xs, long n) {
   assert(n >= 0);
   long m = sz-n;
   array tmp = array(m);
-  for (long i = 0; i < m; i++)
-    tmp[i] = xs[i+n];
+  if (m > 0)
+    prim::pcopy(&xs[n], &xs[n+m-1]+1, &tmp[0]);
   return tmp;
 }
 
@@ -162,12 +166,54 @@ array copy(const_array_ref xs) {
   return take(xs, xs.size());
 }
 
+template <class Func>
+void map_rec(const Func& f, array_ref dst, const_array_ref xs, long lo, long hi) {
+  long n = hi - lo;
+  auto seq = [&] {
+    for (long i = lo; i < hi; i++)
+      dst[i] = f(xs[i]);
+  };
+  if (n < 2) {
+    seq();
+  } else {
+    long m = (lo+hi)/2;
+    map_rec(f, dst, xs, lo, m);
+    map_rec(f, dst, xs, m, hi);
+  }
+}
+
+template <class Func>
+array map(const Func& f, const_array_ref xs) {
+  long n = xs.size();
+  array tmp = array(n);
+  map_rec(f, tmp, xs, 0, n);
+  return tmp;
+}
+
+template <class Assoc_op, class Lift_func>
+value_type reduce_rec(const Assoc_op& op, const Lift_func& lift, value_type v, const_array_ref xs,
+                      long lo, long hi) {
+  auto seq = [&] {
+    value_type x = v;
+    for (long i = 0; i < xs.size(); i++)
+      x = op(x, lift(xs[i]));
+    return x;
+  };
+  long n = hi - lo;
+  if (n < 2) {
+    return seq();
+  } else {
+    long m = (lo+hi)/2;
+    value_type v1,v2;
+    v1 = reduce_rec(op, lift, v, xs, lo, m);
+    v2 = reduce_rec(op, lift, v, xs, m, hi);
+    return op(v1, v2);
+  }
+}
+
 template <class Assoc_op, class Lift_func>
 value_type reduce(const Assoc_op& op, const Lift_func& lift, value_type id, const_array_ref xs) {
-  value_type x = id;
-  for (long i = 0; i < xs.size(); i++)
-    x = op(x, lift(xs[i]));
-  return x;
+  return reduce_rec(op, lift, id, xs, 0, xs.size());
 }
 
 template <class Assoc_op>
@@ -193,12 +239,31 @@ value_type min(const_array_ref xs) {
 
 template <class Assoc_op, class Lift_func>
 array scan(const Assoc_op& op, const Lift_func& lift, value_type id, const_array_ref xs) {
-  long sz = xs.size();
-  value_type x = id;
-  array tmp = array(sz);
-  for (long i = 0; i < sz; i++) {
-    tmp[i] = x;
-    x = op(x, lift(xs[i]));
+  long n = xs.size();
+  array tmp = array(n);
+  auto seq = [&] {
+    value_type x = id;
+    for (long i = 0; i < n; i++) {
+      tmp[i] = x;
+      x = op(x, lift(xs[i]));
+    }
+  };
+  if (n < 2) {
+    seq();
+  } else {
+    long m = n/2;
+    array sums = array(m);
+    for (long i = 0; i < m; i++)
+      sums[i] = op(lift(xs[i*2]), lift(xs[i*2+1]));
+    array scans = scan(op, lift, id, sums);
+    for (long i = 0; i < m; i++)
+      tmp[2*i] = scans[i];
+    for (long i = 0; i < m; i++)
+      tmp[2*i+1] = op(lift(xs[2*i]), tmp[2*i]);
+    if (n == 2*m + 1) {
+      long last = n-1;
+      tmp[last] = op(lift(xs[last-1]), tmp[last-1]);
+    }
   }
   return tmp;
 }
@@ -230,8 +295,7 @@ array pack(const_array_ref flags, const_array_ref xs) {
 
 template <class Pred>
 array filter(const Pred& p, const_array_ref xs) {
-  array flags = map(p, xs);
-  return pack(flags, xs);
+  return pack(map(p, xs), xs);
 }
 
 array just_evens(const_array_ref xs) {
@@ -241,30 +305,45 @@ array just_evens(const_array_ref xs) {
 /*---------------------------------------------------------------------*/
 
 array duplicate(const_array_ref xs) {
-  array tmp(xs.size());
+  long n = xs.size();
+  array tmp(n * 2);
+  for (long i = 0; i < n; i++)
+    tmp[i*2] = xs[i];
+  for (long i = 0; i < n; i++)
+    tmp[i*2+1] = xs[i];
   return tmp;
 }
 
-array ktimes(const_array_ref xs) {
-  array tmp(xs.size());
-  return tmp;
+array ktimes(const_array_ref xs, long k) {
+  long n = xs.size();
+  long m = n * k;
+  array flags(m);
+  for (long i = 0; i < m; i++)
+    flags[i] = 0;
+  for (long i = 1; i < n; i++)
+    flags[i*k-1] = 1l;
+  array offsets = partial_sums(flags);
+  array result = array(m);
+  for (long i = 0; i < m; i++)
+    result[i] = xs[offsets[i]];
+  return result;
 }
 
 template <class Pred, class Assoc_op, class Lift_func>
-value_type filter_reduce(const Pred& p, const Assoc_op& op, const Lift_func& lift, value_type id, const_array_ref xs) {
-  return id;
+value_type reduce_filter(const Pred& p, const Assoc_op& op, const Lift_func& lift,
+                         value_type id, const_array_ref xs) {
+  return reduce(op, lift, id, filter(p, xs));
 }
 
 template <class Pred, class Func>
-array filter_map(const Pred& p, const Func& f, const_array_ref xs) {
-  array tmp(xs.size());
-  return tmp;
+array map_filter(const Pred& p, const Func& f, const_array_ref xs) {
+  return map(f, filter(p, xs));
 }
 
 /*---------------------------------------------------------------------*/
 
-const value_type open_paren = 1;
-const value_type close_paren = -1;
+const value_type open_paren = 1l;
+const value_type close_paren = -1l;
 
 value_type p(char c) {
   assert(c == '(' || c == ')');
@@ -317,9 +396,14 @@ bool matching_parens(const std::string& xs) {
 
 /*---------------------------------------------------------------------*/
 
+void doit2() {
+  array xs = { 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 };
+  std::cout << partial_sums(xs) << std::endl;
+  std::cout << xs.size() << std::endl;
+}
+
 void doit() {
   array xs = { 0, 1, 2, 3, 4, 5, 6 };
-  iter(incr_fct, xs);
   std::cout << "xs=" << xs << std::endl;
   array ys = map(plus1_fct, xs);
   std::cout << "xs(copy)=" << copy(xs) << std::endl;
@@ -333,14 +417,24 @@ void doit() {
   std::cout << "tmp=" << map(plus1_fct, array({100, 101})) << std::endl;
   std::cout << "evens=" << just_evens(ys) << std::endl;
   
-  std::cout << "take=" << take(xs, 3) << std::endl;
-  std::cout << "drop=" << drop(xs, 4) << std::endl;
+  std::cout << "take3=" << take(xs, 3) << std::endl;
+  std::cout << "drop4=" << drop(xs, 4) << std::endl;
+  std::cout << "take0=" << take(xs, 0) << std::endl;
+  std::cout << "drop 7=" << drop(xs, 7) << std::endl;
+
   
   std::cout << "parens=" << to_parens(from_parens("()()((()))")) << std::endl;
   std::cout << "matching=" << matching_parens(from_parens("()()((()))")) << std::endl;
   std::cout << "not_matching=" << matching_parens(from_parens("()(((()))")) << std::endl;
 
   std::cout << "empty=" << array({}) << std::endl;
+  
+  std::cout << "duplicate(xs)" << duplicate(xs) << std::endl;
+  std::cout << "3x(xs)" << ktimes(xs,3) << std::endl;
+  std::cout << "4x(xs)" << ktimes(xs,4) << std::endl;
+
+  std::cout << "reduce_filter=" << reduce_filter(is_even_fct, plus_fct, identity_fct, 0, xs) << std::endl;
+  std::cout << "map_filter=" << map_filter(is_even_fct, plus1_fct, xs) << std::endl;
   
   std::cout << matching_parens("()(())(") << std::endl;
   std::cout << matching_parens("()(())((((()()))))") << std::endl;
@@ -353,7 +447,7 @@ int main(int argc, char** argv) {
 
   };
   auto run = [&] (bool) {
-    doit();
+    doit2();
   };
   auto output = [&] {
   };
