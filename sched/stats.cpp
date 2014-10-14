@@ -98,16 +98,16 @@ void stats_t::sum() {
 
 // assumes sums have been computed
 void stats_t::print_idle(FILE* f) {
-  fprintf(f, "total_idle_time\t%lf\n", total_idle_time);
+  fprintf(f, "total_idle_time\t%.3lf\n", total_idle_time);
 }
 
 void stats_t::print(FILE* f) {
   // fprintf(f, "relative_idle\t%lf\n", relative_wait);
-  fprintf(f, "launch_duration\t%lf\n", launch_duration);
-  fprintf(f, "relative_idle_time\t%lf\n", relative_idle);
-  fprintf(f, "relative_non_seq\t%lf\n", relative_non_seq);
-  fprintf(f, "average_sequential\t%lf\n", average_sequentialized);
-  fprintf(f, "total_sequential\t%lf\n", total_data.sequential_time);
+  fprintf(f, "launch_duration\t%.3lf\n", launch_duration);
+  fprintf(f, "relative_idle_time\t%.4lf\n", relative_idle);
+  fprintf(f, "relative_non_seq\t%.4lf\n", relative_non_seq);
+  fprintf(f, "average_sequential\t%.3lf\n", average_sequentialized);
+  fprintf(f, "total_sequential\t%.3lf\n", total_data.sequential_time);
   bool stats_light = cmdline::parse_or_default_bool("stats_light", false, false);
   if (! stats_light) {
     fprintf(f, "total_spinning_time\t%lf\n", total_spinning_time);

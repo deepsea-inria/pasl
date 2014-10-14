@@ -76,6 +76,14 @@ Package dependencies
 
 -----------------------------------------------------------------------------------------
 
+
+### Installing dependencies on Ubuntu
+
+    $ sudo add-apt-repository ppa:ubuntu-toolchain-r/test
+    $ sudo apt-get update
+    $ sudo apt-get install g++-4.9 ocaml php5-cli
+
+
 Getting started
 ---------------
 

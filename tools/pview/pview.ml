@@ -192,8 +192,8 @@ let preprocess_events events =
       (t1,t2)
       in   
    let full_range = extract_full_range events in
-   Printf.printf "algo start  %f  algo stop %f \n" (fst init_range) (snd init_range);
-   Printf.printf "all start  %f  all stop %f \n" (fst full_range) (snd full_range);
+   (* Printf.printf "algo start  %f  algo stop %f \n" (fst init_range) (snd init_range);
+   Printf.printf "all start  %f  all stop %f \n" (fst full_range) (snd full_range); *)
    (events, extract_nb_proc events, init_range, full_range)
 
 

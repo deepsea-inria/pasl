@@ -2,24 +2,35 @@
 % Umut Acar, Arthur Charguéraud, Mike Rainey
 % 13 August 2014
 
+
+Introduction
+============
+
+For best results, render this document using
+[pandoc](http://johnmacfarlane.net/pandoc/). For example, to generate
+a PDF, run from the command line the following.
+
+    pandoc README.md -o README.pdf
+
+
 Synopsis
 ========
 
-view.out [*PARAMETER*]...
+pview [*PARAMETER*]...
 
 Description
 ===========
 
-`view.out` helps to visualize the activity/idle time of processors
+`pview` helps to visualize the activity/idle time of processors
 during a run.
 
-The input of view program is a log file in binary format.  This log
-file is generated when the option `--view` (or `--log_phases`) is
+The input of pview program is a log file in binary format.  This log
+file is generated when the option `--pview` (or `--log_phases`) is
 enabled during the execution of the program.  If you also
 log other events, it is likely that the log file will get too big and
-that the view program will not be able to handle it.
+that the pview program will not be able to handle it.
 
-The view program is usually called without arguments, but you can
+The pview program is usually called without arguments, but you can
 specify a different log file if you want.
 
 Options
@@ -50,13 +61,18 @@ The controls to be used in the program are:
 Sample applications
 ===================
 
-Let `PASL_HOME` be the path to the PASL root folder.
+From the PASL root folder, run:
 
-    cd $PASL_HOME/example
+    make -C ../tools/pview 
     make fib.log -j
-    ./fib.log -n 48 -proc 40 --view
-    make -C $PASL_HOME/tools/view
-    $PASL_HOME/tools/view.out
+    ./fib.log -n 45 -proc 2 --pview
+    ../tools/pview/pview
+
+For frequent use, you may add the pview folder to your path, e.g., adding the
+following line to the bottom `~/.bashrc`:
+
+    PATH=$PATH:~/pasl/tools/pview
+
 
 See also
 ========
