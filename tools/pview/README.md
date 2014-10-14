@@ -37,10 +37,13 @@ Each *PARAMETER* can be one of the following.
 
 `-input` *PATH*
 :    Specify the path to the binary log file; default is `LOG_BIN`.
+
 `-width` *n*
 :    Specify the width in number of pixels of the window; default *n*=1000.
+
 `-height` *n*
 :    Specify the height in number of pixels of the window; default *n*=1000.
+
 `-proc_height` *n*
 :    Specify the height of a line describing one processor; default *n*=30. 
 
