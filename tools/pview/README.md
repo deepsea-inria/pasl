@@ -6,12 +6,8 @@
 Introduction
 ============
 
-For best results, render this document using
-[pandoc](http://johnmacfarlane.net/pandoc/). For example, to generate
-a PDF, run from the command line the following.
-
-    pandoc README.md -o README.pdf
-
+For best results, run `make doc` and open README.pdf
+	
 
 Synopsis
 ========
