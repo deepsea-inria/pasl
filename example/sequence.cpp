@@ -14,6 +14,23 @@ namespace prim {
   using pointer_type = value_type*;
   using const_pointer_type = const value_type*;
   
+  void pfill(pointer_type first, pointer_type last, value_type val) {
+    const size_t cutoff = 10000;
+    size_t nb = last-first;
+    if (nb <= cutoff) {
+      std::fill(first, last, val);
+    } else {
+      size_t m = nb/2;
+      pfill(first, first+m, val);
+      pfill(first+m, last, val);
+    }
+
+  }
+  
+  void pfill(pointer_type first, long nb, value_type val) {
+    pfill(first, first+nb, val);
+  }
+  
   void pcopy(const_pointer_type first, const_pointer_type last, pointer_type d_first) {
     const size_t cutoff = 10000;
     size_t nb = last-first;
@@ -46,7 +63,7 @@ private:
   };
   
   std::unique_ptr<value_type[], Deleter> ptr;
-  const long sz = -1l;
+  long sz = -1l;
   
   void alloc() {
     assert(sz >= 0);
@@ -91,6 +108,11 @@ public:
   
   long size() const {
     return sz;
+  }
+  
+  void swap(array& other) {
+    ptr.swap(other.ptr);
+    std::swap(sz, other.sz);
   }
   
 };
@@ -142,12 +164,18 @@ auto is_even_fct = [] (value_type x) {
 
 /*---------------------------------------------------------------------*/
 
+array fill(long n, value_type v) {
+  array tmp = array(n);
+  prim::pfill(&tmp[0], n, v);
+  return tmp;
+}
+
 array take(const_array_ref xs, long n) {
   assert(n <= xs.size());
   assert(n >= 0);
   array tmp = array(n);
   if (n > 0)
-    prim::pcopy(&xs[0], &xs[n-1]+1, &tmp[0]);
+    prim::pcopy(&xs[0], &tmp[0], 0, n, 0);
   return tmp;
 }
 
@@ -158,7 +186,7 @@ array drop(const_array_ref xs, long n) {
   long m = sz-n;
   array tmp = array(m);
   if (m > 0)
-    prim::pcopy(&xs[n], &xs[n+m-1]+1, &tmp[0]);
+    prim::pcopy(&xs[0], &tmp[0], n, n+m, 0);
   return tmp;
 }
 
@@ -396,12 +424,6 @@ bool matching_parens(const std::string& xs) {
 
 /*---------------------------------------------------------------------*/
 
-void doit2() {
-  array xs = { 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 };
-  std::cout << partial_sums(xs) << std::endl;
-  std::cout << xs.size() << std::endl;
-}
-
 void doit() {
   array xs = { 0, 1, 2, 3, 4, 5, 6 };
   std::cout << "xs=" << xs << std::endl;
@@ -438,6 +460,8 @@ void doit() {
   
   std::cout << matching_parens("()(())(") << std::endl;
   std::cout << matching_parens("()(())((((()()))))") << std::endl;
+  
+  std::cout << partial_sums(fill(6, 1)) << std::endl;
 
 }
 
@@ -447,7 +471,7 @@ int main(int argc, char** argv) {
 
   };
   auto run = [&] (bool) {
-    doit2();
+    doit();
   };
   auto output = [&] {
   };
