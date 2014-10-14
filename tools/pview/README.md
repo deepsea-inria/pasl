@@ -22,13 +22,14 @@ Description
 ===========
 
 `pview` helps to visualize the activity/idle time of processors
-during a run.
+during a parallel run.
 
 The input of pview program is a log file in binary format.  This log
 file is generated when the option `--pview` (or `--log_phases`) is
-enabled during the execution of the program.  If you also
-log other events, it is likely that the log file will get too big and
-that the pview program will not be able to handle it.
+enabled during the execution of the program.  
+
+If you also log other events, it is likely that the log file will get 
+too big and that the pview program will not be able to handle it.
 
 The pview program is usually called without arguments, but you can
 specify a different log file if you want.
@@ -47,6 +48,22 @@ Each *PARAMETER* can be one of the following.
 `-proc_height` *n*
 :    Specify the height of a line describing one processor; default *n*=30. 
 
+Display
+=======
+
+![screenshot](screenshot.png)\
+
+The width information shown initially near the top-left corner corresponds
+to the runtime of the run associated with the LOG file.
+
+Each processor shows up as a horizontal line. Every red rectangle corresponds
+to idle periods.
+
+Vertical blue lines correspond to the "phases", which are log events generated
+from lines in the PASL code of the form:
+
+	 LOG_BASIC(ALGO_PHASE);
+
 Controls
 ========
 
@@ -56,14 +73,19 @@ The controls to be used in the program are:
 - spacebar to reinitialize zoom
 - press 'o' to zoom-out one step
 - press 'r' to reload the log file (for example, after a new run)
-- press 'q' to quit
+- press 'q' to quit.
+
+By clicking and dragging the mouse from left to right, you can measure the 
+width of the time interval associated with particular elements of the display.
+The value is shown near the top-left corner.
 
 Sample applications
 ===================
 
 From the PASL root folder, run:
 
-    make -C ../tools/pview 
+	 cd example
+	 make -C ../tools/pview 
     make fib.log -j
     ./fib.log -n 45 -proc 2 --pview
     ../tools/pview/pview
@@ -73,6 +95,11 @@ following line to the bottom `~/.bashrc`:
 
     PATH=$PATH:~/pasl/tools/pview
 
+Limitations
+===========
+
+There is a maximal size of LOG files that the current implementation of the
+tool is able to handle. This limit depends on the machine.
 
 See also
 ========
