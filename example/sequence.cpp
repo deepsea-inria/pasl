@@ -4,6 +4,12 @@
 #include <memory>
 
 #include "benchmark.hpp"
+#include "granularity.hpp"
+
+namespace par = pasl::sched::granularity;
+
+using controller_type = par::control_by_prediction;
+using loop_controller_type = par::loop_by_eager_binary_splitting<controller_type>;
 
 /*---------------------------------------------------------------------*/
 
@@ -14,33 +20,50 @@ namespace prim {
   using pointer_type = value_type*;
   using const_pointer_type = const value_type*;
   
+  controller_type pfill_contr("pfill");
+  
   void pfill(pointer_type first, pointer_type last, value_type val) {
-    const size_t cutoff = 10000;
-    size_t nb = last-first;
-    if (nb <= cutoff) {
+    long nb = last-first;
+    auto seq = [&] {
       std::fill(first, last, val);
-    } else {
-      size_t m = nb/2;
-      pfill(first, first+m, val);
-      pfill(first+m, last, val);
-    }
-
+    };
+    par::cstmt(pfill_contr, [&] { return nb; }, [&] {
+      if (nb <= 512) {
+        seq();
+      } else {
+        long m = nb/2;
+        par::fork2([&] {
+          pfill(first, first+m, val);
+        }, [&] {
+          pfill(first+m, last, val);
+        });
+      }
+    }, seq);
   }
   
   void pfill(pointer_type first, long nb, value_type val) {
     pfill(first, first+nb, val);
   }
   
+  controller_type pcopy_contr("pcopy");
+  
   void pcopy(const_pointer_type first, const_pointer_type last, pointer_type d_first) {
-    const size_t cutoff = 10000;
-    size_t nb = last-first;
-    if (nb <= cutoff) {
+    long nb = last-first;
+    auto seq = [&] {
       std::copy(first, last, d_first);
-    } else {
-      size_t m = nb/2;
-      pcopy(first,   first+m, d_first);
-      pcopy(first+m, last,    d_first+m);
-    }
+    };
+    par::cstmt(pcopy_contr, [&] { return nb; }, [&] {
+      if (nb <= 512) {
+        seq();
+      } else {
+        long m = nb/2;
+        par::fork2([&] {
+          pcopy(first,   first+m, d_first);
+        }, [&] {
+          pcopy(first+m, last,    d_first+m);
+        });
+      }
+    }, seq);
   }
   
   void pcopy(const_pointer_type src, pointer_type dst,
@@ -170,6 +193,10 @@ array fill(long n, value_type v) {
   return tmp;
 }
 
+array singleton(value_type v) {
+  return fill(1, v);
+}
+
 array take(const_array_ref xs, long n) {
   assert(n <= xs.size());
   assert(n >= 0);
@@ -194,49 +221,66 @@ array copy(const_array_ref xs) {
   return take(xs, xs.size());
 }
 
+loop_controller_type concat_contr("concat");
+
+array concat(const_array_ref xs1, const_array_ref xs2) {
+  long n1 = xs1.size();
+  long n2 = xs2.size();
+  long n = n1+n2;
+  array result = array(n);
+  par::parallel_for(concat_contr, 0l, n1, [&] (long i) {
+    result[i] = xs1[i];
+  });
+  par::parallel_for(concat_contr, 0l, n2, [&] (long i) {
+    result[i+n1] = xs2[i];
+  });
+  return result;
+}
+
+loop_controller_type tabulate_contr("tabulate");
+
 template <class Func>
-void map_rec(const Func& f, array_ref dst, const_array_ref xs, long lo, long hi) {
-  long n = hi - lo;
-  auto seq = [&] {
-    for (long i = lo; i < hi; i++)
-      dst[i] = f(xs[i]);
-  };
-  if (n < 2) {
-    seq();
-  } else {
-    long m = (lo+hi)/2;
-    map_rec(f, dst, xs, lo, m);
-    map_rec(f, dst, xs, m, hi);
-  }
+array tabulate(const Func& f, long n) {
+  array tmp = array(n);
+  par::parallel_for(tabulate_contr, 0l, n, [&] (long i) {
+    tmp[i] = f(i);
+  });
+  return tmp;
 }
 
 template <class Func>
 array map(const Func& f, const_array_ref xs) {
-  long n = xs.size();
-  array tmp = array(n);
-  map_rec(f, tmp, xs, 0, n);
-  return tmp;
+  return tabulate([&] (long i) { return f(xs[i]); }, xs.size());
 }
+
+controller_type reduce_contr("reduce");
 
 template <class Assoc_op, class Lift_func>
 value_type reduce_rec(const Assoc_op& op, const Lift_func& lift, value_type v, const_array_ref xs,
                       long lo, long hi) {
+  value_type result = v;
   auto seq = [&] {
     value_type x = v;
     for (long i = 0; i < xs.size(); i++)
       x = op(x, lift(xs[i]));
-    return x;
+    result = x;
   };
   long n = hi - lo;
-  if (n < 2) {
-    return seq();
-  } else {
-    long m = (lo+hi)/2;
-    value_type v1,v2;
-    v1 = reduce_rec(op, lift, v, xs, lo, m);
-    v2 = reduce_rec(op, lift, v, xs, m, hi);
-    return op(v1, v2);
-  }
+  par::cstmt(reduce_contr, [&] { return n; }, [&] {
+    if (n < 2) {
+      seq();
+    } else {
+      long m = (lo+hi)/2;
+      value_type v1,v2;
+      par::fork2([&] {
+        v1 = reduce_rec(op, lift, v, xs, lo, m);
+      }, [&] {
+        v2 = reduce_rec(op, lift, v, xs, m, hi);
+      });
+      result = op(v1, v2);
+    }
+  }, seq);
+  return result;
 }
 
 template <class Assoc_op, class Lift_func>
@@ -265,6 +309,11 @@ value_type min(const_array_ref xs) {
   return reduce(min_fct, LONG_MAX, xs);
 }
 
+controller_type scan_contr("scan");
+loop_controller_type scan_lp1_contr("scan_lp1");
+loop_controller_type scan_lp2_contr("scan_lp2");
+loop_controller_type scan_lp3_contr("scan_lp3");
+
 template <class Assoc_op, class Lift_func>
 array scan(const Assoc_op& op, const Lift_func& lift, value_type id, const_array_ref xs) {
   long n = xs.size();
@@ -276,23 +325,28 @@ array scan(const Assoc_op& op, const Lift_func& lift, value_type id, const_array
       x = op(x, lift(xs[i]));
     }
   };
-  if (n < 2) {
-    seq();
-  } else {
-    long m = n/2;
-    array sums = array(m);
-    for (long i = 0; i < m; i++)
-      sums[i] = op(lift(xs[i*2]), lift(xs[i*2+1]));
-    array scans = scan(op, lift, id, sums);
-    for (long i = 0; i < m; i++)
-      tmp[2*i] = scans[i];
-    for (long i = 0; i < m; i++)
-      tmp[2*i+1] = op(lift(xs[2*i]), tmp[2*i]);
-    if (n == 2*m + 1) {
-      long last = n-1;
-      tmp[last] = op(lift(xs[last-1]), tmp[last-1]);
+  par::cstmt(scan_contr, [&] { return n; }, [&] {
+    if (n < 2) {
+      seq();
+    } else {
+      long m = n/2;
+      array sums = array(m);
+      par::parallel_for(scan_lp1_contr, 0l, m, [&] (long i) {
+        sums[i] = op(lift(xs[i*2]), lift(xs[i*2+1]));
+      });
+      array scans = scan(op, lift, id, sums);
+      par::parallel_for(scan_lp2_contr, 0l, m, [&] (long i) {
+        tmp[2*i] = scans[i];
+      });
+      par::parallel_for(scan_lp3_contr, 0l, m, [&] (long i) {
+        tmp[2*i+1] = op(lift(xs[2*i]), tmp[2*i]);
+      });
+      if (n == 2*m + 1) {
+        long last = n-1;
+        tmp[last] = op(lift(xs[last-1]), tmp[last-1]);
+      }
     }
-  }
+  }, seq);
   return tmp;
 }
 
@@ -309,15 +363,18 @@ array partial_sums(const_array_ref xs) {
   return scan(plus_fct, identity_fct, 0, xs);
 }
 
+loop_controller_type pack_contr("pack");
+
 array pack(const_array_ref flags, const_array_ref xs) {
   array offsets = partial_sums(flags);
   long n = xs.size();
   long last = n-1;
   value_type m = offsets[last] + flags[last];
   array result = array(m);
-  for (long i = 0; i < n; i++)
+  par::parallel_for(pack_contr, 0l, n, [&] (long i) {
     if (flags[i] == 1)
       result[offsets[i]] = xs[i];
+  });
   return result;
 }
 
@@ -333,39 +390,13 @@ array just_evens(const_array_ref xs) {
 /*---------------------------------------------------------------------*/
 
 array duplicate(const_array_ref xs) {
-  long n = xs.size();
-  array tmp(n * 2);
-  for (long i = 0; i < n; i++)
-    tmp[i*2] = xs[i];
-  for (long i = 0; i < n; i++)
-    tmp[i*2+1] = xs[i];
-  return tmp;
+  long m = xs.size() * 2;
+  return tabulate([&] (long i) { return xs[i/2]; }, m);
 }
 
 array ktimes(const_array_ref xs, long k) {
-  long n = xs.size();
-  long m = n * k;
-  array flags(m);
-  for (long i = 0; i < m; i++)
-    flags[i] = 0;
-  for (long i = 1; i < n; i++)
-    flags[i*k-1] = 1l;
-  array offsets = partial_sums(flags);
-  array result = array(m);
-  for (long i = 0; i < m; i++)
-    result[i] = xs[offsets[i]];
-  return result;
-}
-
-template <class Pred, class Assoc_op, class Lift_func>
-value_type reduce_filter(const Pred& p, const Assoc_op& op, const Lift_func& lift,
-                         value_type id, const_array_ref xs) {
-  return reduce(op, lift, id, filter(p, xs));
-}
-
-template <class Pred, class Func>
-array map_filter(const Pred& p, const Func& f, const_array_ref xs) {
-  return map(f, filter(p, xs));
+  long m = xs.size() * k;
+  return tabulate([&] (long i) { return xs[i/k]; }, m);
 }
 
 /*---------------------------------------------------------------------*/
@@ -373,27 +404,21 @@ array map_filter(const Pred& p, const Func& f, const_array_ref xs) {
 const value_type open_paren = 1l;
 const value_type close_paren = -1l;
 
-value_type p(char c) {
+value_type c2v(char c) {
   assert(c == '(' || c == ')');
-  value_type v = open_paren;
-  if (c == ')')
-    v = close_paren;
-  return v;
+  return (c == '(') ? open_paren : close_paren;
 }
 
-char u(value_type v) {
+char v2c(value_type v) {
   assert(v == open_paren || v == close_paren);
-  char c = '(';
-  if (v == close_paren)
-    c = ')';
-  return c;
+  return (v == open_paren) ? '(' : ')';
 }
 
 array from_parens(std::string str) {
   long sz = str.size();
   array tmp = array(sz);
   for (long i = 0; i < sz; i++)
-    tmp[i] = p(str[i]);
+    tmp[i] = c2v(str[i]);
   return tmp;
 }
 
@@ -401,25 +426,90 @@ std::string to_parens(const_array_ref xs) {
   long sz = xs.size();
   std::string str(sz, 'x');
   for (long i = 0; i < sz; i++)
-    str[i] = u(xs[i]);
+    str[i] = v2c(xs[i]);
   return str;
+}
+
+value_type string_compare(const_array_ref parens) {
+  return 0;
 }
 
 bool matching_parens(const_array_ref parens) {
   long n = parens.size();
   // ks[i]: nbr. of open parens in positions < i
   array ks = scan(plus_fct, 0l, parens);
-  auto lift_fct = [] (value_type x) {
+  auto is_nonneg_fct = [] (value_type x) {
     return x >= 0;
   };
   long last = n-1;
   if (ks[last] + parens[last] != 0)
     return false;
-  return reduce(and_fct, lift_fct, true, ks);
+  return reduce(and_fct, is_nonneg_fct, true, ks);
 }
 
 bool matching_parens(const std::string& xs) {
   return matching_parens(from_parens(xs));
+}
+
+/*---------------------------------------------------------------------*/
+
+array random_array(long n) {
+  array tmp = array(n);
+  for (long i = 0; i < n; i++)
+    tmp[i] = random() % 1024;
+  return tmp;
+}
+
+/*---------------------------------------------------------------------*/
+
+using thunk_type = std::function<void ()>;
+using benchmark_type = std::pair<std::pair<thunk_type,thunk_type>,
+                                 std::pair<thunk_type, thunk_type>>;
+
+benchmark_type make_benchmark(thunk_type init, thunk_type bench,
+                              thunk_type output, thunk_type destroy) {
+  return std::make_pair(std::make_pair(init, bench),
+                        std::make_pair(output, destroy));
+}
+
+void bench_init(const benchmark_type& b) {
+  b.first.first();
+}
+
+void bench_run(const benchmark_type& b) {
+  b.first.second();
+}
+
+void bench_output(const benchmark_type& b) {
+  b.second.first();
+}
+
+void bench_destroy(const benchmark_type& b) {
+  b.second.second();
+}
+
+/*---------------------------------------------------------------------*/
+
+benchmark_type scan_bench() {
+  long n = pasl::util::cmdline::parse_or_default_long("n", 1l<<20);
+  array* inp = new array(0);
+  array* outp = new array(0);
+  auto init = [=] {
+    array t = fill(n, 1);
+    inp->swap(t);
+  };
+  auto bench = [=] {
+    array t = partial_sums(*inp);
+    outp->swap(t);
+  };
+  auto output = [=] {
+    std::cout << "result\t" << (*outp)[outp->size()-1] << std::endl;
+  };
+  auto destroy = [=] {
+    delete inp;
+    delete outp;
+  };
+  return make_benchmark(init, bench, output, destroy);
 }
 
 /*---------------------------------------------------------------------*/
@@ -455,9 +545,6 @@ void doit() {
   std::cout << "3x(xs)" << ktimes(xs,3) << std::endl;
   std::cout << "4x(xs)" << ktimes(xs,4) << std::endl;
 
-  std::cout << "reduce_filter=" << reduce_filter(is_even_fct, plus_fct, identity_fct, 0, xs) << std::endl;
-  std::cout << "map_filter=" << map_filter(is_even_fct, plus1_fct, xs) << std::endl;
-  
   std::cout << matching_parens("()(())(") << std::endl;
   std::cout << matching_parens("()(())((((()()))))") << std::endl;
   
@@ -466,17 +553,23 @@ void doit() {
 }
 
 int main(int argc, char** argv) {
+  
+  benchmark_type bench;
 
   auto init = [&] {
-
+    pasl::util::cmdline::argmap<benchmark_type> m;
+    m.add("scan", scan_bench());
+    bench = m.find_by_arg("bench");
+    bench_init(bench);
   };
   auto run = [&] (bool) {
-    doit();
+    bench_run(bench);
   };
   auto output = [&] {
+    bench_output(bench);
   };
   auto destroy = [&] {
-    ;
+    bench_destroy(bench);
   };
   pasl::sched::launch(argc, argv, init, run, output, destroy);
 }

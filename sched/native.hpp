@@ -3,7 +3,7 @@
  * All rights reserved.
  *
  * \file multishot.hpp
- * \brief Defines the interface for multi-shot threads.
+ * \brief Implementation of native, multi-shot threads.
  *
  */
 
