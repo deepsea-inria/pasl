@@ -7,6 +7,12 @@ Introduction
 
 For best results, run `make doc` and open `README.pdf`.	
 
+Package dependencies
+--------------------
+
+Version 4.02.0 or higher of [ocaml](http://caml.inria.fr/) is 
+required to build `pview`.
+
 Synopsis
 ========
 
