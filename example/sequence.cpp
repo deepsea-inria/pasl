@@ -6,6 +6,16 @@
 #include "benchmark.hpp"
 #include "granularity.hpp"
 
+/*
+ todo
+ 
+   - add check to ensure unique names for controller objects
+      + can be dynamic; just check all names at pasl-init time
+   - quickcheck?
+   - small examples
+ 
+ */
+
 namespace par = pasl::sched::granularity;
 
 using controller_type = par::control_by_prediction;
@@ -119,6 +129,14 @@ public:
   array(const array& other);
   array& operator=(const array& other);
   
+  array& operator=(array&& other) {
+    // todo: make sure that the following does not create a memory leak
+    ptr = std::move(other.ptr);
+    sz = other.sz;
+    other.sz = 0l;
+    return *this;
+  }
+  
   value_type& operator[](long i) {
     check(i);
     return ptr[i];
@@ -193,6 +211,10 @@ array fill(long n, value_type v) {
   return tmp;
 }
 
+array empty() {
+  return array(0);
+}
+
 array singleton(value_type v) {
   return fill(1, v);
 }
@@ -251,6 +273,12 @@ array tabulate(const Func& f, long n) {
 template <class Func>
 array map(const Func& f, const_array_ref xs) {
   return tabulate([&] (long i) { return f(xs[i]); }, xs.size());
+}
+
+template <class Func>
+array map2(const Func& f, const_array_ref xs, const_array_ref ys) {
+  long n = std::min(xs.size(), ys.size());
+  return tabulate([&] (long i) { return f(xs[i], ys[i]); }, n);
 }
 
 controller_type reduce_contr("reduce");
@@ -430,11 +458,31 @@ std::string to_parens(const_array_ref xs) {
   return str;
 }
 
-value_type string_compare(const_array_ref parens) {
-  return 0;
+/*---------------------------------------------------------------------*/
+
+using mychar = value_type;
+using mystring = array;
+using const_mystring_ref = const_array_ref;
+
+mychar char_compare(mychar x, mychar y) {
+  if (x < y)
+    return -1l;
+  else if (x == y)
+    return 0l;
+  else
+    return 1l;
 }
 
-bool matching_parens(const_array_ref parens) {
+value_type string_compare(const_mystring_ref xs, const_mystring_ref ys) {
+  long n = xs.size();
+  long m = ys.size();
+  if (n < m)
+    return -1l * string_compare(ys, xs);
+  array cs = map2([&] (value_type x, value_type y) { return char_compare(x, y); }, xs, ys);
+  return reduce([&] (value_type a, value_type b) { return (a == 0) ? b : a; }, 0, cs);
+}
+
+bool matching_parens(const_mystring_ref parens) {
   long n = parens.size();
   // ks[i]: nbr. of open parens in positions < i
   array ks = scan(plus_fct, 0l, parens);
@@ -453,11 +501,62 @@ bool matching_parens(const std::string& xs) {
 
 /*---------------------------------------------------------------------*/
 
-array random_array(long n) {
+array gen_random_array(long n) {
   array tmp = array(n);
   for (long i = 0; i < n; i++)
     tmp[i] = random() % 1024;
   return tmp;
+}
+
+long nlogn(long n) {
+  return pasl::data::estimator::annotation::nlgn(n);
+}
+
+void in_place_quicksort(array_ref xs, long lo, long hi) {
+  long n = hi-lo;
+  if (n > 0)
+    std::sort(&xs[0], &xs[hi-1]+1);
+}
+
+void in_place_quicksort(array_ref xs) {
+  in_place_quicksort(xs, 0l, xs.size());
+}
+
+controller_type quicksort_contr("quicksort");
+
+array quicksort(const_array_ref xs) {
+  long n = xs.size();
+  array result = empty();
+  auto seq = [&] {
+    result = copy(xs);
+    in_place_quicksort(result);
+  };
+  par::cstmt(quicksort_contr, [&] { return nlogn(n); }, [&] {
+    if (n < 2) {
+      seq();
+    } else {
+      long m = n/2;
+      value_type p = xs[m];
+      array less = filter([&] (value_type x) { return x < p; }, xs);
+      array equal = filter([&] (value_type x) { return x == p; }, xs);
+      array greater = filter([&] (value_type x) { return x > p; }, xs);
+      array left = array(0);
+      array right = array(0);
+      par::fork2([&] {
+        left = quicksort(less);
+      }, [&] {
+        right = quicksort(greater);
+      });
+      result = concat(left, concat(equal, right));
+    }
+  });
+  return result;
+}
+
+void sort() {
+  array xs = gen_random_array(15);
+  std::cout << xs << std::endl;
+  std::cout << quicksort(xs) << std::endl;
 }
 
 /*---------------------------------------------------------------------*/
@@ -503,7 +602,7 @@ benchmark_type scan_bench() {
     outp->swap(t);
   };
   auto output = [=] {
-    std::cout << "result\t" << (*outp)[outp->size()-1] << std::endl;
+    //std::cout << "result\t" << (*outp)[outp->size()-1] << std::endl;
   };
   auto destroy = [=] {
     delete inp;
@@ -563,7 +662,8 @@ int main(int argc, char** argv) {
     bench_init(bench);
   };
   auto run = [&] (bool) {
-    bench_run(bench);
+    //bench_run(bench);
+    sort();
   };
   auto output = [&] {
     bench_output(bench);
