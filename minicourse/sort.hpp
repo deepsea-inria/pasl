@@ -14,10 +14,12 @@
 
 /***********************************************************************/
 
-
 long nlogn(long n) {
   return pasl::data::estimator::annotation::nlgn(n);
 }
+
+/*---------------------------------------------------------------------*/
+/* Sequential sort */
 
 void in_place_sort(array_ref xs, long lo, long hi) {
   if (hi-lo > 0)
@@ -27,6 +29,15 @@ void in_place_sort(array_ref xs, long lo, long hi) {
 void in_place_sort(array_ref xs) {
   in_place_sort(xs, 0l, xs.size());
 }
+
+array seqsort(const_array_ref xs) {
+  array tmp = copy(xs);
+  in_place_sort(tmp);
+  return tmp;
+}
+
+/*---------------------------------------------------------------------*/
+/* Parallel quicksort */
 
 controller_type quicksort_contr("quicksort");
 
@@ -58,6 +69,9 @@ array quicksort(const_array_ref xs) {
   });
   return result;
 }
+
+/*---------------------------------------------------------------------*/
+/* Parallel mergesort */
 
 void merge_seq(const_array_ref xs, array_ref tmp,
                long lo1_xs, long hi1_xs,
@@ -163,12 +177,6 @@ array mergesort(const_array_ref xs) {
   long n = xs.size();
   array scratch = array(n);
   mergesort_par(tmp, scratch, 0l, n);
-  return tmp;
-}
-
-array seqsort(const_array_ref xs) {
-  array tmp = copy(xs);
-  in_place_sort(tmp);
   return tmp;
 }
 

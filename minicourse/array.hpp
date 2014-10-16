@@ -175,14 +175,14 @@ using array_ptr = array*;
 using const_array_ptr = const array*;
 
 std::ostream& operator<<(std::ostream& out, const_array_ref xs) {
-  out << "[";
+  out << "{ ";
   size_t sz = xs.size();
   for (long i = 0; i < sz; i++) {
     out << xs[i];
     if (i+1 < sz)
       out << ", ";
   }
-  out << "]";
+  out << " }";
   return out;
 }
 

@@ -17,6 +17,7 @@
 void doit() {
   array empty;
   std::cout << "empty=" << empty << std::endl;
+  std::cout << "array=" << array({1, 2}) << std::endl;
   array xs = { 0, 1, 2, 3, 4, 5, 6 };
   std::cout << "xs=" << xs << std::endl;
   array ys = map(plus1_fct, xs);
