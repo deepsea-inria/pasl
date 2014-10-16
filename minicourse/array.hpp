@@ -312,7 +312,7 @@ array map(const Func& f, const_array_ref xs) {
 }
 
 template <class Func>
-array map2(const Func& f, const_array_ref xs, const_array_ref ys) {
+array map_pair(const Func& f, const_array_ref xs, const_array_ref ys) {
   long n = std::min(xs.size(), ys.size());
   return tabulate([&] (long i) { return f(xs[i], ys[i]); }, n);
 }
@@ -336,7 +336,7 @@ value_type reduce_rec(const Assoc_op& op, const Lift_func& lift, value_type v, c
       x = op(x, lift(xs[i]));
     result = x;
   };
-  long n = hi - lo;
+  long n = hi-lo;
   par::cstmt(contr_type::contr, [&] { return n; }, [&] {
     if (n < 2) {
       seq();

@@ -27,13 +27,16 @@ mychar char_compare(mychar x, mychar y) {
     return 1l;
 }
 
+value_type string_compare_seq(const_mystring_ref xs, const_mystring_ref ys) {
+  todo();
+  return -1l;
+}
+
 value_type string_compare(const_mystring_ref xs, const_mystring_ref ys) {
-  long n = xs.size();
-  long m = ys.size();
-  if (n < m)
+  if (xs.size() < ys.size())
     return -1l * string_compare(ys, xs);
-  array cs = map2([&] (value_type x, value_type y) { return char_compare(x, y); }, xs, ys);
-  return reduce([&] (value_type a, value_type b) { return (a == 0) ? b : a; }, 0, cs);
+  array cs = map_pair([] (mychar x, mychar y) { return char_compare(x, y); }, xs, ys);
+  return reduce([&] (mychar a, mychar b) { return (a == 0) ? b : a; }, 0, cs);
 }
 
 const value_type open_paren = 1l;
