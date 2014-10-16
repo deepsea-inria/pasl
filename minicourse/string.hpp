@@ -67,15 +67,15 @@ std::string to_parens(const_array_ref xs) {
 
 bool matching_parens(const_mystring_ref parens) {
   long n = parens.size();
-  // ks[i]: nbr. of open parens in positions < i
-  array ks = scan(plus_fct, 0l, parens);
+  // open[i]: nbr. of open parens in positions < i
+  array open = scan(plus_fct, 0l, parens);
   auto is_nonneg_fct = [] (value_type x) {
     return x >= 0;
   };
   long last = n-1;
-  if (ks[last] + parens[last] != 0)
+  if (open[last] + parens[last] != 0)
     return false;
-  return reduce(and_fct, is_nonneg_fct, true, ks);
+  return reduce(and_fct, is_nonneg_fct, true, open);
 }
 
 bool matching_parens(const std::string& xs) {

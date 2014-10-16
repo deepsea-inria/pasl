@@ -27,6 +27,14 @@ using loop_controller_type = par::loop_by_eager_binary_splitting<controller_type
 using value_type = long;
 
 /*---------------------------------------------------------------------*/
+
+void todo() {
+  pasl::util::atomic::fatal([&] {
+    std::cerr << "TODO" << std::endl;
+  });
+}
+
+/*---------------------------------------------------------------------*/
 /* Primitive memory transfer */
 
 namespace prim {
@@ -281,12 +289,18 @@ array concat(const_array_ref xs1, const_array_ref xs2) {
   return result;
 }
 
-loop_controller_type tabulate_contr("tabulate");
+template <class Func>
+class tabulate_controller_type {
+public:
+  static loop_controller_type contr;
+};
+template <class Func>
+loop_controller_type tabulate_controller_type<Func>::contr("tabulate");
 
 template <class Func>
 array tabulate(const Func& f, long n) {
   array tmp = array(n);
-  par::parallel_for(tabulate_contr, 0l, n, [&] (long i) {
+  par::parallel_for(tabulate_controller_type<Func>::contr, 0l, n, [&] (long i) {
     tmp[i] = f(i);
   });
   return tmp;
@@ -303,11 +317,18 @@ array map2(const Func& f, const_array_ref xs, const_array_ref ys) {
   return tabulate([&] (long i) { return f(xs[i], ys[i]); }, n);
 }
 
-controller_type reduce_contr("reduce");
+template <class Assoc_op, class Lift_func>
+class reduce_controller_type {
+public:
+  static controller_type contr;
+};
+template <class Assoc_op, class Lift_func>
+controller_type reduce_controller_type<Assoc_op,Lift_func>::contr("reduce");
 
 template <class Assoc_op, class Lift_func>
 value_type reduce_rec(const Assoc_op& op, const Lift_func& lift, value_type v, const_array_ref xs,
                       long lo, long hi) {
+  using contr_type = reduce_controller_type<Assoc_op,Lift_func>;
   value_type result = v;
   auto seq = [&] {
     value_type x = v;
@@ -316,7 +337,7 @@ value_type reduce_rec(const Assoc_op& op, const Lift_func& lift, value_type v, c
     result = x;
   };
   long n = hi - lo;
-  par::cstmt(reduce_contr, [&] { return n; }, [&] {
+  par::cstmt(contr_type::contr, [&] { return n; }, [&] {
     if (n < 2) {
       seq();
     } else {
@@ -359,13 +380,26 @@ value_type min(const_array_ref xs) {
   return reduce(min_fct, LONG_MAX, xs);
 }
 
-controller_type scan_contr("scan");
-loop_controller_type scan_lp1_contr("scan_lp1");
-loop_controller_type scan_lp2_contr("scan_lp2");
-loop_controller_type scan_lp3_contr("scan_lp3");
+template <class Assoc_op, class Lift_func>
+class scan_controller_type {
+public:
+  static controller_type contr;
+  static loop_controller_type lp1_contr;
+  static loop_controller_type lp2_contr;
+  static loop_controller_type lp3_contr;
+};
+template <class Assoc_op, class Lift_func>
+controller_type scan_controller_type<Assoc_op,Lift_func>::contr("scan");
+template <class Assoc_op, class Lift_func>
+loop_controller_type scan_controller_type<Assoc_op,Lift_func>::lp1_contr("scan_lp1");
+template <class Assoc_op, class Lift_func>
+loop_controller_type scan_controller_type<Assoc_op,Lift_func>::lp2_contr("scan_lp2");
+template <class Assoc_op, class Lift_func>
+loop_controller_type scan_controller_type<Assoc_op,Lift_func>::lp3_contr("scan_lp3");
 
 template <class Assoc_op, class Lift_func>
 array scan(const Assoc_op& op, const Lift_func& lift, value_type id, const_array_ref xs) {
+  using contr_type = scan_controller_type<Assoc_op,Lift_func>;
   long n = xs.size();
   array tmp = array(n);
   auto seq = [&] {
@@ -375,20 +409,20 @@ array scan(const Assoc_op& op, const Lift_func& lift, value_type id, const_array
       x = op(x, lift(xs[i]));
     }
   };
-  par::cstmt(scan_contr, [&] { return n; }, [&] {
+  par::cstmt(contr_type::contr, [&] { return n; }, [&] {
     if (n < 2) {
       seq();
     } else {
       long m = n/2;
       array sums = array(m);
-      par::parallel_for(scan_lp1_contr, 0l, m, [&] (long i) {
+      par::parallel_for(contr_type::lp1_contr, 0l, m, [&] (long i) {
         sums[i] = op(lift(xs[i*2]), lift(xs[i*2+1]));
       });
       array scans = scan(op, lift, id, sums);
-      par::parallel_for(scan_lp2_contr, 0l, m, [&] (long i) {
+      par::parallel_for(contr_type::lp2_contr, 0l, m, [&] (long i) {
         tmp[2*i] = scans[i];
       });
-      par::parallel_for(scan_lp3_contr, 0l, m, [&] (long i) {
+      par::parallel_for(contr_type::lp3_contr, 0l, m, [&] (long i) {
         tmp[2*i+1] = op(lift(xs[2*i]), tmp[2*i]);
       });
       if (n == 2*m + 1) {
