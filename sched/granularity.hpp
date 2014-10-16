@@ -289,6 +289,10 @@ void cstmt(control_by_cutoff_without_reporting&,
            const Cutoff_fct& cutoff_fct,
            const Par_body_fct& par_body_fct,
            const Seq_body_fct& seq_body_fct) {
+#ifdef SEQUENTIAL_BASELINE
+  seq_body_fct();
+  return;
+#endif
   execmode_type c = (cutoff_fct()) ? Sequential : Parallel;
   if (c == Sequential)
     cstmt_base(Sequential, seq_body_fct);
@@ -322,6 +326,10 @@ void cstmt(control_by_cutoff_with_reporting& contr,
            const Complexity_measure_fct& complexity_measure_fct,
            const Par_body_fct& par_body_fct,
            const Seq_body_fct& seq_body_fct) {
+#ifdef SEQUENTIAL_BASELINE
+  seq_body_fct();
+  return;
+#endif
   estimator_type& estimator = contr.get_estimator();
   execmode_type c = (cutoff_fct()) ? Sequential : Parallel;
   if (c == Sequential) {
@@ -341,6 +349,10 @@ void cstmt(control_by_prediction& contr,
            const Complexity_measure_fct& complexity_measure_fct,
            const Par_body_fct& par_body_fct,
            const Seq_body_fct& seq_body_fct) {
+#ifdef SEQUENTIAL_BASELINE
+  seq_body_fct();
+  return;
+#endif
   estimator_type& estimator = contr.get_estimator();
   cmeasure_type m = complexity_measure_fct();
   execmode_type c;
@@ -424,13 +436,16 @@ void cstmt(control_by_cmdline& contr,
 template <class Body_fct1, class Body_fct2>
 void fork2(const Body_fct1& f1, const Body_fct2& f2) {
   execmode_type mode = my_execmode();
-  if (mode == Sequential ||  
+#ifdef SEQUENTIAL_ELISION
+  mode = Sequential;
+#endif
+  if (mode == Sequential ||
       mode == Force_sequential ) {
-    f1();  // sequentialize
+    f1();
     f2();
   } else {
-    pasl::sched::native::fork2([&mode,&f1] { execmode.mine().block(mode, f1); },
-                               [&mode,&f2] { execmode.mine().block(mode, f2); });
+    native::fork2([&mode,&f1] { execmode.mine().block(mode, f1); },
+                  [&mode,&f2] { execmode.mine().block(mode, f2); });
   }
 }
   
