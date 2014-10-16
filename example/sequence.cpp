@@ -5,6 +5,7 @@
 
 #include "benchmark.hpp"
 #include "granularity.hpp"
+#include "quickcheck.hh"
 
 /*
  todo
@@ -17,14 +18,17 @@
  
  */
 
+/***********************************************************************/
+
 namespace par = pasl::sched::granularity;
 
 using controller_type = par::control_by_prediction;
 using loop_controller_type = par::loop_by_eager_binary_splitting<controller_type>;
 
-/*---------------------------------------------------------------------*/
-
 using value_type = long;
+
+/*---------------------------------------------------------------------*/
+/* Primitive memory transfer */
 
 namespace prim {
   
@@ -91,6 +95,7 @@ namespace prim {
 }
 
 /*---------------------------------------------------------------------*/
+/* Array-based implementation of sequences */
 
 class array {
 private:
@@ -120,7 +125,7 @@ private:
   
 public:
   
-  array(long sz)
+  array(long sz = 0)
   : sz(sz) {
     alloc();
   }
@@ -167,6 +172,8 @@ public:
 
 using array_ref = array&;
 using const_array_ref = const array&;
+using array_ptr = array*;
+using const_array_ptr = const array*;
 
 std::ostream& operator<<(std::ostream& out, const_array_ref xs) {
   out << "[";
@@ -180,7 +187,15 @@ std::ostream& operator<<(std::ostream& out, const_array_ref xs) {
   return out;
 }
 
+array gen_random_array(long n) {
+  array tmp = array(n);
+  for (long i = 0; i < n; i++)
+    tmp[i] = random() % 1024;
+  return tmp;
+}
+
 /*---------------------------------------------------------------------*/
+/* Sample lambda expressions */
 
 auto identity_fct = [] (value_type x) {
   return x;
@@ -211,6 +226,7 @@ auto is_even_fct = [] (value_type x) {
 };
 
 /*---------------------------------------------------------------------*/
+/* Parallel array operations */
 
 array fill(long n, value_type v) {
   array tmp = array(n);
@@ -423,6 +439,7 @@ array just_evens(const_array_ref xs) {
 }
 
 /*---------------------------------------------------------------------*/
+/* First two exercises */
 
 array duplicate(const_array_ref xs) {
   long m = xs.size() * 2;
@@ -435,6 +452,29 @@ array ktimes(const_array_ref xs, long k) {
 }
 
 /*---------------------------------------------------------------------*/
+/* String exercises */
+
+using mychar = value_type;
+using mystring = array;
+using const_mystring_ref = const_array_ref;
+
+mychar char_compare(mychar x, mychar y) {
+  if (x < y)
+    return -1l;
+  else if (x == y)
+    return 0l;
+  else
+    return 1l;
+}
+
+value_type string_compare(const_mystring_ref xs, const_mystring_ref ys) {
+  long n = xs.size();
+  long m = ys.size();
+  if (n < m)
+    return -1l * string_compare(ys, xs);
+  array cs = map2([&] (value_type x, value_type y) { return char_compare(x, y); }, xs, ys);
+  return reduce([&] (value_type a, value_type b) { return (a == 0) ? b : a; }, 0, cs);
+}
 
 const value_type open_paren = 1l;
 const value_type close_paren = -1l;
@@ -465,30 +505,6 @@ std::string to_parens(const_array_ref xs) {
   return str;
 }
 
-/*---------------------------------------------------------------------*/
-
-using mychar = value_type;
-using mystring = array;
-using const_mystring_ref = const_array_ref;
-
-mychar char_compare(mychar x, mychar y) {
-  if (x < y)
-    return -1l;
-  else if (x == y)
-    return 0l;
-  else
-    return 1l;
-}
-
-value_type string_compare(const_mystring_ref xs, const_mystring_ref ys) {
-  long n = xs.size();
-  long m = ys.size();
-  if (n < m)
-    return -1l * string_compare(ys, xs);
-  array cs = map2([&] (value_type x, value_type y) { return char_compare(x, y); }, xs, ys);
-  return reduce([&] (value_type a, value_type b) { return (a == 0) ? b : a; }, 0, cs);
-}
-
 bool matching_parens(const_mystring_ref parens) {
   long n = parens.size();
   // ks[i]: nbr. of open parens in positions < i
@@ -507,25 +523,19 @@ bool matching_parens(const std::string& xs) {
 }
 
 /*---------------------------------------------------------------------*/
-
-array gen_random_array(long n) {
-  array tmp = array(n);
-  for (long i = 0; i < n; i++)
-    tmp[i] = random() % 1024;
-  return tmp;
-}
+/* Sorting exercises */
 
 long nlogn(long n) {
   return pasl::data::estimator::annotation::nlgn(n);
 }
 
-void in_place_quicksort(array_ref xs, long lo, long hi) {
+void in_place_sort(array_ref xs, long lo, long hi) {
   if (hi-lo > 0)
     std::sort(&xs[lo], &xs[hi-1]+1);
 }
 
-void in_place_quicksort(array_ref xs) {
-  in_place_quicksort(xs, 0l, xs.size());
+void in_place_sort(array_ref xs) {
+  in_place_sort(xs, 0l, xs.size());
 }
 
 controller_type quicksort_contr("quicksort");
@@ -535,7 +545,7 @@ array quicksort(const_array_ref xs) {
   array result = empty();
   auto seq = [&] {
     result = copy(xs);
-    in_place_quicksort(result);
+    in_place_sort(result);
   };
   par::cstmt(quicksort_contr, [&] { return nlogn(n); }, [&] {
     if (n < 2) {
@@ -639,7 +649,7 @@ void mergesort_par(array_ref xs, array_ref tmp,
                    long lo, long hi) {
   long n = hi-lo;
   auto seq = [&] {
-    std::sort(&xs[0]+lo, &xs[0]+hi);
+    in_place_sort(xs, lo, hi);
   };
   par::cstmt(mergesort_contr, [&] { return nlogn(n); }, [&] {
     if (n == 0) {
@@ -666,7 +676,89 @@ array mergesort(const_array_ref xs) {
   return tmp;
 }
 
+array seqsort(const_array_ref xs) {
+  array tmp = copy(xs);
+  in_place_sort(tmp);
+  return tmp;
+}
+
 /*---------------------------------------------------------------------*/
+/* Unit testing */
+
+long nb_tests;
+
+template <class Property>
+void checkit(std::string msg) {
+  quickcheck::check<Property>(msg.c_str(), nb_tests);
+}
+
+bool same_array(const_array_ref xs, const_array_ref ys) {
+  if (xs.size() != ys.size())
+    return false;
+  for (long i = 0; i < xs.size(); i++)
+    if (xs[i] != ys[i])
+      return false;
+  return true;
+}
+
+array array_of_vector(const std::vector<value_type>& vec) {
+  return tabulate([&] (long i) { return vec[i]; }, vec.size());
+}
+
+template <class Trusted_sort_fct, class Untrusted_sort_fct>
+class sort_correct : public quickcheck::Property<std::vector<value_type>> {
+public:
+  
+  Trusted_sort_fct trusted_sort;
+  Untrusted_sort_fct untrusted_sort;
+  
+  bool holdsFor(const std::vector<value_type>& vec) {
+    array xs = array_of_vector(vec);
+    return same_array(trusted_sort(xs), untrusted_sort(xs));
+  }
+  
+};
+
+void check_sort() {
+  pasl::util::cmdline::argmap_dispatch c;
+  class trusted_fct {
+  public:
+    array operator()(const_array_ref xs) {
+      return seqsort(xs);
+    }
+  };
+  c.add("mergesort", [&] {
+    class untrusted_fct {
+    public:
+      array operator()(const_array_ref xs) {
+        return mergesort(xs);
+      }
+    };
+    using property_type = sort_correct<trusted_fct, untrusted_fct>;
+    checkit<property_type>("checking mergesort");
+  });
+  c.add("quicksort", [&] {
+    class untrusted_fct {
+    public:
+      array operator()(const_array_ref xs) {
+        return quicksort(xs);
+      }
+    };
+    using property_type = sort_correct<trusted_fct, untrusted_fct>;
+    checkit<property_type>("checking quicksort");
+  });
+  c.find_by_arg("algo");
+}
+
+void check() {
+  nb_tests = pasl::util::cmdline::parse_or_default_long("nb_tests", 100);
+  pasl::util::cmdline::argmap_dispatch c;
+  c.add("sort", std::bind(check_sort));
+  c.find_by_arg("check");
+}
+
+/*---------------------------------------------------------------------*/
+/* Benchmarking */
 
 using thunk_type = std::function<void ()>;
 using benchmark_type = std::pair<std::pair<thunk_type,thunk_type>,
@@ -694,8 +786,6 @@ void bench_destroy(const benchmark_type& b) {
   b.second.second();
 }
 
-/*---------------------------------------------------------------------*/
-
 benchmark_type scan_bench() {
   long n = pasl::util::cmdline::parse_or_default_long("n", 1l<<20);
   array* inp = new array(0);
@@ -719,8 +809,11 @@ benchmark_type scan_bench() {
 }
 
 /*---------------------------------------------------------------------*/
+/* Sample applications */
 
 void doit() {
+  array empty;
+  std::cout << "empty=" << empty << std::endl;
   array xs = { 0, 1, 2, 3, 4, 5, 6 };
   std::cout << "xs=" << xs << std::endl;
   array ys = map(plus1_fct, xs);
@@ -739,7 +832,6 @@ void doit() {
   std::cout << "drop4=" << drop(xs, 4) << std::endl;
   std::cout << "take0=" << take(xs, 0) << std::endl;
   std::cout << "drop 7=" << drop(xs, 7) << std::endl;
-
   
   std::cout << "parens=" << to_parens(from_parens("()()((()))")) << std::endl;
   std::cout << "matching=" << matching_parens(from_parens("()()((()))")) << std::endl;
@@ -762,6 +854,9 @@ void doit() {
   std::cout << quicksort(rs) << std::endl;
 }
 
+/*---------------------------------------------------------------------*/
+/* PASL Driver */
+
 int main(int argc, char** argv) {
   
   benchmark_type bench;
@@ -783,3 +878,6 @@ int main(int argc, char** argv) {
   };
   pasl::sched::launch(argc, argv, init, run, output, destroy);
 }
+
+/***********************************************************************/
+
