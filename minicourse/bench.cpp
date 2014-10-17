@@ -17,6 +17,8 @@
 /*---------------------------------------------------------------------*/
 /* Random-array generation */
 
+// taken from https://gist.github.com/badboy/6267743
+
 long hash64shift(long key) {
   auto unsigned_right_shift = [] (long x, int y) {
     unsigned long r = (unsigned long) x >> y;
