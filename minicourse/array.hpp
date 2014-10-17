@@ -295,7 +295,8 @@ public:
   static loop_controller_type contr;
 };
 template <class Func>
-loop_controller_type tabulate_controller_type<Func>::contr("tabulate");
+loop_controller_type tabulate_controller_type<Func>::contr("tabulate"+
+                                                           par::string_of_template_arg<Func>());
 
 template <class Func>
 array tabulate(const Func& f, long n) {
@@ -323,7 +324,9 @@ public:
   static controller_type contr;
 };
 template <class Assoc_op, class Lift_func>
-controller_type reduce_controller_type<Assoc_op,Lift_func>::contr("reduce");
+controller_type reduce_controller_type<Assoc_op,Lift_func>::contr("reduce"+
+                                                                  par::string_of_template_arg<Assoc_op>()+
+                                                                  par::string_of_template_arg<Lift_func>());
 
 template <class Assoc_op, class Lift_func>
 value_type reduce_rec(const Assoc_op& op, const Lift_func& lift, value_type v, const_array_ref xs,
@@ -389,13 +392,21 @@ public:
   static loop_controller_type lp3_contr;
 };
 template <class Assoc_op, class Lift_func>
-controller_type scan_controller_type<Assoc_op,Lift_func>::contr("scan");
+controller_type scan_controller_type<Assoc_op,Lift_func>::contr("scan"+
+                                                                par::string_of_template_arg<Assoc_op>()+
+                                                                par::string_of_template_arg<Lift_func>());
 template <class Assoc_op, class Lift_func>
-loop_controller_type scan_controller_type<Assoc_op,Lift_func>::lp1_contr("scan_lp1");
+loop_controller_type scan_controller_type<Assoc_op,Lift_func>::lp1_contr("scan_lp1"+
+                                                                         par::string_of_template_arg<Assoc_op>()+
+                                                                         par::string_of_template_arg<Lift_func>());
 template <class Assoc_op, class Lift_func>
-loop_controller_type scan_controller_type<Assoc_op,Lift_func>::lp2_contr("scan_lp2");
+loop_controller_type scan_controller_type<Assoc_op,Lift_func>::lp2_contr("scan_lp2"+
+                                                                         par::string_of_template_arg<Assoc_op>()+
+                                                                         par::string_of_template_arg<Lift_func>());
 template <class Assoc_op, class Lift_func>
-loop_controller_type scan_controller_type<Assoc_op,Lift_func>::lp3_contr("scan_lp3");
+loop_controller_type scan_controller_type<Assoc_op,Lift_func>::lp3_contr("scan_lp3"+
+                                                                         par::string_of_template_arg<Assoc_op>()+
+                                                                         par::string_of_template_arg<Lift_func>());
 
 template <class Assoc_op, class Lift_func>
 array scan(const Assoc_op& op, const Lift_func& lift, value_type id, const_array_ref xs) {

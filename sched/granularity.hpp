@@ -528,6 +528,12 @@ void parallel_for(loop_by_eager_binary_splitting<control_by_prediction>& lpalgo,
   auto loop_compl_fct = [] (Number lo, Number hi) { return hi-lo; };
   parallel_for(lpalgo, loop_cutoff_fct, loop_compl_fct, lo, hi, body);
 }
+ 
+  //! \todo find a better place for this function
+template <class T>
+std::string string_of_template_arg() {
+  return std::string(typeid(T).name());
+}
 
 } // namespace
 } // namespace
