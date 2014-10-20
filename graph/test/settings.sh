@@ -1,1 +1,1 @@
-QUICKCHECK_PATH=/home/grigory/Downloads/quickcheck
+QUICKCHECK_PATH=../quickcheck
