@@ -4,7 +4,8 @@
 # build folder && executables
 _build/
 *.opt
-
+*.opt2
+*.dbg
 
 # others
-*.un~
+*~
