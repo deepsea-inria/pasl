@@ -68,17 +68,20 @@ std::string to_parens(const_array_ref xs) {
   return str;
 }
 
+array every_nesting_depth(const_mystring_ref parens) {
+  return scan(plus_fct, 0l, parens);
+}
+
+bool is_every_nesting_depth_valid(const_array_ref nesting_depths) {
+  return reduce(and_fct, [] (value_type x) { return x >= 0; }, true, nesting_depths);
+}
+
 bool matching_parens(const_mystring_ref parens) {
-  long n = parens.size();
-  // open[i]: nbr. of open parens in positions < i
-  array open = scan(plus_fct, 0l, parens);
-  auto is_nonneg_fct = [] (value_type x) {
-    return x >= 0;
-  };
-  long last = n-1;
-  if (open[last] + parens[last] != 0)
+  array nesting_depths = every_nesting_depth(parens);
+  long last = nesting_depths.size()-1;
+  if (nesting_depths[last] + parens[last] != 0)
     return false;
-  return reduce(and_fct, is_nonneg_fct, true, open);
+  return is_every_nesting_depth_valid(nesting_depths);
 }
 
 bool matching_parens(const std::string& xs) {

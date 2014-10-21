@@ -4,6 +4,5 @@
 - bfs
 - plots for granularity controller data (see image)
 - prepare makefile
-- document run/plot tools
 - enriched speedup curve
 - fix build problem: dependency analyzer is scavenging comments to find #include directives; should not be
