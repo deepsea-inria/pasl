@@ -1,0 +1,8 @@
+- add check to ensure that controller identifiers are not duplicated
+- add unit test generators for exercises
+- add data generators for benchmarking
+- bfs
+- plots for granularity controller data (see image)
+- prepare makefile
+- enriched speedup curve
+- fix build problem: dependency analyzer is scavenging comments to find #include directives; should not be

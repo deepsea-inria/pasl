@@ -102,6 +102,7 @@ static void try_write_constants_to_file() {
 
 void common::init(std::string name) {
   set_name(name);
+  LOG_ESTIM(new util::logging::estim_name_event_t(this, name));
 }
 
 void common::output() {
@@ -118,11 +119,10 @@ std::string common::get_name() {
 
 void common::set_name(std::string name) {
   this->name = name;
-  LOG_ESTIM(new util::logging::estim_name_event_t(this, name));
 }
 
-cost_t common::get_constant_or_pessimistic() {
-  cost_t cst = get_constant();
+cost_type common::get_constant_or_pessimistic() {
+  cost_type cst = get_constant();
   assert (cst != 0.);
   if (cst == cost::undefined)
     return cost::pessimistic;
@@ -130,7 +130,7 @@ cost_t common::get_constant_or_pessimistic() {
     return cst;
 }
 
-cost_t common::predict_impl(complexity_t comp) {
+cost_type common::predict_impl(complexity_type comp) {
   // tiny complexity leads to tiny cost
   if (comp == complexity::tiny)
     return cost::tiny;
@@ -139,12 +139,12 @@ cost_t common::predict_impl(complexity_t comp) {
   assert (comp >= 0);
   
   // compute the constant multiplied by the complexity
-  cost_t cst = get_constant_or_pessimistic();
+  cost_type cst = get_constant_or_pessimistic();
   return cst * ((double) comp);
 }
 
-cost_t common::predict(complexity_t comp) {
-  cost_t t = predict_impl(comp);
+cost_type common::predict(complexity_type comp) {
+  cost_type t = predict_impl(comp);
   LOG_ESTIM(new util::logging::estim_predict_event_t(this, comp, t));
   return t;
 }
@@ -158,13 +158,13 @@ uint64_t common::predict_nb_iterations() {
   return nb;
 }
 
-void common::log_update(cost_t new_cst) {
+void common::log_update(cost_type new_cst) {
   LOG_CSTS(new util::logging::estim_update_event_t(this, new_cst));
 }
 
-void common::report(complexity_t comp, cost_t elapsed_ticks) {
+void common::report(complexity_type comp, cost_type elapsed_ticks) {
   double elapsed_time = elapsed_ticks / (double) local_ticks_per_microsec;
-  cost_t measured_cst = elapsed_time / comp;
+  cost_type measured_cst = elapsed_time / comp;
   LOG_ESTIM(new util::logging::estim_report_event_t(this, comp, elapsed_time, measured_cst));
   analyse(measured_cst);
 }
@@ -172,11 +172,11 @@ void common::report(complexity_t comp, cost_t elapsed_ticks) {
 /*---------------------------------------------------------------------*/
 // disbtributed
 
-void distributed::init(std::string name) {
-  common::init(name);
+void distributed::init() {
+  common::init(common::name);
   shared_cst = cost::undefined;
   private_csts.init(cost::undefined);
-  constant_map_t::iterator preloaded = preloaded_constants.find(name);
+  constant_map_t::iterator preloaded = preloaded_constants.find(common::name);
   if (preloaded != preloaded_constants.end())
     set_init_constant(preloaded->second);
 }
@@ -184,10 +184,14 @@ void distributed::init(std::string name) {
 void distributed::destroy() {
   common::destroy();
 }
+  
+void distributed::output() {
+  common::output();
+}
 
-cost_t distributed::get_constant() {
+cost_type distributed::get_constant() {
   worker_id_t my_id = util::worker::get_my_id();
-  cost_t cst = private_csts[my_id];
+  cost_type cst = private_csts[my_id];
   
   // if local constant is undefined, use shared cst
   if (cst == cost::undefined)
@@ -201,7 +205,7 @@ cost_t distributed::get_constant() {
   return cst;
 }
 
-void distributed::set_init_constant(cost_t init_cst) {
+void distributed::set_init_constant(cost_type init_cst) {
   shared_cst = init_cst;
   int nb_workers = util::worker::get_nb();
   for (worker_id_t id = 0; id < nb_workers; id++)
@@ -213,20 +217,20 @@ bool distributed::init_constant_provided() {
   return init_constant_provided_flg;
 }
 
-void distributed::update_shared(cost_t new_cst) {
+void distributed::update_shared(cost_type new_cst) {
   shared_cst = new_cst;
   LOG_ONLY(log_update(new_cst));
   STAT_COUNT(ESTIM_UPDATE);
 }
 
-void distributed::update(worker_id_t my_id, cost_t new_cst) {
+void distributed::update(worker_id_t my_id, cost_type new_cst) {
   // if decrease is significant, report it to the shared constant;
   // (note that the shared constant never increases)
-  cost_t shared = shared_cst;
+  cost_type shared = shared_cst;
   if (shared == cost::undefined) {
     update_shared(new_cst);
   } else {
-    cost_t min_shared_cst = shared / min_report_shared_factor;
+    cost_type min_shared_cst = shared / min_report_shared_factor;
     if (new_cst < min_shared_cst)
       update_shared(min_shared_cst);
   }
@@ -234,9 +238,9 @@ void distributed::update(worker_id_t my_id, cost_t new_cst) {
   private_csts[my_id] = new_cst;
 }
 
-void distributed::analyse(cost_t measured_cst) {
+void distributed::analyse(cost_type measured_cst) {
   worker_id_t my_id = util::worker::get_my_id();
-  cost_t cst = get_constant();
+  cost_type cst = get_constant();
   if (cst == cost::undefined) {
     // handle the first measure without average
     update(my_id, measured_cst);

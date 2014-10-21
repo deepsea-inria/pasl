@@ -28,10 +28,9 @@ VERBOSE_MAKE=0
 VERBOSE_DEPENDENCIES=0
 
 PROGRAMS=\
-	fib.cpp \
-	hull.cpp \
-	bhut.cpp \
-	sequence.cpp
+	example.cpp \
+	check.cpp \
+	bench.cpp 
 #       add reference to your cpp source here
 
 ####################################################################
@@ -56,7 +55,7 @@ include $(TOOLS_BUILD_FOLDER)/Makefile_options
 # (If extending the list, need to add cases for the definition
 # of COMPILE_OPTIONS_FOR further below, and also for "clean".
 
-MODES=dbg log sta opt seq cilk
+MODES=dbg log sta opt seq cilk elision baseline
 
 # Compilation options for each mode
 
@@ -67,6 +66,8 @@ COMPILE_OPTIONS_FOR_sta=$(OPTIONS_O2) -DSTATS
 COMPILE_OPTIONS_FOR_seq=$(OPTIONS_O2) -DSTATS -DSEQUENTIAL_ELISION
 COMPILE_OPTIONS_FOR_opt=$(OPTIONS_O2)
 COMPILE_OPTIONS_FOR_cilk=$(OPTIONS_cilk) $(OPTIONS_O2)
+COMPILE_OPTIONS_FOR_elision=$(OPTIONS_O2) -DSEQUENTIAL_ELISION
+COMPILE_OPTIONS_FOR_baseline=$(OPTIONS_O2) -DSEQUENTIAL_BASELINE -DSEQUENTIAL_ELISION
 
 # Folders where to find all the header files and main sources
 
@@ -83,15 +84,6 @@ FOLDERS=$(INCLUDES)
 all: opt
 
 opt: $(PROGRAMS:.cpp=.opt)
-
-fib.all: $(call all_modes_for,fib)
-
-# example
-# make fib.opt && make benchtools
-# ./fib.sta -n 43 -cutoff 27 -proc 40
-# ./run -prog ./fib.opt -n 43 -cutoff 27 -proc 0,1,2,3,4
-# ./plot --speedup --open
-
 
 ####################################################################
 # Clean
