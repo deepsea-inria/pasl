@@ -280,21 +280,21 @@ exception Exit
 
 let convert_time t =
   if t >= 1000000. then
-      sprintf "width: %.1f seconds" (t /. 1000000.) 
+      sprintf "%.1f seconds" (t /. 1000000.) 
   else if t >= 100000. then
-      sprintf "width: %.2f seconds" (t /. 1000000.) 
+      sprintf "%.2f seconds" (t /. 1000000.) 
   else if t >= 10000. then
-      sprintf "width: %.1f milliseconds" (t /. 1000.) 
+      sprintf "%.1f milliseconds" (t /. 1000.) 
   else if t >= 1000. then
-      sprintf "width: %.2f milliseconds" (t /. 1000.) 
+      sprintf "%.2f milliseconds" (t /. 1000.) 
   else 
-     sprintf "width: %d microseconds" (int_of_float t) 
+     sprintf "%d microseconds" (int_of_float t) 
 
 (** Display the current scale at a given x-position at the top of the window *)
 
-let display_scale t xpos =
+let display_scale title t xpos =
   let str = convert_time t in
-  my_draw_string 20 black (xpos,!gopt.gopt_height_full-50) str
+  my_draw_string 20 black (xpos,!gopt.gopt_height_full-50) (title ^ str)
   
 (** Compute the width of a range *)
 
@@ -341,10 +341,10 @@ let display_at_range draw init_range full_range =
       clear_graph();
       draw_proc_lines();
       draw range;
-      display_rainbow();
-      display_scale (width_of_range range) 0;
+      (* display_rainbow(); *)
+      display_scale "Runtime: " (width_of_range range) 0;
       begin match !measure_to_display with
-         | Some r -> display_scale r 200
+         | Some r -> display_scale "Time range: " r 200
          | None -> ()
       end;
       measure_to_display := None;
