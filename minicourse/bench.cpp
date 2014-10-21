@@ -182,10 +182,10 @@ int main(int argc, char** argv) {
   benchmark_type bench;
   
   auto init = [&] {
-    pasl::util::cmdline::argmap<benchmark_type> m;
-    m.add("scan", scan_bench());
-    m.add("sort", sort_bench());
-    bench = m.find_by_arg("bench");
+    pasl::util::cmdline::argmap<std::function<benchmark_type()>> m;
+    m.add("scan", [&] { return scan_bench(); });
+    m.add("sort", [&] { return sort_bench(); });
+    bench = m.find_by_arg("bench")();
     bench_init(bench);
   };
   auto run = [&] (bool) {
