@@ -1,7 +1,10 @@
-- add check to ensure that controller identifiers are not duplicated
+- add dynamic check to ensure that controller identifiers are not duplicated
+- check for space leaks
+- implement maximum segment sum
+  + inclusive scan
+- try alternative approach to dealing with nested cstm's: add a boolean return value to fork2 to indicate whether either branch was possibly migrated
 - add unit test generators for exercises
 - add data generators for benchmarking
-- bfs
 - plots for granularity controller data (see image)
 - prepare makefile
 - enriched speedup curve
