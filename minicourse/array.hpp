@@ -19,6 +19,8 @@
 
 /***********************************************************************/
 
+/*---------------------------------------------------------------------*/
+
 namespace par = pasl::sched::granularity;
 
 using controller_type = par::control_by_prediction;
@@ -32,6 +34,11 @@ void todo() {
   pasl::util::atomic::fatal([&] {
     std::cerr << "TODO" << std::endl;
   });
+}
+
+template <class T>
+T* my_malloc(long n) {
+  return (T*)malloc(n*sizeof(T));
 }
 
 /*---------------------------------------------------------------------*/
@@ -119,7 +126,7 @@ private:
   
   void alloc() {
     assert(sz >= 0);
-    value_type* p = (value_type*)malloc(sizeof(value_type) * sz);
+    value_type* p = my_malloc<value_type>(sz);
     assert(p != nullptr);
     ptr.reset(p);
   }
@@ -145,11 +152,13 @@ public:
       ptr[i++] = *it;
   }
   
-  array(const array& other);
-  array& operator=(const array& other);
+  // To disable copy semantics, we disable:
+  array(const array& other);            //   1. copy constructor
+  array& operator=(const array& other); //   2. assign-by-copy operator
   
   array& operator=(array&& other) {
     // todo: make sure that the following does not create a memory leak
+    // in particular, the move instruction below should be freeing the contents of this->ptr
     ptr = std::move(other.ptr);
     sz = other.sz;
     other.sz = 0l;
@@ -455,14 +464,16 @@ array partial_sums(value_type id, const_array_ref xs) {
 }
 
 array partial_sums(const_array_ref xs) {
-  return scan(plus_fct, identity_fct, 0, xs);
+  return partial_sums(0l, xs);
 }
 
 loop_controller_type pack_contr("pack");
 
-array pack(const_array_ref flags, const_array_ref xs) {
-  array offsets = partial_sums(flags);
+array pack_nonempty(const_array_ref flags, const_array_ref xs) {
+  assert(xs.size() == flags.size());
+  assert(xs.size() > 0l);
   long n = xs.size();
+  array offsets = partial_sums(flags);
   long last = n-1;
   value_type m = offsets[last] + flags[last];
   array result = array(m);
@@ -471,6 +482,11 @@ array pack(const_array_ref flags, const_array_ref xs) {
       result[offsets[i]] = xs[i];
   });
   return result;
+}
+
+array pack(const_array_ref flags, const_array_ref xs) {
+  assert(flags.size() == xs.size());
+  return (xs.size() > 0) ? pack_nonempty(flags, xs) : empty();
 }
 
 template <class Pred>

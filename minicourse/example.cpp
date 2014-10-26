@@ -11,10 +11,12 @@
 #include "dup.hpp"
 #include "string.hpp"
 #include "sort.hpp"
+#include "graph.hpp"
 
 /***********************************************************************/
 
 void doit() {
+  
   array empty;
   std::cout << "empty=" << empty << std::endl;
   std::cout << "array=" << array({1, 2}) << std::endl;
@@ -56,6 +58,9 @@ void doit() {
   std::cout << rs << std::endl;
   std::cout << mergesort(rs) << std::endl;
   std::cout << quicksort(rs) << std::endl;
+
+  adjlist graph = { mk_edge(0, 1), mk_edge(0, 3), mk_edge(5, 1) };
+  std::cout << graph << std::endl;
 }
 
 /*---------------------------------------------------------------------*/
