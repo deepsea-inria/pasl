@@ -264,7 +264,7 @@ void check_graph() {
 /* PASL Driver */
 
 void check() {
-  nb_tests = pasl::util::cmdline::parse_or_default_long("nb_tests", 100);
+  nb_tests = pasl::util::cmdline::parse_or_default_long("nb_tests", 500);
   pasl::util::cmdline::argmap_dispatch c;
   c.add("sort", std::bind(check_sort));
   c.add("graph", std::bind(check_graph));

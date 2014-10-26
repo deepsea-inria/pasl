@@ -269,8 +269,8 @@ atomic_value_ptr bfs_par(const_adjlist_ref graph, vtxid_type source) {
       return graph.get_out_degree_of(cur_frontier[i]);
     };
     long cur_frontier_sz = cur_frontier.size();
-    long last_in_cur_frontier = cur_frontier_sz-1;
     next_frontier_counts = partial_sums(tabulate(get_out_degree_fct, cur_frontier_sz));
+    long last_in_cur_frontier = cur_frontier_sz-1;
     long degree_of_last_vertex = graph.get_out_degree_of(cur_frontier[last_in_cur_frontier]);
     long next_frontier_sz = next_frontier_counts[last_in_cur_frontier] + degree_of_last_vertex;
     next_frontier = array(next_frontier_sz);
