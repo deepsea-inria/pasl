@@ -65,7 +65,7 @@ void launch(const Init& init, const Run& run, const Output& output,
   double exec_time = util::microtime::seconds_since(start_time);
   LOG_BASIC(EXIT_ALGO);
   if (report_time)
-    printf ("exectime %lf\n", exec_time);
+    printf ("exectime %.3lf\n", exec_time);
   STAT_IDLE(sum());
   STAT(dump(stdout));
   STAT_IDLE(print_idle(stdout));

@@ -89,8 +89,8 @@ void recorder_t::init() {
   real_time = cmdline::parse_or_default_bool("log_stdout", false);
   text_mode = cmdline::parse_or_default_bool("log_text", real_time);
   set_tracking_all(false); 
-  bool view = cmdline::parse_or_default_bool("view", false);
-  bool color_view = cmdline::parse_or_default_bool("color_view", false);
+  bool pview = cmdline::parse_or_default_bool("pview", false);
+  bool color_view = cmdline::parse_or_default_bool("color_view", false); // temporarily deprecated
   tracking[PHASES] = cmdline::parse_or_default_bool("log_phases", 0);
   tracking[THREADS] = cmdline::parse_or_default_bool("log_threads", 0);
   tracking[ESTIMS] = cmdline::parse_or_default_bool("log_estims", 0);
@@ -107,10 +107,10 @@ void recorder_t::init() {
   if (track_all)
     set_tracking_all(true);
   if (color_view) {
-    view = true;
+    pview = true;
     tracking[LOCALITY] = true;
   }
-  if (view) {
+  if (pview) {
     tracking[PHASES] = true;
   }
 }
