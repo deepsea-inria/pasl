@@ -7,5 +7,6 @@
 - add data generators for benchmarking
 - plots for granularity controller data (see image)
 - prepare makefile
+- disable default warning messages to stderr by adding a verbose flag
 - enriched speedup curve
 - fix build problem: dependency analyzer is scavenging comments to find #include directives; should not be
