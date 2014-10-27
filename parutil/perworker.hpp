@@ -13,6 +13,7 @@
 #include <assert.h>
 #include <initializer_list>
 
+#include "callback.hpp"
 #include "worker.hpp"
 
 /***********************************************************************/
@@ -25,11 +26,9 @@ namespace perworker {
 
 static constexpr int default_padding_szb = 64 * 2;
 static constexpr int default_max_nb_workers = 128;
-  
-  //! \todo add a special variant of perworker that offers only mine() and is implemented by either native gcc or pthread-local storage
-  
+    
 /*---------------------------------------------------------------------*/
-/*! \class base
+/*! \class array
  *  \brief Array indexed by worker id
  *  \tparam Item type of the items to be stored in the container
  *  \tparam padding_szb number of bytes of empty space to add to the 
@@ -62,7 +61,7 @@ static constexpr int default_max_nb_workers = 128;
 template <class Item,
           int padding_szb = default_padding_szb,
           int max_nb_workers = default_max_nb_workers>
-class base {
+class array {
 public:
   
   using value_type = Item;
@@ -86,9 +85,9 @@ private:
   
 public:
   
-  base() { }
+  array() { }
   
-  base(std::initializer_list<value_type> l) {
+  array(std::initializer_list<value_type> l) {
     if (l.size() != 1)
       util::atomic::fatal([] { std::cout << "perworker given bogus initializer list"; });
     init(*(l.begin()));
@@ -143,7 +142,7 @@ public:
    * Example
    * -------
    * Let `identity = 0`, `comb = [] (int x, int y) { return x + y; }`
-   * and `a` be a value of type `base<int>`.
+   * and `a` be a value of type `array<int>`.
    * Then `x.combine(identity, comb)` equals `a[nb_workers-1] + a[nb_workers-2]
    * + ... + a[0] + identity`.
    *
@@ -172,26 +171,26 @@ public:
 /*! \class with_undefined
  *  \brief Per-worker array that can index the undefined worker id
  *  \tparam Base type that must be an instantiation of 
- *  pasl::data:perworker::base.
+ *  pasl::data:perworker::array.
  *  \ingroup data
  *  \ingroup perworker
  *
- * This container has the same behavior as the base perworker array,
+ * This container has the same behavior as the perworker array,
  * with the one exception that the container can be indexed by the
  * undefined worker id, namely `worker::undef`.
  *
  */
-template <class Base>
+template <class Array>
 class with_undefined {
 public:
   
-  using value_type = typename Base::value_type;
+  using value_type = typename Array::value_type;
   using index_type = worker_id_t;
   
 private:
   
   value_type ext;
-  Base base;
+  Array array;
   
 public:
   
@@ -204,7 +203,7 @@ public:
   }
   
   value_type& operator[](const worker_id_t id_or_undef) {
-    return (id_or_undef == util::worker::undef) ? ext : base[id_or_undef];
+    return (id_or_undef == util::worker::undef) ? ext : array[id_or_undef];
   }
   
   value_type& operator[](const int id) {
@@ -218,18 +217,18 @@ public:
   template <class Body>
   void for_each(const Body& body) {
     body(util::worker::undef, ext);
-    base.for_each(body);
+    array.for_each(body);
   }
   
   template <class Combiner>
   value_type combine(value_type identity, const Combiner& comb) {
     value_type res = comb(identity, ext);
-    return base.combine(res, comb);
+    return array.combine(res, comb);
   }
   
   void init(const value_type& v) {
     ext = v;
-    base.init(v);
+    array.init(v);
   }
   
 };
@@ -237,9 +236,137 @@ public:
 template <class Item,
           int padding_szb = default_padding_szb,
           int max_nb_workers = default_max_nb_workers>
-using extra = with_undefined<base<Item, padding_szb, max_nb_workers>>;
+using extra = with_undefined<array<Item, padding_szb, max_nb_workers>>;
+  
+#ifdef HAVE_STD_TLS
+ 
+/*---------------------------------------------------------------------*/
+/*! \class cell
+ *  \brief Worker-local cell
+ *  \tparam Item type of the item to be stored in the cell
+ *  \ingroup data
+ *  \ingroup perworker
+ *
+ * A cell that is accessible only by the calling thread.
+ *
+ * The usage of this class is similar to that of the class `array`
+ * above, except that the `cell` class exports just one method, namlye 
+ * `mine()`.
+ *
+ */
+template <class Item>
+class cell {
+private:
+  
+  thread_local Item v;
+  Item dflt;
+  bool initialized = false;
+  
+  class callback : public util::callback::client {
+  public:
+    
+    cell<Item>* p;
+    
+    callback(cell<Item>* p)
+    : p(p) { }
+    
+    void init() {
+      p->init();
+    }
+    
+    void destroy() {
+      
+    }
+    
+    void output() {
+      
+    }
+  };
+  
+  void init() {
+    initialized = true;
+    v = dflt;
+  }
+  
+public:
+  
+  using value_type = Item;
+  
+  cell() { }
+  
+  cell(value_type v)
+  : dflt(v), v(v) {
+    util::callback::register_client(new callback(this));
+  }
+  
+  value_type& mine() {
+    assert(initialized);
+    return v;
+  }
+  
+};
+  
+#else
+  
+template <class Item>
+class cell {
+private:
+  
+  array<Item> cells;
+  Item dflt;
+  bool initialized = false;
+  
+  class callback : public util::callback::client {
+  public:
+    
+    cell<Item>* p;
+    
+    callback(cell<Item>* p)
+    : p(p) { }
+    
+    void init() {
+      p->init();
+    }
+    
+    void destroy() {
+      
+    }
+    
+    void output() {
+      
+    }
+  };
+  
+  void init() {
+    initialized = true;
+    cells.init(dflt);
+  }
+  
+  void register_callback() {
+    util::callback::register_client(new callback(this));
+  }
+  
+public:
+  
+  using value_type = Item;
+  
+  cell() { }
+  
+  cell(value_type v) : dflt(v) {
+    register_callback();
+  }
+  
+  value_type& mine() {
+    assert(initialized);
+    return cells.mine();
+  }
+  
+};
+  
+#endif
   
 /*---------------------------------------------------------------------*/
+/* Per-worker counters */
   
 namespace counter {
   
@@ -263,12 +390,12 @@ template <
     int padding_szb = default_padding_szb,
     int max_nb_workers = default_max_nb_workers
   >
-  class Base = base
+  class Array = array
 >
-class cbase {
+class carray {
 private:
   
-  using perworker_type = Base<Number>;
+  using perworker_type = Array<Number>;
   
   perworker_type counters;
   
@@ -277,9 +404,9 @@ public:
   using number_type = Number;
   using index_type = typename perworker_type::index_type;
   
-  cbase() { }
+  carray() { }
   
-  cbase(std::initializer_list<number_type> l) {
+  carray(std::initializer_list<number_type> l) {
     if (l.size() != 1)
       util::atomic::fatal([] { std::cout << "perworker given bogus initializer list"; });
     init(*(l.begin()));
@@ -351,7 +478,7 @@ public:
 };
   
 template <class Number>
-using extra = cbase<Number, extra>;
+using extra = carray<Number, extra>;
   
 } // end namespace
 

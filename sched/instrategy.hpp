@@ -222,7 +222,7 @@ public:
 class distributed : public common, public util::worker::periodic_t {
 protected:
   
-  data::perworker::counter::cbase<int64_t> counter;
+  data::perworker::counter::carray<int64_t> counter;
   
   thread_p t;
   

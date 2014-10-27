@@ -7,6 +7,9 @@
  *
  */
 
+#include <math.h>
+#include <thread>
+
 #include "benchmark.hpp"
 #include "dup.hpp"
 #include "string.hpp"
@@ -15,7 +18,58 @@
 
 /***********************************************************************/
 
+/*---------------------------------------------------------------------*/
+/* Parallel fibonacci */
+
+long phi_to_pow(long n) {
+  constexpr double phi = 1.61803399;
+  return (long)pow(phi, (double)n);
+}
+
+long fib_seq(long n) {
+  long result;
+  if (n < 2) {
+    result = n;
+  } else {
+    long a,b;
+    a = fib_seq(n-1);
+    b = fib_seq(n-2);
+    result = a+b;
+  }
+  return result;
+}
+
+controller_type fib_contr("fib");
+
+long fib_par(long n) {
+  long result;
+  auto seq = [&] {
+    result = fib_seq(n);
+  };
+  par::cstmt(fib_contr, [n] { return phi_to_pow(n); }, [&] {
+    if (n < 2) {
+      seq();
+    } else {
+      long a,b;
+      par::fork2([&] {
+        a = fib_par(n-1);
+      }, [&] {
+        b = fib_par(n-2);
+      });
+      result = a+b;
+    }
+  }, seq);
+  return result;
+}
+
+/*---------------------------------------------------------------------*/
+/* Example applications */
+
 void doit() {
+
+  long n = 39;
+  
+  std::cout << "fib(" << n << ")=" << fib_par(n) << std::endl;
   
   array empty;
   std::cout << "empty=" << empty << std::endl;

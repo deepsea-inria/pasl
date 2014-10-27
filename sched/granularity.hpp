@@ -197,7 +197,7 @@ execmode_type execmode_combine(execmode_type p, execmode_type c) {
 
 // current configuration of the running thread;
 // todo: to be stored in perworker memory
-data::perworker::base<dynidentifier<execmode_type>> execmode;
+data::perworker::array<dynidentifier<execmode_type>> execmode;
 
 execmode_type& my_execmode() {
   return execmode.mine().back();

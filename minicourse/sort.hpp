@@ -36,6 +36,13 @@ array seqsort(const_array_ref xs) {
   return tmp;
 }
 
+array seqsort(const_array_ref xs, long lo, long hi) {
+  long n = hi-lo;
+  array tmp = tabulate([&] (long i) { return xs[lo+i]; }, n);
+  in_place_sort(tmp);
+  return tmp;
+}
+
 /*---------------------------------------------------------------------*/
 /* Parallel quicksort */
 
@@ -164,7 +171,7 @@ void mergesort_par(array_ref xs, array_ref tmp,
   auto seq = [&] {
     in_place_sort(xs, lo, hi);
   };
-  par::cstmt(mergesort_contr, [&] { return nlogn(n); }, [&] {
+  par::cstmt(mergesort_contr, [n] { return nlogn(n); }, [&] {
     if (n == 0) {
       return;
     } else if (n == 1) {
@@ -187,6 +194,33 @@ array mergesort(const_array_ref xs) {
   array scratch = array(n);
   mergesort_par(tmp, scratch, 0l, n);
   return tmp;
+}
+
+array mergesort_rec(const_array_ref xs, long lo, long hi) {
+  long n = hi-lo;
+  array result;
+  auto seq = [&] {
+    result = seqsort(xs, lo, hi);
+  };
+  par::cstmt(mergesort_contr, [n] { return nlogn(n); }, [&] {
+    if (n < 2) {
+      seq();
+    } else {
+      long mid = (lo+hi)/2;
+      array a,b;
+      par::fork2([&] {
+        a = mergesort_rec(xs, lo, mid);
+      }, [&] {
+        b = mergesort_rec(xs, mid, hi);
+      });
+      result = merge(a, b);
+    }
+  }, seq);
+  return result;
+}
+
+array mergesort2(const_array_ref xs) {
+  return mergesort_rec(xs, 0l, xs.size());
 }
 
 /***********************************************************************/
