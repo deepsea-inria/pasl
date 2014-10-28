@@ -4,6 +4,7 @@
 - port vitaly and anna's solution to the nested cstmt problem
 - add unit test generators for exercises
 - add data generators for benchmarking
+- dense matrix by dense vector multiplication as example
 
 - fix build problem: dependency analyzer is scavenging comments to find #include directives; should not be
 - prepare makefile
