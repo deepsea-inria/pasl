@@ -1,3 +1,4 @@
+- test parallel algorithms directly by using force-parallel mode
 - add dynamic check to ensure that controller identifiers are not duplicated
 - check for space leaks
 - port vitaly and anna's solution to the nested cstmt problem
