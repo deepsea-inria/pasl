@@ -52,8 +52,7 @@ array quicksort(const_array_ref xs) {
   long n = xs.size();
   array result = empty();
   auto seq = [&] {
-    result = copy(xs);
-    in_place_sort(result);
+    result = seqsort(xs);
   };
   par::cstmt(quicksort_contr, [&] { return nlogn(n); }, [&] {
     if (n < 2) {
@@ -64,16 +63,16 @@ array quicksort(const_array_ref xs) {
       array less = filter([&] (value_type x) { return x < p; }, xs);
       array equal = filter([&] (value_type x) { return x == p; }, xs);
       array greater = filter([&] (value_type x) { return x > p; }, xs);
-      array left = array(0);
-      array right = array(0);
+      array left = empty();
+      array right = empty();
       par::fork2([&] {
         left = quicksort(less);
       }, [&] {
         right = quicksort(greater);
       });
-      result = concat(left, concat(equal, right));
+      result = concat(left, equal, right);
     }
-  });
+  }, seq);
   return result;
 }
 
@@ -135,14 +134,14 @@ void merge_par(const_array_ref xs, const_array_ref ys, array_ref tmp,
       }
     } else {
       // select pivot positions
-      long mid1_xs = (lo_xs+hi_xs)/2;
-      long mid2_xs = lower_bound(xs, lo_ys, hi_ys, xs[mid1_xs]);
+      long mid_xs = (lo_xs+hi_xs)/2;
+      long mid_ys = lower_bound(xs, lo_ys, hi_ys, xs[mid_xs]);
       // number of items to be treated by the first parallel call
-      long k = (mid1_xs-lo_xs) + (mid2_xs-lo_ys);
+      long k = (mid_xs-lo_xs) + (mid_ys-lo_ys);
       par::fork2([&] {
-        merge_par(xs, ys, tmp, lo_xs, mid1_xs, lo_ys, mid2_xs, lo_tmp);
+        merge_par(xs, ys, tmp, lo_xs, mid_xs, lo_ys, mid_ys, lo_tmp);
       }, [&] {
-        merge_par(xs, ys, tmp, mid1_xs, hi_xs, mid2_xs, hi_ys, lo_tmp+k);
+        merge_par(xs, ys, tmp, mid_xs, hi_xs, mid_ys, hi_ys, lo_tmp+k);
       });
     }
   }, seq);

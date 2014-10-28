@@ -260,7 +260,7 @@ atomic_value_ptr bfs_par(const_adjlist_ref graph, vtxid_type source) {
   });
   array cur_frontier = { source };
   array next_frontier = { };
-  array next_frontier_counts = { };
+  scan_result next_frontier_counts;
   vtxid_type dist = 0;
   dists[source].store(dist);
   while (cur_frontier.size() > 0) {
@@ -270,20 +270,18 @@ atomic_value_ptr bfs_par(const_adjlist_ref graph, vtxid_type source) {
     };
     long cur_frontier_sz = cur_frontier.size();
     next_frontier_counts = partial_sums(tabulate(get_out_degree_fct, cur_frontier_sz));
-    long last_in_cur_frontier = cur_frontier_sz-1;
-    long degree_of_last_vertex = graph.get_out_degree_of(cur_frontier[last_in_cur_frontier]);
-    long next_frontier_sz = next_frontier_counts[last_in_cur_frontier] + degree_of_last_vertex;
+    long next_frontier_sz = next_frontier_counts.last;
     next_frontier = array(next_frontier_sz);
     auto frontier_loop_compl_fct = [&] (long lo, long hi) {
-      long u = (hi == last_in_cur_frontier+1)
+      long u = (hi == cur_frontier_sz)
               ? next_frontier_sz
-              : next_frontier_counts[hi];
-      long l = next_frontier_counts[lo];
+              : next_frontier_counts.prefix[hi];
+      long l = next_frontier_counts.prefix[lo];
       return u-l;
     };
     par::parallel_for(bfs_par_loop1, frontier_loop_compl_fct, 0l, cur_frontier_sz, [&] (long i) {
       vtxid_type vertex = cur_frontier[i];
-      long offset = next_frontier_counts[i];
+      long offset = next_frontier_counts.prefix[i];
       long degree = graph.get_out_degree_of(vertex);
       neighbor_list neighbors = graph.get_neighbors_of(vertex);
       par::parallel_for(bfs_par_loop2, 0l, degree, [&] (long j) {

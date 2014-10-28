@@ -11,6 +11,7 @@
 #include <limits.h>
 #include <vector>
 #include <memory>
+#include <utility>
 
 #include "granularity.hpp"
 
@@ -284,18 +285,31 @@ array copy(const_array_ref xs) {
 
 loop_controller_type concat_contr("concat");
 
-array concat(const_array_ref xs1, const_array_ref xs2) {
-  long n1 = xs1.size();
-  long n2 = xs2.size();
-  long n = n1+n2;
+array concat(const_array_ptr* xss, long k) {
+  long n = 0;
+  for (long i = 0; i < k; i++)
+    n += xss[i]->size();
   array result = array(n);
-  par::parallel_for(concat_contr, 0l, n1, [&] (long i) {
-    result[i] = xs1[i];
-  });
-  par::parallel_for(concat_contr, 0l, n2, [&] (long i) {
-    result[i+n1] = xs2[i];
-  });
+  long offset = 0;
+  for (long i = 0; i < k; i++) {
+    const_array_ref xs = *xss[i];
+    long m = xs.size();
+    par::parallel_for(concat_contr, 0l, m, [&] (long j) {
+      result[offset+j] = xs[j];
+    });
+    offset += m;
+  }
   return result;
+}
+
+array concat(const_array_ref xs1, const_array_ref xs2) {
+  const_array_ptr xss[2] = { &xs1, &xs2 };
+  return concat(xss, 2);
+}
+
+array concat(const_array_ref xs1, const_array_ref xs2, const_array_ref xs3) {
+  const_array_ptr xss[3] = { &xs1, &xs2, &xs3 };
+  return concat(xss, 3);
 }
 
 template <class Func>
@@ -417,16 +431,51 @@ loop_controller_type scan_controller_type<Assoc_op,Lift_func>::lp3_contr("scan_l
                                                                          par::string_of_template_arg<Assoc_op>()+
                                                                          par::string_of_template_arg<Lift_func>());
 
+class scan_result {
+public:
+  array prefix;
+  value_type last;
+  
+  scan_result() { }
+  scan_result(array&& prefix, value_type last) {
+    this->prefix = std::move(prefix);
+    this->last = last;
+  }
+  
+  // disable copying
+  scan_result(const scan_result&);
+  scan_result& operator=(const scan_result&);
+  
+  scan_result(scan_result&& other) {
+    prefix = std::move(other.prefix);
+    last = std::move(other.last);
+  }
+  
+  scan_result& operator=(scan_result&& other) {
+    prefix = std::move(prefix);
+    last = std::move(last);
+    return *this;
+  }
+  
+};
+
 template <class Assoc_op, class Lift_func>
-array scan(const Assoc_op& op, const Lift_func& lift, value_type id, const_array_ref xs) {
+scan_result scan(const Assoc_op& op, const Lift_func& lift, value_type id, const_array_ref xs, bool inclusive) {
   using contr_type = scan_controller_type<Assoc_op,Lift_func>;
   long n = xs.size();
-  array tmp = array(n);
+  array result = array(n);
+  value_type x = id;
   auto seq = [&] {
-    value_type x = id;
-    for (long i = 0; i < n; i++) {
-      tmp[i] = x;
-      x = op(x, lift(xs[i]));
+    if (inclusive) {
+      for (long i = 0; i < n; i++) {
+        x = op(x, lift(xs[i]));
+        result[i] = x;
+      }
+    } else {
+      for (long i = 0; i < n; i++) {
+        result[i] = x;
+        x = op(x, lift(xs[i]));
+      }
     }
   };
   par::cstmt(contr_type::contr, [&] { return n; }, [&] {
@@ -438,33 +487,45 @@ array scan(const Assoc_op& op, const Lift_func& lift, value_type id, const_array
       par::parallel_for(contr_type::lp1_contr, 0l, m, [&] (long i) {
         sums[i] = op(lift(xs[i*2]), lift(xs[i*2+1]));
       });
-      array scans = scan(op, lift, id, sums);
+      scan_result scans = scan(op, lift, id, sums, inclusive);
       par::parallel_for(contr_type::lp2_contr, 0l, m, [&] (long i) {
-        tmp[2*i] = scans[i];
+        result[2*i] = scans.prefix[i];
       });
       par::parallel_for(contr_type::lp3_contr, 0l, m, [&] (long i) {
-        tmp[2*i+1] = op(lift(xs[2*i]), tmp[2*i]);
+        result[2*i+1] = op(lift(xs[2*i]), result[2*i]);
       });
+      long last = n-1;
       if (n == 2*m + 1) {
-        long last = n-1;
-        tmp[last] = op(lift(xs[last-1]), tmp[last-1]);
+        result[last] = op(lift(xs[last-1]), result[last-1]);
       }
+      x = op(result[last], lift(xs[last]));
     }
   }, seq);
-  return tmp;
+  return scan_result(std::move(result), x);
 }
 
 template <class Assoc_op>
-array scan(const Assoc_op& op, value_type id, const_array_ref xs) {
-  return scan(op, identity_fct, id, xs);
+scan_result scan(const Assoc_op& op, value_type id, const_array_ref xs) {
+  return scan(op, identity_fct, id, xs, false);
 }
 
-array partial_sums(value_type id, const_array_ref xs) {
-  return scan(plus_fct, identity_fct, id, xs);
+scan_result partial_sums(value_type id, const_array_ref xs) {
+  return scan(plus_fct, identity_fct, id, xs, false);
 }
 
-array partial_sums(const_array_ref xs) {
+scan_result partial_sums(const_array_ref xs) {
   return partial_sums(0l, xs);
+}
+
+array partial_sums_inclusive(value_type id, const_array_ref xs) {
+  scan_result r = scan(plus_fct, identity_fct, id, xs, true);
+  array tmp;
+  tmp = std::move(r.prefix);
+  return tmp;
+}
+
+array partial_sums_inclusive(const_array_ref xs) {
+  return partial_sums_inclusive(0l, xs);
 }
 
 loop_controller_type pack_contr("pack");
@@ -473,13 +534,12 @@ array pack_nonempty(const_array_ref flags, const_array_ref xs) {
   assert(xs.size() == flags.size());
   assert(xs.size() > 0l);
   long n = xs.size();
-  array offsets = partial_sums(flags);
-  long last = n-1;
-  value_type m = offsets[last] + flags[last];
+  scan_result offsets = partial_sums(flags);
+  value_type m = offsets.last;
   array result = array(m);
   par::parallel_for(pack_contr, 0l, n, [&] (long i) {
     if (flags[i] == 1)
-      result[offsets[i]] = xs[i];
+      result[offsets.prefix[i]] = xs[i];
   });
   return result;
 }
