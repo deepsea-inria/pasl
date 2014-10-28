@@ -1,12 +1,11 @@
 - add dynamic check to ensure that controller identifiers are not duplicated
 - check for space leaks
-- implement maximum segment sum
-  + inclusive scan
-- try alternative approach to dealing with nested cstm's: add a boolean return value to fork2 to indicate whether either branch was possibly migrated
+- port vitaly and anna's solution to the nested cstmt problem
 - add unit test generators for exercises
 - add data generators for benchmarking
-- plots for granularity controller data (see image)
+
+- fix build problem: dependency analyzer is scavenging comments to find #include directives; should not be
 - prepare makefile
+- plots for granularity controller data (see image)
 - disable default warning messages to stderr by adding a verbose flag
 - enriched speedup curve
-- fix build problem: dependency analyzer is scavenging comments to find #include directives; should not be
