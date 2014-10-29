@@ -36,6 +36,13 @@ array seqsort(const_array_ref xs) {
   return tmp;
 }
 
+array seqsort(const_array_ref xs, long lo, long hi) {
+  long n = hi-lo;
+  array tmp = tabulate([&] (long i) { return xs[lo+i]; }, n);
+  in_place_sort(tmp);
+  return tmp;
+}
+
 /*---------------------------------------------------------------------*/
 /* Parallel quicksort */
 
@@ -45,8 +52,7 @@ array quicksort(const_array_ref xs) {
   long n = xs.size();
   array result = empty();
   auto seq = [&] {
-    result = copy(xs);
-    in_place_sort(result);
+    result = seqsort(xs);
   };
   par::cstmt(quicksort_contr, [&] { return nlogn(n); }, [&] {
     if (n < 2) {
@@ -57,42 +63,42 @@ array quicksort(const_array_ref xs) {
       array less = filter([&] (value_type x) { return x < p; }, xs);
       array equal = filter([&] (value_type x) { return x == p; }, xs);
       array greater = filter([&] (value_type x) { return x > p; }, xs);
-      array left = array(0);
-      array right = array(0);
+      array left = empty();
+      array right = empty();
       par::fork2([&] {
         left = quicksort(less);
       }, [&] {
         right = quicksort(greater);
       });
-      result = concat(left, concat(equal, right));
+      result = concat(left, equal, right);
     }
-  });
+  }, seq);
   return result;
 }
 
 /*---------------------------------------------------------------------*/
 /* Parallel mergesort */
 
-void merge_seq(const_array_ref xs, array_ref tmp,
-               long lo1_xs, long hi1_xs,
-               long lo2_xs, long hi2_xs,
+void merge_seq(const_array_ref xs, const_array_ref ys, array_ref tmp,
+               long lo_xs, long hi_xs,
+               long lo_ys, long hi_ys,
                long lo_tmp) {
-  long i = lo1_xs;
-  long j = lo2_xs;
+  long i = lo_xs;
+  long j = lo_ys;
   long z = lo_tmp;
   
   // merge two halves until one is empty
-  while (i < hi1_xs and j < hi2_xs)
-    tmp[z++] = (xs[i] < xs[j]) ? xs[i++] : xs[j++];
+  while (i < hi_xs and j < hi_ys)
+    tmp[z++] = (xs[i] < ys[j]) ? xs[i++] : ys[j++];
   
   // copy remaining items
-  prim::copy(&xs[0], &tmp[0], i, hi1_xs, z);
-  prim::copy(&xs[0], &tmp[0], j, hi2_xs, z);
+  prim::copy(&xs[0], &tmp[0], i, hi_xs, z);
+  prim::copy(&ys[0], &tmp[0], j, hi_ys, z);
 }
 
 void merge_seq(array_ref xs, array_ref tmp,
                long lo, long mid, long hi) {
-  merge_seq(xs, tmp, lo, mid, mid, hi, lo);
+  merge_seq(xs, xs, tmp, lo, mid, mid, hi, lo);
   // copy back to source array
   prim::copy(&tmp[0], &xs[0], lo, hi, lo);
 }
@@ -104,45 +110,54 @@ long lower_bound(const_array_ref xs, long lo, long hi, value_type val) {
 
 controller_type merge_contr("merge");
 
-void merge_par(const_array_ref xs, array_ref tmp,
-               long lo1_xs, long hi1_xs,
-               long lo2_xs, long hi2_xs,
+void merge_par(const_array_ref xs, const_array_ref ys, array_ref tmp,
+               long lo_xs, long hi_xs,
+               long lo_ys, long hi_ys,
                long lo_tmp) {
-  long n1 = hi1_xs-lo1_xs;
-  long n2 = hi2_xs-lo2_xs;
+  long n1 = hi_xs-lo_xs;
+  long n2 = hi_ys-lo_ys;
   auto seq = [&] {
-    merge_seq(xs, tmp, lo1_xs, hi1_xs, lo2_xs, hi2_xs, lo_tmp);
+    merge_seq(xs, ys, tmp, lo_xs, hi_xs, lo_ys, hi_ys, lo_tmp);
   };
   par::cstmt(merge_contr, [&] { return n1+n2; }, [&] {
     if (n1 < n2) {
       // to ensure that the first subarray being sorted is the larger or the two
-      merge_par(xs, tmp, lo2_xs, hi2_xs, lo1_xs, hi1_xs, lo_tmp);
+      merge_par(ys, xs, tmp, lo_ys, hi_ys, lo_xs, hi_xs, lo_tmp);
     } else if (n1 == 1) {
       if (n2 == 0) {
         // a1 singleton; a2 empty
-        tmp[lo_tmp] = xs[lo1_xs];
+        tmp[lo_tmp] = xs[lo_xs];
       } else {
         // both singletons
-        tmp[lo_tmp+0] = std::min(xs[lo1_xs], xs[lo2_xs]);
-        tmp[lo_tmp+1] = std::max(xs[lo1_xs], xs[lo2_xs]);
+        tmp[lo_tmp+0] = std::min(xs[lo_xs], xs[lo_ys]);
+        tmp[lo_tmp+1] = std::max(xs[lo_xs], xs[lo_ys]);
       }
     } else {
       // select pivot positions
-      long mid1_xs = (lo1_xs+hi1_xs)/2;
-      long mid2_xs = lower_bound(xs, lo2_xs, hi2_xs, xs[mid1_xs]);
+      long mid_xs = (lo_xs+hi_xs)/2;
+      long mid_ys = lower_bound(xs, lo_ys, hi_ys, xs[mid_xs]);
       // number of items to be treated by the first parallel call
-      long k = (mid1_xs-lo1_xs) + (mid2_xs-lo2_xs);
+      long k = (mid_xs-lo_xs) + (mid_ys-lo_ys);
       par::fork2([&] {
-        merge_par(xs, tmp, lo1_xs, mid1_xs, lo2_xs, mid2_xs, lo_tmp);
+        merge_par(xs, ys, tmp, lo_xs, mid_xs, lo_ys, mid_ys, lo_tmp);
       }, [&] {
-        merge_par(xs, tmp, mid1_xs, hi1_xs, mid2_xs, hi2_xs, lo_tmp+k);
+        merge_par(xs, ys, tmp, mid_xs, hi_xs, mid_ys, hi_ys, lo_tmp+k);
       });
-    }}, seq);
+    }
+  }, seq);
+}
+
+array merge(const_array_ref xs, const_array_ref ys) {
+  long n = xs.size();
+  long m = ys.size();
+  array tmp = array(n + m);
+  merge_par(xs, ys, tmp, 0l, n, 0l, m, 0l);
+  return tmp;
 }
 
 void merge(array_ref xs, array_ref tmp,
            long lo, long mid, long hi) {
-  merge_par(xs, tmp, lo, mid, mid, hi, lo);
+  merge_par(xs, xs, tmp, lo, mid, mid, hi, lo);
   // copy back to source array
   prim::pcopy(&tmp[0], &xs[0], lo, hi, lo);
 }
@@ -155,7 +170,7 @@ void mergesort_par(array_ref xs, array_ref tmp,
   auto seq = [&] {
     in_place_sort(xs, lo, hi);
   };
-  par::cstmt(mergesort_contr, [&] { return nlogn(n); }, [&] {
+  par::cstmt(mergesort_contr, [n] { return nlogn(n); }, [&] {
     if (n == 0) {
       return;
     } else if (n == 1) {
@@ -178,6 +193,33 @@ array mergesort(const_array_ref xs) {
   array scratch = array(n);
   mergesort_par(tmp, scratch, 0l, n);
   return tmp;
+}
+
+array mergesort_rec(const_array_ref xs, long lo, long hi) {
+  long n = hi-lo;
+  array result;
+  auto seq = [&] {
+    result = seqsort(xs, lo, hi);
+  };
+  par::cstmt(mergesort_contr, [n] { return nlogn(n); }, [&] {
+    if (n < 2) {
+      seq();
+    } else {
+      long mid = (lo+hi)/2;
+      array a,b;
+      par::fork2([&] {
+        a = mergesort_rec(xs, lo, mid);
+      }, [&] {
+        b = mergesort_rec(xs, mid, hi);
+      });
+      result = merge(a, b);
+    }
+  }, seq);
+  return result;
+}
+
+array mergesort2(const_array_ref xs) {
+  return mergesort_rec(xs, 0l, xs.size());
 }
 
 /***********************************************************************/

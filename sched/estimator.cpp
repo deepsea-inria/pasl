@@ -175,7 +175,6 @@ void common::report(complexity_type comp, cost_type elapsed_ticks) {
 void distributed::init() {
   common::init(common::name);
   shared_cst = cost::undefined;
-  private_csts.init(cost::undefined);
   constant_map_t::iterator preloaded = preloaded_constants.find(common::name);
   if (preloaded != preloaded_constants.end())
     set_init_constant(preloaded->second);
@@ -190,8 +189,7 @@ void distributed::output() {
 }
 
 cost_type distributed::get_constant() {
-  worker_id_t my_id = util::worker::get_my_id();
-  cost_type cst = private_csts[my_id];
+  cost_type cst = private_csts.mine();
   
   // if local constant is undefined, use shared cst
   if (cst == cost::undefined)
@@ -207,9 +205,6 @@ cost_type distributed::get_constant() {
 
 void distributed::set_init_constant(cost_type init_cst) {
   shared_cst = init_cst;
-  int nb_workers = util::worker::get_nb();
-  for (worker_id_t id = 0; id < nb_workers; id++)
-    private_csts[id] = cost::undefined;
   init_constant_provided_flg = true;
 }
 
@@ -223,7 +218,7 @@ void distributed::update_shared(cost_type new_cst) {
   STAT_COUNT(ESTIM_UPDATE);
 }
 
-void distributed::update(worker_id_t my_id, cost_type new_cst) {
+void distributed::update(cost_type new_cst) {
   // if decrease is significant, report it to the shared constant;
   // (note that the shared constant never increases)
   cost_type shared = shared_cst;
@@ -235,18 +230,17 @@ void distributed::update(worker_id_t my_id, cost_type new_cst) {
       update_shared(min_shared_cst);
   }
   // store the new constant locally in any case
-  private_csts[my_id] = new_cst;
+  private_csts.mine() = new_cst;
 }
 
 void distributed::analyse(cost_type measured_cst) {
-  worker_id_t my_id = util::worker::get_my_id();
   cost_type cst = get_constant();
   if (cst == cost::undefined) {
     // handle the first measure without average
-    update(my_id, measured_cst);
+    update(measured_cst);
   } else {
     // compute weighted average
-    update(my_id,  ((weighted_average_factor * cst) + measured_cst)
+    update(((weighted_average_factor * cst) + measured_cst)
            / (weighted_average_factor + 1.0));
   }
 }

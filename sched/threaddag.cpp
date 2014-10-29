@@ -33,7 +33,7 @@ class context_wrapper_type {
 public:
   util::control::context::context_type cxt;
 };
-data::perworker::base<context_wrapper_type> cxts;
+data::perworker::array<context_wrapper_type> cxts;
 
 util::control::context::context_pointer my_cxt() {
   return context::addr(cxts.mine().cxt);

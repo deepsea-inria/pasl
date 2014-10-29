@@ -226,16 +226,17 @@ private:
 public: //! \todo find a better way to avoid false sharing
   volatile int padding1[64*2];
   cost_type shared_cst;
-  perworker::base<cost_type> private_csts;
+  perworker::cell<cost_type> private_csts;
   
 protected:
-  void update(worker_id_t my_id, cost_type new_cst);
+  void update(cost_type new_cst);
   void analyse(cost_type measured_cst);
   cost_type get_constant();
   void update_shared(cost_type new_cst);
   
 public:
-  distributed(std::string name) : init_constant_provided_flg(false) {
+  distributed(std::string name)
+  : init_constant_provided_flg(false), private_csts(cost::undefined) {
     set_name(name);
     util::callback::register_client(this);
   }

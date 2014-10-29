@@ -8,6 +8,7 @@
  */
 
 #include "benchmark.hpp"
+#include "hash.hpp"
 #include "dup.hpp"
 #include "string.hpp"
 #include "sort.hpp"
@@ -17,44 +18,15 @@
 /*---------------------------------------------------------------------*/
 /* Random-array generation */
 
-// taken from https://gist.github.com/badboy/6267743
-
-long hash64shift(long key) {
-  auto unsigned_right_shift = [] (long x, int y) {
-    unsigned long r = (unsigned long) x >> y;
-    return (long) r;
-  };
-  key = (~key) + (key << 21); // key = (key << 21) - key - 1;
-  key = key ^ (unsigned_right_shift(key, 24));
-  key = (key + (key << 3)) + (key << 8); // key * 265
-  key = key ^ (unsigned_right_shift(key, 14));
-  key = (key + (key << 2)) + (key << 4); // key * 21
-  key = key ^ (unsigned_right_shift(key, 28));
-  key = key + (key << 31);
-  return key;
-}
-
-unsigned long random_index(long key, long n) {
-  unsigned long x = (unsigned long)hash64shift(key);
-  return x % n;
-}
-
 loop_controller_type random_array_contr("random_array");
 
 // returns a random array of size n using seed s
 array random_array(long s, long n) {
   array tmp = array(n);
   par::parallel_for(random_array_contr, 0l, n, [&] (long i) {
-    tmp[i] = hash64shift(i+s);
+    tmp[i] = hash(i+s);
   });
   return tmp;
-}
-
-int log2_up(unsigned long i) {
-  int a=0;
-  long b=i-1;
-  while (b > 0) {b = b >> 1; a++;}
-  return a;
 }
 
 loop_controller_type almost_sorted_array_contr("almost_sorted_array");

@@ -198,7 +198,7 @@ execmode_type execmode_combine(execmode_type p, execmode_type c) {
 
 // current configuration of the running thread;
 // todo: to be stored in perworker memory
-data::perworker::base<dynidentifier<execmode_type>> execmode;
+data::perworker::array<dynidentifier<execmode_type>> execmode;
 
 execmode_type& my_execmode() {
   return execmode.mine().back();
@@ -501,11 +501,12 @@ void parallel_for(loop_by_eager_binary_splitting<Granularity_control_policy>& lp
 }
   
 template <
+  class Granularity_control_policy,
   class Loop_complexity_measure_fct,
   class Number,
   class Body
 >
-void parallel_for(loop_by_eager_binary_splitting<control_by_prediction>& lpalgo,
+void parallel_for(loop_by_eager_binary_splitting<Granularity_control_policy>& lpalgo,
                   const Loop_complexity_measure_fct& loop_compl_fct,
                   Number lo, Number hi, const Body& body) {
   auto loop_cutoff_fct = [] (Number lo, Number hi) {
@@ -516,15 +517,17 @@ void parallel_for(loop_by_eager_binary_splitting<control_by_prediction>& lpalgo,
   parallel_for(lpalgo, loop_cutoff_fct, loop_compl_fct, lo, hi, body);
 }
   
+const int default_loop_cutoff = 10000;
+  
 template <
-class Number,
-class Body
+  class Granularity_control_policy,
+  class Number,
+  class Body
 >
-void parallel_for(loop_by_eager_binary_splitting<control_by_prediction>& lpalgo,
+void parallel_for(loop_by_eager_binary_splitting<Granularity_control_policy>& lpalgo,
                   Number lo, Number hi, const Body& body) {
   auto loop_cutoff_fct = [] (Number lo, Number hi) {
-    todo();
-    return false;
+    return hi-lo <= default_loop_cutoff;
   };
   auto loop_compl_fct = [] (Number lo, Number hi) { return hi-lo; };
   parallel_for(lpalgo, loop_cutoff_fct, loop_compl_fct, lo, hi, body);

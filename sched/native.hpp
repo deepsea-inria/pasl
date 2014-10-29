@@ -394,10 +394,10 @@ void parallel_while_cas_ri(Input& input, const Size_input& size_input, const For
     Answer_waiting,
     Answer_transfered
   };
-  data::perworker::base<Input> frontier;
-  data::perworker::base<std::atomic<request_type>> request;
-  data::perworker::base<std::atomic<answer_type>> answer;
-  data::perworker::counter::cbase<long> counter;
+  data::perworker::array<Input> frontier;
+  data::perworker::array<std::atomic<request_type>> request;
+  data::perworker::array<std::atomic<answer_type>> answer;
+  data::perworker::counter::carray<long> counter;
   worker_id_t leader_id = threaddag::get_my_id();
   msg([&] { std::cout << "leader_id=" << leader_id << std::endl; });
   frontier.for_each([&] (worker_id_t, Input& f) {

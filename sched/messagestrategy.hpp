@@ -154,9 +154,9 @@ class pcb : public messagestrategy {
 private:
 
   typedef data::pcb::linked<message_t> pcb_t;
-  typedef data::perworker::base<pcb_t> pcb_vector_t;
-  typedef data::perworker::base<pcb_vector_t> pcb_matrix_t;
-  typedef data::perworker::base<int> target_t;
+  typedef data::perworker::array<pcb_t> pcb_vector_t;
+  typedef data::perworker::array<pcb_vector_t> pcb_matrix_t;
+  typedef data::perworker::array<int> target_t;
   
   pcb_matrix_t channels;
   target_t target;
