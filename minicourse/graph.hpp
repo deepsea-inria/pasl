@@ -241,7 +241,7 @@ array bfs_seq(const_adjlist_ref graph, vtxid_type source) {
 /*---------------------------------------------------------------------*/
 /* Parallel BFS */
 
-using atomic_value_ptr = std::atomic<vtxid_type>*;
+using atomic_value_ptr = std::atomic<value_type>*;
 
 bool try_to_set_dist(vtxid_type target, long dist, atomic_value_ptr dists) {
   long u = dist_unknown;

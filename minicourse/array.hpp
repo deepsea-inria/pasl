@@ -24,7 +24,13 @@
 
 namespace par = pasl::sched::granularity;
 
+#if defined(CONTROL_BY_FORCE_SEQUENTIAL)
+using controller_type = par::control_by_force_sequential;
+#elif defined(CONTROL_BY_FORCE_PARALLEL)
+using controller_type = par::control_by_force_parallel;
+#else
 using controller_type = par::control_by_prediction;
+#endif
 using loop_controller_type = par::loop_by_eager_binary_splitting<controller_type>;
 
 using value_type = long;
