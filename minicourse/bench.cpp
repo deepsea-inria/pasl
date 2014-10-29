@@ -24,7 +24,7 @@ loop_controller_type random_array_contr("random_array");
 array random_array(long s, long n) {
   array tmp = array(n);
   par::parallel_for(random_array_contr, 0l, n, [&] (long i) {
-    tmp[i] = hash(i+s);
+    tmp[i] = hash_signed(i+s);
   });
   return tmp;
 }
@@ -97,7 +97,7 @@ benchmark_type scan_bench() {
     *inp = fill(n, 1);
   };
   auto bench = [=] {
-    *outp = partial_sums(*inp);
+    *outp = partial_sums(*inp).prefix;
   };
   auto output = [=] {
     std::cout << "result\t" << (*outp)[outp->size()-1] << std::endl;

@@ -88,7 +88,7 @@ void check_sort() {
       }
     };
     using property_type = sort_correct<trusted_fct, untrusted_fct>;
-    checkit<property_type>("checking mergesort");
+    checkit<property_type>("mergesort is correct");
   });
   c.add("quicksort", [&] {
     class untrusted_fct {
@@ -98,7 +98,7 @@ void check_sort() {
       }
     };
     using property_type = sort_correct<trusted_fct, untrusted_fct>;
-    checkit<property_type>("checking quicksort");
+    checkit<property_type>("quicksort is correct");
   });
   c.find_by_arg("algo")();
 }
@@ -255,7 +255,7 @@ void check_graph() {
       }
     };
     using property_type = bfs_correct<trusted_fct, untrusted_fct>;
-    checkit<property_type>("checking bfs");
+    checkit<property_type>("BFS is correct");
   });
   c.find_by_arg("algo")();
 }
