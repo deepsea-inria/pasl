@@ -19,6 +19,28 @@
 /***********************************************************************/
 
 /*---------------------------------------------------------------------*/
+/* Dense matrix by dense vector multiplication */
+
+value_type ddotprod(const_array_ref m, long r, const_array_ref v) {
+  long n = v.size();
+  return sum(tabulate([&] (long i) { return m[r*n+i] * v[i];}, n));
+}
+
+loop_controller_type dmdvmult_contr("dmdvmult");
+
+array dmdvmult(const_array_ref m, const_array_ref v) {
+  long n = v.size();
+  array result = array(n);
+  auto compl_fct = [&] (long lo, long hi) {
+    return (hi-lo)*n;
+  };
+  par::parallel_for(dmdvmult_contr, compl_fct, 0l, n, [&] (long i) {
+    result[i] = ddotprod(m, i, v);
+  });
+  return result;
+}
+
+/*---------------------------------------------------------------------*/
 /* Maximum contiguous subsequence */
 
 value_type mcss_seq(const_array_ref xs) {
@@ -89,6 +111,10 @@ long fib_par(long n) {
 /* Example applications */
 
 void doit() {
+  
+  array mtx = { 1, 2, 3, 4 };
+  array vec = { 5, 6 };
+  std::cout << dmdvmult(mtx, vec) << std::endl;
   
   array test = { -2, 1, -3, 4, -1, 2, 1, -5, 4 };
   std::cout << mcss(test) << std::endl;
