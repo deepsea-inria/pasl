@@ -71,7 +71,7 @@ COMPILE_OPTIONS_FOR_dbgfs=$(OPTIONS_DEBUG) -DSTATS -DDEBUG -DCONTROL_BY_FORCE_PA
 
 # Folders where to find all the header files and main sources
 
-INCLUDES=. $(SEQUTIL_PATH) $(PARUTIL_PATH) $(SCHED_PATH) $(PBBS_PATH) $(MALLOC_COUNT_PATH)
+INCLUDES=. $(SEQUTIL_PATH) $(PARUTIL_PATH) $(SCHED_PATH) $(PBBS_PATH) $(MALLOC_COUNT_PATH) $(QUICKCHECK_PATH)
 
 # Folders where to find all the source files
 

@@ -185,10 +185,6 @@ execmode_type execmode_combine(execmode_type p, execmode_type c) {
     return c;
   // callee gives priority to caller when caller is Sequential
   if (p == Sequential) {
-#ifdef LOGGING
-    //if (c == Parallel)
-    //  log_granularity_control_mismatch();
-#endif
     return Sequential;
   }
   // otherwise, callee takes priority
