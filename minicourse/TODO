@@ -1,10 +1,8 @@
-- test parallel algorithms directly by using force-parallel mode
 - add dynamic check to ensure that controller identifiers are not duplicated
-- check for space leaks
 - port vitaly and anna's solution to the nested cstmt problem
 - add unit test generators for exercises
 - add data generators for benchmarking
-- dense matrix by dense vector multiplication as example
+- introduce abbreviated stats mode as default and keep detailed stats as option
 
 - fix build problem: dependency analyzer is scavenging comments to find #include directives; should not be
 - prepare makefile
