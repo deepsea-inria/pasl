@@ -199,11 +199,11 @@ execmode_type& my_execmode() {
   return execmode.mine().back();
 }
   
-data::perworker::cell<dynidentifier<cost_type*>> samplecost;
+data::perworker::cell<dynidentifier<cost_type>> samplecost;
   
 static inline
 cost_type& my_samplecost() {
-  return *samplecost.mine().back();
+  return samplecost.mine().back();
 }
   
 static inline
@@ -232,10 +232,10 @@ template <class Par_body_fct>
 void cstmt_parallel_with_sampling(cmeasure_type m,
                                   Par_body_fct& par_body_fct,
                                   estimator_type& estimator) {
-  cost_type sample = 0.0;
-  samplecost.mine().block(&sample, [&] {
+  samplecost.mine().block(0.0, [&] {
     execmode.mine().block(Parallel, par_body_fct);
   });
+  cost_type& sample = samplecost.mine().back();
   if (sample == 0.0)
     return;
   estimator.report(m, sample);
@@ -477,16 +477,17 @@ void fork2(const Body_fct1& f1, const Body_fct2& f2) {
     f1();
     f2();
   } else {
-    cost_type* sample = &my_samplecost();
+    cost_type sample1 = 0.0, sample2 = 0.0;
     native::fork2([&] {
-      samplecost.mine().block(sample, [&] {
+      samplecost.mine().block(sample1, [&] {
         execmode.mine().block(mode, f1);
       });
     }, [&] {
-      samplecost.mine().block(sample, [&] {
+      samplecost.mine().block(sample2, [&] {
         execmode.mine().block(mode, f2);
       });
     });
+    samplecost.mine().back() += sample1 + sample2;
   }
 }
   
