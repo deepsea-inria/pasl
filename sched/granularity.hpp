@@ -178,7 +178,7 @@ using execmode_type = enum {
 };
 
 // `p` configuration of caller; `c` callee
-static
+static inline
 execmode_type execmode_combine(execmode_type p, execmode_type c) {
   // callee gives priority to Force*
   if (c == Force_parallel || c == Force_sequential)
@@ -194,23 +194,62 @@ execmode_type execmode_combine(execmode_type p, execmode_type c) {
 // current configuration of the running thread;
 data::perworker::cell<dynidentifier<execmode_type>> execmode;
 
+static inline
 execmode_type& my_execmode() {
   return execmode.mine().back();
 }
+  
+data::perworker::cell<dynidentifier<cost_type*>> samplecost;
+  
+static inline
+cost_type& my_samplecost() {
+  return *samplecost.mine().back();
+}
+  
+static inline
+void report_sample(cost_type elapsed) {
+  cost_type& sample = my_samplecost();
+  if (&sample == nullptr)
+    return;
+  sample += elapsed;
+}
 
 template <class Body_fct>
-void cstmt_base(execmode_type c, const Body_fct& body_fct) {
+void cstmt_sequential(execmode_type c, const Body_fct& body_fct) {
   execmode_type p = my_execmode();
   execmode_type e = execmode_combine(p, c);
   execmode.mine().block(e, body_fct);
 }
+  
+template <class Body_fct>
+void cstmt_parallel(execmode_type c, const Body_fct& body_fct) {
+  execmode_type p = my_execmode();
+  execmode_type e = execmode_combine(p, c);
+  execmode.mine().block(e, body_fct);
+}
+  
+template <class Par_body_fct>
+void cstmt_parallel_with_sampling(cmeasure_type m,
+                                  Par_body_fct& par_body_fct,
+                                  estimator_type& estimator) {
+  cost_type sample = 0.0;
+  samplecost.mine().block(&sample, [&] {
+    execmode.mine().block(Parallel, par_body_fct);
+  });
+  if (sample == 0.0)
+    return;
+  estimator.report(m, sample);
+}
 
 template <class Seq_body_fct>
-void cstmt_base_with_reporting(cmeasure_type m, Seq_body_fct& seq_body_fct, estimator_type& estimator) {
+void cstmt_sequential_with_reporting(cmeasure_type m,
+                                     Seq_body_fct& seq_body_fct,
+                                     estimator_type& estimator) {
   cost_type start = util::ticks::now();
   execmode.mine().block(Sequential, seq_body_fct);
   cost_type elapsed = util::ticks::since(start);
   estimator.report(m, elapsed);
+  report_sample(elapsed);
 }
 template <
 class Cutoff_fct,
@@ -221,12 +260,12 @@ void cstmt(control& contr,
            const Cutoff_fct&,
            const Complexity_measure_fct&,
            const Par_body_fct& par_body_fct) {
-  cstmt_base(Force_parallel, par_body_fct);
+  cstmt_sequential(Force_parallel, par_body_fct);
 }
 
 template <class Par_body_fct>
 void cstmt(control_by_force_parallel&, const Par_body_fct& par_body_fct) {
-  cstmt_base(Force_parallel, par_body_fct);
+  cstmt_parallel(Force_parallel, par_body_fct);
 }
 
 // same as above but accepts all arguments to support general case
@@ -246,7 +285,7 @@ void cstmt(control_by_force_parallel& contr,
 
 template <class Seq_body_fct>
 void cstmt(control_by_force_sequential&, const Seq_body_fct& seq_body_fct) {
-  cstmt_base(Force_sequential, seq_body_fct);
+  cstmt_sequential(Force_sequential, seq_body_fct);
 }
 
 // same as above but accepts all arguments to support general case
@@ -272,7 +311,7 @@ void cstmt(control_by_cutoff_without_reporting&,
            const Cutoff_fct& cutoff_fct,
            const Par_body_fct& par_body_fct) {
   execmode_type c = (cutoff_fct()) ? Sequential : Parallel;
-  cstmt_base(c, par_body_fct);
+  cstmt_sequential(c, par_body_fct);
 }
 
 template <
@@ -290,9 +329,9 @@ void cstmt(control_by_cutoff_without_reporting&,
 #endif
   execmode_type c = (cutoff_fct()) ? Sequential : Parallel;
   if (c == Sequential)
-    cstmt_base(Sequential, seq_body_fct);
+    cstmt_sequential(Sequential, seq_body_fct);
   else
-    cstmt_base(Parallel, par_body_fct);
+    cstmt_parallel(Parallel, par_body_fct);
 }
 
 // same as above but accepts all arguments to support general case
@@ -327,12 +366,11 @@ void cstmt(control_by_cutoff_with_reporting& contr,
 #endif
   estimator_type& estimator = contr.get_estimator();
   execmode_type c = (cutoff_fct()) ? Sequential : Parallel;
-  if (c == Sequential) {
-    cmeasure_type m = complexity_measure_fct();
-    cstmt_base_with_reporting(m, seq_body_fct, estimator);
-  } else {
-    cstmt_base(Parallel, par_body_fct);
-  }
+  cmeasure_type m = complexity_measure_fct();
+  if (c == Sequential)
+    cstmt_sequential_with_reporting(m, seq_body_fct, estimator);
+  else
+    cstmt_parallel(m, par_body_fct, estimator);
 }
 
 template <
@@ -358,9 +396,9 @@ void cstmt(control_by_prediction& contr,
   else
     c = (estimator.predict(m) <= kappa) ? Sequential : Parallel;
   if (c == Sequential)
-    cstmt_base_with_reporting(m, seq_body_fct, estimator);
+    cstmt_sequential_with_reporting(m, seq_body_fct, estimator);
   else
-    cstmt_base(Parallel, par_body_fct);
+    cstmt_parallel_with_sampling(m, par_body_fct, estimator);
 }
 
 template <
@@ -439,8 +477,16 @@ void fork2(const Body_fct1& f1, const Body_fct2& f2) {
     f1();
     f2();
   } else {
-    native::fork2([&mode,&f1] { execmode.mine().block(mode, f1); },
-                  [&mode,&f2] { execmode.mine().block(mode, f2); });
+    cost_type* sample = &my_samplecost();
+    native::fork2([&] {
+      samplecost.mine().block(sample, [&] {
+        execmode.mine().block(mode, f1);
+      });
+    }, [&] {
+      samplecost.mine().block(sample, [&] {
+        execmode.mine().block(mode, f2);
+      });
+    });
   }
 }
   
