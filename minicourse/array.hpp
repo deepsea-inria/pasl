@@ -466,7 +466,8 @@ public:
 };
 
 template <class Assoc_op, class Lift_func>
-scan_result scan(const Assoc_op& op, const Lift_func& lift, value_type id, const_array_ref xs, bool inclusive) {
+scan_result scan(const Assoc_op& op, const Lift_func& lift, value_type id, const_array_ref xs,
+                 bool inclusive) {
   using contr_type = scan_controller_type<Assoc_op,Lift_func>;
   long n = xs.size();
   array result = array(n);

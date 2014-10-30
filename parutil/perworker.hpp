@@ -288,15 +288,21 @@ private:
     v = dflt;
   }
   
+  void register_callback() {
+    util::callback::register_client(new callback(this));
+  }
+  
 public:
   
   using value_type = Item;
   
-  cell() { }
+  cell() {
+    register_callback();
+  }
   
   cell(value_type v)
   : dflt(v), v(v) {
-    util::callback::register_client(new callback(this));
+    register_callback();
   }
   
   value_type& mine() {
@@ -350,7 +356,9 @@ public:
   
   using value_type = Item;
   
-  cell() { }
+  cell() {
+    register_callback();
+  }
   
   cell(value_type v) : dflt(v) {
     register_callback();
