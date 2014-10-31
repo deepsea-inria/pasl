@@ -364,13 +364,12 @@ value_type reduce_rec(const Assoc_op& op, const Lift_func& lift, value_type v, c
   value_type result = v;
   auto seq = [&] {
     value_type x = v;
-    for (long i = 0; i < xs.size(); i++)
+    for (long i = lo; i < hi; i++)
       x = op(x, lift(xs[i]));
     result = x;
   };
-  long n = hi-lo;
-  par::cstmt(contr_type::contr, [&] { return n; }, [&] {
-    if (n < 2) {
+  par::cstmt(contr_type::contr, [&] { return hi-lo; }, [&] {
+    if (hi <= lo + 2) {
       seq();
     } else {
       long m = (lo+hi)/2;
@@ -401,7 +400,7 @@ value_type sum(value_type id, const_array_ref xs) {
 }
 
 value_type sum(const_array_ref xs) {
-  return reduce(plus_fct, 0, xs);
+  return sum(0l, xs);
 }
 
 value_type max(const_array_ref xs) {

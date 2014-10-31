@@ -89,6 +89,27 @@ void bench_destroy(const benchmark_type& b) {
 /*---------------------------------------------------------------------*/
 /* Benchmark definitions */
 
+
+benchmark_type reduce_bench() {
+  long n = pasl::util::cmdline::parse_or_default_long("n", 1l<<20);
+  array_ptr inp = new array(0);
+  value_type* result = new value_type;
+  auto init = [=] {
+    *inp = fill(n, 1);
+  };
+  auto bench = [=] {
+    *result = sum(*inp);
+  };
+  auto output = [=] {
+    std::cout << "result\t" << *result << std::endl;
+  };
+  auto destroy = [=] {
+    delete inp;
+    delete result;
+  };
+  return make_benchmark(init, bench, output, destroy);
+}
+
 benchmark_type scan_bench() {
   long n = pasl::util::cmdline::parse_or_default_long("n", 1l<<20);
   array_ptr inp = new array(0);
@@ -155,8 +176,9 @@ int main(int argc, char** argv) {
   
   auto init = [&] {
     pasl::util::cmdline::argmap<std::function<benchmark_type()>> m;
-    m.add("scan", [&] { return scan_bench(); });
-    m.add("sort", [&] { return sort_bench(); });
+    m.add("reduce",      [&] { return reduce_bench(); });
+    m.add("scan",        [&] { return scan_bench(); });
+    m.add("sort",        [&] { return sort_bench(); });
     bench = m.find_by_arg("bench")();
     bench_init(bench);
   };

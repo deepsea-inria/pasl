@@ -41,38 +41,6 @@ public:
   control_by_force_sequential(std::string) { }
 };
 
-class control_by_cutoff_without_reporting : public control {
-public:
-  control_by_cutoff_without_reporting(std::string) { }
-  
-  void initialize(double init_cst) {
-  }
-  
-  void set(std::string policy_arg) {
-  }
-  
-};
-
-class control_by_cutoff_with_reporting : public control {
-public:
-  estimator_type estimator;
-  
-  control_by_cutoff_with_reporting(std::string name = ""): estimator(name) {}
-  
-  estimator_type& get_estimator() {
-    return estimator;
-  }
-  
-  void initialize(double init_cst) {
-    estimator.set_init_constant(init_cst);
-  }
-  
-  void set(std::string policy_arg) {
-    todo();
-  }
-  
-};
-
 class control_by_prediction : public control {
 public:
   estimator_type estimator;
@@ -95,8 +63,6 @@ public:
   using policy_type = enum {
     By_force_parallel,
     By_force_sequential,
-    By_cutoff_without_reporting,
-    By_cutoff_with_reporting,
     By_prediction
   };
   
@@ -105,14 +71,11 @@ public:
   
   control_by_force_parallel cbfp;
   control_by_force_sequential cbfs;
-  control_by_cutoff_without_reporting cbcwor;
-  control_by_cutoff_with_reporting cbcwtr;
   control_by_prediction cbp;
   
   control_by_cmdline(std::string name = ""): estimator(name),
   policy(By_prediction),
   cbfp(name), cbfs(name),
-  cbcwor(name), cbcwtr(name),
   cbp(name) {}
   
   // to be called by a callback in the PASL runtime
@@ -121,10 +84,6 @@ public:
       policy = By_force_parallel;
     else if (policy_arg == "by_force_sequential")
       policy = By_force_sequential;
-    else if (policy_arg == "by_cutoff_without_reporting")
-      policy = By_cutoff_without_reporting;
-    else if (policy_arg == "by_cutoff_with_reporting")
-      policy = By_cutoff_with_reporting;
     else if (policy_arg == "by_prediction")
       policy = By_prediction;
     else
@@ -140,7 +99,6 @@ public:
   }
   
   void initialize(double init_cst) {
-    cbcwtr.get_estimator().set_init_constant(init_cst);
     cbp.get_estimator().set_init_constant(init_cst);
   }
 };
@@ -252,12 +210,10 @@ void cstmt_sequential_with_reporting(cmeasure_type m,
   report_sample(elapsed);
 }
 template <
-class Cutoff_fct,
 class Complexity_measure_fct,
 class Par_body_fct
 >
 void cstmt(control& contr,
-           const Cutoff_fct&,
            const Complexity_measure_fct&,
            const Par_body_fct& par_body_fct) {
   cstmt_sequential(Force_parallel, par_body_fct);
@@ -270,13 +226,11 @@ void cstmt(control_by_force_parallel&, const Par_body_fct& par_body_fct) {
 
 // same as above but accepts all arguments to support general case
 template <
-class Cutoff_fct,
 class Complexity_measure_fct,
 class Par_body_fct,
 class Seq_body_fct
 >
 void cstmt(control_by_force_parallel& contr,
-           const Cutoff_fct&,
            const Complexity_measure_fct&,
            const Par_body_fct& par_body_fct,
            const Seq_body_fct&) {
@@ -301,76 +255,6 @@ void cstmt(control_by_force_sequential& contr,
            const Par_body_fct&,
            const Seq_body_fct& seq_body_fct) {
   cstmt(contr, seq_body_fct);
-}
-
-template <
-class Cutoff_fct,
-class Par_body_fct
->
-void cstmt(control_by_cutoff_without_reporting&,
-           const Cutoff_fct& cutoff_fct,
-           const Par_body_fct& par_body_fct) {
-  execmode_type c = (cutoff_fct()) ? Sequential : Parallel;
-  cstmt_sequential(c, par_body_fct);
-}
-
-template <
-class Cutoff_fct,
-class Par_body_fct,
-class Seq_body_fct
->
-void cstmt(control_by_cutoff_without_reporting&,
-           const Cutoff_fct& cutoff_fct,
-           const Par_body_fct& par_body_fct,
-           const Seq_body_fct& seq_body_fct) {
-#ifdef SEQUENTIAL_BASELINE
-  seq_body_fct();
-  return;
-#endif
-  execmode_type c = (cutoff_fct()) ? Sequential : Parallel;
-  if (c == Sequential)
-    cstmt_sequential(Sequential, seq_body_fct);
-  else
-    cstmt_parallel(Parallel, par_body_fct);
-}
-
-// same as above but accepts all arguments to support general case
-template <
-class Cutoff_fct,
-class Complexity_measure_fct,
-class Par_body_fct,
-class Seq_body_fct
->
-void cstmt(control_by_cutoff_without_reporting& contr,
-           const Cutoff_fct& cutoff_fct,
-           const Complexity_measure_fct&,
-           const Par_body_fct& par_body_fct,
-           const Seq_body_fct& seq_body_fct) {
-  cstmt(contr, cutoff_fct, par_body_fct, seq_body_fct);
-}
-
-template <
-class Cutoff_fct,
-class Complexity_measure_fct,
-class Par_body_fct,
-class Seq_body_fct
->
-void cstmt(control_by_cutoff_with_reporting& contr,
-           const Cutoff_fct& cutoff_fct,
-           const Complexity_measure_fct& complexity_measure_fct,
-           const Par_body_fct& par_body_fct,
-           const Seq_body_fct& seq_body_fct) {
-#ifdef SEQUENTIAL_BASELINE
-  seq_body_fct();
-  return;
-#endif
-  estimator_type& estimator = contr.get_estimator();
-  execmode_type c = (cutoff_fct()) ? Sequential : Parallel;
-  cmeasure_type m = complexity_measure_fct();
-  if (c == Sequential)
-    cstmt_sequential_with_reporting(m, seq_body_fct, estimator);
-  else
-    cstmt_parallel(m, par_body_fct, estimator);
 }
 
 template <
@@ -445,13 +329,6 @@ void cstmt(control_by_cmdline& contr,
     case control_by_cmdline::policy_type::By_force_sequential:
       cstmt(contr.cbfs, seq_body_fct);
       break;
-    case control_by_cmdline::policy_type::By_cutoff_without_reporting:
-      cstmt(contr.cbcwor, cutoff_fct, par_body_fct, seq_body_fct);
-      break;
-    case control_by_cmdline::policy_type::By_cutoff_with_reporting:
-      cstmt(contr.cbcwtr, cutoff_fct, complexity_measure_fct, 
-            par_body_fct, seq_body_fct);
-      break;
     case control_by_cmdline::policy_type::By_prediction:
       cstmt(contr.cbp, complexity_measure_fct, par_body_fct, seq_body_fct);
       break;
@@ -511,13 +388,11 @@ public:
 
 template <
   class Granularity_control_policy,
-  class Loop_cutoff_fct,
   class Loop_complexity_measure_fct,
   class Number,
   class Body
 >
 void parallel_for(loop_by_eager_binary_splitting<Granularity_control_policy>& lpalgo,
-                  const Loop_cutoff_fct& loop_cutoff_fct,
                   const Loop_complexity_measure_fct& loop_compl_fct,
                   Number lo, Number hi, const Body& body) {
   auto seq_fct = [&] {
@@ -527,51 +402,26 @@ void parallel_for(loop_by_eager_binary_splitting<Granularity_control_policy>& lp
   if (hi - lo < 2) {
     seq_fct();
   } else {
-    auto cutoff_fct = [&] {
-      return loop_cutoff_fct(lo, hi);
-    };
     auto compl_fct = [&] {
       return loop_compl_fct(lo, hi);
     };
     Number mid = (lo + hi) / 2;
-    cstmt(lpalgo.gcpolicy, cutoff_fct, compl_fct,
-          [&]{fork2([&] {parallel_for(lpalgo, loop_cutoff_fct, loop_compl_fct, lo, mid, body);},
-                    [&] {parallel_for(lpalgo, loop_cutoff_fct, loop_compl_fct, mid, hi, body);} );},
+    cstmt(lpalgo.gcpolicy, compl_fct,
+          [&]{fork2([&] {parallel_for(lpalgo, loop_compl_fct, lo, mid, body);},
+                    [&] {parallel_for(lpalgo, loop_compl_fct, mid, hi, body);} );},
           seq_fct);
   }
 }
   
 template <
   class Granularity_control_policy,
-  class Loop_complexity_measure_fct,
-  class Number,
-  class Body
->
-void parallel_for(loop_by_eager_binary_splitting<Granularity_control_policy>& lpalgo,
-                  const Loop_complexity_measure_fct& loop_compl_fct,
-                  Number lo, Number hi, const Body& body) {
-  auto loop_cutoff_fct = [] (Number lo, Number hi) {
-    todo();
-    return false;
-  };
-  
-  parallel_for(lpalgo, loop_cutoff_fct, loop_compl_fct, lo, hi, body);
-}
-  
-const int default_loop_cutoff = 10000;
-  
-template <
-  class Granularity_control_policy,
   class Number,
   class Body
 >
 void parallel_for(loop_by_eager_binary_splitting<Granularity_control_policy>& lpalgo,
                   Number lo, Number hi, const Body& body) {
-  auto loop_cutoff_fct = [] (Number lo, Number hi) {
-    return hi-lo <= default_loop_cutoff;
-  };
   auto loop_compl_fct = [] (Number lo, Number hi) { return hi-lo; };
-  parallel_for(lpalgo, loop_cutoff_fct, loop_compl_fct, lo, hi, body);
+  parallel_for(lpalgo, loop_compl_fct, lo, hi, body);
 }
  
   //! \todo find a better place for this function
