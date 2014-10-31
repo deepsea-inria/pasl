@@ -207,6 +207,7 @@ void cstmt_sequential_with_reporting(cmeasure_type m,
   execmode.mine().block(Sequential, seq_body_fct);
   cost_type elapsed = util::ticks::since(start);
   estimator.report(m, elapsed);
+  STAT_COUNT(MEASURED_RUN);
   report_sample(elapsed);
 }
 template <

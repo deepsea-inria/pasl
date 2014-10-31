@@ -185,6 +185,7 @@ void common::report(complexity_type comp, cost_type elapsed_ticks) {
   double elapsed_time = elapsed_ticks / (double) local_ticks_per_microsec;
   cost_type measured_cst = elapsed_time / comp;
   LOG_ESTIM(new util::logging::estim_report_event_t(this, comp, elapsed_time, measured_cst));
+  STAT_COUNT(ESTIM_REPORT);
   analyse(measured_cst);
 }
 

@@ -45,6 +45,7 @@ typedef enum {
   THREAD_SEQUENTIAL,
   MEASURED_RUN,
   ESTIM_UPDATE,
+  ESTIM_REPORT,
   // begin fencefree
   RESOLVE_JOIN,
   TRANSFER_ALL,
@@ -74,6 +75,7 @@ static inline std::string name_of_type(stat_type_t type) {
     case THREAD_SEQUENTIAL: return std::string("thread_sequential");
     case MEASURED_RUN: return std::string("measured_run");
     case ESTIM_UPDATE: return std::string("estim_update");
+    case ESTIM_REPORT: return std::string("estim_report");
     case RESOLVE_JOIN: return std::string("resolve_join");
     case TRANSFER_ALL: return std::string("transfer_all");
     case ADD_WATCHLIST: return std::string("add_watchlist");

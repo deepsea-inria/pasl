@@ -102,25 +102,22 @@ void stats_t::print_idle(FILE* f) {
 }
 
 void stats_t::print(FILE* f) {
-  // fprintf(f, "relative_idle\t%lf\n", relative_wait);
   fprintf(f, "launch_duration\t%.3lf\n", launch_duration);
   fprintf(f, "relative_idle_time\t%.4lf\n", relative_idle);
-  fprintf(f, "relative_non_seq\t%.4lf\n", relative_non_seq);
-  fprintf(f, "average_sequential\t%.3lf\n", average_sequentialized);
-  fprintf(f, "total_sequential\t%.3lf\n", total_data.sequential_time);
-  bool stats_light = cmdline::parse_or_default_bool("stats_light", false, false);
+  bool stats_light = cmdline::parse_or_default_bool("stats_light", true, false);
   if (! stats_light) {
+    fprintf(f, "total_sequential\t%.3lf\n", total_data.sequential_time);
+    fprintf(f, "average_sequential\t%.3lf\n", average_sequentialized);
+    fprintf(f, "relative_non_seq\t%.4lf\n", relative_non_seq);
     fprintf(f, "total_spinning_time\t%lf\n", total_spinning_time);
     for (int i = 0; i < NB_STATS; i++)
       fprintf(f, "%s\t%ld\n", 
               name_of_type((stat_type_t) i).c_str(),
               (long)total_data.counters[i]);
   } else {
-    const int nb_selected_stats = 7;
+    const int nb_selected_stats = 3;
     int selected_stats[nb_selected_stats] = { 
-      THREAD_SEND, COMMUNICATE, 
-      THREAD_EXEC, THREAD_SEQUENTIAL, MEASURED_RUN,
-      THREAD_ALLOC, WORKER_LOCAL_ALLOC  };
+      THREAD_SEND, THREAD_EXEC, THREAD_ALLOC };
     for (int k = 0; k < nb_selected_stats; k++) {
       int i = selected_stats[k];
       fprintf(f, "%s\t%ld\n", 
