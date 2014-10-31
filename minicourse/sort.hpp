@@ -172,7 +172,7 @@ void mergesort_par(array_ref xs, array_ref tmp,
   };
   par::cstmt(mergesort_contr, [n] { return nlogn(n); }, [&] {
     if (n == 0) {
-      return;
+      
     } else if (n == 1) {
       tmp[lo] = xs[lo];
     } else {
@@ -187,6 +187,7 @@ void mergesort_par(array_ref xs, array_ref tmp,
   }, seq);
 }
 
+#if defined(USE_OLD_MERGESORT)
 array mergesort(const_array_ref xs) {
   array tmp = copy(xs);
   long n = xs.size();
@@ -194,6 +195,8 @@ array mergesort(const_array_ref xs) {
   mergesort_par(tmp, scratch, 0l, n);
   return tmp;
 }
+
+#else
 
 array mergesort_rec(const_array_ref xs, long lo, long hi) {
   long n = hi-lo;
@@ -218,9 +221,11 @@ array mergesort_rec(const_array_ref xs, long lo, long hi) {
   return result;
 }
 
-array mergesort2(const_array_ref xs) {
+array mergesort(const_array_ref xs) {
   return mergesort_rec(xs, 0l, xs.size());
 }
+
+#endif
 
 /***********************************************************************/
 
