@@ -300,9 +300,8 @@ array concat(const_array_ptr* xss, long k) {
   for (long i = 0; i < k; i++) {
     const_array_ref xs = *xss[i];
     long m = xs.size();
-    par::parallel_for(concat_contr, 0l, m, [&] (long j) {
-      result[offset+j] = xs[j];
-    });
+    if (m > 0l)
+      prim::pcopy(&xs[0l], &result[0l], 0l, m, offset);
     offset += m;
   }
   return result;
@@ -442,8 +441,8 @@ public:
   value_type last;
   
   scan_result() { }
-  scan_result(array&& prefix, value_type last) {
-    this->prefix = std::move(prefix);
+  scan_result(array&& _prefix, value_type last) {
+    this->prefix = std::move(_prefix);
     this->last = last;
   }
   
@@ -457,8 +456,8 @@ public:
   }
   
   scan_result& operator=(scan_result&& other) {
-    prefix = std::move(prefix);
-    last = std::move(last);
+    prefix = std::move(other.prefix);
+    last = std::move(other.last);
     return *this;
   }
   

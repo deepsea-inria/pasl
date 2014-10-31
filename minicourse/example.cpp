@@ -126,15 +126,18 @@ void doit() {
   array empty;
   std::cout << "empty=" << empty << std::endl;
   std::cout << "array=" << array({1, 2}) << std::endl;
+
   array xs = { 0, 1, 2, 3, 4, 5, 6 };
   std::cout << "xs=" << xs << std::endl;
+  scan_result zs = partial_sums(xs);
+  std::cout << "zs=" << zs.prefix << " " << zs.last << std::endl;
+
   array ys = map(plus1_fct, xs);
   std::cout << "xs(copy)=" << copy(xs) << std::endl;
   std::cout << "ys=" << ys << std::endl;
   value_type v = sum(ys);
   std::cout << "v=" << v << std::endl;
-  scan_result zs = partial_sums(xs);
-  std::cout << "zs=" << zs.prefix << " " << zs.last << std::endl;
+
   std::cout << "max=" << max(ys) << std::endl;
   std::cout << "min=" << min(ys) << std::endl;
   std::cout << "tmp=" << map(plus1_fct, array({100, 101})) << std::endl;
