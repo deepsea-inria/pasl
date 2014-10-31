@@ -35,7 +35,7 @@ void set(int argc, char** argv)
 {
   global_argc = argc;
   global_argv = argv;
-  print_warning_on_use_of_default_value = parse_or_default_bool("warning", true, false);
+  print_warning_on_use_of_default_value = parse_or_default_bool("warning", false, false);
 }
 
 std::string name_of_my_executable() {
