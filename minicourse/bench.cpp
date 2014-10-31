@@ -12,6 +12,7 @@
 #include "dup.hpp"
 #include "string.hpp"
 #include "sort.hpp"
+#include "graph.hpp"
 
 /***********************************************************************/
 
@@ -167,11 +168,37 @@ benchmark_type sort_bench() {
   return make_benchmark(init, bench, output, destroy);
 }
 
+benchmark_type graph_bench() {
+  adjlist* graphp = new adjlist;
+  array* distsp = new array;
+  std::string fname = pasl::util::cmdline::parse_or_default_string("fname", "");
+  vtxid_type source = pasl::util::cmdline::parse_or_default_long("source", 0l);
+  if (fname == "")
+    pasl::util::atomic::fatal([] { std::cerr << "missing filename for graph: -fname filename"; });
+  auto init = [=] {
+    graphp->load_from_file(fname);
+  };
+  auto bench = [=] {
+    *distsp = bfs(*graphp, source);
+  };
+  auto output = [=] {
+    long nb_visited = sum(map([] (value_type v) { return (v != dist_unknown); }, *distsp));
+    long max_dist = max(*distsp);
+    std::cout << "nb_visited\t" << nb_visited << std::endl;
+    std::cout << "max_dist\t" << max_dist << std::endl;
+  };
+  auto destroy = [=] {
+    delete graphp;
+    delete distsp;
+  };
+  return make_benchmark(init, bench, output, destroy);
+}
+
 /*---------------------------------------------------------------------*/
 /* PASL Driver */
 
 int main(int argc, char** argv) {
-  
+
   benchmark_type bench;
   
   auto init = [&] {
@@ -179,6 +206,7 @@ int main(int argc, char** argv) {
     m.add("reduce",      [&] { return reduce_bench(); });
     m.add("scan",        [&] { return scan_bench(); });
     m.add("sort",        [&] { return sort_bench(); });
+    m.add("graph",       [&] { return graph_bench(); });
     bench = m.find_by_arg("bench")();
     bench_init(bench);
   };

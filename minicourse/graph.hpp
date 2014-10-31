@@ -87,13 +87,14 @@ private:
     assert(v < nb_offsets-1);
   }
   
-  void alloc() {
-    long nb_bytes = nb_offsets + nb_edges;;
-    char* p = (char*)my_malloc<vtxid_type>(nb_bytes);
-    assert(nb_bytes==0l || p != nullptr);
+  long alloc() {
+    long nb_cells_allocated = nb_offsets + nb_edges;;
+    char* p = (char*)my_malloc<vtxid_type>(nb_cells_allocated);
+    assert(nb_cells_allocated==0l || p != nullptr);
     ptr.reset(p);
     start_offsets = (vtxid_type*)p;
     start_edgelists = &start_offsets[nb_offsets];
+    return nb_cells_allocated;
   }
   
   void from_edgelist(const edgelist& edges) {
@@ -120,6 +121,12 @@ private:
       degrees[e.first]++;
     }
   }
+  
+  const uint64_t GRAPH_TYPE_ADJLIST = 0xdeadbeef;
+  const uint64_t GRAPH_TYPE_EDGELIST = 0xba5eba11;
+  
+  const int bits_per_byte = 8;
+  const int graph_file_header_sz = 5;
   
 public:
   
@@ -170,6 +177,35 @@ public:
   neighbor_list get_neighbors_of(vtxid_type v) const {
     check(v);
     return &start_edgelists[start_offsets[v]];
+  }
+  
+  void load_from_file(std::string fname) {
+    std::ifstream in(fname, std::ifstream::binary);
+    uint64_t graph_type;
+    int nbbits;
+    long nb_vertices;
+    bool is_symmetric;
+    uint64_t header[graph_file_header_sz];
+    in.read((char*)header, sizeof(header));
+    graph_type = header[0];
+    nbbits = int(header[1]);
+    assert(nbbits == 64);
+    nb_vertices = long(header[2]);
+    nb_offsets = nb_vertices + 1;
+    nb_edges = long(header[3]);
+    long nb_cells_alloced = alloc();
+    long nb_bytes_allocated = nb_cells_alloced * sizeof(vtxid_type);
+    is_symmetric = bool(header[4]);
+    if (graph_type != GRAPH_TYPE_ADJLIST)
+      pasl::util::atomic::fatal([] { std::cerr << "Bogus graph type." << std::endl; });
+    if (sizeof(vtxid_type) * 8 < nbbits)
+      pasl::util::atomic::fatal([] { std::cerr << "Incompatible graph file." << std::endl; });
+    in.seekg (0, in.end);
+    long contents_szb = long(in.tellg()) - sizeof(header);
+    assert(contents_szb == nb_bytes_allocated);
+    in.seekg (sizeof(header), in.beg);
+    in.read (ptr.get(), contents_szb);
+    in.close();
   }
   
 };
@@ -248,51 +284,81 @@ bool try_to_set_dist(vtxid_type target, long dist, atomic_value_ptr dists) {
   return dists[target].compare_exchange_strong(u, dist);
 }
 
-loop_controller_type bfs_par_loop0("bfs_par_init_dists");
-loop_controller_type bfs_par_loop1("bfs_par_frontier");
-loop_controller_type bfs_par_loop2("bfs_par_neighbors");
+loop_controller_type process_neighbors_contr("process_neighbors");
+
+void process_neighbors(neighbor_list neighbors, long degree,
+                       array_ref next_frontier, long offset,
+                       long dist, atomic_value_ptr dists) {
+  par::parallel_for(process_neighbors_contr, 0l, degree, [&] (long j) {
+    vtxid_type other = neighbors[j];
+    next_frontier[offset+j] = (try_to_set_dist(other, dist, dists)) ? other : -1l;
+  });
+}
+
+loop_controller_type process_frontier_contr("process_frontier");
+
+void process_frontier(const_adjlist_ref graph,
+                      const_array_ref cur_frontier, array_ref next_frontier,
+                      const_array_ref next_frontier_counts,
+                      long dist, atomic_value_ptr dists) {
+  long cur_frontier_sz = cur_frontier.size();
+  long next_frontier_sz = next_frontier.size();
+  auto frontier_loop_compl_fct = [&] (long lo, long hi) {
+    long u = (hi == cur_frontier_sz)
+    ? next_frontier_sz
+    : next_frontier_counts[hi];
+    long l = next_frontier_counts[lo];
+    return u-l;
+  };
+  par::parallel_for(process_frontier_contr, frontier_loop_compl_fct, 0l, cur_frontier_sz, [&] (long i) {
+    vtxid_type vertex = cur_frontier[i];
+    long offset = next_frontier_counts[i];
+    long degree = graph.get_out_degree_of(vertex);
+    neighbor_list neighbors = graph.get_neighbors_of(vertex);
+    process_neighbors(neighbors, degree, next_frontier, offset, dist, dists);
+  });
+}
+
+loop_controller_type bfs_par_init_contr("bfs_par_init");
 
 atomic_value_ptr bfs_par(const_adjlist_ref graph, vtxid_type source) {
   long nb_vertices = graph.get_nb_vertices();
   atomic_value_ptr dists = my_malloc<std::atomic<vtxid_type>>(nb_vertices);
-  par::parallel_for(bfs_par_loop0, 0l, nb_vertices, [&] (long i) {
+  par::parallel_for(bfs_par_init_contr, 0l, nb_vertices, [&] (long i) {
     dists[i].store(dist_unknown);
   });
   array cur_frontier = { source };
   array next_frontier = { };
   scan_result next_frontier_counts;
-  vtxid_type dist = 0;
+  long dist = 0;
   dists[source].store(dist);
   while (cur_frontier.size() > 0) {
     dist++;
     auto get_out_degree_fct = [&] (long i) {
       return graph.get_out_degree_of(cur_frontier[i]);
     };
-    long cur_frontier_sz = cur_frontier.size();
-    next_frontier_counts = partial_sums(tabulate(get_out_degree_fct, cur_frontier_sz));
-    long next_frontier_sz = next_frontier_counts.last;
-    next_frontier = array(next_frontier_sz);
-    auto frontier_loop_compl_fct = [&] (long lo, long hi) {
-      long u = (hi == cur_frontier_sz)
-              ? next_frontier_sz
-              : next_frontier_counts.prefix[hi];
-      long l = next_frontier_counts.prefix[lo];
-      return u-l;
-    };
-    par::parallel_for(bfs_par_loop1, frontier_loop_compl_fct, 0l, cur_frontier_sz, [&] (long i) {
-      vtxid_type vertex = cur_frontier[i];
-      long offset = next_frontier_counts.prefix[i];
-      long degree = graph.get_out_degree_of(vertex);
-      neighbor_list neighbors = graph.get_neighbors_of(vertex);
-      par::parallel_for(bfs_par_loop2, 0l, degree, [&] (long j) {
-        vtxid_type other = neighbors[j];
-        next_frontier[offset+j] = (try_to_set_dist(other, dist, dists)) ? other : -1l;
-      });
-    });
+    array degrees = tabulate(get_out_degree_fct, cur_frontier.size());
+    next_frontier_counts = partial_sums(degrees);
+    next_frontier = array(next_frontier_counts.last);
+    process_frontier(graph, cur_frontier, next_frontier, next_frontier_counts.prefix, dist, dists);
     cur_frontier = filter([] (vtxid_type v) { return v != -1l; }, next_frontier);
     next_frontier = empty();
   }
   return dists;
+}
+
+array deatomic(atomic_value_ptr distsp, long nb_vertices) {
+  array result = tabulate([&] (long i) { return distsp[i].load(); }, nb_vertices);
+  free(distsp);
+  return result;
+}
+
+array bfs(const_adjlist_ref graph, vtxid_type source) {
+#ifdef SEQUENTIAL_BASELINE
+  return bfs_seq(graph, source);
+#else 
+  return deatomic(bfs_par(graph, source), graph.get_nb_vertices());
+#endif
 }
 
 /***********************************************************************/

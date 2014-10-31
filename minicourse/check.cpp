@@ -251,7 +251,7 @@ void check_graph() {
       array operator()(const adjlist& graph, vtxid_type source) {
         atomic_value_ptr p = bfs_par(graph, source);
         long nb_vertices = graph.get_nb_vertices();
-        return tabulate([&] (long i) { return p[i].load(); }, nb_vertices);
+        return deatomic(p, nb_vertices);
       }
     };
     using property_type = bfs_correct<trusted_fct, untrusted_fct>;
