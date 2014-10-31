@@ -355,17 +355,20 @@ void fork2(const Body_fct1& f1, const Body_fct2& f2) {
     f1();
     f2();
   } else {
-    cost_type sample1 = 0.0, sample2 = 0.0;
+    cost_type sample1, sample2;
     native::fork2([&] {
-      samplecost.mine().block(sample1, [&] {
+      samplecost.mine().block(0.0, [&] {
         execmode.mine().block(mode, f1);
+        sample1 = my_samplecost();
       });
     }, [&] {
-      samplecost.mine().block(sample2, [&] {
+      samplecost.mine().block(0.0, [&] {
         execmode.mine().block(mode, f2);
+        sample2 = my_samplecost();
       });
     });
-    samplecost.mine().back() += sample1 + sample2;
+    report_sample(sample1);
+    report_sample(sample2);
   }
 }
   
