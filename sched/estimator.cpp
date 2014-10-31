@@ -9,6 +9,9 @@
 
 #include <fstream>
 #include <map>
+#ifndef NDEBUG
+#include <unordered_set>
+#endif
 
 #include "logging.hpp"
 #include "stats.hpp"
@@ -34,6 +37,23 @@ void init() {
 void destroy() {
   try_write_constants_to_file();
 }
+  
+#if defined(NDEBUG)
+void check_estimator_name(std::string name) {
+}
+#else
+std::unordered_set<std::string> estimator_names;
+
+void check_estimator_name(std::string name) {
+  util::atomic::msg([&] {
+    if (estimator_names.find(name) != estimator_names.end()) {
+      std::cerr << "Warning: using duplicate name for estimator: " << name << std::endl;
+    } else {
+      estimator_names.insert(name);
+    }
+  });
+}
+#endif
 
 /*---------------------------------------------------------------------*/
 /* Reading and writing constants to file */
@@ -100,8 +120,7 @@ static void try_write_constants_to_file() {
 /*---------------------------------------------------------------------*/
 // common
 
-void common::init(std::string name) {
-  set_name(name);
+void common::init() {
   LOG_ESTIM(new util::logging::estim_name_event_t(this, name));
 }
 
@@ -115,10 +134,6 @@ void common::destroy() {
 
 std::string common::get_name() {
   return name;
-}
-
-void common::set_name(std::string name) {
-  this->name = name;
 }
 
 cost_type common::get_constant_or_pessimistic() {
@@ -161,6 +176,10 @@ uint64_t common::predict_nb_iterations() {
 void common::log_update(cost_type new_cst) {
   LOG_CSTS(new util::logging::estim_update_event_t(this, new_cst));
 }
+  
+void common::check() {
+  check_estimator_name(name);
+}
 
 void common::report(complexity_type comp, cost_type elapsed_ticks) {
   double elapsed_time = elapsed_ticks / (double) local_ticks_per_microsec;
@@ -173,7 +192,7 @@ void common::report(complexity_type comp, cost_type elapsed_ticks) {
 // disbtributed
 
 void distributed::init() {
-  common::init(common::name);
+  common::init();
   shared_cst = cost::undefined;
   constant_map_t::iterator preloaded = preloaded_constants.find(common::name);
   if (preloaded != preloaded_constants.end())

@@ -57,7 +57,6 @@ namespace complexity {
 /* Complexity annotation */
 
 namespace annotation {
-  /*! \todo make it portable */
   static inline complexity_type lgn(complexity_type n) {
 #ifdef __GNUC__
     return sizeof(complexity_type)*8l - 1l - __builtin_clzll(n);
@@ -124,9 +123,6 @@ public:
   //! Tests whether an initial value for the constant was provided
   virtual bool init_constant_provided() = 0;
   
-  //! Sets a string identifier for the estimator (optional).
-  virtual void set_name(std::string name) = 0;
-  
   //! Returns the string identifier of the estimator.
   virtual std::string get_name() = 0;
   
@@ -179,9 +175,16 @@ protected:
   //! Log the update to the value of a constant
   void log_update(cost_type new_cst);
   
+  void check();
+  
 public:
   
-  virtual void init(std::string name);
+  common(std::string name)
+  : name(name) {
+    check();
+  }
+  
+  virtual void init();
   virtual void output();
   virtual void destroy();
   
@@ -201,7 +204,6 @@ public:
   // Implements other auxiliary functions
   
   std::string get_name();
-  void set_name(std::string name);
   
 };
 
@@ -236,8 +238,8 @@ protected:
   
 public:
   distributed(std::string name)
-  : init_constant_provided_flg(false), private_csts(cost::undefined) {
-    set_name(name);
+  : init_constant_provided_flg(false), private_csts(cost::undefined),
+    common(name) {
     util::callback::register_client(this);
   }
   void init();
