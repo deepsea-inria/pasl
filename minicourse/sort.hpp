@@ -164,40 +164,6 @@ void merge(array_ref xs, array_ref tmp,
 
 controller_type mergesort_contr("mergesort");
 
-void mergesort_par(array_ref xs, array_ref tmp,
-                   long lo, long hi) {
-  long n = hi-lo;
-  auto seq = [&] {
-    in_place_sort(xs, lo, hi);
-  };
-  par::cstmt(mergesort_contr, [n] { return nlogn(n); }, [&] {
-    if (n == 0) {
-      
-    } else if (n == 1) {
-      tmp[lo] = xs[lo];
-    } else {
-      long mid = (lo+hi)/2;
-      par::fork2([&] {
-        mergesort_par(xs, tmp, lo, mid);
-      }, [&] {
-        mergesort_par(xs, tmp, mid, hi);
-      });
-      merge(xs, tmp, lo, mid, hi);
-    }
-  }, seq);
-}
-
-#if defined(USE_OLD_MERGESORT)
-array mergesort(const_array_ref xs) {
-  array tmp = copy(xs);
-  long n = xs.size();
-  array scratch = array(n);
-  mergesort_par(tmp, scratch, 0l, n);
-  return tmp;
-}
-
-#else
-
 array mergesort_rec(const_array_ref xs, long lo, long hi) {
   long n = hi-lo;
   array result;
@@ -224,8 +190,6 @@ array mergesort_rec(const_array_ref xs, long lo, long hi) {
 array mergesort(const_array_ref xs) {
   return mergesort_rec(xs, 0l, xs.size());
 }
-
-#endif
 
 /***********************************************************************/
 
