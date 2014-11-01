@@ -18,7 +18,7 @@ USE_MATH=1
 # Default options
 
 USE_ALLOCATOR=
-USE_HWLOC=0
+USE_HWLOC=
 USE_NUMA=0
 
 # todo activate? USE_ANSI=1
