@@ -196,7 +196,7 @@ void cstmt_parallel_with_sampling(cmeasure_type m,
   cost_type& sample = samplecost.mine().back();
   if (sample == 0.0)
     return;
-  estimator.report(m, sample);
+  //estimator.report(m, sample);
 }
 
 template <class Seq_body_fct>
