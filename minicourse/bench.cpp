@@ -19,20 +19,6 @@
 
 /***********************************************************************/
 
-/*---------------------------------------------------------------------*/
-/* Random-array generation */
-
-loop_controller_type random_array_contr("random_array");
-
-// returns a random array of size n using seed s
-array random_array(long s, long n) {
-  array tmp = array(n);
-  par::parallel_for(random_array_contr, 0l, n, [&] (long i) {
-    tmp[i] = hash_signed(i+s);
-  });
-  return tmp;
-}
-
 loop_controller_type almost_sorted_array_contr("almost_sorted_array");
 
 // returns an array that is sorted up to a given number of swaps
@@ -249,7 +235,7 @@ benchmark_type sort_bench() {
   auto init = [=] {
     pasl::util::cmdline::argmap_dispatch c;
     c.add("random", [&] {
-      *inp = random_array(12345, n);
+      *inp = gen_random_array(n);
     });
     c.add("almost_sorted", [&] {
       long nb_swaps = pasl::util::cmdline::parse_or_default_long("nb_swaps", 1000);

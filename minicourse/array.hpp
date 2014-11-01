@@ -13,6 +13,7 @@
 #include <memory>
 #include <utility>
 
+#include "hash.hpp"
 #include "granularity.hpp"
 
 #ifndef _MINICOURSE_ARRAY_H_
@@ -210,11 +211,39 @@ std::ostream& operator<<(std::ostream& out, const_array_ref xs) {
   return out;
 }
 
-array gen_random_array(long n) {
+/*---------------------------------------------------------------------*/
+/* Random-array generation */
+
+loop_controller_type random_array_contr("random_array");
+
+const long rand_maxval = 1<<20;
+
+array gen_random_array_seq(long n) {
   array tmp = array(n);
   for (long i = 0; i < n; i++)
-    tmp[i] = random() % 1024;
+    tmp[i] = random() % rand_maxval;
   return tmp;
+}
+
+// returns a random array of size n using seed s
+array gen_random_array_par(long s, long n, long maxval) {
+  array tmp = array(n);
+  par::parallel_for(random_array_contr, 0l, n, [&] (long i) {
+    tmp[i] = hash_signed(i+s) % maxval;
+  });
+  return tmp;
+}
+
+array gen_random_array_par(long n) {
+  return gen_random_array_par(23423, n, rand_maxval);
+}
+
+array gen_random_array(long n) {
+#ifdef SEQUENTIAL_RANDOM_NUMBER_GEN
+  return gen_random_array_seq(n);
+#else
+  return gen_random_array_par(n);
+#endif
 }
 
 /*---------------------------------------------------------------------*/
