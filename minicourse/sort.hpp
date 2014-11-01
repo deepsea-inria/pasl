@@ -155,13 +155,6 @@ array merge(const_array_ref xs, const_array_ref ys) {
   return tmp;
 }
 
-void merge(array_ref xs, array_ref tmp,
-           long lo, long mid, long hi) {
-  merge_par(xs, xs, tmp, lo, mid, mid, hi, lo);
-  // copy back to source array
-  prim::pcopy(&tmp[0], &xs[0], lo, hi, lo);
-}
-
 controller_type mergesort_contr("mergesort");
 
 array mergesort_rec(const_array_ref xs, long lo, long hi) {
