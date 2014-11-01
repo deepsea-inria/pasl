@@ -213,7 +213,7 @@ benchmark_type mcss_bench() {
 }
 
 benchmark_type dmdvmult_bench() {
-  long n = pasl::util::cmdline::parse_or_default_long("n", 1l<<20);
+  long n = pasl::util::cmdline::parse_or_default_long("n", 4000);
   long nxn = n*n;
   array_ptr mtxp = new array(0);
   array_ptr vecp = new array(0);
