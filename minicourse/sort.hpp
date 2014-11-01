@@ -125,17 +125,17 @@ void merge_par(const_array_ref xs, const_array_ref ys, array_ref tmp,
       merge_par(ys, xs, tmp, lo_ys, hi_ys, lo_xs, hi_xs, lo_tmp);
     } else if (n1 == 1) {
       if (n2 == 0) {
-        // a1 singleton; a2 empty
+        // xs singleton; ys empty
         tmp[lo_tmp] = xs[lo_xs];
       } else {
         // both singletons
-        tmp[lo_tmp+0] = std::min(xs[lo_xs], xs[lo_ys]);
-        tmp[lo_tmp+1] = std::max(xs[lo_xs], xs[lo_ys]);
+        tmp[lo_tmp+0] = std::min(xs[lo_xs], ys[lo_ys]);
+        tmp[lo_tmp+1] = std::max(xs[lo_xs], ys[lo_ys]);
       }
     } else {
       // select pivot positions
       long mid_xs = (lo_xs+hi_xs)/2;
-      long mid_ys = lower_bound(xs, lo_ys, hi_ys, xs[mid_xs]);
+      long mid_ys = lower_bound(ys, lo_ys, hi_ys, xs[mid_xs]);
       // number of items to be treated by the first parallel call
       long k = (mid_xs-lo_xs) + (mid_ys-lo_ys);
       par::fork2([&] {

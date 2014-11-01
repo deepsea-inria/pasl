@@ -13,6 +13,9 @@
 #include "string.hpp"
 #include "sort.hpp"
 #include "graph.hpp"
+#include "fib.hpp"
+#include "mcss.hpp"
+#include "numeric.hpp"
 
 /***********************************************************************/
 
@@ -90,6 +93,64 @@ void bench_destroy(const benchmark_type& b) {
 /*---------------------------------------------------------------------*/
 /* Benchmark definitions */
 
+benchmark_type fib_bench() {
+  long n = pasl::util::cmdline::parse_or_default_long("n", 1l<<20);
+  value_type* result = new value_type;
+  auto init = [=] {
+
+  };
+  auto bench = [=] {
+    *result = fib(n);
+  };
+  auto output = [=] {
+    std::cout << "result\t" << *result << std::endl;
+  };
+  auto destroy = [=] {
+    delete result;
+  };
+  return make_benchmark(init, bench, output, destroy);
+}
+
+benchmark_type duplicate_bench() {
+  long n = pasl::util::cmdline::parse_or_default_long("n", 1l<<20);
+  array_ptr inp = new array(0);
+  array_ptr outp = new array(0);
+  auto init = [=] {
+    *inp = fill(n, 1);
+  };
+  auto bench = [=] {
+    *outp = duplicate(*inp);
+  };
+  auto output = [=] {
+    std::cout << "result\t" << (*outp)[outp->size()-1] << std::endl;
+  };
+  auto destroy = [=] {
+    delete inp;
+    delete outp;
+  };
+  return make_benchmark(init, bench, output, destroy);
+}
+
+benchmark_type ktimes_bench() {
+  long n = pasl::util::cmdline::parse_or_default_long("n", 1l<<20);
+  long k = pasl::util::cmdline::parse_or_default_long("k", 4);
+  array_ptr inp = new array(0);
+  array_ptr outp = new array(0);
+  auto init = [=] {
+    *inp = fill(n, 1);
+  };
+  auto bench = [=] {
+    *outp = ktimes(*inp, k);
+  };
+  auto output = [=] {
+    std::cout << "result\t" << (*outp)[outp->size()-1] << std::endl;
+  };
+  auto destroy = [=] {
+    delete inp;
+    delete outp;
+  };
+  return make_benchmark(init, bench, output, destroy);
+}
 
 benchmark_type reduce_bench() {
   long n = pasl::util::cmdline::parse_or_default_long("n", 1l<<20);
@@ -126,6 +187,50 @@ benchmark_type scan_bench() {
   };
   auto destroy = [=] {
     delete inp;
+    delete outp;
+  };
+  return make_benchmark(init, bench, output, destroy);
+}
+
+benchmark_type mcss_bench() {
+  long n = pasl::util::cmdline::parse_or_default_long("n", 1l<<20);
+  array_ptr inp = new array(0);
+  value_type* outp = new value_type;
+  auto init = [=] {
+    *inp = gen_random_array(n);
+  };
+  auto bench = [=] {
+    *outp = mcss(*inp);
+  };
+  auto output = [=] {
+    std::cout << "result\t" << *outp << std::endl;
+  };
+  auto destroy = [=] {
+    delete inp;
+    delete outp;
+  };
+  return make_benchmark(init, bench, output, destroy);
+}
+
+benchmark_type dmdvmult_bench() {
+  long n = pasl::util::cmdline::parse_or_default_long("n", 1l<<20);
+  long nxn = n*n;
+  array_ptr mtxp = new array(0);
+  array_ptr vecp = new array(0);
+  array_ptr outp = new array(0);
+  auto init = [=] {
+    *mtxp = gen_random_array(nxn);
+    *vecp = gen_random_array(n);
+  };
+  auto bench = [=] {
+    *outp = dmdvmult(*mtxp, *vecp);
+  };
+  auto output = [=] {
+    std::cout << "result\t" << (*outp)[outp->size()-1] << std::endl;
+  };
+  auto destroy = [=] {
+    delete mtxp;
+    delete vecp;
     delete outp;
   };
   return make_benchmark(init, bench, output, destroy);
@@ -203,8 +308,13 @@ int main(int argc, char** argv) {
   
   auto init = [&] {
     pasl::util::cmdline::argmap<std::function<benchmark_type()>> m;
+    m.add("fib",         [&] { return fib_bench(); });
+    m.add("duplicate",   [&] { return duplicate_bench(); });
+    m.add("ktimes",      [&] { return ktimes_bench(); });
     m.add("reduce",      [&] { return reduce_bench(); });
     m.add("scan",        [&] { return scan_bench(); });
+    m.add("mcss",        [&] { return mcss_bench(); });
+    m.add("dmdvmult",    [&] { return dmdvmult_bench(); });
     m.add("sort",        [&] { return sort_bench(); });
     m.add("graph",       [&] { return graph_bench(); });
     bench = m.find_by_arg("bench")();
