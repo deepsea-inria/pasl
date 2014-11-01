@@ -413,27 +413,27 @@ value_type min(const_array_ref xs) {
 template <class Assoc_op, class Lift_func>
 class scan_controller_type {
 public:
-  static controller_type contr;
-  static loop_controller_type lp1_contr;
-  static loop_controller_type lp2_contr;
-  static loop_controller_type lp3_contr;
+  static controller_type body;
+  static loop_controller_type lp1;
+  static loop_controller_type lp2;
+  static loop_controller_type lp3;
 };
 template <class Assoc_op, class Lift_func>
-controller_type scan_controller_type<Assoc_op,Lift_func>::contr("scan"+
-                                                                par::string_of_template_arg<Assoc_op>()+
-                                                                par::string_of_template_arg<Lift_func>());
+controller_type scan_controller_type<Assoc_op,Lift_func>::body("scan_body"+
+                                                               par::string_of_template_arg<Assoc_op>()+
+                                                               par::string_of_template_arg<Lift_func>());
 template <class Assoc_op, class Lift_func>
-loop_controller_type scan_controller_type<Assoc_op,Lift_func>::lp1_contr("scan_lp1"+
-                                                                         par::string_of_template_arg<Assoc_op>()+
-                                                                         par::string_of_template_arg<Lift_func>());
+loop_controller_type scan_controller_type<Assoc_op,Lift_func>::lp1("scan_lp1"+
+                                                                   par::string_of_template_arg<Assoc_op>()+
+                                                                   par::string_of_template_arg<Lift_func>());
 template <class Assoc_op, class Lift_func>
-loop_controller_type scan_controller_type<Assoc_op,Lift_func>::lp2_contr("scan_lp2"+
-                                                                         par::string_of_template_arg<Assoc_op>()+
-                                                                         par::string_of_template_arg<Lift_func>());
+loop_controller_type scan_controller_type<Assoc_op,Lift_func>::lp2("scan_lp2"+
+                                                                   par::string_of_template_arg<Assoc_op>()+
+                                                                   par::string_of_template_arg<Lift_func>());
 template <class Assoc_op, class Lift_func>
-loop_controller_type scan_controller_type<Assoc_op,Lift_func>::lp3_contr("scan_lp3"+
-                                                                         par::string_of_template_arg<Assoc_op>()+
-                                                                         par::string_of_template_arg<Lift_func>());
+loop_controller_type scan_controller_type<Assoc_op,Lift_func>::lp3("scan_lp3"+
+                                                                   par::string_of_template_arg<Assoc_op>()+
+                                                                   par::string_of_template_arg<Lift_func>());
 
 class scan_result {
 public:
@@ -464,39 +464,31 @@ public:
 };
 
 template <class Assoc_op, class Lift_func>
-scan_result scan(const Assoc_op& op, const Lift_func& lift, value_type id, const_array_ref xs,
-                 bool inclusive) {
+scan_result scan_exclusive(const Assoc_op& op, const Lift_func& lift, value_type id, const_array_ref xs) {
   using contr_type = scan_controller_type<Assoc_op,Lift_func>;
   long n = xs.size();
   array result = array(n);
   value_type x = id;
   auto seq = [&] {
-    if (inclusive) {
-      for (long i = 0; i < n; i++) {
-        x = op(x, lift(xs[i]));
-        result[i] = x;
-      }
-    } else {
-      for (long i = 0; i < n; i++) {
-        result[i] = x;
-        x = op(x, lift(xs[i]));
-      }
+    for (long i = 0; i < n; i++) {
+      result[i] = x;
+      x = op(x, lift(xs[i]));
     }
   };
-  par::cstmt(contr_type::contr, [&] { return n; }, [&] {
-    if (n < 2) {
+  par::cstmt(contr_type::body, [&] { return n; }, [&] {
+    if (n <= 2) {
       seq();
     } else {
       long m = n/2;
       array sums = array(m);
-      par::parallel_for(contr_type::lp1_contr, 0l, m, [&] (long i) {
+      par::parallel_for(contr_type::lp1, 0l, m, [&] (long i) {
         sums[i] = op(lift(xs[i*2]), lift(xs[i*2+1]));
       });
-      scan_result scans = scan(op, lift, id, sums, inclusive);
-      par::parallel_for(contr_type::lp2_contr, 0l, m, [&] (long i) {
+      scan_result scans = scan_exclusive(op, lift, id, sums);
+      par::parallel_for(contr_type::lp2, 0l, m, [&] (long i) {
         result[2*i] = scans.prefix[i];
       });
-      par::parallel_for(contr_type::lp3_contr, 0l, m, [&] (long i) {
+      par::parallel_for(contr_type::lp3, 0l, m, [&] (long i) {
         result[2*i+1] = op(lift(xs[2*i]), result[2*i]);
       });
       long last = n-1;
@@ -509,13 +501,51 @@ scan_result scan(const Assoc_op& op, const Lift_func& lift, value_type id, const
   return scan_result(std::move(result), x);
 }
 
+template <class Assoc_op, class Lift_func>
+array scan_inclusive(const Assoc_op& op, const Lift_func& lift, value_type id, const_array_ref xs) {
+  using contr_type = scan_controller_type<Assoc_op,Lift_func>;
+  long n = xs.size();
+  array result = array(n);
+  value_type x = id;
+  auto seq = [&] {
+    for (long i = 0; i < n; i++) {
+      x = op(x, lift(xs[i]));
+      result[i] = x;
+    }
+  };
+  par::cstmt(contr_type::body, [&] { return n; }, [&] {
+    if (n <= 2) {
+      seq();
+    } else {
+      long m = n/2;
+      array sums = array(m);
+      par::parallel_for(contr_type::lp1, 0l, m, [&] (long i) {
+        sums[i] = op(lift(xs[i*2]), lift(xs[i*2+1]));
+      });
+      array scans = scan_inclusive(op, lift, id, sums);
+      par::parallel_for(contr_type::lp3, 0l, m, [&] (long i) {
+        result[2*i+1] = scans[i];
+      });
+      result[0] = xs[0];
+      par::parallel_for(contr_type::lp2, 1l, m, [&] (long i) {
+        result[2*i] = op(lift(xs[2*i]), result[2*i-1]);
+      });
+      long last = n-1;
+      if (n == 2*m + 1) {
+        result[last] = op(lift(xs[last]), result[last-1]);
+      }
+    }
+  }, seq);
+  return result;
+}
+
 template <class Assoc_op>
 scan_result scan(const Assoc_op& op, value_type id, const_array_ref xs) {
-  return scan(op, identity_fct, id, xs, false);
+  return scan_exclusive(op, identity_fct, id, xs);
 }
 
 scan_result partial_sums(value_type id, const_array_ref xs) {
-  return scan(plus_fct, identity_fct, id, xs, false);
+  return scan_exclusive(plus_fct, identity_fct, id, xs);
 }
 
 scan_result partial_sums(const_array_ref xs) {
@@ -523,10 +553,7 @@ scan_result partial_sums(const_array_ref xs) {
 }
 
 array partial_sums_inclusive(value_type id, const_array_ref xs) {
-  scan_result r = scan(plus_fct, identity_fct, id, xs, true);
-  array tmp;
-  tmp = std::move(r.prefix);
-  return tmp;
+  return scan_inclusive(plus_fct, identity_fct, id, xs);
 }
 
 array partial_sums_inclusive(const_array_ref xs) {
@@ -557,10 +584,6 @@ array pack(const_array_ref flags, const_array_ref xs) {
 template <class Pred>
 array filter(const Pred& p, const_array_ref xs) {
   return pack(map(p, xs), xs);
-}
-
-array just_evens(const_array_ref xs) {
-  return filter(is_even_fct, xs);
 }
 
 /***********************************************************************/

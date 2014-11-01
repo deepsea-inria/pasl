@@ -15,6 +15,9 @@
 #include "string.hpp"
 #include "sort.hpp"
 #include "graph.hpp"
+#include "fib.hpp"
+#include "mcss.hpp"
+#include "numeric.hpp"
 
 /***********************************************************************/
 
@@ -53,6 +56,44 @@ bool same_array(const_array_ref xs, const_array_ref ys) {
 
 array array_of_vector(const std::vector<value_type>& vec) {
   return tabulate([&] (long i) { return vec[i]; }, vec.size());
+}
+
+/*---------------------------------------------------------------------*/
+/* Unit tests for MCSS */
+
+using namespace quickcheck;
+
+template <class Trusted_mcss_fct, class Untrusted_mcss_fct>
+class mcss_correct : public quickcheck::Property<std::vector<value_type>> {
+public:
+  
+  Trusted_mcss_fct trusted;
+  Untrusted_mcss_fct untrusted;
+  
+  bool holdsFor(const std::vector<value_type>& vec) {
+    array xs = array_of_vector(vec);
+    value_type x = trusted(xs);
+    value_type y = untrusted(xs);
+    return x == y;
+  }
+  
+};
+
+void check_mcss() {
+  class trusted_fct {
+  public:
+    value_type operator()(const_array_ref xs) {
+      return mcss_seq(xs);
+    }
+  };
+  class untrusted_fct {
+  public:
+    value_type operator()(const_array_ref xs) {
+      return mcss_par(xs);
+    }
+  };
+  using property_type = mcss_correct<trusted_fct, untrusted_fct>;
+  checkit<property_type>("mcss is correct");
 }
 
 /*---------------------------------------------------------------------*/
@@ -266,6 +307,7 @@ void check_graph() {
 void check() {
   nb_tests = pasl::util::cmdline::parse_or_default_long("nb_tests", 500);
   pasl::util::cmdline::argmap_dispatch c;
+  c.add("mcss", std::bind(check_mcss));
   c.add("sort", std::bind(check_sort));
   c.add("graph", std::bind(check_graph));
   c.find_by_arg("check")();
