@@ -37,8 +37,7 @@ array seqsort(const_array_ref xs) {
 }
 
 array seqsort(const_array_ref xs, long lo, long hi) {
-  long n = hi-lo;
-  array tmp = tabulate([&] (long i) { return xs[lo+i]; }, n);
+  array tmp = slice(xs, lo, hi);
   in_place_sort(tmp);
   return tmp;
 }
@@ -50,7 +49,7 @@ controller_type quicksort_contr("quicksort");
 
 array quicksort(const_array_ref xs) {
   long n = xs.size();
-  array result = empty();
+  array result = { };
   auto seq = [&] {
     result = seqsort(xs);
   };
@@ -63,8 +62,8 @@ array quicksort(const_array_ref xs) {
       array less = filter([&] (value_type x) { return x < p; }, xs);
       array equal = filter([&] (value_type x) { return x == p; }, xs);
       array greater = filter([&] (value_type x) { return x > p; }, xs);
-      array left = empty();
-      array right = empty();
+      array left = { };
+      array right = { };
       par::fork2([&] {
         left = quicksort(less);
       }, [&] {
@@ -153,13 +152,6 @@ array merge(const_array_ref xs, const_array_ref ys) {
   array tmp = array(n + m);
   merge_par(xs, ys, tmp, 0l, n, 0l, m, 0l);
   return tmp;
-}
-
-void merge(array_ref xs, array_ref tmp,
-           long lo, long mid, long hi) {
-  merge_par(xs, xs, tmp, lo, mid, mid, hi, lo);
-  // copy back to source array
-  prim::pcopy(&tmp[0], &xs[0], lo, hi, lo);
 }
 
 controller_type mergesort_contr("mergesort");
