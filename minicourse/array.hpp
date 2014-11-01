@@ -265,24 +265,23 @@ array singleton(value_type v) {
   return fill(1, v);
 }
 
-array take(const_array_ref xs, long n) {
+array slice(const_array_ref xs, long lo, long hi) {
+  long n = hi-lo;
   assert(n <= xs.size());
   assert(n >= 0);
-  array tmp = array(n);
+  array result = array(n);
   if (n > 0)
-    prim::pcopy(&xs[0], &tmp[0], 0, n, 0);
-  return tmp;
+    prim::pcopy(&xs[0], &result[0], lo, hi, 0);
+  return result;
+}
+
+array take(const_array_ref xs, long n) {
+  return slice(xs, 0, n);
 }
 
 array drop(const_array_ref xs, long n) {
-  long sz = xs.size();
-  assert(n <= sz);
-  assert(n >= 0);
-  long m = sz-n;
-  array tmp = array(m);
-  if (m > 0)
-    prim::pcopy(&xs[0], &tmp[0], n, n+m, 0);
-  return tmp;
+  long m = xs.size()-n;
+  return slice(xs, n, n+m);
 }
 
 array copy(const_array_ref xs) {
