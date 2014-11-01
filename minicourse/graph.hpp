@@ -277,6 +277,8 @@ array bfs_seq(const_adjlist_ref graph, vtxid_type source) {
 /*---------------------------------------------------------------------*/
 /* Parallel BFS */
 
+const value_type not_a_vertexid = -1l;
+
 using atomic_value_ptr = std::atomic<value_type>*;
 
 bool try_to_set_dist(vtxid_type target, long dist, atomic_value_ptr dists) {
@@ -291,7 +293,7 @@ void process_neighbors(neighbor_list neighbors, long degree,
                        long dist, atomic_value_ptr dists) {
   par::parallel_for(process_neighbors_contr, 0l, degree, [&] (long j) {
     vtxid_type other = neighbors[j];
-    next_frontier[offset+j] = (try_to_set_dist(other, dist, dists)) ? other : -1l;
+    next_frontier[offset+j] = (try_to_set_dist(other, dist, dists)) ? other : not_a_vertexid;
   });
 }
 
@@ -312,9 +314,9 @@ void process_frontier(const_adjlist_ref graph,
   };
   par::parallel_for(process_frontier_contr, frontier_loop_compl_fct, 0l, cur_frontier_sz, [&] (long i) {
     vtxid_type vertex = cur_frontier[i];
-    long offset = next_frontier_counts[i];
-    long degree = graph.get_out_degree_of(vertex);
     neighbor_list neighbors = graph.get_neighbors_of(vertex);
+    long degree = graph.get_out_degree_of(vertex);
+    long offset = next_frontier_counts[i];
     process_neighbors(neighbors, degree, next_frontier, offset, dist, dists);
   });
 }
@@ -341,8 +343,8 @@ atomic_value_ptr bfs_par(const_adjlist_ref graph, vtxid_type source) {
     next_frontier_counts = partial_sums(degrees);
     next_frontier = array(next_frontier_counts.last);
     process_frontier(graph, cur_frontier, next_frontier, next_frontier_counts.prefix, dist, dists);
-    cur_frontier = filter([] (vtxid_type v) { return v != -1l; }, next_frontier);
-    next_frontier = empty();
+    cur_frontier = filter([] (vtxid_type v) { return v != not_a_vertexid; }, next_frontier);
+    next_frontier = { };
   }
   return dists;
 }
