@@ -222,6 +222,32 @@ benchmark_type dmdvmult_bench() {
   return make_benchmark(init, bench, output, destroy);
 }
 
+benchmark_type merge_bench() {
+  long n = pasl::util::cmdline::parse_or_default_long("n", 1l<<20);
+  array_ptr inp1 = new array(0);
+  array_ptr inp2 = new array(0);
+  array_ptr outp = new array(0);
+  auto init = [=] {
+    pasl::util::cmdline::argmap_dispatch c;
+    *inp1 = gen_random_array(n);
+    *inp2 = gen_random_array(n);
+    in_place_sort(*inp1);
+    in_place_sort(*inp2);
+  };
+  auto bench = [=] {
+    *outp = merge(*inp1, *inp2);
+  };
+  auto output = [=] {
+    std::cout << "result\t" << (*outp)[outp->size()-1] << std::endl;
+  };
+  auto destroy = [=] {
+    delete inp1;
+    delete inp2;
+    delete outp;
+  };
+  return make_benchmark(init, bench, output, destroy);
+}
+
 benchmark_type sort_bench() {
   long n = pasl::util::cmdline::parse_or_default_long("n", 1l<<20);
   array_ptr inp = new array(0);
@@ -301,6 +327,7 @@ int main(int argc, char** argv) {
     m.add("scan",        [&] { return scan_bench(); });
     m.add("mcss",        [&] { return mcss_bench(); });
     m.add("dmdvmult",    [&] { return dmdvmult_bench(); });
+    m.add("merge",       [&] { return merge_bench(); });
     m.add("sort",        [&] { return sort_bench(); });
     m.add("graph",       [&] { return graph_bench(); });
     bench = m.find_by_arg("bench")();
