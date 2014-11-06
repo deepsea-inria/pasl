@@ -76,32 +76,26 @@ array quicksort(const_array_ref xs) {
 }
 
 /*---------------------------------------------------------------------*/
-/* Parallel mergesort */
+/* Sequential merge */
 
 void merge_seq(const_array_ref xs, const_array_ref ys, array_ref tmp,
                long lo_xs, long hi_xs,
                long lo_ys, long hi_ys,
                long lo_tmp) {
-  long i = lo_xs;
-  long j = lo_ys;
-  long z = lo_tmp;
-  
-  // merge two halves until one is empty
-  while (i < hi_xs and j < hi_ys)
-    tmp[z++] = (xs[i] < ys[j]) ? xs[i++] : ys[j++];
- 
-  // copy remaining items
-  prim::copy(&xs[0], &tmp[0], i, hi_xs, z);
-  prim::copy(&ys[0], &tmp[0], j, hi_ys, z);
+  std::merge(&xs[lo_xs], &xs[hi_xs-1]+1, &ys[lo_ys], &ys[hi_ys-1]+1,
+             &tmp[lo_tmp]);
 }
 
 void merge_seq(array_ref xs, array_ref tmp,
                long lo, long mid, long hi) {
   merge_seq(xs, xs, tmp, lo, mid, mid, hi, lo);
- 
+  
   // copy back to source array
   prim::copy(&tmp[0], &xs[0], lo, hi, lo);
 }
+
+/*---------------------------------------------------------------------*/
+/* Parallel merge */
 
 long lower_bound(const_array_ref xs, long lo, long hi, value_type val) {
   const value_type* first_xs = &xs[0];
@@ -162,6 +156,9 @@ array merge(const_array_ref xs, const_array_ref ys) {
   merge_par(xs, ys, tmp, 0l, n, 0l, m, 0l);
   return tmp;
 }
+
+/*---------------------------------------------------------------------*/
+/* Parallel mergesort */
 
 controller_type mergesort_contr("mergesort");
 
