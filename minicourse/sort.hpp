@@ -89,7 +89,7 @@ void merge_seq(const_array_ref xs, const_array_ref ys, array_ref tmp,
   // merge two halves until one is empty
   while (i < hi_xs and j < hi_ys)
     tmp[z++] = (xs[i] < ys[j]) ? xs[i++] : ys[j++];
-  
+ 
   // copy remaining items
   prim::copy(&xs[0], &tmp[0], i, hi_xs, z);
   prim::copy(&ys[0], &tmp[0], j, hi_ys, z);
@@ -98,6 +98,7 @@ void merge_seq(const_array_ref xs, const_array_ref ys, array_ref tmp,
 void merge_seq(array_ref xs, array_ref tmp,
                long lo, long mid, long hi) {
   merge_seq(xs, xs, tmp, lo, mid, mid, hi, lo);
+ 
   // copy back to source array
   prim::copy(&tmp[0], &xs[0], lo, hi, lo);
 }
@@ -146,6 +147,14 @@ void merge_par(const_array_ref xs, const_array_ref ys, array_ref tmp,
   }, seq);
 }
 
+void merge_par(array_ref xs, array_ref tmp,
+               long lo, long mid, long hi) {
+  merge_par(xs, xs, tmp, lo, mid, mid, hi, lo);
+
+  // copy back to source array
+  prim::pcopy(&tmp[0], &xs[0], lo, hi, lo);
+}
+
 array merge(const_array_ref xs, const_array_ref ys) {
   long n = xs.size();
   long m = ys.size();
@@ -156,31 +165,34 @@ array merge(const_array_ref xs, const_array_ref ys) {
 
 controller_type mergesort_contr("mergesort");
 
-array mergesort_rec(const_array_ref xs, long lo, long hi) {
-  long n = hi-lo;
-  array result;
+void mergesort_rec(array_ref xs, array_ref tmp, long lo, long hi) {
+  long n = hi - lo;
   auto seq = [&] {
-    result = seqsort(xs, lo, hi);
+    in_place_sort(xs, lo, hi);
   };
-  par::cstmt(mergesort_contr, [n] { return nlogn(n); }, [&] {
-    if (n < 2) {
+  par::cstmt(mergesort_contr, [&] { return nlogn(n); }, [&] {
+    if (n <= 2) {
       seq();
-    } else {
-      long mid = (lo+hi)/2;
-      array a,b;
-      par::fork2([&] {
-        a = mergesort_rec(xs, lo, mid);
-      }, [&] {
-        b = mergesort_rec(xs, mid, hi);
-      });
-      result = merge(a, b);
+      return;
     }
+
+    long mid = (lo + hi) / 2;
+    par::fork2([&] {
+      mergesort_rec(xs, tmp, lo, mid);
+    }, [&] {
+      mergesort_rec(xs, tmp, mid, hi);
+    });
+
+    merge_par(xs, tmp, lo, mid, hi);
   }, seq);
-  return result;
 }
 
 array mergesort(const_array_ref xs) {
-  return mergesort_rec(xs, 0l, xs.size());
+  long n = xs.size();
+  array result = copy(xs);
+  array tmp = array(n);
+  mergesort_rec(result, tmp, 0l, n);
+  return result;
 }
 
 /***********************************************************************/
