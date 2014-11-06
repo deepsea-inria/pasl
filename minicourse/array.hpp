@@ -493,9 +493,10 @@ template <class Assoc_op, class Lift_func>
 scan_result scan_exclusive(const Assoc_op& op, const Lift_func& lift, value_type id, const_array_ref xs) {
   using contr_type = scan_controller_type<Assoc_op,Lift_func>;
   long n = xs.size();
-  array result = array(n);
+  array result = {};
   value_type x = id;
   auto seq = [&] {
+    result = array(n);
     for (long i = 0; i < n; i++) {
       result[i] = x;
       x = op(x, lift(xs[i]));
@@ -511,6 +512,8 @@ scan_result scan_exclusive(const Assoc_op& op, const Lift_func& lift, value_type
         sums[i] = op(lift(xs[i*2]), lift(xs[i*2+1]));
       });
       scan_result scans = scan_exclusive(op, lift, id, sums);
+      sums = {};
+      result = array(n);
       par::parallel_for(contr_type::lp2, 0l, m, [&] (long i) {
         result[2*i] = scans.prefix[i];
       });
