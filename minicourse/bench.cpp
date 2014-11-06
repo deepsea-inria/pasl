@@ -252,12 +252,11 @@ benchmark_type sort_bench() {
   long n = pasl::util::cmdline::parse_or_default_long("n", 1l<<20);
   array_ptr inp = new array(0);
   array_ptr outp = new array(0);
-  std::string s = pasl::util::cmdline::parse_string("algo");
-  if (s != "quicksort" && s != "mergesort")
-    pasl::util::atomic::fatal([&] { std::cerr << "bogus algo:" << s << std::endl; });
-  auto sort_fct = (s == "quicksort")
-    ? [] (array_ref xs) { return quicksort(xs); }
-    : [] (array_ref xs) { return mergesort(xs); };
+  pasl::util::cmdline::argmap<std::function<array (array_ref)>> algos;
+  algos.add("quicksort", [] (array_ref xs) { return quicksort(xs); });
+  algos.add("mergesort", [] (array_ref xs) { return mergesort(xs); });
+  algos.add("cilksort", [] (array_ref xs) { return cilksort(xs); });
+  auto sort_fct = algos.find_by_arg("algo");
   auto init = [=] {
     pasl::util::cmdline::argmap_dispatch c;
     c.add("random", [&] {

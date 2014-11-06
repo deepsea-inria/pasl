@@ -131,6 +131,16 @@ void check_sort() {
     using property_type = sort_correct<trusted_fct, untrusted_fct>;
     checkit<property_type>("mergesort is correct");
   });
+  c.add("cilksort", [&] {
+    class untrusted_fct {
+    public:
+      array operator()(const_array_ref xs) {
+        return cilksort(xs);
+      }
+    };
+    using property_type = sort_correct<trusted_fct, untrusted_fct>;
+    checkit<property_type>("mergesort is correct");
+  });
   c.add("quicksort", [&] {
     class untrusted_fct {
     public:
