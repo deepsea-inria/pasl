@@ -165,11 +165,9 @@ public:
   array& operator=(const array& other); //   2. assign-by-copy operator
   
   array& operator=(array&& other) {
-    // todo: make sure that the following does not create a memory leak
-    // in particular, the move instruction below should be freeing the contents of this->ptr
     ptr = std::move(other.ptr);
-    sz = other.sz;
-    other.sz = 0l;
+    sz = std::move(other.sz);
+    other.sz = 0l; // redundant?
     return *this;
   }
   

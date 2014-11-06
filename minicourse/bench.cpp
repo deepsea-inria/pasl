@@ -80,7 +80,7 @@ void bench_destroy(const benchmark_type& b) {
 /* Benchmark definitions */
 
 benchmark_type fib_bench() {
-  long n = pasl::util::cmdline::parse_or_default_long("n", 1l<<20);
+  long n = pasl::util::cmdline::parse_or_default_long("n", 38);
   value_type* result = new value_type;
   auto init = [=] {
 
