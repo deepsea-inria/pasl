@@ -156,21 +156,6 @@ static inline
 execmode_type& my_execmode() {
   return execmode.mine().back();
 }
-  
-data::perworker::cell<dynidentifier<cost_type>> samplecost;
-  
-static inline
-cost_type& my_samplecost() {
-  return samplecost.mine().back();
-}
-  
-static inline
-void report_sample(cost_type elapsed) {
-  cost_type& sample = my_samplecost();
-  if (&sample == nullptr)
-    return;
-  sample += elapsed;
-}
 
 template <class Body_fct>
 void cstmt_sequential(execmode_type c, const Body_fct& body_fct) {
@@ -190,13 +175,7 @@ template <class Par_body_fct>
 void cstmt_parallel_with_sampling(cmeasure_type m,
                                   Par_body_fct& par_body_fct,
                                   estimator_type& estimator) {
-  samplecost.mine().block(0.0, [&] {
-    execmode.mine().block(Parallel, par_body_fct);
-  });
-  cost_type& sample = samplecost.mine().back();
-  if (sample == 0.0)
-    return;
-  //estimator.report(m, sample);
+  execmode.mine().block(Parallel, par_body_fct);
 }
 
 template <class Seq_body_fct>
@@ -208,7 +187,6 @@ void cstmt_sequential_with_reporting(cmeasure_type m,
   cost_type elapsed = util::ticks::since(start);
   estimator.report(m, elapsed);
   STAT_COUNT(MEASURED_RUN);
-  report_sample(elapsed);
 }
 template <
 class Complexity_measure_fct,
@@ -355,20 +333,11 @@ void fork2(const Body_fct1& f1, const Body_fct2& f2) {
     f1();
     f2();
   } else {
-    cost_type sample1, sample2;
     native::fork2([&] {
-      samplecost.mine().block(0.0, [&] {
-        execmode.mine().block(mode, f1);
-        sample1 = my_samplecost();
-      });
+      execmode.mine().block(mode, f1);
     }, [&] {
-      samplecost.mine().block(0.0, [&] {
-        execmode.mine().block(mode, f2);
-        sample2 = my_samplecost();
-      });
+      execmode.mine().block(mode, f2);
     });
-    report_sample(sample1);
-    report_sample(sample2);
   }
 }
   
