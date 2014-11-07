@@ -56,8 +56,8 @@ array quicksort(const_array_ref xs) {
   auto seq = [&] {
     result = seqsort(xs);
   };
-  par::cstmt(quicksort_contr, [&] { return nlogn(n); }, [&] {
-    if (n < 2) {
+  par::cstmt(quicksort_contr, [=] { return nlogn(n); }, [&] {
+    if (n <= 2) {
       seq();
     } else {
       long m = n/2;

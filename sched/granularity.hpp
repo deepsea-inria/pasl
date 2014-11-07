@@ -142,9 +142,8 @@ execmode_type execmode_combine(execmode_type p, execmode_type c) {
   if (c == Force_parallel || c == Force_sequential)
     return c;
   // callee gives priority to caller when caller is Sequential
-  if (p == Sequential) {
+  if (p == Sequential)
     return Sequential;
-  }
   // otherwise, callee takes priority
   return c;
 }
@@ -166,26 +165,20 @@ void cstmt_sequential(execmode_type c, const Body_fct& body_fct) {
   
 template <class Body_fct>
 void cstmt_parallel(execmode_type c, const Body_fct& body_fct) {
-  execmode_type p = my_execmode();
-  execmode_type e = execmode_combine(p, c);
-  execmode.mine().block(e, body_fct);
+  execmode.mine().block(c, body_fct);
 }
   
-template <class Par_body_fct>
-void cstmt_parallel_with_sampling(cmeasure_type m,
-                                  Par_body_fct& par_body_fct,
-                                  estimator_type& estimator) {
-  execmode.mine().block(Parallel, par_body_fct);
-}
-
 template <class Seq_body_fct>
 void cstmt_sequential_with_reporting(cmeasure_type m,
                                      Seq_body_fct& seq_body_fct,
                                      estimator_type& estimator) {
+
+  if (m < 0)
+    pasl::util::atomic::fatal([] { std::cout << "error" << std::endl; });
   cost_type start = util::ticks::now();
   execmode.mine().block(Sequential, seq_body_fct);
   cost_type elapsed = util::ticks::since(start);
-  estimator.report(m, elapsed);
+  estimator.report(std::max(1l, m), elapsed);
   STAT_COUNT(MEASURED_RUN);
 }
 template <
@@ -257,11 +250,11 @@ void cstmt(control_by_prediction& contr,
   else if (m == data::estimator::complexity::undefined)
     c = Parallel;
   else
-    c = (estimator.predict(m) <= kappa) ? Sequential : Parallel;
+    c = (estimator.predict(std::max(1l, m)) <= kappa) ? Sequential : Parallel;
   if (c == Sequential)
     cstmt_sequential_with_reporting(m, seq_body_fct, estimator);
   else
-    cstmt_parallel_with_sampling(m, par_body_fct, estimator);
+    cstmt_parallel(c, par_body_fct);
 }
 
 template <
