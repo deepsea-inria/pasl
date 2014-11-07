@@ -227,6 +227,10 @@ benchmark_type merge_bench() {
   array_ptr inp1 = new array(0);
   array_ptr inp2 = new array(0);
   array_ptr outp = new array(0);
+  pasl::util::cmdline::argmap<std::function<array (array_ref,array_ref)>> algos;
+  algos.add("ours", [] (array_ref xs, array_ref ys) { return merge(xs, ys); });
+//  algos.add("cilk", [] (array_ref xs, array_ref ys) { return cilkmerge(xs, ys); });
+  auto merge_fct = algos.find_by_arg("algo");
   auto init = [=] {
     pasl::util::cmdline::argmap_dispatch c;
     *inp1 = gen_random_array(n);
@@ -235,7 +239,7 @@ benchmark_type merge_bench() {
     in_place_sort(*inp2);
   };
   auto bench = [=] {
-    *outp = merge(*inp1, *inp2);
+    *outp = merge_fct(*inp1, *inp2);
   };
   auto output = [=] {
     std::cout << "result\t" << (*outp)[outp->size()-1] << std::endl;
