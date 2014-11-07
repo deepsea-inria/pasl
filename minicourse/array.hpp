@@ -212,23 +212,28 @@ std::ostream& operator<<(std::ostream& out, const_array_ref xs) {
 /*---------------------------------------------------------------------*/
 /* Random-array generation */
 
-loop_controller_type random_array_contr("random_array");
+const long rand_maxval = 1l<<20;
 
-const long rand_maxval = 1<<20;
+#ifdef SEQUENTIAL_RANDOM_NUMBER_GEN
 
 array gen_random_array_seq(long n) {
   array tmp = array(n);
   for (long i = 0; i < n; i++)
-    tmp[i] = random() % rand_maxval;
+    tmp[i] = std::abs(random()) % rand_maxval;
   return tmp;
 }
+
+#endif
+
+loop_controller_type random_array_contr("random_array");
 
 // returns a random array of size n using seed s
 array gen_random_array_par(long s, long n, long maxval) {
   array tmp = array(n);
-  par::parallel_for(random_array_contr, 0l, n, [&] (long i) {
-    tmp[i] = hash_signed(i+s) % maxval;
-  });
+  //      par::parallel_for(random_array_contr, 0l, n, [&] (long i) {
+  pasl::sched::native::parallel_for(0l, n, [&] (long i) {
+    tmp[i] = std::abs(hash_signed(i+s)) % maxval;
+  }); 
   return tmp;
 }
 

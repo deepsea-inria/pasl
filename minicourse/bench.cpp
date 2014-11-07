@@ -229,7 +229,7 @@ benchmark_type merge_bench() {
   array_ptr outp = new array(0);
   pasl::util::cmdline::argmap<std::function<array (array_ref,array_ref)>> algos;
   algos.add("ours", [] (array_ref xs, array_ref ys) { return merge(xs, ys); });
-//  algos.add("cilk", [] (array_ref xs, array_ref ys) { return cilkmerge(xs, ys); });
+  algos.add("cilk", [] (array_ref xs, array_ref ys) { return cilkmerge(xs, ys); });
   auto merge_fct = algos.find_by_arg("algo");
   auto init = [=] {
     pasl::util::cmdline::argmap_dispatch c;
@@ -263,14 +263,14 @@ benchmark_type sort_bench() {
   auto sort_fct = algos.find_by_arg("algo");
   auto init = [=] {
     pasl::util::cmdline::argmap_dispatch c;
-    c.add("random", [&] {
+    c.add("random", [=] {
       *inp = gen_random_array(n);
     });
-    c.add("almost_sorted", [&] {
+    c.add("almost_sorted", [=] {
       long nb_swaps = pasl::util::cmdline::parse_or_default_long("nb_swaps", 1000);
       *inp = almost_sorted_array(1232, n, nb_swaps);
     });
-    c.add("exponential_dist", [&] {
+    c.add("exponential_dist", [=] {
       *inp = exp_dist_array(12323, n);
     });
     c.find_by_arg_or_default_key("generator", "random")();

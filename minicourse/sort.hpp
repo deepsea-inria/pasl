@@ -23,8 +23,10 @@ long nlogn(long n) {
 /* Sequential sort */
 
 void in_place_sort(array_ref xs, long lo, long hi) {
-  if (hi-lo > 0)
-    std::sort(&xs[lo], &xs[hi-1]+1);
+  long n = hi-lo;
+  if (n < 2)
+    return;
+  std::sort(&xs[lo], &xs[hi-1]+1);
 }
 
 void in_place_sort(array_ref xs) {
@@ -196,14 +198,9 @@ array mergesort(const_array_ref xs) {
 /*---------------------------------------------------------------------*/
 /* Cilksort */
 
-#define KILO 1024
-#define MERGESIZE (2*KILO)
-#define QUICKSIZE (2*KILO)
 #define INSERTIONSIZE 20
 
-using ELM = value_type;
-
-static inline ELM med3(ELM a, ELM b, ELM c)
+static inline value_type med3(value_type a, value_type b, value_type c)
 {
   if (a < b) {
     if (b < c) {
@@ -230,17 +227,17 @@ static inline ELM med3(ELM a, ELM b, ELM c)
  * simple approach for now; a better median-finding
  * may be preferable
  */
-static inline ELM choose_pivot(ELM *low, ELM *high)
+static inline value_type choose_pivot(value_type *low, value_type *high)
 {
   return med3(*low, *high, low[(high - low) / 2]);
 }
 
-static ELM *seqpart(ELM *low, ELM *high)
+static value_type *seqpart(value_type *low, value_type *high)
 {
-  ELM pivot;
-  ELM h, l;
-  ELM *curr_low = low;
-  ELM *curr_high = high;
+  value_type pivot;
+  value_type h, l;
+  value_type *curr_low = low;
+  value_type *curr_high = high;
   
   pivot = choose_pivot(low, high);
   
@@ -272,10 +269,10 @@ static ELM *seqpart(ELM *low, ELM *high)
     return curr_high - 1;
 }
 
-static void insertion_sort(ELM *low, ELM *high)
+static void insertion_sort(value_type *low, value_type *high)
 {
-  ELM *p, *q;
-  ELM a, b;
+  value_type *p, *q;
+  value_type a, b;
   
   for (q = low + 1; q <= high; ++q) {
     a = q[0];
@@ -288,9 +285,9 @@ static void insertion_sort(ELM *low, ELM *high)
 /*
  * tail-recursive quicksort, almost unrecognizable :-)
  */
-void seqquick(ELM *low, ELM *high)
+void seqquick(value_type *low, value_type *high)
 {
-  ELM *p;
+  value_type *p;
   
   while (high - low >= INSERTIONSIZE) {
     p = seqpart(low, high);
@@ -301,15 +298,15 @@ void seqquick(ELM *low, ELM *high)
   insertion_sort(low, high);
 }
 
-void wrap_seqquick(ELM *low, long len)
+void wrap_seqquick(value_type *low, long len)
 {
   seqquick(low, low + len - 1);
 }
 
-void seqmerge(ELM *low1, ELM *high1, ELM *low2, ELM *high2,
-              ELM *lowdest)
+void seqmerge(const value_type *low1, const value_type *high1, const value_type *low2, const value_type *high2,
+              value_type *lowdest)
 {
-  ELM a1, a2;
+  value_type a1, a2;
   
   /*
    * The following 'if' statement is not necessary
@@ -374,13 +371,13 @@ void seqmerge(ELM *low1, ELM *high1, ELM *low2, ELM *high2,
     }
   }
   if (low1 > high1) {
-    memcpy(lowdest, low2, sizeof(ELM) * (high2 - low2 + 1));
+    memcpy(lowdest, low2, sizeof(value_type) * (high2 - low2 + 1));
   } else {
-    memcpy(lowdest, low1, sizeof(ELM) * (high1 - low1 + 1));
+    memcpy(lowdest, low1, sizeof(value_type) * (high1 - low1 + 1));
   }
 }
 
-void wrap_seqmerge(ELM *low1, long len1, ELM* low2, long len2, ELM* dest)
+void wrap_seqmerge(value_type *low1, long len1, value_type* low2, long len2, value_type* dest)
 {
   seqmerge(low1, low1 + len1 - 1,
            low2, low2 + len2 - 1, dest);
@@ -388,19 +385,19 @@ void wrap_seqmerge(ELM *low1, long len1, ELM* low2, long len2, ELM* dest)
 
 #define swap_indices(a, b) \
 { \
-ELM *tmp;\
+value_type *tmp;\
 tmp = a;\
 a = b;\
 b = tmp;\
 }
 
-ELM *binsplit(ELM val, ELM *low, ELM *high)
+value_type *binsplit(value_type val, value_type *low, value_type *high)
 {
   /*
    * returns index which contains greatest element <= val.  If val is
    * less than all elements, returns low-1
    */
-  ELM *mid;
+  value_type *mid;
   
   while (low != high) {
     mid = low + ((high - low + 1) >> 1);
@@ -416,15 +413,17 @@ ELM *binsplit(ELM val, ELM *low, ELM *high)
     return low;
 }
 
-void cilkmerge(ELM *low1, ELM *high1, ELM *low2,
-               ELM *high2, ELM *lowdest)
+controller_type cilkmerge_contr("cilkmerge");
+
+void cilkmerge(value_type *low1, value_type *high1, value_type *low2,
+               value_type *high2, value_type *lowdest)
 {
   /*
    * Cilkmerge: Merges range [low1, high1] with range [low2, high2]
    * into the range [lowdest, ...]
    */
   
-  ELM *split1, *split2;	/*
+  value_type *split1, *split2;	/*
                          * where each of the ranges are broken for
                          * recursive merge
                          */
@@ -439,18 +438,24 @@ void cilkmerge(ELM *low1, ELM *high1, ELM *low2,
    * is taken from range [low1, high1].  So if [low1, high1] is
    * actually the smaller range, we should swap it with [low2, high2]
    */
-  
+
+  auto seq = [&] {
+    seqmerge(low1, high1, low2, high2, lowdest);
+  };
+
+  par::cstmt(cilkmerge_contr, [=] { return std::max(0l,(high1-low1)+(high2-low2)); }, [&] {
+      
   if (high2 - low2 > high1 - low1) {
     swap_indices(low1, low2);
     swap_indices(high1, high2);
   }
   if (high1 < low1) {
     /* smaller range is empty */
-    memcpy(lowdest, low2, sizeof(ELM) * (high2 - low2));
+    memcpy(lowdest, low2, sizeof(value_type) * (high2 - low2));
     return;
   }
-  if (high2 - low2 < MERGESIZE) {
-    seqmerge(low1, high1, low2, high2, lowdest);
+  if (high2 - low2 < INSERTIONSIZE) {
+    seq();
     return;
   }
   /*
@@ -469,17 +474,29 @@ void cilkmerge(ELM *low1, ELM *high1, ELM *low2,
    * the appropriate location
    */
   *(lowdest + lowsize + 1) = *split1;
-  pasl::sched::native::fork2([&] {
-    cilkmerge(low1, split1 - 1, low2, split2, lowdest);
-  }, [&] {
-    cilkmerge(split1 + 1, high1, split2 + 1, high2,
-              lowdest + lowsize + 2);
-  });
+
+  par::fork2([&] {
+      cilkmerge(low1, split1 - 1, low2, split2, lowdest);
+    }, [&] {
+      cilkmerge(split1 + 1, high1, split2 + 1, high2,
+                lowdest + lowsize + 2);
+    });
+  }, seq);
 
   return;
 }
 
-void cilksort(ELM *low, ELM *tmp, long size)
+array cilkmerge(array_ref xs, array_ref ys) {
+  long n = xs.size();
+  long m = ys.size();
+  array tmp = array(n + m);
+  cilkmerge(&xs[0], &xs[n-1], &ys[0], &ys[m-1], &tmp[0]);
+  return tmp;
+}
+
+controller_type cilksort_contr("cilksort");
+
+void cilksort(value_type *low, value_type *tmp, long size)
 {
   /*
    * divide the input in four parts of the same size (A, B, C, D)
@@ -489,11 +506,16 @@ void cilksort(ELM *low, ELM *tmp, long size)
    *   3) merbe tmp1 and tmp2 into the original array
    */
   long quarter = size / 4;
-  ELM *A, *B, *C, *D, *tmpA, *tmpB, *tmpC, *tmpD;
-  
-  if (size < QUICKSIZE) {
-    /* quicksort when less than 1024 elements */
+  value_type *A, *B, *C, *D, *tmpA, *tmpB, *tmpC, *tmpD;
+
+  auto seq = [&] {
     seqquick(low, low + size - 1);
+  };
+
+  par::cstmt(cilksort_contr, [=] { return nlogn(size); }, [&] {
+  
+  if (size < INSERTIONSIZE) {
+    seq();
     return;
   }
   A = low;
@@ -505,27 +527,29 @@ void cilksort(ELM *low, ELM *tmp, long size)
   D = C + quarter;
   tmpD = tmpC + quarter;
   
-  pasl::sched::native::fork2([&] {
-    pasl::sched::native::fork2([&] {
+  par::fork2([&] {
+    par::fork2([&] {
       cilksort(A, tmpA, quarter);
     }, [&] {
       cilksort(B, tmpB, quarter);
     });
   }, [&] {
-    pasl::sched::native::fork2([&] {
+    par::fork2([&] {
       cilksort(C, tmpC, quarter);
     }, [&] {
       cilksort(D, tmpD, size - 3 * quarter);
     });
   });
   
-  pasl::sched::native::fork2([&] {
+  par::fork2([&] {
     cilkmerge(A, A + quarter - 1, B, B + quarter - 1, tmpA);
   }, [&] {
     cilkmerge(C, C + quarter - 1, D, low + size - 1, tmpC);
   });
   
   cilkmerge(tmpA, tmpC - 1, tmpC, tmpA + size - 1, A);
+
+  }, seq);
 }
 
 array cilksort(const_array_ref xs) {
