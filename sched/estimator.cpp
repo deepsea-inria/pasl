@@ -38,7 +38,7 @@ void destroy() {
   try_write_constants_to_file();
 }
   
-#if defined(NDEBUG)
+#if 1
 void check_estimator_name(std::string name) {
 }
 #else
