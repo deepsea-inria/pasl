@@ -7,7 +7,6 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		C0AA8E7A1A0A554F005D9FD8 /* tests.cpp in Sources */ = {isa = PBXBuildFile; fileRef = C0794DD71A0A4B46002D8880 /* tests.cpp */; };
 		C0CC2C491A0D3E530092DD21 /* machine.cpp in Sources */ = {isa = PBXBuildFile; fileRef = C0794DDC1A0A4B46002D8880 /* machine.cpp */; };
 		C0CC2C4A1A0D3E530092DD21 /* worker.cpp in Sources */ = {isa = PBXBuildFile; fileRef = C0794DE21A0A4B46002D8880 /* worker.cpp */; };
 		C0CC2C4B1A0D3E530092DD21 /* estimator.cpp in Sources */ = {isa = PBXBuildFile; fileRef = C0794DE81A0A4B46002D8880 /* estimator.cpp */; };
@@ -24,7 +23,8 @@
 		C0CC2C561A0D3E530092DD21 /* cmdline.cpp in Sources */ = {isa = PBXBuildFile; fileRef = C0794E041A0A4B46002D8880 /* cmdline.cpp */; };
 		C0CC2C571A0D3E530092DD21 /* control_dummy.cpp in Sources */ = {isa = PBXBuildFile; fileRef = C0794E081A0A4B46002D8880 /* control_dummy.cpp */; };
 		C0CC2C581A0D3E530092DD21 /* microtime.cpp in Sources */ = {isa = PBXBuildFile; fileRef = C0794E0A1A0A4B46002D8880 /* microtime.cpp */; };
-		C0CC2C591A0D3E530092DD21 /* ticks.cpp in Sources */ = {isa = PBXBuildFile; fileRef = C0794E0D1A0A4B46002D8880 /* ticks.cpp */; };
+		C0CC2C5D1A0D44F40092DD21 /* tests_shortest.cpp in Sources */ = {isa = PBXBuildFile; fileRef = C0CC2C5C1A0D44F40092DD21 /* tests_shortest.cpp */; };
+		C0CC2C5E1A0D46010092DD21 /* ticks.cpp in Sources */ = {isa = PBXBuildFile; fileRef = C0794E0D1A0A4B46002D8880 /* ticks.cpp */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -250,6 +250,8 @@
 		C0CC2BAF1A0D3CD20092DD21 /* ostream.hh */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = ostream.hh; sourceTree = "<group>"; };
 		C0CC2BB01A0D3CD20092DD21 /* Property.hh */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = Property.hh; sourceTree = "<group>"; };
 		C0CC2BB11A0D3CD20092DD21 /* quickcheck.hh */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = quickcheck.hh; sourceTree = "<group>"; };
+		C0CC2C5C1A0D44F40092DD21 /* tests_shortest.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = tests_shortest.cpp; sourceTree = "<group>"; };
+		C0DCE9E81A12239900326A76 /* dijkstra.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = dijkstra.hpp; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -441,6 +443,7 @@
 		C0794DCA1A0A4B46002D8880 /* include */ = {
 			isa = PBXGroup;
 			children = (
+				C0DCE9E81A12239900326A76 /* dijkstra.hpp */,
 				C0794DCB1A0A4B46002D8880 /* adjlist.hpp */,
 				C0794DCC1A0A4B46002D8880 /* bfs.hpp */,
 				C0794DCD1A0A4B46002D8880 /* dfs.hpp */,
@@ -458,6 +461,7 @@
 			isa = PBXGroup;
 			children = (
 				C0794DD61A0A4B46002D8880 /* Makefile */,
+				C0CC2C5C1A0D44F40092DD21 /* tests_shortest.cpp */,
 				C0794DD71A0A4B46002D8880 /* tests.cpp */,
 			);
 			path = test;
@@ -786,6 +790,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				C0CC2C5E1A0D46010092DD21 /* ticks.cpp in Sources */,
 				C0CC2C491A0D3E530092DD21 /* machine.cpp in Sources */,
 				C0CC2C4A1A0D3E530092DD21 /* worker.cpp in Sources */,
 				C0CC2C4B1A0D3E530092DD21 /* estimator.cpp in Sources */,
@@ -802,8 +807,7 @@
 				C0CC2C561A0D3E530092DD21 /* cmdline.cpp in Sources */,
 				C0CC2C571A0D3E530092DD21 /* control_dummy.cpp in Sources */,
 				C0CC2C581A0D3E530092DD21 /* microtime.cpp in Sources */,
-				C0CC2C591A0D3E530092DD21 /* ticks.cpp in Sources */,
-				C0AA8E7A1A0A554F005D9FD8 /* tests.cpp in Sources */,
+				C0CC2C5D1A0D44F40092DD21 /* tests_shortest.cpp in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
