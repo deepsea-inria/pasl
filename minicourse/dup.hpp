@@ -7,19 +7,19 @@
  *
  */
 
-#include "array.hpp"
+#include "sparray.hpp"
 
 #ifndef _MINICOURSE_DUP_H_
 #define _MINICOURSE_DUP_H_
 
 /***********************************************************************/
 
-array duplicate(const_array_ref xs) {
+sparray duplicate(const sparray& xs) {
   long m = xs.size() * 2;
   return tabulate([&] (long i) { return xs[i/2]; }, m);
 }
 
-array ktimes(const_array_ref xs, long k) {
+sparray ktimes(const sparray& xs, long k) {
   long m = xs.size() * k;
   return tabulate([&] (long i) { return xs[i/k]; }, m);
 }

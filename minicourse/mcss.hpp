@@ -8,7 +8,7 @@
  */
 
 #include "hash.hpp"
-#include "array.hpp"
+#include "sparray.hpp"
 
 #ifndef _MINICOURSE_MCSS_H_
 #define _MINICOURSE_MCSS_H_
@@ -18,7 +18,7 @@
 /*---------------------------------------------------------------------*/
 /* Maximum contiguous subsequence */
 
-value_type mcss_seq(const_array_ref xs) {
+value_type mcss_seq(const sparray& xs) {
   if (xs.size() == 0)
     return LONG_MIN;
   long max_so_far = xs[0];
@@ -30,14 +30,14 @@ value_type mcss_seq(const_array_ref xs) {
   return max_so_far;
 }
 
-value_type mcss_par(const_array_ref xs) {
-  array ys = partial_sums_inclusive(xs);
-  scan_result m = scan(min_fct, 0l, ys);
-  array zs = tabulate([&] (long i) { return ys[i]-m.prefix[i]; }, xs.size());
+value_type mcss_par(const sparray& xs) {
+  sparray ys = prefix_sums_incl(xs);
+  scan_excl_result m = scan(min_fct, 0l, ys);
+  sparray zs = tabulate([&] (long i) { return ys[i]-m.partials[i]; }, xs.size());
   return max(zs);
 }
 
-value_type mcss(const_array_ref xs) {
+value_type mcss(const sparray& xs) {
 #ifdef SEQUENTIAL_BASELINE
   return mcss_seq(xs);
 #else
