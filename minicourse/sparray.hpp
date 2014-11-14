@@ -462,29 +462,29 @@ loop_controller_type scan_controller_type<Assoc_op,Lift_func>::lp2("scan_lp2"+
                                                                    par::string_of_template_arg<Assoc_op>()+
                                                                    par::string_of_template_arg<Lift_func>());
 
-class scan_result {
+class scan_excl_result {
 public:
-  sparray prefix;
-  value_type last;
+  sparray partials;
+  value_type total;
   
-  scan_result() { }
-  scan_result(sparray&& _prefix, value_type last) {
-    this->prefix = std::move(_prefix);
-    this->last = last;
+  scan_excl_result() { }
+  scan_excl_result(sparray&& _partials, value_type total) {
+    this->partials = std::move(_partials);
+    this->total = total;
   }
   
   // disable copying
-  scan_result(const scan_result&);
-  scan_result& operator=(const scan_result&);
+  scan_excl_result(const scan_excl_result&);
+  scan_excl_result& operator=(const scan_excl_result&);
   
-  scan_result(scan_result&& other) {
-    prefix = std::move(other.prefix);
-    last = std::move(other.last);
+  scan_excl_result(scan_excl_result&& other) {
+    partials = std::move(other.partials);
+    total = std::move(other.total);
   }
   
-  scan_result& operator=(scan_result&& other) {
-    prefix = std::move(other.prefix);
-    last = std::move(other.last);
+  scan_excl_result& operator=(scan_excl_result&& other) {
+    partials = std::move(other.partials);
+    total = std::move(other.total);
     return *this;
   }
   
@@ -492,9 +492,9 @@ public:
 
 template <class Assoc_op, class Lift_func>
 value_type scan_seq(const Assoc_op& op, const Lift_func& lift, value_type id, const sparray& xs,
-                    sparray& dest, long lo, long hi, const bool is_exclusive) {
+                    sparray& dest, long lo, long hi, const bool is_excl) {
   value_type x = id;
-  if (is_exclusive) {
+  if (is_excl) {
     for (long i = lo; i < hi; i++) {
       dest[i] = x;
       x = op(x, lift(xs[i]));
@@ -510,20 +510,20 @@ value_type scan_seq(const Assoc_op& op, const Lift_func& lift, value_type id, co
 
 template <class Assoc_op, class Lift_func>
 value_type scan_seq(const Assoc_op& op, const Lift_func& lift, value_type id,
-                    const sparray& xs, sparray& dest, const bool is_exclusive) {
-  return scan_seq(op, lift, id, xs, dest, 0l, xs.size(), is_exclusive);
+                    const sparray& xs, sparray& dest, const bool is_excl) {
+  return scan_seq(op, lift, id, xs, dest, 0l, xs.size(), is_excl);
 }
 
 template <class Assoc_op, class Lift_func>
-scan_result scan_rec(const Assoc_op& op, const Lift_func& lift, value_type id, const sparray& xs,
-                     const bool is_exclusive) {
+scan_excl_result scan_rec(const Assoc_op& op, const Lift_func& lift, value_type id, const sparray& xs,
+                     const bool is_excl) {
   const long k = 1024;
   using contr_type = scan_controller_type<Assoc_op,Lift_func>;
   long n = xs.size();
-  scan_result result;
+  scan_excl_result result;
   auto seq = [&] {
-    result.prefix = sparray(n);
-    result.last = scan_seq(op, lift, id, xs, result.prefix, is_exclusive);
+    result.partials = sparray(n);
+    result.total = scan_seq(op, lift, id, xs, result.partials, is_excl);
   };
   long m = 1 + ((n - 1) / k);
   par::cstmt(contr_type::body, [&] { return m; }, [&] {
@@ -536,52 +536,52 @@ scan_result scan_rec(const Assoc_op& op, const Lift_func& lift, value_type id, c
         long hi = std::min(lo + k, n);
         sums[i] = reduce_seq(op, lift, id, xs, lo, hi);
       });
-      scan_result scans = scan_rec(op, lift, id, sums, true);
+      scan_excl_result scans = scan_rec(op, lift, id, sums, true);
       sums = {};
-      result.prefix = sparray(n);
+      result.partials = sparray(n);
       par::parallel_for(contr_type::lp2, 0l, m, [&] (long i) {
         long lo = i * k;
         long hi = std::min(lo + k, n);
-        scan_seq(op, lift, scans.prefix[i], xs, result.prefix, lo, hi, is_exclusive);
+        scan_seq(op, lift, scans.partials[i], xs, result.partials, lo, hi, is_excl);
       });
-      result.last = scans.last;
+      result.total = scans.total;
     }
   }, seq);
   return result;
 }
 
 template <class Assoc_op, class Lift_func>
-scan_result scan_exclusive(const Assoc_op& op, const Lift_func& lift, value_type id, const sparray& xs) {
+scan_excl_result scan_excl(const Assoc_op& op, const Lift_func& lift, value_type id, const sparray& xs) {
   return scan_rec(op, lift, id, xs, true);
 }
 
 template <class Assoc_op, class Lift_func>
-sparray scan_inclusive(const Assoc_op& op, const Lift_func& lift, value_type id, const sparray& xs) {
+sparray scan_incl(const Assoc_op& op, const Lift_func& lift, value_type id, const sparray& xs) {
   sparray result;
-  scan_result scan = scan_rec(op, lift, id, xs, false);
-  result = std::move(scan.prefix);
+  scan_excl_result scan = scan_rec(op, lift, id, xs, false);
+  result = std::move(scan.partials);
   return result;
 }
 
 template <class Assoc_op>
-scan_result scan(const Assoc_op& op, value_type id, const sparray& xs) {
-  return scan_exclusive(op, identity_fct, id, xs);
+scan_excl_result scan(const Assoc_op& op, value_type id, const sparray& xs) {
+  return scan_excl(op, identity_fct, id, xs);
 }
 
-scan_result partial_sums(value_type id, const sparray& xs) {
-  return scan_exclusive(plus_fct, identity_fct, id, xs);
+scan_excl_result prefix_sums_excl(value_type id, const sparray& xs) {
+  return scan_excl(plus_fct, identity_fct, id, xs);
 }
 
-scan_result partial_sums(const sparray& xs) {
-  return partial_sums(0l, xs);
+scan_excl_result prefix_sums_excl(const sparray& xs) {
+  return prefix_sums_excl(0l, xs);
 }
 
-sparray partial_sums_inclusive(value_type id, const sparray& xs) {
-  return scan_inclusive(plus_fct, identity_fct, id, xs);
+sparray prefix_sums_incl(value_type id, const sparray& xs) {
+  return scan_incl(plus_fct, identity_fct, id, xs);
 }
 
-sparray partial_sums_inclusive(const sparray& xs) {
-  return partial_sums_inclusive(0l, xs);
+sparray prefix_sums_incl(const sparray& xs) {
+  return prefix_sums_incl(0l, xs);
 }
 
 loop_controller_type pack_contr("pack");
@@ -590,12 +590,12 @@ sparray pack_nonempty(const sparray& flags, const sparray& xs) {
   assert(xs.size() == flags.size());
   assert(xs.size() > 0l);
   long n = xs.size();
-  scan_result offsets = partial_sums(flags);
-  value_type m = offsets.last;
+  scan_excl_result offsets = prefix_sums_excl(flags);
+  value_type m = offsets.total;
   sparray result = sparray(m);
   par::parallel_for(pack_contr, 0l, n, [&] (long i) {
     if (flags[i] == 1)
-      result[offsets.prefix[i]] = xs[i];
+      result[offsets.partials[i]] = xs[i];
   });
   return result;
 }

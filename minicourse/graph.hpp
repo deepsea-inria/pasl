@@ -311,17 +311,17 @@ loop_controller_type edge_map_contr("edge_map");
 template <class Update, class Cond>
 sparray edge_map(const Update& update, const Cond& cond,
                const_adjlist_ref graph, const sparray& in_frontier, long dist) {
-  scan_result offsets = partial_sums(get_out_degrees_of(graph, in_frontier));
+  scan_excl_result offsets = prefix_sums_excl(get_out_degrees_of(graph, in_frontier));
   long m = in_frontier.size();
-  long n = offsets.last;
+  long n = offsets.total;
   auto weight = [&] (long lo, long hi) {
-    long u = (hi == m) ? n : offsets.prefix[hi];
-    return u - offsets.prefix[lo];
+    long u = (hi == m) ? n : offsets.partials[hi];
+    return u - offsets.partials[lo];
   };
   sparray out_frontier = sparray(n);
   par::parallel_for(edge_map_contr, weight, 0l, m, [&] (long i) {
     vtxid_type src = in_frontier[i];
-    long offset = offsets.prefix[i];
+    long offset = offsets.partials[i];
     auto emit = [&] (value_type j, vtxid_type r) {
       out_frontier[offset+j] = r;
     };

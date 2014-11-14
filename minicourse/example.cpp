@@ -49,8 +49,8 @@ void doit() {
 
   sparray xs = { 0, 1, 2, 3, 4, 5, 6 };
   std::cout << "xs=" << xs << std::endl;
-  scan_result zs = partial_sums(xs);
-  std::cout << "zs=" << zs.prefix << " " << zs.last << std::endl;
+  scan_excl_result zs = prefix_sums(xs);
+  std::cout << "zs=" << zs.partials << " " << zs.total << std::endl;
 
   sparray ys = map(plus1_fct, xs);
   std::cout << "xs(copy)=" << copy(xs) << std::endl;
@@ -81,7 +81,7 @@ void doit() {
   std::cout << matching_parens("()(())(") << std::endl;
   std::cout << matching_parens("()(())((((()()))))") << std::endl;
   
-  std::cout << partial_sums(fill(6, 1)).prefix << std::endl;
+  std::cout << prefix_sums(fill(6, 1)).partials << std::endl;
   
   sparray rs = gen_random_sparray(15);
   std::cout << rs << std::endl;

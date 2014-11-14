@@ -68,7 +68,7 @@ std::string to_parens(const sparray& xs) {
   return str;
 }
 
-scan_result every_nesting_depth(const_mystring_ref parens) {
+scan_excl_result every_nesting_depth(const_mystring_ref parens) {
   return scan(plus_fct, 0l, parens);
 }
 
@@ -77,10 +77,10 @@ bool is_every_nesting_depth_valid(const sparray& nesting_depths) {
 }
 
 bool matching_parens(const_mystring_ref parens) {
-  scan_result nesting_depths = every_nesting_depth(parens);
-  if (nesting_depths.last != 0)
+  scan_excl_result nesting_depths = every_nesting_depth(parens);
+  if (nesting_depths.total != 0)
     return false;
-  return is_every_nesting_depth_valid(nesting_depths.prefix);
+  return is_every_nesting_depth_valid(nesting_depths.partials);
 }
 
 bool matching_parens(const std::string& xs) {

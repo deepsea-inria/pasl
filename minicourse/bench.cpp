@@ -166,7 +166,7 @@ benchmark_type scan_bench() {
     *inp = fill(n, 1);
   };
   auto bench = [=] {
-    *outp = partial_sums(*inp).prefix;
+    *outp = prefix_sums_excl(*inp).partials;
   };
   auto output = [=] {
     std::cout << "result " << (*outp)[outp->size()-1] << std::endl;
