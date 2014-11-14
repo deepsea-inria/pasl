@@ -7,6 +7,8 @@
  *
  */
 
+#include <cstring>
+
 #include "native.hpp"
 #include "sparray.hpp"
 
