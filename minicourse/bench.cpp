@@ -19,12 +19,12 @@
 
 /***********************************************************************/
 
-loop_controller_type almost_sorted_array_contr("almost_sorted_array");
+loop_controller_type almost_sorted_sparray_contr("almost_sorted_sparray");
 
 // returns an array that is sorted up to a given number of swaps
-array almost_sorted_array(long s, long n, long nb_swaps) {
-  array tmp = array(n);
-  par::parallel_for(almost_sorted_array_contr, 0l, n, [&] (long i) {
+sparray almost_sorted_sparray(long s, long n, long nb_swaps) {
+  sparray tmp = sparray(n);
+  par::parallel_for(almost_sorted_sparray_contr, 0l, n, [&] (long i) {
     tmp[i] = i;
   });
   for (long i = 0; i < nb_swaps; i++)
@@ -32,13 +32,13 @@ array almost_sorted_array(long s, long n, long nb_swaps) {
   return tmp;
 }
 
-loop_controller_type exp_dist_array_contr("exp_dist_array");
+loop_controller_type exp_dist_sparray_contr("exp_dist_sparray");
 
 // returns an array with exponential distribution of size n using seed s
-array exp_dist_array(long s, long n) {
-  array tmp = array(n);
+sparray exp_dist_sparray(long s, long n) {
+  sparray tmp = sparray(n);
   int lg = log2_up(n)+1;
-  par::parallel_for(exp_dist_array_contr, 0l, n, [&] (long i) {
+  par::parallel_for(exp_dist_sparray_contr, 0l, n, [&] (long i) {
     long range = (1 << (random_index(2*(i+s), lg)));
     tmp[i] = hash64shift((long)(range+random_index(2*(i+s), range)));
   });
@@ -99,8 +99,8 @@ benchmark_type fib_bench() {
 
 benchmark_type duplicate_bench() {
   long n = pasl::util::cmdline::parse_or_default_long("n", 1l<<20);
-  array_ptr inp = new array(0);
-  array_ptr outp = new array(0);
+  sparray* inp = new sparray(0);
+  sparray* outp = new sparray(0);
   auto init = [=] {
     *inp = fill(n, 1);
   };
@@ -120,8 +120,8 @@ benchmark_type duplicate_bench() {
 benchmark_type ktimes_bench() {
   long n = pasl::util::cmdline::parse_or_default_long("n", 1l<<20);
   long k = pasl::util::cmdline::parse_or_default_long("k", 4);
-  array_ptr inp = new array(0);
-  array_ptr outp = new array(0);
+  sparray* inp = new sparray(0);
+  sparray* outp = new sparray(0);
   auto init = [=] {
     *inp = fill(n, 1);
   };
@@ -140,7 +140,7 @@ benchmark_type ktimes_bench() {
 
 benchmark_type reduce_bench() {
   long n = pasl::util::cmdline::parse_or_default_long("n", 1l<<20);
-  array_ptr inp = new array(0);
+  sparray* inp = new sparray(0);
   value_type* result = new value_type;
   auto init = [=] {
     *inp = fill(n, 1);
@@ -160,8 +160,8 @@ benchmark_type reduce_bench() {
 
 benchmark_type scan_bench() {
   long n = pasl::util::cmdline::parse_or_default_long("n", 1l<<20);
-  array_ptr inp = new array(0);
-  array_ptr outp = new array(0);
+  sparray* inp = new sparray(0);
+  sparray* outp = new sparray(0);
   auto init = [=] {
     *inp = fill(n, 1);
   };
@@ -180,10 +180,10 @@ benchmark_type scan_bench() {
 
 benchmark_type mcss_bench() {
   long n = pasl::util::cmdline::parse_or_default_long("n", 1l<<20);
-  array_ptr inp = new array(0);
+  sparray* inp = new sparray(0);
   value_type* outp = new value_type;
   auto init = [=] {
-    *inp = gen_random_array(n);
+    *inp = gen_random_sparray(n);
   };
   auto bench = [=] {
     *outp = mcss(*inp);
@@ -201,12 +201,12 @@ benchmark_type mcss_bench() {
 benchmark_type dmdvmult_bench() {
   long n = pasl::util::cmdline::parse_or_default_long("n", 4000);
   long nxn = n*n;
-  array_ptr mtxp = new array(0);
-  array_ptr vecp = new array(0);
-  array_ptr outp = new array(0);
+  sparray* mtxp = new sparray(0);
+  sparray* vecp = new sparray(0);
+  sparray* outp = new sparray(0);
   auto init = [=] {
-    *mtxp = gen_random_array(nxn);
-    *vecp = gen_random_array(n);
+    *mtxp = gen_random_sparray(nxn);
+    *vecp = gen_random_sparray(n);
   };
   auto bench = [=] {
     *outp = dmdvmult(*mtxp, *vecp);
@@ -224,17 +224,17 @@ benchmark_type dmdvmult_bench() {
 
 benchmark_type merge_bench() {
   long n = pasl::util::cmdline::parse_or_default_long("n", 1l<<20);
-  array_ptr inp1 = new array(0);
-  array_ptr inp2 = new array(0);
-  array_ptr outp = new array(0);
-  pasl::util::cmdline::argmap<std::function<array (array_ref,array_ref)>> algos;
-  algos.add("ours", [] (array_ref xs, array_ref ys) { return merge(xs, ys); });
-  algos.add("cilk", [] (array_ref xs, array_ref ys) { return cilkmerge(xs, ys); });
+  sparray* inp1 = new sparray(0);
+  sparray* inp2 = new sparray(0);
+  sparray* outp = new sparray(0);
+  pasl::util::cmdline::argmap<std::function<sparray (sparray&,sparray&)>> algos;
+  algos.add("ours", [] (sparray& xs, sparray& ys) { return merge(xs, ys); });
+  algos.add("cilk", [] (sparray& xs, sparray& ys) { return cilkmerge(xs, ys); });
   auto merge_fct = algos.find_by_arg("algo");
   auto init = [=] {
     pasl::util::cmdline::argmap_dispatch c;
-    *inp1 = gen_random_array(n);
-    *inp2 = gen_random_array(n);
+    *inp1 = gen_random_sparray(n);
+    *inp2 = gen_random_sparray(n);
     in_place_sort(*inp1);
     in_place_sort(*inp2);
   };
@@ -254,24 +254,24 @@ benchmark_type merge_bench() {
 
 benchmark_type sort_bench() {
   long n = pasl::util::cmdline::parse_or_default_long("n", 1l<<20);
-  array_ptr inp = new array(0);
-  array_ptr outp = new array(0);
-  pasl::util::cmdline::argmap<std::function<array (array_ref)>> algos;
-  algos.add("quicksort", [] (array_ref xs) { return quicksort(xs); });
-  algos.add("mergesort", [] (array_ref xs) { return mergesort(xs); });
-  algos.add("cilksort", [] (array_ref xs) { return cilksort(xs); });
+  sparray* inp = new sparray(0);
+  sparray* outp = new sparray(0);
+  pasl::util::cmdline::argmap<std::function<sparray (sparray&)>> algos;
+  algos.add("quicksort", [] (sparray& xs) { return quicksort(xs); });
+  algos.add("mergesort", [] (sparray& xs) { return mergesort(xs); });
+  algos.add("cilksort", [] (sparray& xs) { return cilksort(xs); });
   auto sort_fct = algos.find_by_arg("algo");
   auto init = [=] {
     pasl::util::cmdline::argmap_dispatch c;
     c.add("random", [=] {
-      *inp = gen_random_array(n);
+      *inp = gen_random_sparray(n);
     });
     c.add("almost_sorted", [=] {
       long nb_swaps = pasl::util::cmdline::parse_or_default_long("nb_swaps", 1000);
-      *inp = almost_sorted_array(1232, n, nb_swaps);
+      *inp = almost_sorted_sparray(1232, n, nb_swaps);
     });
     c.add("exponential_dist", [=] {
-      *inp = exp_dist_array(12323, n);
+      *inp = exp_dist_sparray(12323, n);
     });
     c.find_by_arg_or_default_key("generator", "random")();
   };
@@ -290,7 +290,7 @@ benchmark_type sort_bench() {
 
 benchmark_type graph_bench() {
   adjlist* graphp = new adjlist;
-  array* distsp = new array;
+  sparray* distsp = new sparray;
   std::string fname = pasl::util::cmdline::parse_or_default_string("fname", "");
   vtxid_type source = pasl::util::cmdline::parse_or_default_long("source", 0l);
   if (fname == "")

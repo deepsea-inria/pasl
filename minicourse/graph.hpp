@@ -17,7 +17,7 @@
 #include <ostream>
 #include <sstream>
 
-#include "array.hpp"
+#include "sparray.hpp"
 
 #ifndef _MINICOURSE_GRAPH_H_
 #define _MINICOURSE_GRAPH_H_
@@ -102,7 +102,7 @@ private:
     nb_offsets = nb_vertices + 1;
     nb_edges = edges.size();
     alloc();
-    array degrees = array(nb_vertices);
+    sparray degrees = sparray(nb_vertices);
     for (vtxid_type i = 0; i < nb_vertices; i++)
       degrees[i] = 0;
     for (long i = 0; i < edges.size(); i++) {
@@ -235,14 +235,14 @@ using const_adjlist_ref = const adjlist&;
 using distance_type = value_type;
 const distance_type dist_unknown = -1l;
 
-array bfs_seq(const_adjlist_ref graph, vtxid_type source) {
+sparray bfs_seq(const_adjlist_ref graph, vtxid_type source) {
   long nb_vertices = graph.get_nb_vertices();
-  array dists = array(nb_vertices);
+  sparray dists = sparray(nb_vertices);
   for (long i = 0; i < nb_vertices; i++)
     dists[i] = dist_unknown;
-  array frontiers[2];
-  frontiers[0] = array(nb_vertices);
-  frontiers[1] = array(nb_vertices);
+  sparray frontiers[2];
+  frontiers[0] = sparray(nb_vertices);
+  frontiers[1] = sparray(nb_vertices);
   long frontier_sizes[2];
   frontier_sizes[0] = 0;
   frontier_sizes[1] = 0;
@@ -275,91 +275,96 @@ array bfs_seq(const_adjlist_ref graph, vtxid_type source) {
 }
 
 /*---------------------------------------------------------------------*/
-/* Parallel BFS */
+/* Ligra */
 
 const value_type not_a_vertexid = -1l;
 
-using atomic_value_ptr = std::atomic<value_type>*;
-
-bool try_to_set_dist(vtxid_type target, long dist, atomic_value_ptr dists) {
-  long u = dist_unknown;
-  return dists[target].compare_exchange_strong(u, dist);
+template <class Func>
+sparray vertex_map(const Func& f, const sparray& vertices) {
+  return filter(f, vertices);
 }
 
 loop_controller_type process_neighbors_contr("process_neighbors");
 
-void process_neighbors(neighbor_list neighbors, long degree,
-                       array_ref next_frontier, long offset,
-                       long dist, atomic_value_ptr dists) {
+template <class Update, class Cond, class Emit>
+void process_neighbors(const Update& update, const Cond& cond, const Emit& emit,
+                       const_adjlist_ref graph, long dist, long src) {
+  neighbor_list neighbors = graph.get_neighbors_of(src);
+  long degree = graph.get_out_degree_of(src);
   par::parallel_for(process_neighbors_contr, 0l, degree, [&] (long j) {
-    vtxid_type other = neighbors[j];
-    next_frontier[offset+j] = (try_to_set_dist(other, dist, dists)) ? other : not_a_vertexid;
+    vtxid_type dst = neighbors[j];
+    vtxid_type r = (cond(dst) and update(src, dst, dist)) ? dst : not_a_vertexid;
+    emit(j, r);
   });
 }
 
-loop_controller_type process_frontier_contr("process_frontier");
+sparray extract_vertexids(const sparray& vs) {
+  return filter([] (vtxid_type v) { return v != not_a_vertexid; }, vs);
+}
 
-void process_frontier(const_adjlist_ref graph,
-                      const_array_ref cur_frontier, array_ref next_frontier,
-                      const_array_ref next_frontier_counts,
-                      long dist, atomic_value_ptr dists) {
-  long cur_frontier_sz = cur_frontier.size();
-  long next_frontier_sz = next_frontier.size();
-  auto frontier_loop_compl_fct = [&] (long lo, long hi) {
-    long u = (hi == cur_frontier_sz)
-    ? next_frontier_sz
-    : next_frontier_counts[hi];
-    long l = next_frontier_counts[lo];
-    return u-l;
+sparray get_out_degrees_of(const_adjlist_ref graph, const sparray& vs) {
+  return map([&] (vtxid_type v) { return graph.get_out_degree_of(v); }, vs);
+}
+
+loop_controller_type edge_map_contr("edge_map");
+
+template <class Update, class Cond>
+sparray edge_map(const Update& update, const Cond& cond,
+               const_adjlist_ref graph, const sparray& in_frontier, long dist) {
+  scan_result offsets = partial_sums(get_out_degrees_of(graph, in_frontier));
+  long m = in_frontier.size();
+  long n = offsets.last;
+  auto weight = [&] (long lo, long hi) {
+    long u = (hi == m) ? n : offsets.prefix[hi];
+    return u - offsets.prefix[lo];
   };
-  par::parallel_for(process_frontier_contr, frontier_loop_compl_fct, 0l, cur_frontier_sz, [&] (long i) {
-    vtxid_type vertex = cur_frontier[i];
-    neighbor_list neighbors = graph.get_neighbors_of(vertex);
-    long degree = graph.get_out_degree_of(vertex);
-    long offset = next_frontier_counts[i];
-    process_neighbors(neighbors, degree, next_frontier, offset, dist, dists);
+  sparray out_frontier = sparray(n);
+  par::parallel_for(edge_map_contr, weight, 0l, m, [&] (long i) {
+    vtxid_type src = in_frontier[i];
+    long offset = offsets.prefix[i];
+    auto emit = [&] (value_type j, vtxid_type r) {
+      out_frontier[offset+j] = r;
+    };
+    process_neighbors(update, cond, emit, graph, dist, src);
   });
+  return extract_vertexids(out_frontier);
 }
 
-loop_controller_type bfs_par_init_contr("bfs_par_init");
+/*---------------------------------------------------------------------*/
+/* Parallel BFS */
 
-atomic_value_ptr bfs_par(const_adjlist_ref graph, vtxid_type source) {
-  long nb_vertices = graph.get_nb_vertices();
-  atomic_value_ptr dists = my_malloc<std::atomic<vtxid_type>>(nb_vertices);
-  par::parallel_for(bfs_par_init_contr, 0l, nb_vertices, [&] (long i) {
-    dists[i].store(dist_unknown);
+loop_controller_type bfs_par_init_contr("bfs_init");
+
+sparray bfs_par(const_adjlist_ref graph, vtxid_type source) {
+  long n = graph.get_nb_vertices();
+  std::atomic<value_type>* atomic_dists = my_malloc<std::atomic<vtxid_type>>(n);
+  par::parallel_for(bfs_par_init_contr, 0l, n, [&] (long i) {
+    atomic_dists[i].store(dist_unknown);
   });
-  array cur_frontier = { source };
-  array next_frontier = { };
-  scan_result next_frontier_counts;
+  atomic_dists[source].store(0);
+  auto update = [&] (vtxid_type src, vtxid_type dst, value_type dist) {
+    long u = dist_unknown;
+    return atomic_dists[dst].compare_exchange_strong(u, dist);
+  };
+  auto cond = [&] (vtxid_type other) {
+    return atomic_dists[other].load() == dist_unknown;
+  };
+  sparray cur_frontier = { source };
   long dist = 0;
-  dists[source].store(dist);
   while (cur_frontier.size() > 0) {
     dist++;
-    auto get_out_degree_fct = [&] (long i) {
-      return graph.get_out_degree_of(cur_frontier[i]);
-    };
-    array degrees = tabulate(get_out_degree_fct, cur_frontier.size());
-    next_frontier_counts = partial_sums(degrees);
-    next_frontier = array(next_frontier_counts.last);
-    process_frontier(graph, cur_frontier, next_frontier, next_frontier_counts.prefix, dist, dists);
-    cur_frontier = filter([] (vtxid_type v) { return v != not_a_vertexid; }, next_frontier);
-    next_frontier = { };
+    cur_frontier = edge_map(update, cond, graph, cur_frontier, dist);
   }
+  sparray dists = tabulate([&] (long i) { return atomic_dists[i].load(); }, n);
+  free(atomic_dists);
   return dists;
 }
 
-array deatomic(atomic_value_ptr distsp, long nb_vertices) {
-  array result = tabulate([&] (long i) { return distsp[i].load(); }, nb_vertices);
-  free(distsp);
-  return result;
-}
-
-array bfs(const_adjlist_ref graph, vtxid_type source) {
+sparray bfs(const_adjlist_ref graph, vtxid_type source) {
 #ifdef SEQUENTIAL_BASELINE
   return bfs_seq(graph, source);
-#else 
-  return deatomic(bfs_par(graph, source), graph.get_nb_vertices());
+#else
+  return bfs_par(graph, source);
 #endif
 }
 

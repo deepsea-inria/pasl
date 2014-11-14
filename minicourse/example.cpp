@@ -24,35 +24,35 @@
 /*---------------------------------------------------------------------*/
 /* Example applications */
 
-array just_evens(const_array_ref xs) {
+sparray just_evens(const sparray& xs) {
   return filter(is_even_fct, xs);
 }
 
 void doit() {
   
-//  array test = { -2, 1, -3, 4, -1, 2, 1, -5, 4 };
-  array test = { -1l, 3, 5, 3, -3l };
+//  sparray test = { -2, 1, -3, 4, -1, 2, 1, -5, 4 };
+  sparray test = { -1l, 3, 5, 3, -3l };
   
   std::cout << "mcss_par=" << mcss_par(test) << std::endl;
   std::cout << "mcss_seq=" << mcss_seq(test) << std::endl;
   
-  array mtx = { 1, 2, 3, 4 };
-  array vec = { 5, 6 };
+  sparray mtx = { 1, 2, 3, 4 };
+  sparray vec = { 5, 6 };
   std::cout << dmdvmult(mtx, vec) << std::endl;
   
   long n = 20;
   std::cout << "fib(" << n << ")=" << fib_par(n) << std::endl;
   
-  array empty;
+  sparray empty;
   std::cout << "empty=" << empty << std::endl;
-  std::cout << "array=" << array({1, 2}) << std::endl;
+  std::cout << "sparray=" << sparray({1, 2}) << std::endl;
 
-  array xs = { 0, 1, 2, 3, 4, 5, 6 };
+  sparray xs = { 0, 1, 2, 3, 4, 5, 6 };
   std::cout << "xs=" << xs << std::endl;
   scan_result zs = partial_sums(xs);
   std::cout << "zs=" << zs.prefix << " " << zs.last << std::endl;
 
-  array ys = map(plus1_fct, xs);
+  sparray ys = map(plus1_fct, xs);
   std::cout << "xs(copy)=" << copy(xs) << std::endl;
   std::cout << "ys=" << ys << std::endl;
   value_type v = sum(ys);
@@ -60,7 +60,7 @@ void doit() {
 
   std::cout << "max=" << max(ys) << std::endl;
   std::cout << "min=" << min(ys) << std::endl;
-  std::cout << "tmp=" << map(plus1_fct, array({100, 101})) << std::endl;
+  std::cout << "tmp=" << map(plus1_fct, sparray({100, 101})) << std::endl;
   std::cout << "evens=" << just_evens(ys) << std::endl;
   
   std::cout << "take3=" << take(xs, 3) << std::endl;
@@ -72,7 +72,7 @@ void doit() {
   std::cout << "matching=" << matching_parens(from_parens("()()((()))")) << std::endl;
   std::cout << "not_matching=" << matching_parens(from_parens("()(((()))")) << std::endl;
   
-  std::cout << "empty=" << array({}) << std::endl;
+  std::cout << "empty=" << sparray({}) << std::endl;
   
   std::cout << "duplicate(xs)" << duplicate(xs) << std::endl;
   std::cout << "3x(xs)" << ktimes(xs,3) << std::endl;
@@ -83,13 +83,27 @@ void doit() {
   
   std::cout << partial_sums(fill(6, 1)).prefix << std::endl;
   
-  array rs = gen_random_array(15);
+  sparray rs = gen_random_sparray(15);
   std::cout << rs << std::endl;
   std::cout << mergesort(rs) << std::endl;
   std::cout << quicksort(rs) << std::endl;
 
-  adjlist graph = { mk_edge(0, 1), mk_edge(0, 3), mk_edge(5, 1) };
-  std::cout << graph << std::endl;
+  {
+    adjlist graph = { mk_edge(0, 1), mk_edge(0, 3), mk_edge(5, 1), mk_edge(3, 0) };
+    std::cout << graph << std::endl;
+  }
+  
+  {
+    adjlist graph = { mk_edge(0, 1), mk_edge(0, 3), mk_edge(5, 1), mk_edge(3, 0),
+      mk_edge(3, 5), mk_edge(3, 2), mk_edge(5, 3) };
+    std::cout << "nb_vertices = " << graph.get_nb_vertices() << std::endl;
+    std::cout << "nb_edges = " << graph.get_nb_edges() << std::endl;
+    std::cout << "neighbors of vertex 3:" << std::endl;
+    neighbor_list neighbors_of_3 = graph.get_neighbors_of(3);
+    for (long i = 0; i < graph.get_out_degree_of(3); i++)
+      std::cout << " " << neighbors_of_3[i];
+    std::cout << std::endl;
+  }
 }
 
 /*---------------------------------------------------------------------*/

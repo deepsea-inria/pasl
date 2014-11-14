@@ -8,7 +8,7 @@
  */
 
 #include "native.hpp"
-#include "array.hpp"
+#include "sparray.hpp"
 
 #ifndef _MINICOURSE_SORT_H_
 #define _MINICOURSE_SORT_H_
@@ -22,25 +22,25 @@ long nlogn(long n) {
 /*---------------------------------------------------------------------*/
 /* Sequential sort */
 
-void in_place_sort(array_ref xs, long lo, long hi) {
+void in_place_sort(sparray& xs, long lo, long hi) {
   long n = hi-lo;
   if (n < 2)
     return;
   std::sort(&xs[lo], &xs[hi-1]+1);
 }
 
-void in_place_sort(array_ref xs) {
+void in_place_sort(sparray& xs) {
   in_place_sort(xs, 0l, xs.size());
 }
 
-array seqsort(const_array_ref xs) {
-  array tmp = copy(xs);
+sparray seqsort(const sparray& xs) {
+  sparray tmp = copy(xs);
   in_place_sort(tmp);
   return tmp;
 }
 
-array seqsort(const_array_ref xs, long lo, long hi) {
-  array tmp = slice(xs, lo, hi);
+sparray seqsort(const sparray& xs, long lo, long hi) {
+  sparray tmp = slice(xs, lo, hi);
   in_place_sort(tmp);
   return tmp;
 }
@@ -50,9 +50,9 @@ array seqsort(const_array_ref xs, long lo, long hi) {
 
 controller_type quicksort_contr("quicksort");
 
-array quicksort(const_array_ref xs) {
+sparray quicksort(const sparray& xs) {
   long n = xs.size();
-  array result = { };
+  sparray result = { };
   auto seq = [&] {
     result = seqsort(xs);
   };
@@ -62,11 +62,11 @@ array quicksort(const_array_ref xs) {
     } else {
       long m = n/2;
       value_type p = xs[m];
-      array less = filter([&] (value_type x) { return x < p; }, xs);
-      array equal = filter([&] (value_type x) { return x == p; }, xs);
-      array greater = filter([&] (value_type x) { return x > p; }, xs);
-      array left = { };
-      array right = { };
+      sparray less = filter([&] (value_type x) { return x < p; }, xs);
+      sparray equal = filter([&] (value_type x) { return x == p; }, xs);
+      sparray greater = filter([&] (value_type x) { return x > p; }, xs);
+      sparray left = { };
+      sparray right = { };
       par::fork2([&] {
         left = quicksort(less);
       }, [&] {
@@ -81,7 +81,7 @@ array quicksort(const_array_ref xs) {
 /*---------------------------------------------------------------------*/
 /* Sequential merge */
 
-void merge_seq(const_array_ref xs, const_array_ref ys, array_ref tmp,
+void merge_seq(const sparray& xs, const sparray& ys, sparray& tmp,
                long lo_xs, long hi_xs,
                long lo_ys, long hi_ys,
                long lo_tmp) {
@@ -89,7 +89,7 @@ void merge_seq(const_array_ref xs, const_array_ref ys, array_ref tmp,
              &tmp[lo_tmp]);
 }
 
-void merge_seq(array_ref xs, array_ref tmp,
+void merge_seq(sparray& xs, sparray& tmp,
                long lo, long mid, long hi) {
   merge_seq(xs, xs, tmp, lo, mid, mid, hi, lo);
   
@@ -100,14 +100,14 @@ void merge_seq(array_ref xs, array_ref tmp,
 /*---------------------------------------------------------------------*/
 /* Parallel merge */
 
-long lower_bound(const_array_ref xs, long lo, long hi, value_type val) {
+long lower_bound(const sparray& xs, long lo, long hi, value_type val) {
   const value_type* first_xs = &xs[0];
   return std::lower_bound(first_xs+lo, first_xs+hi, val)-first_xs;
 }
 
 controller_type merge_contr("merge");
 
-void merge_par(const_array_ref xs, const_array_ref ys, array_ref tmp,
+void merge_par(const sparray& xs, const sparray& ys, sparray& tmp,
                long lo_xs, long hi_xs,
                long lo_ys, long hi_ys,
                long lo_tmp) {
@@ -144,7 +144,7 @@ void merge_par(const_array_ref xs, const_array_ref ys, array_ref tmp,
   }, seq);
 }
 
-void merge_par(array_ref xs, array_ref tmp,
+void merge_par(sparray& xs, sparray& tmp,
                long lo, long mid, long hi) {
   merge_par(xs, xs, tmp, lo, mid, mid, hi, lo);
 
@@ -152,10 +152,10 @@ void merge_par(array_ref xs, array_ref tmp,
   prim::pcopy(&tmp[0], &xs[0], lo, hi, lo);
 }
 
-array merge(const_array_ref xs, const_array_ref ys) {
+sparray merge(const sparray& xs, const sparray& ys) {
   long n = xs.size();
   long m = ys.size();
-  array tmp = array(n + m);
+  sparray tmp = sparray(n + m);
   merge_par(xs, ys, tmp, 0l, n, 0l, m, 0l);
   return tmp;
 }
@@ -165,7 +165,7 @@ array merge(const_array_ref xs, const_array_ref ys) {
 
 controller_type mergesort_contr("mergesort");
 
-void mergesort_rec(array_ref xs, array_ref tmp, long lo, long hi) {
+void mergesort_rec(sparray& xs, sparray& tmp, long lo, long hi) {
   long n = hi - lo;
   auto seq = [&] {
     in_place_sort(xs, lo, hi);
@@ -187,10 +187,10 @@ void mergesort_rec(array_ref xs, array_ref tmp, long lo, long hi) {
   }, seq);
 }
 
-array mergesort(const_array_ref xs) {
+sparray mergesort(const sparray& xs) {
   long n = xs.size();
-  array result = copy(xs);
-  array tmp = array(n);
+  sparray result = copy(xs);
+  sparray tmp = sparray(n);
   mergesort_rec(result, tmp, 0l, n);
   return result;
 }
@@ -486,10 +486,10 @@ void cilkmerge(value_type *low1, value_type *high1, value_type *low2,
   return;
 }
 
-array cilkmerge(array_ref xs, array_ref ys) {
+sparray cilkmerge(sparray& xs, sparray& ys) {
   long n = xs.size();
   long m = ys.size();
-  array tmp = array(n + m);
+  sparray tmp = sparray(n + m);
   cilkmerge(&xs[0], &xs[n-1], &ys[0], &ys[m-1], &tmp[0]);
   return tmp;
 }
@@ -552,10 +552,10 @@ void cilksort(value_type *low, value_type *tmp, long size)
   }, seq);
 }
 
-array cilksort(const_array_ref xs) {
+sparray cilksort(const sparray& xs) {
   long n = xs.size();
-  array ys = copy(xs);
-  array tmp = array(n);
+  sparray ys = copy(xs);
+  sparray tmp = sparray(n);
   if (n > 0)
     cilksort(&ys[0], &tmp[0], n);
   return ys;

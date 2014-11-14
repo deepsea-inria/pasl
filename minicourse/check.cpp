@@ -45,7 +45,7 @@ void checkit(std::string msg) {
   quickcheck::check<Property>(msg.c_str(), nb_tests);
 }
 
-bool same_array(const_array_ref xs, const_array_ref ys) {
+bool same_sparray(const sparray& xs, const sparray& ys) {
   if (xs.size() != ys.size())
     return false;
   for (long i = 0; i < xs.size(); i++)
@@ -54,7 +54,7 @@ bool same_array(const_array_ref xs, const_array_ref ys) {
   return true;
 }
 
-array array_of_vector(const std::vector<value_type>& vec) {
+sparray sparray_of_vector(const std::vector<value_type>& vec) {
   return tabulate([&] (long i) { return vec[i]; }, vec.size());
 }
 
@@ -71,7 +71,7 @@ public:
   Untrusted_mcss_fct untrusted;
   
   bool holdsFor(const std::vector<value_type>& vec) {
-    array xs = array_of_vector(vec);
+    sparray xs = sparray_of_vector(vec);
     value_type x = trusted(xs);
     value_type y = untrusted(xs);
     return x == y;
@@ -82,13 +82,13 @@ public:
 void check_mcss() {
   class trusted_fct {
   public:
-    value_type operator()(const_array_ref xs) {
+    value_type operator()(const sparray& xs) {
       return mcss_seq(xs);
     }
   };
   class untrusted_fct {
   public:
-    value_type operator()(const_array_ref xs) {
+    value_type operator()(const sparray& xs) {
       return mcss_par(xs);
     }
   };
@@ -107,8 +107,8 @@ public:
   Untrusted_sort_fct untrusted_sort;
   
   bool holdsFor(const std::vector<value_type>& vec) {
-    array xs = array_of_vector(vec);
-    return same_array(trusted_sort(xs), untrusted_sort(xs));
+    sparray xs = sparray_of_vector(vec);
+    return same_sparray(trusted_sort(xs), untrusted_sort(xs));
   }
   
 };
@@ -117,14 +117,14 @@ void check_sort() {
   pasl::util::cmdline::argmap_dispatch c;
   class trusted_fct {
   public:
-    array operator()(const_array_ref xs) {
+    sparray operator()(const sparray& xs) {
       return seqsort(xs);
     }
   };
   c.add("mergesort", [&] {
     class untrusted_fct {
     public:
-      array operator()(const_array_ref xs) {
+      sparray operator()(const sparray& xs) {
         return mergesort(xs);
       }
     };
@@ -134,7 +134,7 @@ void check_sort() {
   c.add("cilksort", [&] {
     class untrusted_fct {
     public:
-      array operator()(const_array_ref xs) {
+      sparray operator()(const sparray& xs) {
         return cilksort(xs);
       }
     };
@@ -144,7 +144,7 @@ void check_sort() {
   c.add("quicksort", [&] {
     class untrusted_fct {
     public:
-      array operator()(const_array_ref xs) {
+      sparray operator()(const sparray& xs) {
         return quicksort(xs);
       }
     };
@@ -283,7 +283,7 @@ public:
   
   bool holdsFor(const edgelist& edges) {
     adjlist graph = adjlist(edges);
-    return same_array(trusted_bfs(graph, 0), untrusted_bfs(graph, 0));
+    return same_sparray(trusted_bfs(graph, 0), untrusted_bfs(graph, 0));
   }
   
 };
@@ -292,17 +292,15 @@ void check_graph() {
   pasl::util::cmdline::argmap_dispatch c;
   class trusted_fct {
   public:
-    array operator()(const adjlist& graph, vtxid_type source) {
+    sparray operator()(const adjlist& graph, vtxid_type source) {
       return bfs_seq(graph, source);
     }
   };
   c.add("bfs", [&] {
     class untrusted_fct {
     public:
-      array operator()(const adjlist& graph, vtxid_type source) {
-        atomic_value_ptr p = bfs_par(graph, source);
-        long nb_vertices = graph.get_nb_vertices();
-        return deatomic(p, nb_vertices);
+      sparray operator()(const adjlist& graph, vtxid_type source) {
+        return bfs(graph, source);
       }
     };
     using property_type = bfs_correct<trusted_fct, untrusted_fct>;

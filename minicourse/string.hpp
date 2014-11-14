@@ -7,7 +7,7 @@
  *
  */
 
-#include "array.hpp"
+#include "sparray.hpp"
 
 #ifndef _MINICOURSE_STRING_H_
 #define _MINICOURSE_STRING_H_
@@ -15,8 +15,8 @@
 /***********************************************************************/
 
 using mychar = value_type;
-using mystring = array;
-using const_mystring_ref = const_array_ref;
+using mystring = sparray;
+using const_mystring_ref = const sparray&;
 
 mychar char_compare(mychar x, mychar y) {
   if (x < y)
@@ -35,7 +35,7 @@ value_type string_compare_seq(const_mystring_ref xs, const_mystring_ref ys) {
 value_type string_compare(const_mystring_ref xs, const_mystring_ref ys) {
   if (xs.size() < ys.size())
     return -1l * string_compare(ys, xs);
-  array cs = map_pair([] (mychar x, mychar y) { return char_compare(x, y); }, xs, ys);
+  sparray cs = map_pair([] (mychar x, mychar y) { return char_compare(x, y); }, xs, ys);
   return reduce([&] (mychar a, mychar b) { return (a == 0) ? b : a; }, 0, cs);
 }
 
@@ -52,15 +52,15 @@ char v2c(value_type v) {
   return (v == open_paren) ? '(' : ')';
 }
 
-array from_parens(std::string str) {
+sparray from_parens(std::string str) {
   long sz = str.size();
-  array tmp = array(sz);
+  sparray tmp = sparray(sz);
   for (long i = 0; i < sz; i++)
     tmp[i] = c2v(str[i]);
   return tmp;
 }
 
-std::string to_parens(const_array_ref xs) {
+std::string to_parens(const sparray& xs) {
   long sz = xs.size();
   std::string str(sz, 'x');
   for (long i = 0; i < sz; i++)
@@ -72,7 +72,7 @@ scan_result every_nesting_depth(const_mystring_ref parens) {
   return scan(plus_fct, 0l, parens);
 }
 
-bool is_every_nesting_depth_valid(const_array_ref nesting_depths) {
+bool is_every_nesting_depth_valid(const sparray& nesting_depths) {
   return reduce(and_fct, [] (value_type x) { return x >= 0; }, true, nesting_depths);
 }
 

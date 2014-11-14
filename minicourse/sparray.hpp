@@ -16,8 +16,8 @@
 #include "hash.hpp"
 #include "granularity.hpp"
 
-#ifndef _MINICOURSE_ARRAY_H_
-#define _MINICOURSE_ARRAY_H_
+#ifndef _MINICOURSE_SPARRAY_H_
+#define _MINICOURSE_SPARRAY_H_
 
 /***********************************************************************/
 
@@ -119,7 +119,7 @@ namespace prim {
 /*---------------------------------------------------------------------*/
 /* Array-based implementation of sequences */
 
-class array {
+class sparray {
 private:
   
   class Deleter {
@@ -147,12 +147,12 @@ private:
   
 public:
   
-  array(long sz = 0)
+  sparray(long sz = 0)
   : sz(sz) {
     alloc();
   }
   
-  array(std::initializer_list<value_type> xs)
+  sparray(std::initializer_list<value_type> xs)
   : sz(xs.size()) {
     alloc();
     long i = 0;
@@ -161,10 +161,10 @@ public:
   }
   
   // To disable copy semantics, we disable:
-  array(const array& other);            //   1. copy constructor
-  array& operator=(const array& other); //   2. assign-by-copy operator
+  sparray(const sparray& other);            //   1. copy constructor
+  sparray& operator=(const sparray& other); //   2. assign-by-copy operator
   
-  array& operator=(array&& other) {
+  sparray& operator=(sparray&& other) {
     ptr = std::move(other.ptr);
     sz = std::move(other.sz);
     other.sz = 0l; // redundant?
@@ -185,19 +185,14 @@ public:
     return sz;
   }
   
-  void swap(array& other) {
+  void swap(sparray& other) {
     ptr.swap(other.ptr);
     std::swap(sz, other.sz);
   }
   
 };
 
-using array_ref = array&;
-using const_array_ref = const array&;
-using array_ptr = array*;
-using const_array_ptr = const array*;
-
-std::ostream& operator<<(std::ostream& out, const_array_ref xs) {
+std::ostream& operator<<(std::ostream& out, const sparray& xs) {
   out << "{ ";
   size_t sz = xs.size();
   for (long i = 0; i < sz; i++) {
@@ -216,8 +211,8 @@ const long rand_maxval = 1l<<20;
 
 #ifdef SEQUENTIAL_RANDOM_NUMBER_GEN
 
-array gen_random_array_seq(long n) {
-  array tmp = array(n);
+sparray gen_random_sparray_seq(long n) {
+  sparray tmp = sparray(n);
   for (long i = 0; i < n; i++)
     tmp[i] = std::abs(random()) % rand_maxval;
   return tmp;
@@ -225,27 +220,27 @@ array gen_random_array_seq(long n) {
 
 #endif
 
-loop_controller_type random_array_contr("random_array");
+loop_controller_type random_sparray_contr("random_sparray");
 
 // returns a random array of size n using seed s
-array gen_random_array_par(long s, long n, long maxval) {
-  array tmp = array(n);
-  //      par::parallel_for(random_array_contr, 0l, n, [&] (long i) {
+sparray gen_random_sparray_par(long s, long n, long maxval) {
+  sparray tmp = sparray(n);
+  //      par::parallel_for(random_sparray_contr, 0l, n, [&] (long i) {
   pasl::sched::native::parallel_for(0l, n, [&] (long i) {
     tmp[i] = std::abs(hash_signed(i+s)) % maxval;
   }); 
   return tmp;
 }
 
-array gen_random_array_par(long n) {
-  return gen_random_array_par(23423, n, rand_maxval);
+sparray gen_random_sparray_par(long n) {
+  return gen_random_sparray_par(23423, n, rand_maxval);
 }
 
-array gen_random_array(long n) {
+sparray gen_random_sparray(long n) {
 #ifdef SEQUENTIAL_RANDOM_NUMBER_GEN
-  return gen_random_array_seq(n);
+  return gen_random_sparray_seq(n);
 #else
-  return gen_random_array_par(n);
+  return gen_random_sparray_par(n);
 #endif
 }
 
@@ -283,53 +278,53 @@ auto is_even_fct = [] (value_type x) {
 /*---------------------------------------------------------------------*/
 /* Parallel array operations */
 
-array fill(long n, value_type v) {
-  array tmp = array(n);
+sparray fill(long n, value_type v) {
+  sparray tmp = sparray(n);
   prim::pfill(&tmp[0], n, v);
   return tmp;
 }
 
-array empty() {
-  return array(0);
+sparray empty() {
+  return sparray(0);
 }
 
-array singleton(value_type v) {
+sparray singleton(value_type v) {
   return fill(1, v);
 }
 
-array slice(const_array_ref xs, long lo, long hi) {
+sparray slice(const sparray& xs, long lo, long hi) {
   long n = hi-lo;
   assert(n <= xs.size());
   assert(n >= 0);
-  array result = array(n);
+  sparray result = sparray(n);
   if (n > 0)
     prim::pcopy(&xs[0], &result[0], lo, hi, 0);
   return result;
 }
 
-array take(const_array_ref xs, long n) {
+sparray take(const sparray& xs, long n) {
   return slice(xs, 0, n);
 }
 
-array drop(const_array_ref xs, long n) {
+sparray drop(const sparray& xs, long n) {
   long m = xs.size()-n;
   return slice(xs, n, n+m);
 }
 
-array copy(const_array_ref xs) {
+sparray copy(const sparray& xs) {
   return take(xs, xs.size());
 }
 
 loop_controller_type concat_contr("concat");
 
-array concat(const_array_ptr* xss, long k) {
+sparray concat(const sparray** xss, long k) {
   long n = 0;
   for (long i = 0; i < k; i++)
     n += xss[i]->size();
-  array result = array(n);
+  sparray result = sparray(n);
   long offset = 0;
   for (long i = 0; i < k; i++) {
-    const_array_ref xs = *xss[i];
+    const sparray& xs = *xss[i];
     long m = xs.size();
     if (m > 0l)
       prim::pcopy(&xs[0l], &result[0l], 0l, m, offset);
@@ -338,13 +333,13 @@ array concat(const_array_ptr* xss, long k) {
   return result;
 }
 
-array concat(const_array_ref xs1, const_array_ref xs2) {
-  const_array_ptr xss[2] = { &xs1, &xs2 };
+sparray concat(const sparray& xs1, const sparray& xs2) {
+  const sparray* xss[2] = { &xs1, &xs2 };
   return concat(xss, 2);
 }
 
-array concat(const_array_ref xs1, const_array_ref xs2, const_array_ref xs3) {
-  const_array_ptr xss[3] = { &xs1, &xs2, &xs3 };
+sparray concat(const sparray& xs1, const sparray& xs2, const sparray& xs3) {
+  const sparray* xss[3] = { &xs1, &xs2, &xs3 };
   return concat(xss, 3);
 }
 
@@ -358,8 +353,8 @@ loop_controller_type tabulate_controller_type<Func>::contr("tabulate"+
                                                            par::string_of_template_arg<Func>());
 
 template <class Func>
-array tabulate(const Func& f, long n) {
-  array tmp = array(n);
+sparray tabulate(const Func& f, long n) {
+  sparray tmp = sparray(n);
   par::parallel_for(tabulate_controller_type<Func>::contr, 0l, n, [&] (long i) {
     tmp[i] = f(i);
   });
@@ -367,18 +362,18 @@ array tabulate(const Func& f, long n) {
 }
 
 template <class Func>
-array map(const Func& f, const_array_ref xs) {
+sparray map(const Func& f, const sparray& xs) {
   return tabulate([&] (long i) { return f(xs[i]); }, xs.size());
 }
 
 template <class Func>
-array map_pair(const Func& f, const_array_ref xs, const_array_ref ys) {
+sparray map_pair(const Func& f, const sparray& xs, const sparray& ys) {
   long n = std::min(xs.size(), ys.size());
   return tabulate([&] (long i) { return f(xs[i], ys[i]); }, n);
 }
 
 template <class Assoc_op, class Lift_func>
-value_type reduce_seq(const Assoc_op& op, const Lift_func& lift, value_type id, const_array_ref xs,
+value_type reduce_seq(const Assoc_op& op, const Lift_func& lift, value_type id, const sparray& xs,
                       long lo, long hi) {
   value_type x = id;
   for (long i = lo; i < hi; i++)
@@ -397,7 +392,7 @@ controller_type reduce_controller_type<Assoc_op,Lift_func>::contr("reduce"+
                                                                   par::string_of_template_arg<Lift_func>());
 
 template <class Assoc_op, class Lift_func>
-value_type reduce_rec(const Assoc_op& op, const Lift_func& lift, value_type id, const_array_ref xs,
+value_type reduce_rec(const Assoc_op& op, const Lift_func& lift, value_type id, const sparray& xs,
                       long lo, long hi) {
   using contr_type = reduce_controller_type<Assoc_op,Lift_func>;
   value_type result = id;
@@ -422,28 +417,28 @@ value_type reduce_rec(const Assoc_op& op, const Lift_func& lift, value_type id, 
 }
 
 template <class Assoc_op, class Lift_func>
-value_type reduce(const Assoc_op& op, const Lift_func& lift, value_type id, const_array_ref xs) {
+value_type reduce(const Assoc_op& op, const Lift_func& lift, value_type id, const sparray& xs) {
   return reduce_rec(op, lift, id, xs, 0, xs.size());
 }
 
 template <class Assoc_op>
-value_type reduce(const Assoc_op& op, value_type id, const_array_ref xs) {
+value_type reduce(const Assoc_op& op, value_type id, const sparray& xs) {
   return reduce(op, identity_fct, id, xs);
 }
 
-value_type sum(value_type id, const_array_ref xs) {
+value_type sum(value_type id, const sparray& xs) {
   return reduce(plus_fct, id, xs);
 }
 
-value_type sum(const_array_ref xs) {
+value_type sum(const sparray& xs) {
   return sum(0l, xs);
 }
 
-value_type max(const_array_ref xs) {
+value_type max(const sparray& xs) {
   return reduce(max_fct, LONG_MIN, xs);
 }
 
-value_type min(const_array_ref xs) {
+value_type min(const sparray& xs) {
   return reduce(min_fct, LONG_MAX, xs);
 }
 
@@ -469,11 +464,11 @@ loop_controller_type scan_controller_type<Assoc_op,Lift_func>::lp2("scan_lp2"+
 
 class scan_result {
 public:
-  array prefix;
+  sparray prefix;
   value_type last;
   
   scan_result() { }
-  scan_result(array&& _prefix, value_type last) {
+  scan_result(sparray&& _prefix, value_type last) {
     this->prefix = std::move(_prefix);
     this->last = last;
   }
@@ -496,8 +491,8 @@ public:
 };
 
 template <class Assoc_op, class Lift_func>
-value_type scan_seq(const Assoc_op& op, const Lift_func& lift, value_type id, const_array_ref xs,
-                    array_ref dest, long lo, long hi, const bool is_exclusive) {
+value_type scan_seq(const Assoc_op& op, const Lift_func& lift, value_type id, const sparray& xs,
+                    sparray& dest, long lo, long hi, const bool is_exclusive) {
   value_type x = id;
   if (is_exclusive) {
     for (long i = lo; i < hi; i++) {
@@ -515,19 +510,19 @@ value_type scan_seq(const Assoc_op& op, const Lift_func& lift, value_type id, co
 
 template <class Assoc_op, class Lift_func>
 value_type scan_seq(const Assoc_op& op, const Lift_func& lift, value_type id,
-                    const_array_ref xs, array_ref dest, const bool is_exclusive) {
+                    const sparray& xs, sparray& dest, const bool is_exclusive) {
   return scan_seq(op, lift, id, xs, dest, 0l, xs.size(), is_exclusive);
 }
 
 template <class Assoc_op, class Lift_func>
-scan_result scan_rec(const Assoc_op& op, const Lift_func& lift, value_type id, const_array_ref xs,
+scan_result scan_rec(const Assoc_op& op, const Lift_func& lift, value_type id, const sparray& xs,
                      const bool is_exclusive) {
   const long k = 1024;
   using contr_type = scan_controller_type<Assoc_op,Lift_func>;
   long n = xs.size();
   scan_result result;
   auto seq = [&] {
-    result.prefix = array(n);
+    result.prefix = sparray(n);
     result.last = scan_seq(op, lift, id, xs, result.prefix, is_exclusive);
   };
   long m = 1 + ((n - 1) / k);
@@ -535,7 +530,7 @@ scan_result scan_rec(const Assoc_op& op, const Lift_func& lift, value_type id, c
     if (n <= k) {
       seq();
     } else {
-      array sums = array(m);
+      sparray sums = sparray(m);
       par::parallel_for(contr_type::lp1, 0l, m, [&] (long i) {
         long lo = i * k;
         long hi = std::min(lo + k, n);
@@ -543,7 +538,7 @@ scan_result scan_rec(const Assoc_op& op, const Lift_func& lift, value_type id, c
       });
       scan_result scans = scan_rec(op, lift, id, sums, true);
       sums = {};
-      result.prefix = array(n);
+      result.prefix = sparray(n);
       par::parallel_for(contr_type::lp2, 0l, m, [&] (long i) {
         long lo = i * k;
         long hi = std::min(lo + k, n);
@@ -556,48 +551,48 @@ scan_result scan_rec(const Assoc_op& op, const Lift_func& lift, value_type id, c
 }
 
 template <class Assoc_op, class Lift_func>
-scan_result scan_exclusive(const Assoc_op& op, const Lift_func& lift, value_type id, const_array_ref xs) {
+scan_result scan_exclusive(const Assoc_op& op, const Lift_func& lift, value_type id, const sparray& xs) {
   return scan_rec(op, lift, id, xs, true);
 }
 
 template <class Assoc_op, class Lift_func>
-array scan_inclusive(const Assoc_op& op, const Lift_func& lift, value_type id, const_array_ref xs) {
-  array result;
+sparray scan_inclusive(const Assoc_op& op, const Lift_func& lift, value_type id, const sparray& xs) {
+  sparray result;
   scan_result scan = scan_rec(op, lift, id, xs, false);
   result = std::move(scan.prefix);
   return result;
 }
 
 template <class Assoc_op>
-scan_result scan(const Assoc_op& op, value_type id, const_array_ref xs) {
+scan_result scan(const Assoc_op& op, value_type id, const sparray& xs) {
   return scan_exclusive(op, identity_fct, id, xs);
 }
 
-scan_result partial_sums(value_type id, const_array_ref xs) {
+scan_result partial_sums(value_type id, const sparray& xs) {
   return scan_exclusive(plus_fct, identity_fct, id, xs);
 }
 
-scan_result partial_sums(const_array_ref xs) {
+scan_result partial_sums(const sparray& xs) {
   return partial_sums(0l, xs);
 }
 
-array partial_sums_inclusive(value_type id, const_array_ref xs) {
+sparray partial_sums_inclusive(value_type id, const sparray& xs) {
   return scan_inclusive(plus_fct, identity_fct, id, xs);
 }
 
-array partial_sums_inclusive(const_array_ref xs) {
+sparray partial_sums_inclusive(const sparray& xs) {
   return partial_sums_inclusive(0l, xs);
 }
 
 loop_controller_type pack_contr("pack");
 
-array pack_nonempty(const_array_ref flags, const_array_ref xs) {
+sparray pack_nonempty(const sparray& flags, const sparray& xs) {
   assert(xs.size() == flags.size());
   assert(xs.size() > 0l);
   long n = xs.size();
   scan_result offsets = partial_sums(flags);
   value_type m = offsets.last;
-  array result = array(m);
+  sparray result = sparray(m);
   par::parallel_for(pack_contr, 0l, n, [&] (long i) {
     if (flags[i] == 1)
       result[offsets.prefix[i]] = xs[i];
@@ -605,16 +600,16 @@ array pack_nonempty(const_array_ref flags, const_array_ref xs) {
   return result;
 }
 
-array pack(const_array_ref flags, const_array_ref xs) {
+sparray pack(const sparray& flags, const sparray& xs) {
   assert(flags.size() == xs.size());
   return (xs.size() > 0) ? pack_nonempty(flags, xs) : empty();
 }
 
 template <class Pred>
-array filter(const Pred& p, const_array_ref xs) {
+sparray filter(const Pred& p, const sparray& xs) {
   return pack(map(p, xs), xs);
 }
 
 /***********************************************************************/
 
-#endif /*! _MINICOURSE_ARRAY_H_ */
+#endif /*! _MINICOURSE_SPARRAY_H_ */

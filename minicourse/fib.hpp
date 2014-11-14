@@ -9,8 +9,6 @@
 
 #include <math.h>
 
-#include "array.hpp"
-
 #ifndef _MINICOURSE_FIB_H_
 #define _MINICOURSE_FIB_H_
 
