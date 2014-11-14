@@ -89,7 +89,7 @@ benchmark_type fib_bench() {
     *result = fib(n);
   };
   auto output = [=] {
-    std::cout << "result\t" << *result << std::endl;
+    std::cout << "result " << *result << std::endl;
   };
   auto destroy = [=] {
     delete result;
@@ -108,7 +108,7 @@ benchmark_type duplicate_bench() {
     *outp = duplicate(*inp);
   };
   auto output = [=] {
-    std::cout << "result\t" << (*outp)[outp->size()-1] << std::endl;
+    std::cout << "result " << (*outp)[outp->size()-1] << std::endl;
   };
   auto destroy = [=] {
     delete inp;
@@ -129,7 +129,7 @@ benchmark_type ktimes_bench() {
     *outp = ktimes(*inp, k);
   };
   auto output = [=] {
-    std::cout << "result\t" << (*outp)[outp->size()-1] << std::endl;
+    std::cout << "result " << (*outp)[outp->size()-1] << std::endl;
   };
   auto destroy = [=] {
     delete inp;
@@ -149,7 +149,7 @@ benchmark_type reduce_bench() {
     *result = sum(*inp);
   };
   auto output = [=] {
-    std::cout << "result\t" << *result << std::endl;
+    std::cout << "result " << *result << std::endl;
   };
   auto destroy = [=] {
     delete inp;
@@ -169,7 +169,7 @@ benchmark_type scan_bench() {
     *outp = partial_sums(*inp).prefix;
   };
   auto output = [=] {
-    std::cout << "result\t" << (*outp)[outp->size()-1] << std::endl;
+    std::cout << "result " << (*outp)[outp->size()-1] << std::endl;
   };
   auto destroy = [=] {
     delete inp;
@@ -189,7 +189,7 @@ benchmark_type mcss_bench() {
     *outp = mcss(*inp);
   };
   auto output = [=] {
-    std::cout << "result\t" << *outp << std::endl;
+    std::cout << "result " << *outp << std::endl;
   };
   auto destroy = [=] {
     delete inp;
@@ -212,7 +212,7 @@ benchmark_type dmdvmult_bench() {
     *outp = dmdvmult(*mtxp, *vecp);
   };
   auto output = [=] {
-    std::cout << "result\t" << (*outp)[outp->size()-1] << std::endl;
+    std::cout << "result " << (*outp)[outp->size()-1] << std::endl;
   };
   auto destroy = [=] {
     delete mtxp;
@@ -242,7 +242,7 @@ benchmark_type merge_bench() {
     *outp = merge_fct(*inp1, *inp2);
   };
   auto output = [=] {
-    std::cout << "result\t" << (*outp)[outp->size()-1] << std::endl;
+    std::cout << "result " << (*outp)[outp->size()-1] << std::endl;
   };
   auto destroy = [=] {
     delete inp1;
@@ -279,7 +279,7 @@ benchmark_type sort_bench() {
     *outp = sort_fct(*inp);
   };
   auto output = [=] {
-    std::cout << "result\t" << (*outp)[outp->size()-1] << std::endl;
+    std::cout << "result " << (*outp)[outp->size()-1] << std::endl;
   };
   auto destroy = [=] {
     delete inp;

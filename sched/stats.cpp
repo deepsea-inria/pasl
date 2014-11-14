@@ -88,6 +88,7 @@ void stats_t::sum() {
   total_idle_time = total_data.waiting_time;
   total_spinning_time = total_data.spinning_time;
   relative_idle = total_idle_time / cumulated_time; 
+  utilization = 1.0 - relative_idle;
   relative_non_seq = 1.0 - total_data.sequential_time / cumulated_time; 
   uint64_t nb_measured_run = total_data.counters[MEASURED_RUN];
   if (nb_measured_run > 0)
@@ -98,12 +99,14 @@ void stats_t::sum() {
 
 // assumes sums have been computed
 void stats_t::print_idle(FILE* f) {
-  fprintf(f, "total_idle_time\t%.3lf\n", total_idle_time);
+  // fprintf(f, "total_idle_time %.3lf\n", total_idle_time);
+  fprintf(f, "utilization %.4lf\n", utilization);
 }
 
 void stats_t::print(FILE* f) {
   fprintf(f, "launch_duration\t%.3lf\n", launch_duration);
-  fprintf(f, "relative_idle_time\t%.4lf\n", relative_idle);
+  // fprintf(f, "relative_idle_time\t%.4lf\n", relative_idle);
+  fprintf(f, "utilization\t%.4lf\n", utilization);
   bool stats_light = cmdline::parse_or_default_bool("stats_light", true, false);
   if (! stats_light) {
     fprintf(f, "total_sequential\t%.3lf\n", total_data.sequential_time);

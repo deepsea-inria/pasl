@@ -135,6 +135,7 @@ private:
   // computed
   double total_idle_time;
   double relative_idle;
+  double utilization;
   double relative_non_seq;
   double average_sequentialized;
   double total_spinning_time;
