@@ -77,7 +77,7 @@ int main(int argc, char** argv) {
     result = par_fib(n);
   };
   auto output = [&] {
-    std::cout << "result\t" << result << std::endl;
+    std::cout << "result " << result << std::endl;
   };
   auto destroy = [&] {
     ;
