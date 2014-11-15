@@ -12,7 +12,9 @@
 #include <vector>
 #include <memory>
 #include <utility>
+#ifndef TARGET_MAC_OS
 #include <malloc.h>
+#endif
 
 #include "hash.hpp"
 #include "granularity.hpp"
@@ -24,8 +26,10 @@
 
 /*---------------------------------------------------------------------*/
 
+#ifndef TARGET_MAC_OS
 static int __ii =  mallopt(M_MMAP_MAX,0);
 static int __jj =  mallopt(M_TRIM_THRESHOLD,-1);
+#endif
 
 namespace par = pasl::sched::granularity;
 
