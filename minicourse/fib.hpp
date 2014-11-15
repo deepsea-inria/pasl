@@ -17,10 +17,9 @@
 /*---------------------------------------------------------------------*/
 /* Parallel fibonacci */
 
-long de_moivre_fib(long n) {
+long de_moivre(long n) {
   const double phi = 1.61803399;
-  const double omega = -0.6180339887;
-  double res = (pow(phi, (double)n)-pow(omega, (double)n))/sqrt(5);
+  double res = pow(phi, (double)n);
   return (long)res;
 }
 
@@ -41,12 +40,9 @@ controller_type fib_contr("fib");
 
 long fib_par(long n) {
   long result;
-  auto seq = [&] {
-    result = fib_seq(n);
-  };
-  par::cstmt(fib_contr, [n] { return de_moivre_fib(n); }, [&] {
+  par::cstmt(fib_contr, [&] { return de_moivre(n); }, [&] {
     if (n < 2) {
-      seq();
+      result = n;
     } else {
       long a,b;
       par::fork2([&] {
@@ -56,16 +52,14 @@ long fib_par(long n) {
       });
       result = a+b;
     }
-  }, seq);
+  }, [&] {
+    result = fib_seq(n);
+  });
   return result;
 }
 
 long fib(long n) {
-#ifdef SEQUENTIAL_BASELINE
-  return fib_seq(n);
-#else
   return fib_par(n);
-#endif
 }
 
 /***********************************************************************/
