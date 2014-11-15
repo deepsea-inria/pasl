@@ -97,6 +97,27 @@ benchmark_type fib_bench() {
   return make_benchmark(init, bench, output, destroy);
 }
 
+benchmark_type array_incr_bench() {
+  long n = pasl::util::cmdline::parse_or_default_long("n", 1l<<20);
+  sparray* inp = new sparray(0);
+  sparray* outp = new sparray(0);
+  auto init = [=] {
+    *inp = fill(n, 1);
+  };
+  auto bench = [=] {
+    sparray& in = *inp;
+    *outp = tabulate([&] (long i) { return in[i]+1; }, n);
+  };
+  auto output = [=] {
+    std::cout << "result " << (*outp)[outp->size()-1] << std::endl;
+  };
+  auto destroy = [=] {
+    delete inp;
+    delete outp;
+  };
+  return make_benchmark(init, bench, output, destroy);
+}
+
 benchmark_type duplicate_bench() {
   long n = pasl::util::cmdline::parse_or_default_long("n", 1l<<20);
   sparray* inp = new sparray(0);
@@ -324,6 +345,7 @@ int main(int argc, char** argv) {
   auto init = [&] {
     pasl::util::cmdline::argmap<std::function<benchmark_type()>> m;
     m.add("fib",         [&] { return fib_bench(); });
+    m.add("array_incr",  [&] { return array_incr_bench(); });
     m.add("duplicate",   [&] { return duplicate_bench(); });
     m.add("ktimes",      [&] { return ktimes_bench(); });
     m.add("reduce",      [&] { return reduce_bench(); });
