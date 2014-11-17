@@ -612,7 +612,26 @@ sparray pack(const sparray& flags, const sparray& xs) {
 
 template <class Pred>
 sparray filter(const Pred& p, const sparray& xs) {
+  /*
   return pack(map(p, xs), xs);
+   */
+  long n = xs.size();
+  sparray result = {};
+  if (n == 0)
+    return result;
+  scan_excl_result offsets = scan_excl(plus_fct, p, 0l, xs);
+  value_type m = offsets.total;
+  result = sparray(m);
+  par::parallel_for(pack_contr, 0l, n, [&] (long i) {
+    bool cond = true;
+    if (i + 1 == n)
+      cond = (offsets.partials[i] != offsets.total);
+    else
+      cond = (offsets.partials[i] != offsets.partials[i+1]);
+    if (cond)
+      result[offsets.partials[i]] = xs[i];
+  });
+  return result;
 }
 
 /***********************************************************************/
