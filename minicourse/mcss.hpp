@@ -32,7 +32,7 @@ value_type mcss_seq(const sparray& xs) {
 
 value_type mcss_par(const sparray& xs) {
   sparray ys = prefix_sums_incl(xs);
-  scan_excl_result m = scan(min_fct, 0l, ys);
+  scan_excl_result m = scan_excl(min_fct, 0l, ys);
   sparray zs = tabulate([&] (long i) { return ys[i]-m.partials[i]; }, xs.size());
   return max(zs);
 }

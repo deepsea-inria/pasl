@@ -523,8 +523,7 @@ value_type scan_seq(const Assoc_op& op, const Lift_func& lift, value_type id,
 }
 
 template <class Assoc_op, class Lift_func>
-scan_excl_result scan_rec(const Assoc_op& op, const Lift_func& lift, value_type id, const sparray& xs,
-                     const bool is_excl) {
+scan_excl_result scan_rec(const Assoc_op& op, const Lift_func& lift, value_type id, const sparray& xs, const bool is_excl) {
   const long k = 1024;
   using contr_type = scan_controller_type<Assoc_op,Lift_func>;
   long n = xs.size();
@@ -544,7 +543,7 @@ scan_excl_result scan_rec(const Assoc_op& op, const Lift_func& lift, value_type 
         long hi = std::min(lo + k, n);
         sums[i] = reduce_seq(op, lift, id, xs, lo, hi);
       });
-      scan_excl_result scans = scan_rec(op, lift, id, sums, true);
+      scan_excl_result scans = scan_rec(op, identity_fct, id, sums, true);
       sums = {};
       result.partials = sparray(n);
       par::parallel_for(contr_type::lp2, 0l, m, [&] (long i) {
@@ -572,7 +571,7 @@ sparray scan_incl(const Assoc_op& op, const Lift_func& lift, value_type id, cons
 }
 
 template <class Assoc_op>
-scan_excl_result scan(const Assoc_op& op, value_type id, const sparray& xs) {
+scan_excl_result scan_excl(const Assoc_op& op, value_type id, const sparray& xs) {
   return scan_excl(op, identity_fct, id, xs);
 }
 
@@ -623,12 +622,9 @@ sparray filter(const Pred& p, const sparray& xs) {
   value_type m = offsets.total;
   result = sparray(m);
   par::parallel_for(pack_contr, 0l, n, [&] (long i) {
-    bool cond = true;
-    if (i + 1 == n)
-      cond = (offsets.partials[i] != offsets.total);
-    else
-      cond = (offsets.partials[i] != offsets.partials[i+1]);
-    if (cond)
+    value_type cur  = offsets.partials[i];
+    value_type next = (i + 1 == n) ? offsets.total : offsets.partials[i+1];
+    if ((cur+1) == next)
       result[offsets.partials[i]] = xs[i];
   });
   return result;

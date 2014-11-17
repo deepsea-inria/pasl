@@ -69,7 +69,7 @@ std::string to_parens(const sparray& xs) {
 }
 
 scan_excl_result every_nesting_depth(const_mystring_ref parens) {
-  return scan(plus_fct, 0l, parens);
+  return scan_excl(plus_fct, 0l, parens);
 }
 
 bool is_every_nesting_depth_valid(const sparray& nesting_depths) {
