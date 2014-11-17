@@ -16,6 +16,7 @@
 #include "fib.hpp"
 #include "mcss.hpp"
 #include "numeric.hpp"
+#include "exercises.hpp"
 
 /***********************************************************************/
 

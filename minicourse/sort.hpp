@@ -50,6 +50,11 @@ sparray seqsort(const sparray& xs, long lo, long hi) {
 /*---------------------------------------------------------------------*/
 /* Parallel quicksort */
 
+value_type median(value_type a, value_type b, value_type c) {
+  return  a < b ? (b < c ? b : (a < c ? c : a))
+  : (a < c ? a : (b < c ? c : b));
+}
+
 controller_type quicksort_contr("quicksort");
 
 sparray quicksort(const sparray& xs) {
@@ -59,11 +64,10 @@ sparray quicksort(const sparray& xs) {
     result = seqsort(xs);
   };
   par::cstmt(quicksort_contr, [=] { return nlogn(n); }, [&] {
-    if (n <= 2) {
+    if (n <= 8) {
       seq();
     } else {
-      long m = n/2;
-      value_type p = xs[m];
+      value_type p = median(xs[n/4], xs[n/2], xs[3*n/4]);
       sparray less = filter([&] (value_type x) { return x < p; }, xs);
       sparray equal = filter([&] (value_type x) { return x == p; }, xs);
       sparray greater = filter([&] (value_type x) { return x > p; }, xs);
