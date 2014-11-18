@@ -15,6 +15,7 @@
 #include "atomic.hpp"
 #include "container.hpp"
 #include "native.hpp"
+#include <limits>
 
 /***********************************************************************/
 
@@ -26,9 +27,15 @@ using edgeid_type = size_t;
 template <class Vertex_id>
 class graph_constants {
 public:
-  static constexpr Vertex_id unknown_vtxid = Vertex_id(-1);
+    static constexpr Vertex_id unknown_vtxid = Vertex_id(-1);
 };
-
+    
+template <class Distance_type>
+class shortest_path_constants {
+public:
+    static constexpr Distance_type inf_dist = std::numeric_limits<Distance_type>::max();
+};
+    
 template <class Vertex_id>
 void check_vertex(Vertex_id v, Vertex_id nb_vertices) {
   assert(v >= 0);
