@@ -279,9 +279,10 @@ benchmark_type sort_bench() {
   sparray* inp = new sparray(0);
   sparray* outp = new sparray(0);
   pasl::util::cmdline::argmap<std::function<sparray (sparray&)>> algos;
-  algos.add("quicksort", [] (sparray& xs) { return quicksort(xs); });
-  algos.add("mergesort", [] (sparray& xs) { return mergesort(xs); });
-  algos.add("cilksort", [] (sparray& xs) { return cilksort(xs); });
+  algos.add("quicksort",          [] (sparray& xs) { return quicksort(xs); });
+  algos.add("mergesort",          [] (sparray& xs) { return mergesort(xs); });
+  algos.add("mergesort_seqmerge", [] (sparray& xs) { return mergesort<false>(xs); });
+  algos.add("cilksort",           [] (sparray& xs) { return cilksort(xs); });
   auto sort_fct = algos.find_by_arg("algo");
   auto init = [=] {
     pasl::util::cmdline::argmap_dispatch c;

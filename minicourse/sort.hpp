@@ -8,6 +8,7 @@
  */
 
 #include <cstring>
+#include <cmath>
 
 #include "native.hpp"
 #include "sparray.hpp"
@@ -63,8 +64,8 @@ sparray quicksort(const sparray& xs) {
   auto seq = [&] {
     result = seqsort(xs);
   };
-  par::cstmt(quicksort_contr, [=] { return nlogn(n); }, [&] {
-    if (n <= 8) {
+  par::cstmt(quicksort_contr, [&] { return nlogn(n); }, [&] {
+    if (n <= 4) {
       seq();
     } else {
       value_type p = median(xs[n/4], xs[n/2], xs[3*n/4]);
@@ -171,6 +172,7 @@ sparray merge(const sparray& xs, const sparray& ys) {
 
 controller_type mergesort_contr("mergesort");
 
+template <bool use_parallel_merge>
 void mergesort_rec(sparray& xs, sparray& tmp, long lo, long hi) {
   long n = hi - lo;
   auto seq = [&] {
@@ -181,23 +183,25 @@ void mergesort_rec(sparray& xs, sparray& tmp, long lo, long hi) {
       seq();
       return;
     }
-
     long mid = (lo + hi) / 2;
     par::fork2([&] {
-      mergesort_rec(xs, tmp, lo, mid);
+      mergesort_rec<use_parallel_merge>(xs, tmp, lo, mid);
     }, [&] {
-      mergesort_rec(xs, tmp, mid, hi);
+      mergesort_rec<use_parallel_merge>(xs, tmp, mid, hi);
     });
-
-    merge_par(xs, tmp, lo, mid, hi);
+    if (use_parallel_merge)
+      merge_par(xs, tmp, lo, mid, hi);
+    else
+      merge_seq(xs, tmp, lo, mid, hi);
   }, seq);
 }
 
+template <bool use_parallel_merge=true>
 sparray mergesort(const sparray& xs) {
   long n = xs.size();
   sparray result = copy(xs);
   sparray tmp = sparray(n);
-  mergesort_rec(result, tmp, 0l, n);
+  mergesort_rec<use_parallel_merge>(result, tmp, 0l, n);
   return result;
 }
 
