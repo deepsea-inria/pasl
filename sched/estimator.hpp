@@ -228,7 +228,9 @@ public: //! \todo find a better way to avoid false sharing
   volatile int padding1[64*2];
   cost_t shared_cst;
   perworker::base<cost_t> private_csts;
-  
+  std::atomic<int> estimations;
+  std::atomic<bool> predict_unknown;
+
 protected:
   void update(worker_id_t my_id, cost_t new_cst);
   void analyse(cost_t measured_cst);
@@ -241,7 +243,12 @@ public:
   void destroy();
   void set_init_constant(cost_t init_cst);
   bool init_constant_provided();
+  void set_minimal_estimations_nb(int nb);
+  int get_minimal_estimations_nb_left();
   bool constant_is_known();
+  void set_predict_unknown(bool value);
+  bool can_predict_unknown();
+
 };
   
 } // end namespace

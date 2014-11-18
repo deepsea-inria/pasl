@@ -3,7 +3,6 @@
 #include <cstring>
 #include <math.h>
 #include "sequencedata.hpp"
-#include "sequenceio.hpp"
 #include "io.hpp"
 #include "container.hpp"
 

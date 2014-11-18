@@ -28,9 +28,11 @@ VERBOSE_MAKE=0
 VERBOSE_DEPENDENCIES=0
 
 PROGRAMS=\
+	fib.cpp\
 	mergesort.cpp\
 	nearestneighbors.cpp\
-	mergesort-ns.cpp
+	mergesort-ns.cpp\
+	synthetic.cpp
 
 ####################################################################
 # Makefile options
@@ -63,7 +65,7 @@ COMPILE_OPTIONS_FOR_dbg=$(OPTIONS_DEBUG) -DSTATS -DDEBUG # -DUSE_UCONTEXT  -DLOG
 COMPILE_OPTIONS_FOR_log=$(OPTIONS_O2) -DSTATS -DLOGGING
 COMPILE_OPTIONS_FOR_sta=$(OPTIONS_O2) -DSTATS 
 COMPILE_OPTIONS_FOR_seq=$(OPTIONS_O2) -DSTATS -DSEQUENTIAL_ELISION
-COMPILE_OPTIONS_FOR_opt=$(OPTIONS_O2) -D$(CONTROL_OPT)
+COMPILE_OPTIONS_FOR_opt=$(OPTIONS_O2) -D$(CONTROL_OPT) -D$(LOOP_OPT) -D$(LIB)
 # Folders where to find all the header files and main sources
 
 INCLUDES=. $(SEQUTIL_PATH) $(PARUTIL_PATH) $(SCHED_PATH) $(PBBS_PATH) $(MALLOC_COUNT_PATH) $(GRAPH_PATH)

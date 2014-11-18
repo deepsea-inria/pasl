@@ -233,7 +233,6 @@ void distributed::update(worker_id_t my_id, cost_t new_cst) {
   // store the new constant locally in any case
   private_csts[my_id] = new_cst;
 }
-
 void distributed::analyse(cost_t measured_cst) {
   worker_id_t my_id = util::worker::get_my_id();
   cost_t cst = get_constant();
@@ -245,7 +244,25 @@ void distributed::analyse(cost_t measured_cst) {
     update(my_id,  ((weighted_average_factor * cst) + measured_cst)
            / (weighted_average_factor + 1.0));
   }
+  estimations--;
 }
+
+void distributed::set_minimal_estimations_nb(int nb) {
+  estimations.store(nb);
+}
+
+int distributed::get_minimal_estimations_nb_left() {
+  return estimations.load();
+}
+
+void distributed::set_predict_unknown(bool value) {
+  predict_unknown = value;
+}
+
+bool distributed::can_predict_unknown() {
+  return predict_unknown.load();
+}
+
 
 bool distributed::constant_is_known() {
   return (shared_cst != cost::unknown);
