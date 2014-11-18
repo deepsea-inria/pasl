@@ -72,7 +72,7 @@ long pfib3(long n) {
 void initialization() {
   
   pasl::util::ticks::set_ticks_per_seconds(1000);
-  local_constants.init(undefined);
+  //local_constants.init(undefined);
   //execmode.init(dynidentifier<execmode_type>(Sequential));
   execmode.init(dynidentifier<execmode_type>());
 }

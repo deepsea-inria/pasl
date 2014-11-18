@@ -229,7 +229,10 @@ public: //! \todo find a better way to avoid false sharing
   volatile int padding1[64*2];
   cost_type shared_cst;
   perworker::cell<cost_type> private_csts;
-  
+  std::atomic<int> estimations;
+  std::atomic<bool> predict_unknown;
+
+//>>>>>>> add lazy binary search
 protected:
   void update(cost_type new_cst);
   void analyse(cost_type measured_cst);
@@ -247,7 +250,12 @@ public:
   void output();
   void set_init_constant(cost_type init_cst);
   bool init_constant_provided();
+  void set_minimal_estimations_nb(int nb);
+  int get_minimal_estimations_nb_left();
   bool constant_is_known();
+  void set_predict_unknown(bool value);
+  bool can_predict_unknown();
+
 };
   
 } // end namespace

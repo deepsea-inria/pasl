@@ -5,7 +5,36 @@
 #include "blockradixsort.hpp"
 #include "cmdline.hpp"
 #include "granularity-lite.hpp"
-          
+
+#ifdef CMDLINE
+  typedef control_by_cmdline control_type;
+#elif PREDICTION
+  typedef control_by_prediction control_type;
+#elif CUTOFF_WITH_REPORTING
+  typedef control_by_cutoff_with_reporting control_type;
+#elif CUTOFF_WITHOUT_REPORTING
+  typedef control_by_cutoff_without_reporting control_type;
+#endif
+
+#ifdef BINARY
+  typedef loop_by_eager_binary_splitting<control_type> loop_type;
+#elif BINARY_WITH_SAMPLING
+  typedef loop_control_with_sampling<loop_by_eager_binary_splitting<control_type>> loop_type;
+#elif BINARY_SEARCH
+  typedef loop_by_binary_search_splitting<control_type> loop_type;
+#elif LAZY_BINARY_SEARCH
+  typedef loop_by_lazy_binary_search_splitting<control_type> loop_type;
+#elif BINARY_SEARCH_WITH_SAMPLING
+  typedef loop_control_with_sampling<loop_by_binary_search_splitting<control_type>> loop_type;
+#endif
+
+loop_by_eager_binary_splitting<control_type> cbuild("run");
+//loop_type cbuild("build");
+int build_cutoff_const;
+//loop_by_eager_binary_splitting<control_type> crun("run");
+loop_type crun("run");
+int run_cutoff_const;
+
 using namespace std;
 template <class PT, int KK>
 struct vertex {
@@ -138,6 +167,8 @@ class gTreeNode {
       pasl::sched::native::parallel_for(int(0), nb, [&] (int i) {
         children[i]->applyIndex(pss[i],f);
       });
+
+;
       free(pss);
     }
   }
@@ -196,11 +227,25 @@ class gTreeNode {
       //cout << endl;
       // Give each child its appropriate center and size
       // The centers are offset by size/4 in each of the dimensions
-      pasl::sched::native::parallel_for(int(0), quadrants, [&] (int i) {
+
+#ifdef LITE
+      parallel_for(cbuild, 
+        [&] (int L, int R) {return ((R == quadrants) ? n : offsets[R]) - offsets[L] <= build_cutoff_const;},
+        [&] (int L, int R) {
+        return ((R == quadrants) ? n : offsets[R]) - offsets[L];},
+        int(0), quadrants, [&] (int i) {
         point newcenter = center.offsetPoint(i, size/4.0);
         intT l = ((i == quadrants-1) ? n : offsets[i+1]) - offsets[i];
         children[i] = newTree(S + offsets[i], l, newcenter, size/2.0);
       });
+#elif STANDART
+      pasl::sched::native::parallel_for(
+        int(0), quadrants, [&] (int i) {
+        point newcenter = center.offsetPoint(i, size/4.0);
+        intT l = ((i == quadrants-1) ? n : offsets[i+1]) - offsets[i];
+        children[i] = newTree(S + offsets[i], l, newcenter, size/2.0);
+      });;
+#endif
       
       data = nodeData(center);
       for (int i=0 ; i < quadrants; i++)
@@ -313,6 +358,7 @@ struct kNearestNeighbor {
   void kNearest(vertex *p, vertex** result, int k) {
     kNN nn(p,k);
     nn.nearestNgh(tree);
+;
     for (int i=0; i < k; i++) result[i] = 0;
     for (int i=0; i < k; i++) result[i] = nn[i];
   }
@@ -352,10 +398,31 @@ struct Runner : AbstractRunner {
   }
 
   void run() {
+    std::cerr << "HUI!" << std::endl;
     // find nearest k neighbors for each point
+#ifdef LITE
+#if defined(BINARY_WITH_SAMPLING) || defined(BINARY_SEARCH_WITH_SAMPLING)
+    parallel_for(crun,
+      [&] (int L, int R) {return (R - L) * k * log(n);},
+      int(0), n, [&] (int i) {
+      T.kNearest(vr[i], vr[i]->ngh, k);
+    }, 10);
+#else
+    parallel_for(crun,
+      [&] (int L, int R) {return (R - L) * k * log(n) <= run_cutoff_const;},
+      [&] (int L, int R) {return (R - L) * k * log(n);},
+      int(0), n, [&] (int i) {
+      T.kNearest(vr[i], vr[i]->ngh, k);
+    });
+#endif
+#elif STANDART
     pasl::sched::native::parallel_for1(int(0), n, [&] (int i) {
       T.kNearest(vr[i], vr[i]->ngh, k);
     });
+#endif
+/*    for (int i = 0; i < n; i++) {
+      T.kNearest(vr[i], vr[i]->ngh, k);
+    };*/
   }
 
   void output() {
@@ -385,7 +452,11 @@ vertex<point, maxK>** preparePoints(int n, point* points) {
 }
 
 void initialization() {
-
+  pasl::util::ticks::set_ticks_per_seconds(1000);
+  cbuild.initialize(1);
+  crun.initialize(1, 10);
+;
+  execmode.init(dynidentifier<execmode_type>());
 }
 
 int main(int argc, char** argv) {
@@ -406,6 +477,10 @@ int main(int argc, char** argv) {
         "in-sphere", false);
     bool onSphere = pasl::util::cmdline::parse_or_default_bool(
         "on-sphere", false);
+    build_cutoff_const = pasl::util::cmdline::parse_or_default_int(
+        "build_cutoff", 1000);
+    run_cutoff_const = pasl::util::cmdline::parse_or_default_int(
+        "run_cutoff", 1000);
 
     if (d == 2) {
       if (gen_type.compare("uniform") == 0) {
@@ -429,6 +504,8 @@ int main(int argc, char** argv) {
         exit(-1);
       }
     }
+    std::string running_mode = pasl::util::cmdline::parse_or_default_string(
+          "mode", std::string("by_force_sequential"));std::cout << "Using " << running_mode << " mode" << std::endl;cbuild.set(running_mode);crun.set(running_mode);
   };
 
   auto run = [&] (bool sequential) {

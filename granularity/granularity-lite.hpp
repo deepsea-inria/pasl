@@ -1,5 +1,7 @@
 #include <iostream>  
 #include <math.h>
+#include <vector>
+#include <utility>
 #include <string>
 #include <assert.h>
 #include "ticks.hpp"
@@ -180,12 +182,28 @@ double now () {
 static
 double since(double start) {
   return elapsed(getticks(), (pasl::util::ticks::ticks_t)start);
-}
+}                               
 
 /*---------------------------------------------------------------------*/
 /* Granularity controller */
 
-class control {};
+class control {
+public:
+  bool with_estimator() {
+    return false;
+  }
+};
+
+class control_with_estimator : public control {
+public:
+  virtual estimator_m& get_estimator() = 0;
+  virtual void initialize(double init_cst) = 0;
+  virtual void initialize(double init_cst, int estimations_nb) = 0;
+
+  bool with_estimator() {
+    return true;
+  }
+};
 
 class control_by_force_parallel : public control {
 public:
@@ -209,7 +227,7 @@ public:
 
 };
 
-class control_by_cutoff_with_reporting : public control {
+class control_by_cutoff_with_reporting : public control_with_estimator {
 public:
   estimator_m estimator;
 
@@ -225,13 +243,18 @@ public:
     estimator.set_init_constant(init_cst);
   }
 
+  void initialize(double init_cst, int estimations_nb) {
+    estimator.set_init_constant(init_cst);
+    estimator.set_minimal_estimations_nb(estimations_nb);
+  }
+
   void set(std::string policy_arg) {
     todo();
   }
 
 };
 
-class control_by_prediction : public control {
+class control_by_prediction : public control_with_estimator {
 public:
   estimator_m estimator;
 
@@ -245,12 +268,15 @@ public:
   void initialize(double init_cst) {
     estimator.set_init_constant(init_cst);
   }
+  void initialize(double init_cst, int estimations_nb) {
+    estimator.set_init_constant(init_cst);
+    estimator.set_minimal_estimations_nb(estimations_nb);
+  }
   void set(std::string policy_arg) {
-    todo();
   }
 };
 
-class control_by_cmdline : public control {
+class control_by_cmdline : public control_with_estimator {
 public:
   using policy_type = enum {
     By_force_parallel,
@@ -274,7 +300,7 @@ public:
                                              cbcwor(name), cbcwtr(name), 
                                              cbp(name) {
     estimator.init(name);
-  }
+  } 
 
   // to be called by a callback in the PASL runtime
   void set(std::string policy_arg) {
@@ -296,13 +322,37 @@ public:
     return policy;
   }
 
+  bool with_estimator() {
+    switch (get()) {
+      case By_cutoff_with_reporting:
+        return true;
+      case By_prediction:
+        return true;
+      default:
+        return false;
+    }
+  }
+
   estimator_m& get_estimator() {
-    return estimator;
+    switch (get()) {
+      case By_cutoff_with_reporting:
+        return cbcwtr.get_estimator();
+      case By_prediction:
+        return cbp.get_estimator();
+      default:
+        return estimator;
+    }
   }
 
   void initialize(double init_cst) {
     cbcwtr.get_estimator().set_init_constant(init_cst);
     cbp.get_estimator().set_init_constant(init_cst);
+  }
+
+  void initialize(double init_cst, int estimations_nb) {
+    cbcwtr.get_estimator().set_init_constant(init_cst);
+    cbp.get_estimator().set_init_constant(init_cst);
+    cbp.get_estimator().set_minimal_estimations_nb(estimations_nb);
   }
 };
 
@@ -327,6 +377,7 @@ public:
     bk = x;
     f();
     bk = tmp;
+    " 2 ";
   }
 };
 
@@ -335,7 +386,8 @@ using execmode_type = enum {
   Force_parallel,
   Force_sequential,
   Sequential,
-  Parallel
+  Parallel,
+  Unknown
 };
 
 // `p` configuration of caller; `c` callee
@@ -378,6 +430,38 @@ void cstmt_base_with_reporting(cmeasure_type m, Seq_body_fct& seq_body_fct, esti
   cost_type elapsed = since(start);
   estimator.report(m, elapsed);
 }
+
+template <class Seq_body_fct>
+void cstmt_base_with_reporting_unknown(cmeasure_type m, Seq_body_fct& seq_body_fct, estimator_m& estimator) {
+  cost_type start = now();
+  execmode.mine().block(Unknown, seq_body_fct);
+  cost_type elapsed = since(start);
+  if (!estimator.constant_is_known() || estimator.can_predict_unknown()) {
+//    "Reported"l
+    estimator.report(m, elapsed);
+  }
+}
+
+template <
+  class Control,
+  class Cutoff_fct,
+  class Complexity_measure_fct,
+  class Seq_body_fct
+>
+void cstmt_report(Control& contr,
+           const Cutoff_fct&,
+           const Complexity_measure_fct& complexity_measure_fct,
+           const Seq_body_fct& seq_body_fct) {
+  if (contr.with_estimator()) {
+    estimator_m& estimator = contr.get_estimator();
+    cmeasure_type m = complexity_measure_fct();
+    cstmt_base_with_reporting(m, seq_body_fct, estimator);
+  } else {
+    cstmt_base(Force_sequential, seq_body_fct);
+  }
+}
+
+
 template <
   class Cutoff_fct,
   class Complexity_measure_fct,
@@ -510,11 +594,15 @@ void cstmt(control_by_prediction& contr,
   else if (m == undefined)
     c = Parallel;
   else
-    c = (estimator.predict(m) <= kappa) ? Sequential : Parallel;
-  if (c == Sequential)
+    c = estimator.constant_is_known() ? ((estimator.predict(m) <= kappa) ? Sequential : Parallel) : Unknown;
+  if (c == Sequential) {
     cstmt_base_with_reporting(m, seq_body_fct, estimator);
-  else
+  } else if (c == Unknown) {
+    cstmt_base_with_reporting_unknown(m, par_body_fct, estimator);
+  } else {
+    estimator.set_predict_unknown(false);
     cstmt_base(Parallel, par_body_fct);
+  }
 }
 
 template <
@@ -553,6 +641,7 @@ void cstmt(control_by_cmdline& contr,
            const Complexity_measure_fct& complexity_measure_fct,
            const Par_body_fct& par_body_fct,
            const Seq_body_fct& seq_body_fct) {
+//  std::cerr << "CSTMT: ";
   using cmd = control_by_cmdline;
   switch (contr.get()) {
     case control_by_cmdline::policy_type::By_force_parallel:
@@ -593,7 +682,7 @@ template <class Body_fct1, class Body_fct2>
 void fork2(const Body_fct1& f1, const Body_fct2& f2) {
   execmode_type mode = my_execmode();
   if (mode == Sequential ||  
-      mode == Force_sequential ) {
+      mode == Force_sequential || mode == Unknown) {
     f1();  // sequentialize
     f2();
   } else {
@@ -607,19 +696,82 @@ void fork2(const Body_fct1& f1, const Body_fct2& f2) {
 /* Parallel for */
 
 template <class Granularity_control_policy>
-class loop_by_eager_binary_splitting {
+class loop_control {
 public:
-  Granularity_control_policy gcpolicy;
+  Granularity_control_policy* gcpolicy;
 
-  loop_by_eager_binary_splitting(std::string name = "anonloop"): gcpolicy(name) {}
+  loop_control(std::string name = "anonloop") {
+      gcpolicy = new Granularity_control_policy(name);
+  }
+
+  loop_control(Granularity_control_policy* _gcpolicy) {
+    gcpolicy = _gcpolicy;
+}
 
   void initialize(double init_cst) {
-    gcpolicy.initialize(init_cst);
-  }
-  void set(std::string policy_arg) {
-    gcpolicy.set(policy_arg);
+    gcpolicy->initialize(init_cst);
   }
 
+  void initialize(double init_cst, int estimations_nb) {
+    gcpolicy->initialize(init_cst, estimations_nb);
+  }
+
+  void set(std::string policy_arg) {
+    gcpolicy->set(policy_arg);
+  }
+
+};
+
+template <class Granularity_control_policy>
+class loop_by_eager_binary_splitting : public loop_control<Granularity_control_policy> {
+public:
+  /*loop_by_eager_binary_splitting(std::string name = "anonloop"): loop_control<Granularity_control_policy>(name) {}
+
+  loop_by_eager_binary_splitting(Granularity_control_policy* gcpolicy): loop_control<Granularity_control_policy>(gcpolicy) {}*/
+    using loop_control<Granularity_control_policy>::loop_control;
+
+};
+
+template <class Granularity_control_policy>
+class loop_by_lazy_binary_splitting : public loop_control<Granularity_control_policy> {
+public:
+    using loop_control<Granularity_control_policy>::loop_control;
+};
+
+template <class Granularity_control_policy>
+class loop_by_binary_search_splitting : public loop_control<Granularity_control_policy> {
+public:
+  loop_by_binary_search_splitting(std::string name = "anonloop"): loop_control<Granularity_control_policy>(name) {}
+
+  loop_by_binary_search_splitting(Granularity_control_policy* gcpolicy): loop_control<Granularity_control_policy>(gcpolicy) {}
+};
+
+template <class Granularity_control_policy>
+class loop_by_lazy_binary_search_splitting : public loop_control<Granularity_control_policy> {
+public:
+  loop_by_lazy_binary_search_splitting(std::string name = "anonloop"): loop_control<Granularity_control_policy>(name) {}
+
+  loop_by_lazy_binary_search_splitting(Granularity_control_policy* gcpolicy): loop_control<Granularity_control_policy>(gcpolicy) {}
+};
+
+template <class Loop_control>
+class loop_control_with_sampling {
+public:
+  Loop_control lcontrol;
+
+  loop_control_with_sampling(std::string name = "anonloop"): lcontrol(name) {}
+
+  void initialize(double init_cst) {
+    lcontrol->initialize(init_cst);
+  }
+
+  void initialize(double init_cst, int estimations_nb) {
+    lcontrol->initialize(init_cst, estimations_nb);
+  }
+
+void set(std::string policy_arg) {
+    lcontrol->set(policy_arg);
+  }
 };
 
 template <
@@ -637,8 +789,9 @@ void parallel_for(loop_by_eager_binary_splitting<Granularity_control_policy>& lp
     for (Number i = lo; i < hi; i++)
       body(i);
   };
-  if (hi - lo < 2) {
-    seq_fct();
+  if (hi - lo < 2) {                                  
+    cstmt(*lpalgo.gcpolicy, [&] { return true; }, [&] {return loop_compl_fct(lo, hi);}, 
+      seq_fct, seq_fct);
   } else {
     auto cutoff_fct = [&] {
       return loop_cutoff_fct(lo, hi);
@@ -646,8 +799,9 @@ void parallel_for(loop_by_eager_binary_splitting<Granularity_control_policy>& lp
     auto compl_fct = [&] {
       return loop_compl_fct(lo, hi);
     };
+
     Number mid = (lo + hi) / 2;
-    cstmt(lpalgo.gcpolicy, cutoff_fct, compl_fct, 
+    cstmt(*lpalgo.gcpolicy, cutoff_fct, compl_fct, 
           [&]{fork2(
             [&] {parallel_for(lpalgo, loop_cutoff_fct, loop_compl_fct, lo, mid, body);},
             [&] {parallel_for(lpalgo, loop_cutoff_fct, loop_compl_fct, mid, hi, body);}
@@ -687,3 +841,360 @@ void parallel_for(loop_by_eager_binary_splitting<control_by_prediction>& lpalgo,
 
   parallel_for(lpalgo, loop_cutoff_fct, loop_compl_fct, lo, hi, body);
 }
+
+template<
+  class Granularity_control_policy,
+  class Loop_cutoff_fct,
+  class Loop_complexity_measure_fct,
+  class Number
+>
+Number binary_search_estimated(Granularity_control_policy& gcpolicy,
+                  const Loop_cutoff_fct& loop_cutoff_fct,
+                  const Loop_complexity_measure_fct& loop_compl_fct,
+                  Number lo, Number hi) {
+    Number l = lo + 1;
+
+    if (gcpolicy.with_estimator()) {
+      estimator_m& estimator = gcpolicy.get_estimator();
+
+      if (estimator.constant_is_known()) {	
+        Number r = hi + 1;
+        while (l < r - 1) {
+          Number mid = (l + r) / 2;
+          if (estimator.predict(loop_compl_fct(lo, mid)) <= kappa) {
+            l = mid;
+          } else {
+            r = mid;
+          }
+        }
+      }
+    } else {
+      Number r = hi;
+      while (l < r - 1) {
+        Number mid = (l + r) / 2;
+        if (loop_cutoff_fct(lo, mid)) {
+          l = mid;
+        } else {
+          r = mid;
+        }
+      }
+    }
+
+  return l;
+}
+
+template <
+  class Granularity_control_policy,
+  class Loop_cutoff_fct,
+  class Loop_complexity_measure_fct,
+  class Number,
+  class Body
+>
+void parallel_for_binary_search(loop_by_binary_search_splitting<Granularity_control_policy>& lpalgo,
+                  const Loop_cutoff_fct& loop_cutoff_fct,
+                  const Loop_complexity_measure_fct& loop_compl_fct,
+                  Number lo, Number hi, const Body& body) {
+  auto seq_fct = [&] {
+    for (Number i = lo; i < hi; i++)
+      body(i);
+  };
+  if (hi - lo < 2 || (!lpalgo.gcpolicy->with_estimator() && loop_cutoff_fct(lo, hi))) {
+    cstmt(*lpalgo.gcpolicy, [&] { return true; }, [&] {return loop_compl_fct(lo, hi);}, 
+      seq_fct, seq_fct);
+  } else {
+    auto cutoff_fct = [&] {
+      return loop_cutoff_fct(lo, hi);
+    };
+    auto compl_fct = [&] {
+      return loop_compl_fct(lo, hi);
+    };
+
+    Number l = binary_search_estimated(*lpalgo.gcpolicy, loop_cutoff_fct, loop_compl_fct, lo, hi);
+
+    auto inner_seq_fct = [&] {
+      for (Number i = lo; i < l; i++)
+        body(i);
+    };
+
+    if (l != hi) {
+     cstmt(*lpalgo.gcpolicy, cutoff_fct, compl_fct, 
+       [&]{fork2(
+          [&] {cstmt(*lpalgo.gcpolicy, [&] { return true; }, [&] {return loop_compl_fct(lo, l);}, inner_seq_fct, inner_seq_fct);},
+          [&] {parallel_for_binary_search(lpalgo, loop_cutoff_fct, loop_compl_fct, l, hi, body);}
+        );},
+        seq_fct
+      );
+    } else {
+      cstmt(*lpalgo.gcpolicy, [&] { return true; }, [&] {return loop_compl_fct(lo, l);}, inner_seq_fct, inner_seq_fct);
+    }
+  }
+}
+
+template <
+  class Granularity_control_policy,
+  class Loop_cutoff_fct,
+  class Loop_complexity_measure_fct,
+  class Number,
+  class Body
+>
+void parallel_for(loop_by_binary_search_splitting<Granularity_control_policy>& lpalgo,
+                  const Loop_cutoff_fct& loop_cutoff_fct,
+                  const Loop_complexity_measure_fct& loop_compl_fct,
+                  Number lo, Number hi, const Body& body) {
+  parallel_for_binary_search(lpalgo, loop_cutoff_fct, loop_compl_fct, lo, hi, body);
+}
+
+template <
+  class Loop_cutoff_fct,
+  class Loop_compl_fct,
+  class Number,
+  class Body
+>
+void parallel_for(loop_by_binary_search_splitting<control_by_prediction>& lpalgo,
+                  const Loop_cutoff_fct& loop_cutoff_fct,
+                  const Loop_compl_fct& loop_compl_fct,
+                  Number lo, Number hi, const Body& body) {
+  estimator_m& estimator = lpalgo.gcpolicy->get_estimator();
+  auto loop_cutoff_new = [&] (Number l, Number r) {
+    return estimator.predict(loop_compl_fct(l, r)) <= kappa;
+  };
+
+  parallel_for_binary_search(lpalgo, loop_cutoff_new, loop_compl_fct, lo, hi, body);
+}
+
+template <
+  class Loop_control,
+  class Loop_cutoff_fct,
+  class Loop_complexity_measure_fct,
+  class Number,
+  class Body
+>
+void parallel_for(loop_control_with_sampling<Loop_control>& lpalgo,
+                  const Loop_cutoff_fct& loop_cutoff_fct,
+                  const Loop_complexity_measure_fct& loop_compl_fct,
+                  Number lo, Number hi, const Body& body) {
+  parallel_for(lpalgo.loop_control, loop_cutoff_fct, loop_compl_fct, lo, hi, body);
+}
+
+template <
+  class Loop_control,
+  class Loop_cutoff_fct,
+  class Number,
+  class Body
+>
+void parallel_for(loop_control_with_sampling<Loop_control>& lpalgo,
+                  const Loop_cutoff_fct& loop_cutoff_fct,
+                  Number lo, Number hi, const Body& body) {
+  parallel_for(lpalgo.loop_control, loop_cutoff_fct, lo, hi, body);
+}
+
+template <
+  class Loop_control,
+  class Loop_complexity_measure_fct,
+  class Number,
+  class Body
+>
+void parallel_for(loop_control_with_sampling<Loop_control>& lpalgo,
+                  const Loop_complexity_measure_fct& loop_compl_fct,
+                  Number lo, Number hi, const Body& body, int sample_number) {
+  auto loop_cutoff_fct = [] (Number lo, Number hi) {
+    todo();
+    return false;
+  };
+
+  estimator_m& estimator = lpalgo.loop_control.gcpolicy.get_estimator();
+
+  for (int i = lo; i < std::min(lo + sample_number, hi); i++) {
+    cmeasure_type m = loop_compl_fct(i, i + 1);
+    auto iter_fct = [&] { body(i); };
+    cstmt_base_with_reporting(m, iter_fct, estimator);
+  }
+
+  if (lo + sample_number < hi)
+    parallel_for(lpalgo.loop_control, loop_cutoff_fct, loop_compl_fct, lo + sample_number, hi, body);
+} 
+
+//Parallel for lazy binary search splitting with control_by_cmdline
+template <
+ class Granularity_control_policy,
+  class Loop_cutoff_fct,
+  class Loop_complexity_measure_fct,
+  class Number,
+  class Body
+>
+void parallel_for_lazy_binary_search(loop_by_lazy_binary_search_splitting<Granularity_control_policy>& lpalgo,
+                  const Loop_cutoff_fct& loop_cutoff_fct,
+                  const Loop_complexity_measure_fct& loop_compl_fct,
+                  std::vector<std::pair<Number, Number>>& split_positions, const Body& body) {
+  std::pair<Number, Number> split = split_positions.back();
+  split_positions.pop_back();
+
+//  std::cerr << "Range: " << split.first << " " << split.second << " " << split_positions.size() << std::endl;
+
+  auto inner_seq_fct = [&] {
+    for (Number i = split.first; i < split.second; i++)
+      body(i);
+  };
+
+  if (split_positions.size() != 0) {
+    fork2(
+      [&] {cstmt(*lpalgo.gcpolicy, [&] { return true; }, [&] {return loop_compl_fct(split.first, split.second);}, inner_seq_fct, inner_seq_fct);},
+      [&] {parallel_for_lazy_binary_search(lpalgo, loop_cutoff_fct, loop_compl_fct, split_positions, body);}
+    );
+  } else {
+    cstmt(*lpalgo.gcpolicy, [&] { return true; }, [&] {return loop_compl_fct(split.first, split.second);}, inner_seq_fct, inner_seq_fct);
+  }
+}
+
+template <
+ class Granularity_control_policy,
+  class Loop_cutoff_fct,
+  class Loop_complexity_measure_fct,
+  class Number,
+  class Body
+>
+void parallel_for_lazy_binary_search_bs(loop_by_lazy_binary_search_splitting<Granularity_control_policy>& lpalgo,
+                  const Loop_cutoff_fct& loop_cutoff_fct,
+                  const Loop_complexity_measure_fct& loop_compl_fct,
+                  std::vector<std::pair<Number, Number>>& split_positions, Number l, Number h, const Body& body) {
+  if (l != h - 1) {
+//    cstmt(*lpalgo.gcpolicy, [&] { return true; }, [&] {return loop_compl_fct(split_positions[l].first, split_positions[h - 1].second);},
+//      [&] {
+        fork2(
+          [&] {parallel_for_lazy_binary_search_bs(lpalgo, loop_cutoff_fct, loop_compl_fct, split_positions, l, (l + h) / 2, body);},
+          [&] {parallel_for_lazy_binary_search_bs(lpalgo, loop_cutoff_fct, loop_compl_fct, split_positions, (l + h) / 2, h, body);}
+        );
+//      },
+//      [&] {
+//        for (Number i = split_positions[l].first; i < split_positions[h - 1].second; i++)
+//          body(i);
+//      }
+//    );
+  } else {
+    auto inner_seq_fct = [&] {
+      for (Number i = split_positions[l].first; i < split_positions[l].second; i++)
+        body(i);
+    };
+
+    cstmt(*lpalgo.gcpolicy, [&] { return true; }, [&] {return loop_compl_fct(split_positions[l].first, split_positions[l].second);}, inner_seq_fct, inner_seq_fct);
+  }
+}
+
+
+template <
+  class Granularity_control_policy,
+  class Loop_cutoff_fct,
+  class Loop_complexity_measure_fct,
+  class Number,
+  class Body
+>
+void parallel_for(loop_by_lazy_binary_search_splitting<Granularity_control_policy>& lpalgo,
+                  const Loop_cutoff_fct& loop_cutoff_fct,
+                  const Loop_complexity_measure_fct& loop_compl_fct,
+                  Number lo, Number hi, const Body& body) {
+
+  estimator_m& estimator = lpalgo.gcpolicy->get_estimator();
+
+  int k = 0;
+  int x = estimator.get_minimal_estimations_nb_left();
+  while (x > 0) {
+    x >>= 1;
+    k++;
+  }
+
+  auto cutoff_fct = [&] {
+    return loop_cutoff_fct(lo, hi);
+  };
+  auto compl_fct = [&] {
+    return loop_compl_fct(lo, hi);
+  };
+
+  if (k != 0) {
+    k = (1 << k);
+    loop_by_eager_binary_splitting<Granularity_control_policy> lpa(lpalgo.gcpolicy); 
+
+    parallel_for(lpa,
+      loop_cutoff_fct, loop_compl_fct, lo, std::min(hi, lo + k), body);
+
+//    std::cerr << k << " " << estimator.get_minimal_estimations_nb_left() << std::endl;
+
+    if (lo + k >= hi) {
+      return;
+    }
+
+    lo += k;
+  }
+
+  std::vector<std::pair<Number, Number> > split_positions;
+
+  Number l = lo;
+  while (l < hi) {
+    Number p = l;
+    l = binary_search_estimated(*lpalgo.gcpolicy, loop_cutoff_fct, loop_compl_fct, p, hi);
+
+    split_positions.push_back(std::make_pair(p, l));
+  }
+
+  parallel_for_lazy_binary_search_bs(lpalgo, loop_cutoff_fct, loop_compl_fct, split_positions, 0, (Number)split_positions.size(), body);
+}
+
+//Parallel for by lazy binary splitt 
+
+template <
+  class Granularity_control_policy,
+  class Loop_cutoff_fct,
+  class Loop_complexity_measure_fct,
+  class Number,
+  class Body
+>
+void parallel_for(loop_by_lazy_binary_splitting<Granularity_control_policy>& lpalgo,
+                  const Loop_cutoff_fct& loop_cutoff_fct,
+                  const Loop_complexity_measure_fct& loop_compl_fct,
+                  Number lo, Number hi, const Body& body) {
+  auto seq_fct = [&] {
+    for (Number i = lo; i < hi; i++)
+      body(i);
+  };
+  if (hi - lo < 2
+     || (!lpalgo.gcpolicy->with_estimator() && loop_cutoff_fct(lo, hi))
+     || (lpalgo.gcpolicy->with_estimator() && lpalgo.gcpolicy->get_estimator().predict(loop_compl_fct(lo, hi)) <= kappa)) {
+    cstmt(*lpalgo.gcpolicy, [&] { return true; }, [&] {loop_compl_fct(lo, hi);}, 
+      [&] {
+        for (Number i = lo; i < hi; i++)
+          body(i);
+      }
+
+    );
+  } else {
+    auto cutoff_fct = [&] {
+      return loop_cutoff_fct(lo, hi);
+    };
+    auto compl_fct = [&] {
+      return loop_compl_fct(lo, hi);
+    };
+
+    Number l = binary_search_estimated(*lpalgo.gcpolicy, loop_cutoff_fct, loop_compl_fct, lo, hi);
+    auto seq_fct1 = [&] {
+      for (Number i = lo; i < l; i++)
+        body(i);
+    };
+
+    cstmt(*lpalgo.gcpolicy, cutoff_fct, compl_fct, seq_fct1, seq_fct1);
+
+    auto seq_fct2 = [&] {
+      for (Number i = l; i < hi; i++)
+        body(i);
+    };
+
+    Number mid = (l + hi) / 2;
+    cstmt(*lpalgo.gcpolicy, cutoff_fct, compl_fct, 
+          [&]{fork2(
+            [&] {parallel_for(lpalgo, loop_cutoff_fct, loop_compl_fct, l, mid, body);},
+            [&] {parallel_for(lpalgo, loop_cutoff_fct, loop_compl_fct, mid, hi, body);}
+          );},
+          seq_fct2
+    );
+  }
+}
+  
+  
