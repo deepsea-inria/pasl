@@ -119,7 +119,7 @@ benchmark_type map_incr_bench() {
   return make_benchmark(init, bench, output, destroy);
 }
 
-benchmark_type duplicate_bench() {
+benchmark_type duplicate_bench(bool ex = false) {
   long n = pasl::util::cmdline::parse_or_default_long("n", 1l<<20);
   sparray* inp = new sparray(0);
   sparray* outp = new sparray(0);
@@ -127,7 +127,7 @@ benchmark_type duplicate_bench() {
     *inp = fill(n, 1);
   };
   auto bench = [=] {
-    *outp = duplicate(*inp);
+    *outp = (ex) ? exercises::duplicate(*inp) : duplicate(*inp);
   };
   auto output = [=] {
     std::cout << "result " << (*outp)[outp->size()-1] << std::endl;
@@ -139,7 +139,7 @@ benchmark_type duplicate_bench() {
   return make_benchmark(init, bench, output, destroy);
 }
 
-benchmark_type ktimes_bench() {
+benchmark_type ktimes_bench(bool ex = false) {
   long n = pasl::util::cmdline::parse_or_default_long("n", 1l<<20);
   long k = pasl::util::cmdline::parse_or_default_long("k", 4);
   sparray* inp = new sparray(0);
@@ -148,7 +148,7 @@ benchmark_type ktimes_bench() {
     *inp = fill(n, 1);
   };
   auto bench = [=] {
-    *outp = ktimes(*inp, k);
+    *outp = (ex) ? exercises::ktimes(*inp, k) : ktimes(*inp, k);
   };
   auto output = [=] {
     std::cout << "result " << (*outp)[outp->size()-1] << std::endl;
@@ -160,7 +160,9 @@ benchmark_type ktimes_bench() {
   return make_benchmark(init, bench, output, destroy);
 }
 
-benchmark_type reduce_bench() {
+using reduce_bench_type = enum { reduce_normal, reduce_max_ex, reduce_plus_ex };
+
+benchmark_type reduce_bench(reduce_bench_type t = reduce_normal) {
   long n = pasl::util::cmdline::parse_or_default_long("n", 1l<<20);
   sparray* inp = new sparray(0);
   value_type* result = new value_type;
@@ -168,7 +170,12 @@ benchmark_type reduce_bench() {
     *inp = fill(n, 1);
   };
   auto bench = [=] {
-    *result = sum(*inp);
+    if (t == reduce_normal)
+      *result = sum(*inp);
+    else if (t == reduce_max_ex)
+      *result = exercises::max(&(*inp)[0]);
+    else if (t == reduce_plus_ex)
+      *result = exercises::plus(&(*inp)[0]);
   };
   auto output = [=] {
     std::cout << "result " << *result << std::endl;
@@ -283,7 +290,8 @@ benchmark_type sort_bench() {
   algos.add("mergesort",          [] (sparray& xs) { return mergesort(xs); });
   algos.add("mergesort_seqmerge", [] (sparray& xs) { return mergesort<false>(xs); });
   algos.add("cilksort",           [] (sparray& xs) { return cilksort(xs); });
-  auto sort_fct = algos.find_by_arg("algo");
+  algos.add("mergesort_ex",       [] (sparray& xs) { return mergesort_ex(xs); });
+  auto sort_fct = algos.find_by_arg("bench");
   auto init = [=] {
     pasl::util::cmdline::argmap_dispatch c;
     c.add("random", [=] {
@@ -346,17 +354,27 @@ int main(int argc, char** argv) {
   
   auto init = [&] {
     pasl::util::cmdline::argmap<std::function<benchmark_type()>> m;
-    m.add("fib",         [&] { return fib_bench(); });
-    m.add("map_incr",    [&] { return map_incr_bench(); });
-    m.add("duplicate",   [&] { return duplicate_bench(); });
-    m.add("ktimes",      [&] { return ktimes_bench(); });
-    m.add("reduce",      [&] { return reduce_bench(); });
-    m.add("scan",        [&] { return scan_bench(); });
-    m.add("mcss",        [&] { return mcss_bench(); });
-    m.add("dmdvmult",    [&] { return dmdvmult_bench(); });
-    m.add("merge",       [&] { return merge_bench(); });
-    m.add("sort",        [&] { return sort_bench(); });
-    m.add("graph",       [&] { return graph_bench(); });
+    m.add("fib",                  [&] { return fib_bench(); });
+    m.add("map_incr",             [&] { return map_incr_bench(); });
+    m.add("reduce",               [&] { return reduce_bench(); });
+    m.add("scan",                 [&] { return scan_bench(); });
+    m.add("mcss",                 [&] { return mcss_bench(); });
+    m.add("dmdvmult",             [&] { return dmdvmult_bench(); });
+    m.add("merge",                [&] { return merge_bench(); });
+    m.add("quicksort",            [&] { return sort_bench(); });
+    m.add("mergesort",            [&] { return sort_bench(); });
+    m.add("mergesort_seqmerge",   [&] { return sort_bench(); });
+    m.add("cilksort",             [&] { return sort_bench(); });
+    m.add("graph",                [&] { return graph_bench(); });
+    m.add("duplicate",            [&] { return duplicate_bench(); });
+    m.add("ktimes",               [&] { return ktimes_bench(); });
+    
+    m.add("duplicate_ex",         [&] { return duplicate_bench(true); });
+    m.add("ktimes_ex",            [&] { return ktimes_bench(true); });
+    m.add("sum_ex",               [&] { return reduce_bench(reduce_plus_ex); });
+    m.add("max_ex",               [&] { return reduce_bench(reduce_max_ex); });
+    m.add("mergesort_ex",         [&] { return sort_bench(); });
+    
     bench = m.find_by_arg("bench")();
     bench_init(bench);
   };
