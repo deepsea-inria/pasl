@@ -98,7 +98,7 @@ benchmark_type fib_bench() {
   return make_benchmark(init, bench, output, destroy);
 }
 
-benchmark_type map_incr_bench() {
+benchmark_type map_incr_bench(bool student_soln = false) {
   long n = pasl::util::cmdline::parse_or_default_long("n", 1l<<20);
   sparray* inp = new sparray(0);
   sparray* outp = new sparray(0);
@@ -107,7 +107,12 @@ benchmark_type map_incr_bench() {
   };
   auto bench = [=] {
     sparray& in = *inp;
-    *outp = map([&] (value_type x) { return x+1; }, in);
+    if (student_soln) {
+      *outp = sparray(in.size());
+      exercises::map_incr(&in[0], &(*outp)[0]);
+    } else {
+      *outp = map([&] (value_type x) { return x+1; }, in);
+    }
   };
   auto output = [=] {
     std::cout << "result " << (*outp)[outp->size()-1] << std::endl;
@@ -160,7 +165,7 @@ benchmark_type ktimes_bench(bool ex = false) {
   return make_benchmark(init, bench, output, destroy);
 }
 
-using reduce_bench_type = enum { reduce_normal, reduce_max_ex, reduce_plus_ex };
+using reduce_bench_type = enum { reduce_normal, reduce_max_ex, reduce_plus_ex, reduce_ex };
 
 benchmark_type reduce_bench(reduce_bench_type t = reduce_normal) {
   long n = pasl::util::cmdline::parse_or_default_long("n", 1l<<20);
@@ -176,6 +181,8 @@ benchmark_type reduce_bench(reduce_bench_type t = reduce_normal) {
       *result = exercises::max(&(*inp)[0]);
     else if (t == reduce_plus_ex)
       *result = exercises::plus(&(*inp)[0]);
+    else if (t == reduce_ex)
+      *result = exercises::reduce(plus_fct, 0l, &(*inp)[0]);
   };
   auto output = [=] {
     std::cout << "result " << *result << std::endl;
@@ -369,10 +376,13 @@ int main(int argc, char** argv) {
     m.add("duplicate",            [&] { return duplicate_bench(); });
     m.add("ktimes",               [&] { return ktimes_bench(); });
     
-    m.add("duplicate_ex",         [&] { return duplicate_bench(true); });
-    m.add("ktimes_ex",            [&] { return ktimes_bench(true); });
+
+    m.add("map_incr_ex",          [&] { return map_incr_bench(true); });
     m.add("sum_ex",               [&] { return reduce_bench(reduce_plus_ex); });
     m.add("max_ex",               [&] { return reduce_bench(reduce_max_ex); });
+    m.add("reduce_ex",            [&] { return reduce_bench(reduce_ex); });
+    m.add("duplicate_ex",         [&] { return duplicate_bench(true); });
+    m.add("ktimes_ex",            [&] { return ktimes_bench(true); });
     m.add("mergesort_ex",         [&] { return sort_bench(); });
     
     bench = m.find_by_arg("bench")();

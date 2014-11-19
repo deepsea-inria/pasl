@@ -273,6 +273,22 @@ void check_graph() {
 /*---------------------------------------------------------------------*/
 /* Unit tests for student exercises */
 
+class map_incr_ex_correct : public quickcheck::Property<std::vector<value_type>> {
+public:
+  
+  bool holdsFor(const std::vector<value_type>& vec) {
+    sparray xs = sparray_of_vector(vec);
+    sparray dest = sparray(xs.size());
+    exercises::map_incr(&xs[0], &dest[0]);
+    return same_sparray(dest, map(plus1_fct, xs));
+  }
+  
+};
+
+void check_map_incr_ex() {
+  checkit<map_incr_ex_correct>("solution to map_incr exercise is correct");
+}
+
 class max_ex_correct : public quickcheck::Property<std::vector<value_type>> {
 public:
   
@@ -299,6 +315,20 @@ public:
 
 void check_plus_ex() {
   checkit<plus_ex_correct>("solution to plus exercise is correct");
+}
+
+class reduce_ex_correct : public quickcheck::Property<std::vector<value_type>> {
+public:
+  
+  bool holdsFor(const std::vector<value_type>& vec) {
+    sparray xs = sparray_of_vector(vec);
+    return exercises::reduce(plus_fct, 0l, &xs[0]) == sum(xs);
+  }
+  
+};
+
+void check_reduce_ex() {
+  checkit<reduce_ex_correct>("solution to plus exercise is correct");
 }
 
 class duplicate_correct : public quickcheck::Property<std::vector<value_type>> {
@@ -384,6 +414,7 @@ void check() {
     checkit<property_type>("quicksort is correct");
   });
   c.add("graph", std::bind(check_graph));
+  c.add("map_incr_ex", std::bind(check_map_incr_ex));
   c.add("max_ex", std::bind(check_max_ex));
   c.add("plus_ex", std::bind(check_plus_ex));
   c.add("duplicate_ex", std::bind(check_duplicate));

@@ -19,6 +19,10 @@
 
 namespace exercises {
   
+void map_incr(const value_type* source, value_type* dest) {
+  // todo: fill in
+}
+  
 value_type max(value_type* source, value_type seed) {
   return seed; // todo: fill in
 }
@@ -33,6 +37,11 @@ value_type plus(value_type* source, value_type seed) {
   
 value_type plus(value_type* source) {
   return plus(source, 0l);
+}
+  
+template <class Assoc_comb_op>
+value_type reduce(Assoc_comb_op op, value_type seed, const value_type* source) {
+  return seed; // todo fill in
 }
 
 sparray duplicate(const sparray& xs) {
