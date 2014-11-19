@@ -311,7 +311,10 @@ loop_controller_type edge_map_contr("edge_map");
 template <class Update, class Cond>
 sparray edge_map(const Update& update, const Cond& cond,
                const_adjlist_ref graph, const sparray& in_frontier, long dist) {
-  scan_excl_result offsets = prefix_sums_excl(get_out_degrees_of(graph, in_frontier));
+  /*
+  scan_excl_result offsets = prefix_sums_excl(get_out_degrees_of(graph, in_frontier)); */
+  auto get_outdegree_fct = [&] (vtxid_type v) { return graph.get_out_degree_of(v); };
+  scan_excl_result offsets = scan_excl(plus_fct, get_outdegree_fct, 0l, in_frontier);
   long m = in_frontier.size();
   long n = offsets.total;
   auto weight = [&] (long lo, long hi) {
