@@ -28,7 +28,7 @@ value_type max(value_type* source, value_type seed) {
 }
   
 value_type max(value_type* source) {
-  return max(source, LONG_MIN);
+  return max(source, VALUE_MIN);
 }
   
 value_type plus(value_type* source, value_type seed) {
@@ -36,7 +36,7 @@ value_type plus(value_type* source, value_type seed) {
 }
   
 value_type plus(value_type* source) {
-  return plus(source, 0l);
+  return plus(source, (value_type)0);
 }
   
 template <class Assoc_comb_op>

@@ -42,7 +42,17 @@ using controller_type = par::control_by_prediction;
 #endif
 using loop_controller_type = par::loop_by_eager_binary_splitting<controller_type>;
 
+#ifdef VALUE_32_BITS
+using value_type = int;
+#define VALUE_MIN INT_MIN
+#define VALUE_MAX INT_MAX
+#define VALUE_NB_BITS 32
+#else
 using value_type = long;
+#define VALUE_MIN LONG_MIN
+#define VALUE_MAX LONG_MAX
+#define VALUE_NB_BITS 64
+#endif
 
 /*---------------------------------------------------------------------*/
 
@@ -443,11 +453,11 @@ value_type sum(const sparray& xs) {
 }
 
 value_type max(const sparray& xs) {
-  return reduce(max_fct, LONG_MIN, xs);
+  return reduce(max_fct, VALUE_MIN, xs);
 }
 
 value_type min(const sparray& xs) {
-  return reduce(min_fct, LONG_MAX, xs);
+  return reduce(min_fct, VALUE_MAX, xs);
 }
 
 template <class Assoc_op, class Lift_func>

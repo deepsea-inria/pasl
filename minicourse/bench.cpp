@@ -26,7 +26,7 @@ loop_controller_type almost_sorted_sparray_contr("almost_sorted_sparray");
 sparray almost_sorted_sparray(long s, long n, long nb_swaps) {
   sparray tmp = sparray(n);
   par::parallel_for(almost_sorted_sparray_contr, 0l, n, [&] (long i) {
-    tmp[i] = i;
+    tmp[i] = (value_type)i;
   });
   for (long i = 0; i < nb_swaps; i++)
     std::swap(tmp[random_index(2*i, n)], tmp[random_index(2*i+1, n)]);
@@ -41,7 +41,7 @@ sparray exp_dist_sparray(long s, long n) {
   int lg = log2_up(n)+1;
   par::parallel_for(exp_dist_sparray_contr, 0l, n, [&] (long i) {
     long range = (1 << (random_index(2*(i+s), lg)));
-    tmp[i] = hash64shift((long)(range+random_index(2*(i+s), range)));
+    tmp[i] = (value_type)hash64shift((long)(range+random_index(2*(i+s), range)));
   });
   return tmp;
 }
@@ -82,7 +82,7 @@ void bench_destroy(const benchmark_type& b) {
 
 benchmark_type fib_bench() {
   long n = pasl::util::cmdline::parse_or_default_long("n", 38);
-  value_type* result = new value_type;
+  long* result = new long;
   auto init = [=] {
 
   };
@@ -330,7 +330,7 @@ benchmark_type graph_bench() {
   adjlist* graphp = new adjlist;
   sparray* distsp = new sparray;
   std::string fname = pasl::util::cmdline::parse_or_default_string("fname", "");
-  vtxid_type source = pasl::util::cmdline::parse_or_default_long("source", 0l);
+  vtxid_type source = pasl::util::cmdline::parse_or_default_long("source", (value_type)0);
   if (fname == "")
     pasl::util::atomic::fatal([] { std::cerr << "missing filename for graph: -fname filename"; });
   auto init = [=] {

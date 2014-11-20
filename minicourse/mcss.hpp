@@ -20,7 +20,7 @@
 
 value_type mcss_seq(const sparray& xs) {
   if (xs.size() == 0)
-    return LONG_MIN;
+    return VALUE_MIN;
   value_type max_so_far = xs[0];
   value_type curr_max = xs[0];
   for (long i = 1; i < xs.size(); i++) {

@@ -83,7 +83,7 @@ private:
   vtxid_type* start_edgelists;
   
   void check(vtxid_type v) const {
-    assert(v >= 0l);
+    assert(v >= (vtxid_type)0);
     assert(v < nb_offsets-1);
   }
   
@@ -171,7 +171,7 @@ public:
   
   long get_out_degree_of(vtxid_type v) const {
     check(v);
-    return start_offsets[v+1] - start_offsets[v];
+    return (long)(start_offsets[v+1] - start_offsets[v]);
   }
   
   neighbor_list get_neighbors_of(vtxid_type v) const {
@@ -189,7 +189,10 @@ public:
     in.read((char*)header, sizeof(header));
     graph_type = header[0];
     nbbits = int(header[1]);
-    assert(nbbits == 64);
+    assert(nbbits == VALUE_NB_BITS);
+    if (nbbits != VALUE_NB_BITS)
+      pasl::util::atomic::fatal([&] { std::cerr << "Bogus graph file: given " <<
+        nbbits << " but expected " << VALUE_NB_BITS << " bits" << std::endl; });
     nb_vertices = long(header[2]);
     nb_offsets = nb_vertices + 1;
     nb_edges = long(header[3]);
@@ -213,7 +216,7 @@ public:
 std::ostream& output_directed_dot(std::ostream& out, const adjlist& graph) {
   out << "digraph {\n";
   for (long i = 0; i < graph.get_nb_vertices(); ++i) {
-    for (vtxid_type j = 0; j < graph.get_out_degree_of(i); j++) {
+    for (long j = 0; j < graph.get_out_degree_of(i); j++) {
       neighbor_list neighbors = graph.get_neighbors_of(i);
       out << i << " -> " << neighbors[j] << ";\n";
     }
@@ -233,7 +236,7 @@ using const_adjlist_ref = const adjlist&;
 /* Sequential BFS */
 
 using distance_type = value_type;
-const distance_type dist_unknown = -1l;
+const distance_type dist_unknown = (distance_type)-1l;
 
 sparray bfs_seq(const_adjlist_ref graph, vtxid_type source) {
   long nb_vertices = graph.get_nb_vertices();
