@@ -191,11 +191,13 @@ static void destroy_messagestrategy() {
 void init() {
   int nb_workers = init_general_purpose();
   init_basic(nb_workers);
+#ifndef USE_CILK_RUNTIME
+  init_scheduler();
+#endif
+  util::callback::init();
 #ifdef USE_CILK_RUNTIME
   return;
 #endif
-  init_scheduler();
-  util::callback::init();
   util::worker::the_group.set_factory(scheduler::the_factory);
   util::worker::the_group.create_threads();
 }
@@ -229,12 +231,14 @@ void launch(thread_p t) {
 }
 
 void destroy() {
+  util::callback::output();
+#ifndef USE_CILK_RUNTIME
+  util::worker::the_group.destroy_threads();
+#endif
+  util::callback::destroy();
 #ifdef USE_CILK_RUNTIME
   return;
 #endif
-  util::callback::output();
-  util::worker::the_group.destroy_threads();
-  util::callback::destroy();
   destroy_scheduler();
   destroy_basic();
 }
