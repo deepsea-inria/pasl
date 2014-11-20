@@ -118,6 +118,7 @@ static void init_basic(int nb_workers) {
   util::atomic::init_print_lock();
   kappa = 1.33 * util::cmdline::parse_or_default_double("kappa", 500.0, false); //LATER: improve
 #ifdef USE_CILK_RUNTIME
+  util::worker::the_group.set_nb(nb_workers);
   return;
 #endif
   util::worker::delta = util::cmdline::parse_or_default_double("delta", kappa/2.0, false);

@@ -216,6 +216,9 @@ public:
   void init(int nb_workers, machine::binding_policy_p bindpolicy);
   void set_factory(controller_factory_p factory);
   bool is_active();
+  void set_nb(int nb) {
+    nb_workers = nb;
+  }
   //! Returns the number of workers in the group
   int get_nb() const;
   //! Returns the id of the calling worker
