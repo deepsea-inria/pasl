@@ -21,8 +21,8 @@
 value_type mcss_seq(const sparray& xs) {
   if (xs.size() == 0)
     return LONG_MIN;
-  long max_so_far = xs[0];
-  long curr_max = xs[0];
+  value_type max_so_far = xs[0];
+  value_type curr_max = xs[0];
   for (long i = 1; i < xs.size(); i++) {
     curr_max = std::max(xs[i], curr_max+xs[i]);
     max_so_far = std::max(max_so_far, curr_max);

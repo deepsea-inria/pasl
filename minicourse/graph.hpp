@@ -40,7 +40,7 @@ edge_type mk_edge(vtxid_type source, vtxid_type dest) {
 long get_nb_vertices_of_edgelist(const edgelist& edges) {
   long nb = 0;
   for (long i = 0; i < edges.size(); i++)
-    nb = std::max(nb, std::max(edges[i].first, edges[i].second));
+    nb = std::max((value_type)nb, std::max(edges[i].first, edges[i].second));
   return nb+1;
 }
 
@@ -346,7 +346,7 @@ sparray bfs_par(const_adjlist_ref graph, vtxid_type source) {
   });
   atomic_dists[source].store(0);
   auto update = [&] (vtxid_type src, vtxid_type dst, value_type dist) {
-    long u = dist_unknown;
+    vtxid_type u = dist_unknown;
     return atomic_dists[dst].compare_exchange_strong(u, dist);
   };
   auto cond = [&] (vtxid_type other) {

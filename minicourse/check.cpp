@@ -417,6 +417,7 @@ void check() {
   c.add("map_incr_ex", std::bind(check_map_incr_ex));
   c.add("max_ex", std::bind(check_max_ex));
   c.add("plus_ex", std::bind(check_plus_ex));
+  c.add("reduce_ex", std::bind(check_reduce_ex));
   c.add("duplicate_ex", std::bind(check_duplicate));
   c.add("ktimes_ex", std::bind(check_ktimes));
   c.find_by_arg("check")();
