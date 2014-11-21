@@ -98,6 +98,24 @@ benchmark_type fib_bench() {
   return make_benchmark(init, bench, output, destroy);
 }
 
+benchmark_type mfib_bench() {
+  long n = pasl::util::cmdline::parse_or_default_long("n", 38);
+  long* result = new long;
+  auto init = [=] {
+    
+  };
+  auto bench = [=] {
+    *result = mfib(n);
+  };
+  auto output = [=] {
+    std::cout << "result " << *result << std::endl;
+  };
+  auto destroy = [=] {
+    delete result;
+  };
+  return make_benchmark(init, bench, output, destroy);
+}
+
 benchmark_type map_incr_bench(bool student_soln = false) {
   long n = pasl::util::cmdline::parse_or_default_long("n", 1l<<20);
   sparray* inp = new sparray(0);
@@ -362,6 +380,7 @@ int main(int argc, char** argv) {
   auto init = [&] {
     pasl::util::cmdline::argmap<std::function<benchmark_type()>> m;
     m.add("fib",                  [&] { return fib_bench(); });
+    m.add("mfib",                 [&] { return mfib_bench(); });
     m.add("map_incr",             [&] { return map_incr_bench(); });
     m.add("reduce",               [&] { return reduce_bench(); });
     m.add("scan",                 [&] { return scan_bench(); });

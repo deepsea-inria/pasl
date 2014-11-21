@@ -62,6 +62,24 @@ long fib(long n) {
   return fib_par(n);
 }
 
+const long threshold = 4;
+
+long mfib(long n) {
+  long result;
+  if (n <= threshold) {
+    result = fib_seq(n);
+  } else {
+    long a,b;
+    pasl::sched::native::fork2([&] {
+      a = fib_par(n-1);
+    }, [&] {
+      b = fib_par(n-2);
+    });
+    result = a+b;
+  }
+return result;
+}
+
 /***********************************************************************/
 
 #endif /*! _MINICOURSE_FIB_H_ */
