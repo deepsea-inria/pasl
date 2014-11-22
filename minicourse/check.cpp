@@ -360,6 +360,20 @@ void check_ktimes() {
   checkit<ktimes_correct>("solution to ktimes is correct");
 }
 
+class filter_ex_correct : public quickcheck::Property<std::vector<value_type>> {
+public:
+  
+  bool holdsFor(const std::vector<value_type>& vec) {
+    sparray xs = sparray_of_vector(vec);
+    return same_sparray(exercises::filter(is_even_fct, xs), filter(is_even_fct, xs));
+  }
+  
+};
+
+void check_filter_ex() {
+  checkit<filter_ex_correct>("solution to filter is correct");
+}
+
 /*---------------------------------------------------------------------*/
 /* PASL Driver */
 
@@ -420,6 +434,7 @@ void check() {
   c.add("reduce_ex", std::bind(check_reduce_ex));
   c.add("duplicate_ex", std::bind(check_duplicate));
   c.add("ktimes_ex", std::bind(check_ktimes));
+  c.add("filter_ex", std::bind(check_filter_ex));
   c.find_by_arg("check")();
 }
 

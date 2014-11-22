@@ -232,6 +232,26 @@ benchmark_type scan_bench() {
   return make_benchmark(init, bench, output, destroy);
 }
 
+benchmark_type filter_bench() {
+  long n = pasl::util::cmdline::parse_or_default_long("n", 1l<<20);
+  sparray* inp = new sparray(0);
+  sparray* outp = new sparray(0);
+  auto init = [=] {
+    *inp = gen_random_sparray(n);
+  };
+  auto bench = [=] {
+    *outp = exercises::filter(is_even_fct, *inp);
+  };
+  auto output = [=] {
+    std::cout << "result " << (*outp)[outp->size()-1] << std::endl;
+  };
+  auto destroy = [=] {
+    delete inp;
+    delete outp;
+  };
+  return make_benchmark(init, bench, output, destroy);
+}
+
 benchmark_type mcss_bench() {
   long n = pasl::util::cmdline::parse_or_default_long("n", 1l<<20);
   sparray* inp = new sparray(0);
@@ -402,6 +422,7 @@ int main(int argc, char** argv) {
     m.add("reduce_ex",            [&] { return reduce_bench(reduce_ex); });
     m.add("duplicate_ex",         [&] { return duplicate_bench(true); });
     m.add("ktimes_ex",            [&] { return ktimes_bench(true); });
+    m.add("filter_ex",            [&] { return filter_bench(); });
     m.add("mergesort_ex",         [&] { return sort_bench(); });
     
     bench = m.find_by_arg("bench")();

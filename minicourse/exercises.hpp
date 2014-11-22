@@ -52,6 +52,18 @@ sparray ktimes(const sparray& xs, long k) {
   return empty(); // todo: fill in
 }
   
+sparray pack_ex(const sparray& flags, const sparray& xs) {
+  return empty(); // todo: fill in
+}
+  
+// This function is the one you will debug and benchmark.
+// As such, use "-check filter_ex" and "-bench filter_ex"
+// where appropriate.
+template <class Predicate>
+sparray filter(Predicate p, const sparray& xs) {
+  return pack_ex(map(p, xs), xs);
+}
+  
 void merge_par(sparray& xs, sparray& tmp, long lo, long mid, long hi) {
   // todo: fill in
 }
