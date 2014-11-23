@@ -127,7 +127,7 @@ benchmark_type map_incr_bench(bool student_soln = false) {
     sparray& in = *inp;
     if (student_soln) {
       *outp = sparray(in.size());
-      exercises::map_incr(&in[0], &(*outp)[0]);
+      exercises::map_incr(&in[0], &(*outp)[0], in.size());
     } else {
       *outp = map([&] (value_type x) { return x+1; }, in);
     }

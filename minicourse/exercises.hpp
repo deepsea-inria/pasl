@@ -19,7 +19,7 @@
 
 namespace exercises {
   
-void map_incr(const value_type* source, value_type* dest) {
+void map_incr(const value_type* source, value_type* dest, long n) {
   // todo: fill in
 }
  

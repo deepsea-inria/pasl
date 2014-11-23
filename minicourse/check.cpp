@@ -279,7 +279,7 @@ public:
   bool holdsFor(const std::vector<value_type>& vec) {
     sparray xs = sparray_of_vector(vec);
     sparray dest = sparray(xs.size());
-    exercises::map_incr(&xs[0], &dest[0]);
+    exercises::map_incr(&xs[0], &dest[0], xs.size());
     return same_sparray(dest, map(plus1_fct, xs));
   }
   
