@@ -26,19 +26,19 @@ void map_incr(const value_type* source, value_type* dest, long n) {
 // source: pointer to the first item of the source array
 // n: number of items in the source array
 // seed: value to return in the case where `n` == 0
-value_type max(value_type* source, long n, value_type seed) {
+value_type max(const value_type* source, long n, value_type seed) {
   return seed; // todo: fill in
 }
   
-value_type max(value_type* source, long n) {
+value_type max(const value_type* source, long n) {
   return max(source, VALUE_MIN);
 }
   
-value_type plus(value_type* source, long n, value_type seed) {
+value_type plus(const value_type* source, long n, value_type seed) {
   return seed; // todo: fill in
 }
   
-value_type plus(value_type* source, long n) {
+value_type plus(const value_type* source, long n) {
   return plus(source, n, (value_type)0);
 }
   
