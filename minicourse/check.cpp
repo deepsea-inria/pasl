@@ -294,7 +294,7 @@ public:
   
   bool holdsFor(const std::vector<value_type>& vec) {
     sparray xs = sparray_of_vector(vec);
-    return exercises::max(&xs[0]) == max(xs);
+    return exercises::max(&xs[0], xs.size()) == max(xs);
   }
   
 };
@@ -308,7 +308,7 @@ public:
   
   bool holdsFor(const std::vector<value_type>& vec) {
     sparray xs = sparray_of_vector(vec);
-    return exercises::plus(&xs[0]) == sum(xs);
+    return exercises::plus(&xs[0], xs.size()) == sum(xs);
   }
   
 };
@@ -322,7 +322,7 @@ public:
   
   bool holdsFor(const std::vector<value_type>& vec) {
     sparray xs = sparray_of_vector(vec);
-    return exercises::reduce(plus_fct, 0l, &xs[0]) == sum(xs);
+    return exercises::reduce(plus_fct, 0l, &xs[0], xs.size()) == sum(xs);
   }
   
 };

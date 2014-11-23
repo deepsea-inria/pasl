@@ -196,11 +196,11 @@ benchmark_type reduce_bench(reduce_bench_type t = reduce_normal) {
     if (t == reduce_normal)
       *result = sum(*inp);
     else if (t == reduce_max_ex)
-      *result = exercises::max(&(*inp)[0]);
+      *result = exercises::max(&(*inp)[0], inp->size());
     else if (t == reduce_plus_ex)
-      *result = exercises::plus(&(*inp)[0]);
+      *result = exercises::plus(&(*inp)[0], inp->size());
     else if (t == reduce_ex)
-      *result = exercises::reduce(plus_fct, 0l, &(*inp)[0]);
+      *result = exercises::reduce(plus_fct, 0l, &(*inp)[0], inp->size());
   };
   auto output = [=] {
     std::cout << "result " << *result << std::endl;

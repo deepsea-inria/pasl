@@ -23,24 +23,24 @@ void map_incr(const value_type* source, value_type* dest) {
   // todo: fill in
 }
   
-value_type max(value_type* source, value_type seed) {
+value_type max(value_type* source, long n, value_type seed) {
   return seed; // todo: fill in
 }
   
-value_type max(value_type* source) {
+value_type max(value_type* source, long n) {
   return max(source, VALUE_MIN);
 }
   
-value_type plus(value_type* source, value_type seed) {
+value_type plus(value_type* source, long n, value_type seed) {
   return seed; // todo: fill in
 }
   
-value_type plus(value_type* source) {
-  return plus(source, (value_type)0);
+value_type plus(value_type* source, long n) {
+  return plus(source, n, (value_type)0);
 }
   
 template <class Assoc_comb_op>
-value_type reduce(Assoc_comb_op op, value_type seed, const value_type* source) {
+value_type reduce(Assoc_comb_op op, value_type seed, const value_type* source, long n) {
   return seed; // todo fill in
 }
 
