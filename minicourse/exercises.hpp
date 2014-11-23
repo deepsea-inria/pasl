@@ -22,7 +22,10 @@ namespace exercises {
 void map_incr(const value_type* source, value_type* dest) {
   // todo: fill in
 }
-  
+ 
+// source: pointer to the first item of the source array
+// n: number of items in the source array
+// seed: value to return in the case where `n` == 0
 value_type max(value_type* source, long n, value_type seed) {
   return seed; // todo: fill in
 }
