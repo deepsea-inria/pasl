@@ -273,13 +273,19 @@ void check_graph() {
 /*---------------------------------------------------------------------*/
 /* Unit tests for student exercises */
 
+value_type* ptr_on_first_item(sparray& xs) {
+  if (xs.size() == 0)
+    return nullptr;
+  return &xs[0];
+}
+
 class map_incr_ex_correct : public quickcheck::Property<std::vector<value_type>> {
 public:
   
   bool holdsFor(const std::vector<value_type>& vec) {
     sparray xs = sparray_of_vector(vec);
     sparray dest = sparray(xs.size());
-    exercises::map_incr(&xs[0], &dest[0], xs.size());
+    exercises::map_incr(ptr_on_first_item(xs), ptr_on_first_item(dest), xs.size());
     return same_sparray(dest, map(plus1_fct, xs));
   }
   
@@ -294,7 +300,7 @@ public:
   
   bool holdsFor(const std::vector<value_type>& vec) {
     sparray xs = sparray_of_vector(vec);
-    return exercises::max(&xs[0], xs.size()) == max(xs);
+    return exercises::max(ptr_on_first_item(xs), xs.size()) == max(xs);
   }
   
 };
@@ -308,7 +314,8 @@ public:
   
   bool holdsFor(const std::vector<value_type>& vec) {
     sparray xs = sparray_of_vector(vec);
-    return exercises::plus(&xs[0], xs.size()) == sum(xs);
+    
+    return exercises::plus(ptr_on_first_item(xs), xs.size()) == sum(xs);
   }
   
 };
@@ -322,7 +329,7 @@ public:
   
   bool holdsFor(const std::vector<value_type>& vec) {
     sparray xs = sparray_of_vector(vec);
-    return exercises::reduce(plus_fct, 0l, &xs[0], xs.size()) == sum(xs);
+    return exercises::reduce(plus_fct, 0l, ptr_on_first_item(xs), xs.size()) == sum(xs);
   }
   
 };

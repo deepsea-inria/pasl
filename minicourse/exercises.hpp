@@ -34,8 +34,23 @@ value_type max(const value_type* source, long n) {
   return max(source, VALUE_MIN);
 }
   
+value_type plus_rec(const value_type* source, long lo, long hi, value_type seed) {
+  value_type result = seed;
+  if (hi - lo == 0)
+    result = seed;
+  else if (hi - lo == 1)
+    result = source[lo];
+  else {
+    long mid = (hi + lo) / 2;
+    value_type a = plus_rec(source, lo, mid, seed);
+    value_type b = plus_rec(source, mid, hi, seed);
+    result = a + b;
+  }
+  return result;
+}
+  
 value_type plus(const value_type* source, long n, value_type seed) {
-  return seed; // todo: fill in
+  return plus_rec(source, 0, n, seed);
 }
   
 value_type plus(const value_type* source, long n) {
