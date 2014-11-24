@@ -31,7 +31,7 @@ value_type max(const value_type* source, long n, value_type seed) {
 }
   
 value_type max(const value_type* source, long n) {
-  return max(source, VALUE_MIN);
+  return max(source, n, VALUE_MIN);
 }
   
 value_type plus_rec(const value_type* source, long lo, long hi, value_type seed) {
