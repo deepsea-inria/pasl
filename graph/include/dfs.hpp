@@ -297,6 +297,13 @@ std::atomic<int>* cong_pseudodfs(const adjlist<Adjlist_seq>& graph,
 template <class Adjlist_seq, bool idempotent = false>
 std::atomic<int>* cong_pseudodfs(const adjlist<Adjlist_seq>& graph,
                                  typename adjlist<Adjlist_seq>::vtxid_type source) {
+
+  return nullptr;
+}
+#ifndef DISABLE_CONG_PSEUDODFS
+template <class Adjlist_seq, bool idempotent = false>
+std::atomic<int>* cong_pseudodfs(const adjlist<Adjlist_seq>& graph,
+                                 typename adjlist<Adjlist_seq>::vtxid_type source) {
   const int cong_pdfs_cutoff = 32;
   const int init_deque_capacity = 1024;
   using vtxid_type = typename adjlist<Adjlist_seq>::vtxid_type;
@@ -465,6 +472,7 @@ std::atomic<int>* cong_pseudodfs(const adjlist<Adjlist_seq>& graph,
   LOG_BASIC(ALGO_PHASE);
   return visited;
 }
+#endif
 
 } // end namespace
 } // end namespace

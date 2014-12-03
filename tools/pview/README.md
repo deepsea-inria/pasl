@@ -2,12 +2,16 @@
 % Umut Acar, Arthur Charguéraud, Mike Rainey
 % 13 August 2014
 
-
 Introduction
 ============
 
-For best results, run `make doc` and open README.pdf
-	
+For best results, run `make doc` and open `README.pdf`.	
+
+Package dependencies
+--------------------
+
+Version 4.02.0 or higher of [ocaml](http://caml.inria.fr/) is 
+required to build `pview`.
 
 Synopsis
 ========
@@ -53,7 +57,7 @@ Display
 ![screenshot](screenshot.png)\
 
 The width information shown initially near the top-left corner corresponds
-to the runtime of the run associated with the LOG file.
+to the runtime of the run associated with the `LOG` file.
 
 Each processor shows up as a horizontal line. Every red rectangle corresponds
 to idle periods.
@@ -83,8 +87,8 @@ Sample applications
 
 From the PASL root folder, run:
 
-	 cd example
-	 make -C ../tools/pview 
+    cd example
+    make -C ../tools/pview 
     make fib.log -j
     ./fib.log -n 45 -proc 2 --pview
     ../tools/pview/pview
@@ -97,7 +101,7 @@ following line to the bottom `~/.bashrc`:
 Limitations
 ===========
 
-There is a maximal size of LOG files that the current implementation of the
+There is a maximal size of `LOG` files that the current implementation of the
 tool is able to handle. This limit depends on the machine.
 
 See also

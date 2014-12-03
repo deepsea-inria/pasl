@@ -13,6 +13,7 @@
 #include <string>
 
 #include "perworker.hpp"
+#include "callback.hpp"
 
 /***********************************************************************/
 
@@ -25,7 +26,7 @@ namespace estimator {
  * \defgroup estimator Estimator
  * @{
  * An estimator is a mechanism that can be used to predict
- * task execution times, using asymptotic complexity functions provided
+ * thread execution times, using asymptotic complexity functions provided
  * by the user and runtime measures.
  * @}
  */
@@ -36,7 +37,7 @@ void destroy();
 /*---------------------------------------------------------------------*/
 /* Complexity representation */
   
-typedef int64_t complexity_t;
+using complexity_type = long;
 
 /**
  * \namespace complexity
@@ -45,10 +46,10 @@ typedef int64_t complexity_t;
 namespace complexity {
   
   //! A `tiny` complexity forces sequential execution
-  const complexity_t tiny = (complexity_t) (-1l);
+  const complexity_type tiny = (complexity_type) (-1l);
   
   //! An `undefined` complexity indicates that the value hasn't been computed yet
-  const complexity_t undefined = (complexity_t) (-2l);
+  const complexity_type undefined = (complexity_type) (-2l);
   
 }  // end namespace
   
@@ -56,27 +57,26 @@ namespace complexity {
 /* Complexity annotation */
 
 namespace annotation {
-  /*! \todo make it portable */
-  static inline complexity_t lgn(complexity_t n) {
+  static inline complexity_type lgn(complexity_type n) {
 #ifdef __GNUC__
-    return sizeof(complexity_t)*8l - 1l - __builtin_clzll(n);
+    return sizeof(complexity_type)*8l - 1l - __builtin_clzll(n);
 #else
 #error "need to implement lgn for the general case"
 #endif
   }
-  static inline complexity_t lglgn(complexity_t n) {
+  static inline complexity_type lglgn(complexity_type n) {
     return lgn(lgn(n));
   }
-  static inline complexity_t mul(complexity_t n, complexity_t m) {
+  static inline complexity_type mul(complexity_type n, complexity_type m) {
     return n * m;
   }
-  static inline complexity_t nlgn(complexity_t n) {
+  static inline complexity_type nlgn(complexity_type n) {
     return n * lgn(n);
   }
-  static inline complexity_t nsq(complexity_t n) {
+  static inline complexity_type nsq(complexity_type n) {
     return n * n;
   }
-  static inline complexity_t ncub(complexity_t n) {
+  static inline complexity_type ncub(complexity_type n) {
     return n * n * n;
   }
   
@@ -85,7 +85,7 @@ namespace annotation {
 /*---------------------------------------------------------------------*/
 /* Cost representation */
 
-typedef double cost_t;
+using cost_type = double;
 
 /**
  * \namespace cost
@@ -93,18 +93,18 @@ typedef double cost_t;
  */
 namespace cost {
   //! an `undefined` execution time indicates that the value hasn't been computed yet
-  const cost_t undefined = -1.0;
+  const cost_type undefined = -1.0;
   
   //! an `unknown` execution time forces parallel execution
-  const cost_t unknown = -2.0;
+  const cost_type unknown = -2.0;
   
   //! a `tiny` execution time forces sequential execution, and skips time measures
-  const cost_t tiny = -3.0;
+  const cost_type tiny = -3.0;
   
   //! a `pessimistic` cost is 1 microsecond per unit of complexity
-  const cost_t pessimistic = 1.0;
+  const cost_type pessimistic = 1.0;
   
-  bool regular(cost_t cost);
+  bool regular(cost_type cost);
   
 }  // end namespace
   
@@ -118,13 +118,10 @@ class signature {
 public:
   
   //! Sets an initial value for the constant (optional).
-  virtual void set_init_constant(cost_t init_cst) = 0;
+  virtual void set_init_constant(cost_type init_cst) = 0;
   
   //! Tests whether an initial value for the constant was provided
   virtual bool init_constant_provided() = 0;
-  
-  //! Sets a string identifier for the estimator (optional).
-  virtual void set_name(std::string name) = 0;
   
   //! Returns the string identifier of the estimator.
   virtual std::string get_name() = 0;
@@ -133,18 +130,18 @@ public:
    *  \param comp the number of operations executed by the task
    *  \param elapsed_ticks the number of ticks taken by the execution
    */
-  virtual void report(complexity_t comp, double elapsed_ticks) = 0;
+  virtual void report(complexity_type comp, double elapsed_ticks) = 0;
   
   //! Tests whether the estimator already has an estimate of the constant
   virtual bool constant_is_known() = 0;
   
   //! Read the local value of the constant
-  virtual cost_t get_constant() = 0;
+  virtual cost_type get_constant() = 0;
   
   /*! \brief Predicts the wall-clock time required to execute a task
    *  \param comp the asymptotic complexity
    */
-  virtual cost_t predict(complexity_t comp) = 0;
+  virtual cost_type predict(complexity_type comp) = 0;
   
   /*! \brief Predicts the number of iterations that can execute in `kappa`
    *  seconds. To be used only for loops with constant time body.
@@ -162,37 +159,42 @@ public:
  * @ingroup estimator
  */
 class common : public signature {
-private:
+protected:
   //! Stores the name of the estimator.
   std::string name;
   
-private:
   //! Predicts the cost associated with an asymptotic complexity
-  cost_t predict_impl(complexity_t comp);
-  
-protected:
+  cost_type predict_impl(complexity_type comp);
   
   //! Read the local value of the constant, or pessimistic if unknown
-  cost_t get_constant_or_pessimistic();
+  cost_type get_constant_or_pessimistic();
   
   //! Take into account a measure for updating the constant
-  virtual void analyse(cost_t measured_cst) = 0;
+  virtual void analyse(cost_type measured_cst) = 0;
   
   //! Log the update to the value of a constant
-  void log_update(cost_t new_cst);
+  void log_update(cost_type new_cst);
+  
+  void check();
   
 public:
-  void init(std::string name);
-  void output();
-  void destroy();
+  
+  common(std::string name)
+  : name(name) {
+    check();
+  }
+  
+  virtual void init();
+  virtual void output();
+  virtual void destroy();
   
   /*! Implements `report` using function `analyse`;
    *  Assumes the complexity is not `tiny`.
    */
-  void report(complexity_t comp, double elapsed_ticks);
+  void report(complexity_type comp, double elapsed_ticks);
   
   //! Implements `predict` using function `get_constant`
-  cost_t predict(complexity_t comp);
+  cost_type predict(complexity_type comp);
   
   /*! Implements predict_iterations using the value of the constant
    *  or a pessimistic value in case it is unknown
@@ -202,7 +204,6 @@ public:
   // Implements other auxiliary functions
   
   std::string get_name();
-  void set_name(std::string name);
   
 };
 
@@ -215,7 +216,7 @@ public:
  * @ingroup estimator
  */
 
-class distributed : public common {
+class distributed : public common, util::callback::client {
 private:
   constexpr static const double min_report_shared_factor = 2.0;
   constexpr static const double max_decrease_factor = 4.0;
@@ -226,20 +227,25 @@ private:
   
 public: //! \todo find a better way to avoid false sharing
   volatile int padding1[64*2];
-  cost_t shared_cst;
-  perworker::base<cost_t> private_csts;
+  cost_type shared_cst;
+  perworker::cell<cost_type> private_csts;
   
 protected:
-  void update(worker_id_t my_id, cost_t new_cst);
-  void analyse(cost_t measured_cst);
-  cost_t get_constant();
-  void update_shared(cost_t new_cst);
+  void update(cost_type new_cst);
+  void analyse(cost_type measured_cst);
+  cost_type get_constant();
+  void update_shared(cost_type new_cst);
   
 public:
-  distributed() : init_constant_provided_flg(false) { }
-  void init(std::string name);
+  distributed(std::string name)
+  : init_constant_provided_flg(false), private_csts(cost::undefined),
+    common(name) {
+    util::callback::register_client(this);
+  }
+  void init();
   void destroy();
-  void set_init_constant(cost_t init_cst);
+  void output();
+  void set_init_constant(cost_type init_cst);
   bool init_constant_provided();
   bool constant_is_known();
 };
@@ -247,8 +253,8 @@ public:
 } // end namespace
 } // end namespace
   
-typedef data::estimator::cost_t cost_t;
-typedef data::estimator::complexity_t complexity_t;
+typedef data::estimator::cost_type cost_type;
+typedef data::estimator::complexity_type complexity_type;
 typedef data::estimator::signature estimator_t;
 typedef estimator_t* estimator_p;
   

@@ -14,6 +14,9 @@
 #include <deque>
 #include <signal.h>
 #include <cstdlib>
+#ifdef USE_CILK_RUNTIME
+#include <cilk/cilk_api.h>
+#endif
 
 #include "atomic.hpp"
 #include "tls.hpp"
@@ -33,7 +36,11 @@ tls_extern_declare(worker_id_t, worker_id);
 
 //! Returns the id of calling worker.
 static inline worker_id_t get_my_id () {
+#ifdef USE_CILK_RUNTIME
+  return __cilkrts_get_worker_number();
+#else
   return tls_getter(worker_id_t, worker_id);
+#endif
 }
 
 //! A special worker id code returned when threads don't exist yet 
@@ -216,6 +223,9 @@ public:
   void init(int nb_workers, machine::binding_policy_p bindpolicy);
   void set_factory(controller_factory_p factory);
   bool is_active();
+  void set_nb(int nb) {
+    nb_workers = nb;
+  }
   //! Returns the number of workers in the group
   int get_nb() const;
   //! Returns the id of the calling worker
