@@ -155,7 +155,6 @@ void merge_par(const sparray& xs, const sparray& ys, sparray& tmp,
 void merge_par(sparray& xs, sparray& tmp,
                long lo, long mid, long hi) {
   merge_par(xs, xs, tmp, lo, mid, mid, hi, lo);
-
   // copy back to source array
   prim::pcopy(&tmp[0], &xs[0], lo, hi, lo);
 }

@@ -29,6 +29,29 @@ sparray just_evens(const sparray& xs) {
   return filter(is_even_fct, xs);
 }
 
+void merge_ex_test() {
+  sparray xs = { 2, 4, 6, 8 };
+  sparray ys = { 5, 5, 13, 21, 23 };
+  long lo_xs = 1;
+  long hi_xs = 3;
+  long lo_ys = 0;
+  long hi_ys = 4;
+  long lo_tmp = 0;
+  long hi_tmp = (hi_xs-lo_xs) + (hi_ys+lo_ys);
+  sparray tmp = sparray(hi_tmp);
+  exercises::merge_par(xs, ys, tmp, lo_xs, hi_xs, lo_ys, hi_ys, lo_tmp);
+  std::cout << "xs =" << slice(xs, lo_xs, hi_xs) << std::endl;
+  std::cout << "ys =" << slice(ys, lo_ys, hi_ys) << std::endl;
+  std::cout << "tmp = " << tmp << std::endl;
+  /*
+   Expected output:
+   
+   xs ={ 4, 6 }
+   ys ={ 5, 5, 13, 21 }
+   tmp = { 4, 5, 5, 6, 13, 21 }
+   */
+}
+
 void doit() {
   
 //  sparray test = { -2, 1, -3, 4, -1, 2, 1, -5, 4 };

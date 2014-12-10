@@ -82,8 +82,31 @@ sparray filter(Predicate p, const sparray& xs) {
   return pack_ex(map(p, xs), xs);
 }
   
-void merge_par(sparray& xs, sparray& tmp, long lo, long mid, long hi) {
+// Merge the combined contents in the two given ranges of
+// the two given source arrays, namely `xs` and `ys`, copying
+// out the result to `tmp`.
+// In each of the two given ranges in the two given source
+// arrays, the items are guaranteed by precondition to appear
+// in ascending order.
+// By postcondition, the items that are written to tmp are to
+// appear in ascending order as well.
+// More specifically, we want to merge the combined results in the
+// range [lo_xs, hi_xs) of xs and in the range [lo_ys, hi_ys) of
+// ys, copying out the items to the range [lo_tmp, m) of tmp,
+// where m = (hi_xs-lo_xs)+(hi_ys-lo_ys).
+// For an example use of this function, see the function in
+// examples.hpp that is named `merge_ex_test`.
+void merge_par(const sparray& xs, const sparray& ys, sparray& tmp,
+               long lo_xs, long hi_xs,
+               long lo_ys, long hi_ys,
+               long lo_tmp) {
   // todo: fill in
+}
+  
+void merge_par(sparray& xs, sparray& tmp, long lo, long mid, long hi) {
+  merge_par(xs, xs, tmp, lo, mid, mid, hi, lo);
+  // copy back to source array
+  prim::pcopy(&tmp[0], &xs[0], lo, hi, lo);
 }
   
 } // end namespace
