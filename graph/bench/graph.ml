@@ -178,14 +178,8 @@ let arg_use_cilk = XCmd.mem_flag "use_cilk"
 let arg_details = XCmd.mem_flag "details"
 let arg_idempotent = XCmd.parse_or_default_list_int "idempotent" [0;1]
 let arg_exps = XCmd.parse_or_default_list_string "exp" ["all"]
-let arg_mode =
-   let m = XCmd.parse_or_default_string "mode" "normal" in
-   let mc = XCmd.mem_flag "complete" in
-   let mr = XCmd.mem_flag "replace" in
-   (* Pbench.error "incompatible mode options" => todo *)
-   if mc then "complete"
-   else if mr then "replace"
-   else m
+let arg_mode = Mk_runs.mode_from_command_line()
+
 
 let arg_proc =
    if arg_proc >= 0 then arg_proc else begin
@@ -201,7 +195,7 @@ let arg_ls_pbfs_loop_cutoff = XCmd.parse_or_default_int "ls_pbfs_loop_cutoff" 51
 
 let run_modes =
   Mk_runs.([
-    Mode (Mk_runs.string_of_mode arg_mode);
+    Mode arg_mode;
     Virtual arg_virtual_run;
     Runs arg_nb_runs; ])
 
