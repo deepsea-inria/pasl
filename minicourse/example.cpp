@@ -420,6 +420,10 @@ int main(int argc, char** argv) {
    
   };
   auto run = [&] (bool) {
+    // Defaultly, all of the following function calls are performed
+    // on execution of this program.
+    // To run just one, say, "sorting", pass to this program the option:
+    // -example sorting.
     pasl::util::cmdline::argmap_dispatch c;
     c.add("fork-join", [&] { Fork_join(); });
     c.add("simple-parallel-arrays", [&] { Simple_parallel_arrays(); });
@@ -427,6 +431,8 @@ int main(int argc, char** argv) {
     c.add("sorting", [&] { Sorting(); });
     c.add("graph-processing", [&] { Graph_processing(); });
     c.add("merge-exercise", [&] { merge_exercise_example(); });
+    // Add an option for your example code here:
+    // c.add("your-example", [&] { your_function(); });
     pasl::util::cmdline::dispatch_by_argmap_with_default_all(c, "example");
   };
   auto output = [&] {
