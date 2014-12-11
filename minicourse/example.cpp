@@ -23,13 +23,97 @@
 /***********************************************************************/
 
 /*---------------------------------------------------------------------*/
-/* Example applications */
+/* Examples from text */
 
-sparray just_evens(const sparray& xs) {
-  return filter(is_even_fct, xs);
+void Graph_processing_examples() {
+  std::cout << "Graph-processing examples" << std::endl;
+  
+  std::cout << "Example: Graph creation" << std::endl;
+  std::cout << "-----------------------" << std::endl;
+  {
+    adjlist graph = { mk_edge(0, 1), mk_edge(0, 3), mk_edge(5, 1), mk_edge(3, 0) };
+    std::cout << graph << std::endl;
+  }
+  std::cout << "-----------------------" << std::endl;
+  
+  std::cout << "Example: Adjacency-list interface" << std::endl;
+  std::cout << "-----------------------" << std::endl;
+  {
+    adjlist graph = { mk_edge(0, 1), mk_edge(0, 3), mk_edge(5, 1), mk_edge(3, 0),
+                      mk_edge(3, 5), mk_edge(3, 2), mk_edge(5, 3) };
+    std::cout << "nb_vertices = " << graph.get_nb_vertices() << std::endl;
+    std::cout << "nb_edges = " << graph.get_nb_edges() << std::endl;
+    std::cout << "out_edges of vertex 3:" << std::endl;
+    neighbor_list out_edges_of_3 = graph.get_out_edges_of(3);
+    for (long i = 0; i < graph.get_out_degree_of(3); i++)
+      std::cout << " " << out_edges_of_3[i];
+    std::cout << std::endl;
+  }
+  std::cout << "-----------------------" << std::endl;
+  
+  std::cout << "Example: Accessing the contents of atomic memory cells" << std::endl;
+  std::cout << "-----------------------" << std::endl;
+  {
+    const long n = 3;
+    std::atomic<bool> visited[n];
+    long v = 2;
+    visited[v].store(false);
+    std::cout << visited[v].load() << std::endl;
+    visited[v].store(true);
+    std::cout << visited[v].load() << std::endl;
+  }
+  std::cout << "-----------------------" << std::endl;
+
+  std::cout << "Example: Compare and exchange" << std::endl;
+  std::cout << "-----------------------" << std::endl;
+  {
+    const long n = 3;
+    std::atomic<bool> visited[n];
+    long v = 2;
+    visited[v].store(false);
+    bool orig = false;
+    bool was_successful = visited[v].compare_exchange_strong(orig, true);
+    std::cout << was_successful << std::endl;
+  }
+  std::cout << "-----------------------" << std::endl;
+
+  std::cout << "Example: Edge map" << std::endl;
+  std::cout << "-----------------------" << std::endl;
+  {
+    adjlist graph = { mk_edge(0, 1), mk_edge(0, 3), mk_edge(5, 1), mk_edge(3, 0),
+                      mk_edge(3, 5), mk_edge(3, 2), mk_edge(5, 3) };
+    const long n = graph.get_nb_vertices();
+    std::atomic<bool> visited[n];
+    for (long i = 0; i < n; i++)
+      visited[i] = false;
+    visited[0].store(true);
+    visited[1].store(true);
+    visited[3].store(true);
+    sparray in_frontier = { 3 };
+    sparray out_frontier = edge_map(graph, visited, in_frontier);
+    std::cout << out_frontier << std::endl;
+    sparray out_frontier2 = edge_map(graph, visited, in_frontier);
+    std::cout << out_frontier2 << std::endl;
+  }
+  std::cout << "-----------------------" << std::endl;
+  
+  std::cout << "Example: Parallel BFS" << std::endl;
+  std::cout << "-----------------------" << std::endl;
+  {
+    adjlist graph = { mk_edge(0, 1), mk_edge(0, 3), mk_edge(5, 1), mk_edge(3, 0),
+                      mk_edge(3, 5), mk_edge(3, 2), mk_edge(5, 3) };
+    sparray visited = bfs(graph, 0);
+    std::cout << visited << std::endl;
+    sparray visited2 = bfs(graph, 2);
+    std::cout << visited2 << std::endl;
+  }
+  std::cout << "-----------------------" << std::endl;
 }
 
-void merge_ex_test() {
+/*---------------------------------------------------------------------*/
+/* Examples from exercises */
+
+void merge_exercise_example() {
   sparray xs = { 2, 4, 6, 8 };
   sparray ys = { 5, 5, 13, 21, 23 };
   long lo_xs = 1;
@@ -44,12 +128,17 @@ void merge_ex_test() {
   std::cout << "ys =" << slice(ys, lo_ys, hi_ys) << std::endl;
   std::cout << "tmp = " << tmp << std::endl;
   /*
-   Expected output:
+   When your merge exercise is complete, the output should be
+   the following:
    
    xs ={ 4, 6 }
    ys ={ 5, 5, 13, 21 }
    tmp = { 4, 5, 5, 6, 13, 21 }
    */
+}
+
+sparray just_evens(const sparray& xs) {
+  return filter(is_even_fct, xs);
 }
 
 void doit() {
@@ -122,10 +211,10 @@ void doit() {
       mk_edge(3, 5), mk_edge(3, 2), mk_edge(5, 3) };
     std::cout << "nb_vertices = " << graph.get_nb_vertices() << std::endl;
     std::cout << "nb_edges = " << graph.get_nb_edges() << std::endl;
-    std::cout << "neighbors of vertex 3:" << std::endl;
-    neighbor_list neighbors_of_3 = graph.get_neighbors_of(3);
+    std::cout << "out_edges of vertex 3:" << std::endl;
+    neighbor_list out_edges_of_3 = graph.get_out_edges_of(3);
     for (long i = 0; i < graph.get_out_degree_of(3); i++)
-      std::cout << " " << neighbors_of_3[i];
+      std::cout << " " << out_edges_of_3[i];
     std::cout << std::endl;
   }
 }
@@ -139,7 +228,7 @@ int main(int argc, char** argv) {
    
   };
   auto run = [&] (bool) {
-    doit();
+    Graph_processing_examples();
   };
   auto output = [&] {
   };
