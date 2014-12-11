@@ -581,6 +581,11 @@ sparray scan_incl(const Assoc_op& op, const Lift_func& lift, value_type id, cons
 }
 
 template <class Assoc_op>
+sparray scan_incl(const Assoc_op& op, value_type id, const sparray& xs) {
+  return scan_incl(op, identity_fct, id, xs);
+}
+
+template <class Assoc_op>
 scan_excl_result scan_excl(const Assoc_op& op, value_type id, const sparray& xs) {
   return scan_excl(op, identity_fct, id, xs);
 }
