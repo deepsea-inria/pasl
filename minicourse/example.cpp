@@ -339,10 +339,10 @@ void Graph_processing() {
     visited[v].store(false);
     bool orig = false;
     bool was_successful = visited[v].compare_exchange_strong(orig, true);
-    std::cout << was_successful << std::endl;
+    std::cout << "was_successful = " << was_successful << "; visited[v] = " << visited[v].load() << std::endl;
     bool orig2 = false;
     bool was_successful2 = visited[v].compare_exchange_strong(orig2, true);
-    std::cout << was_successful2 << std::endl;
+    std::cout << "was_successful2 = " << was_successful2 << "; visited[v] = " << visited[v].load() << std::endl;
   }
   std::cout << "-----------------------" << std::endl;
 
