@@ -345,12 +345,27 @@ void Graph_processing() {
     std::cout << "was_successful2 = " << was_successful2 << "; visited[v] = " << visited[v].load() << std::endl;
   }
   std::cout << "-----------------------" << std::endl;
+  
+  std::cout << "Example: Parallel BFS" << std::endl;
+  std::cout << "-----------------------" << std::endl;
+  {
+    adjlist graph = { mk_edge(0, 1), mk_edge(0, 3), mk_edge(5, 1), mk_edge(3, 0),
+                      mk_edge(3, 5), mk_edge(3, 2), mk_edge(5, 3),
+                      mk_edge(4, 6), mk_edge(6, 2) };
+    std::cout << graph << std::endl;
+    sparray reachable_from_0 = bfs(graph, 0);
+    std::cout << "reachable from 0: " << reachable_from_0 << std::endl;
+    sparray reachable_from_4 = bfs(graph, 4);
+    std::cout << "reachable from 4: " << reachable_from_4 << std::endl;
+  }
+  std::cout << "-----------------------" << std::endl;
 
   std::cout << "Example: Edge map" << std::endl;
   std::cout << "-----------------------" << std::endl;
   {
     adjlist graph = { mk_edge(0, 1), mk_edge(0, 3), mk_edge(5, 1), mk_edge(3, 0),
-                      mk_edge(3, 5), mk_edge(3, 2), mk_edge(5, 3) };
+                      mk_edge(3, 5), mk_edge(3, 2), mk_edge(5, 3),
+                      mk_edge(4, 6), mk_edge(6, 2) };
     const long n = graph.get_nb_vertices();
     std::atomic<bool> visited[n];
     for (long i = 0; i < n; i++)
@@ -363,18 +378,6 @@ void Graph_processing() {
     std::cout << out_frontier << std::endl;
     sparray out_frontier2 = edge_map(graph, visited, in_frontier);
     std::cout << out_frontier2 << std::endl;
-  }
-  std::cout << "-----------------------" << std::endl;
-  
-  std::cout << "Example: Parallel BFS" << std::endl;
-  std::cout << "-----------------------" << std::endl;
-  {
-    adjlist graph = { mk_edge(0, 1), mk_edge(0, 3), mk_edge(5, 1), mk_edge(3, 0),
-                      mk_edge(3, 5), mk_edge(3, 2), mk_edge(5, 3) };
-    sparray visited = bfs(graph, 0);
-    std::cout << visited << std::endl;
-    sparray visited2 = bfs(graph, 2);
-    std::cout << visited2 << std::endl;
   }
   std::cout << "-----------------------" << std::endl;
 }
