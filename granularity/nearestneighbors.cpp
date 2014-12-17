@@ -18,6 +18,10 @@
 
 #ifdef BINARY
   typedef loop_by_eager_binary_splitting<control_type> loop_type;
+#elif LAZY_BINARY
+  typedef loop_by_lazy_binary_splitting<control_type> loop_type;
+#elif SCHEDULING
+  typedef loop_by_lazy_binary_splitting_scheduling<control_type> loop_type;
 #elif BINARY_WITH_SAMPLING
   typedef loop_control_with_sampling<loop_by_eager_binary_splitting<control_type>> loop_type;
 #elif BINARY_SEARCH
@@ -28,10 +32,9 @@
   typedef loop_control_with_sampling<loop_by_binary_search_splitting<control_type>> loop_type;
 #endif
 
-loop_by_eager_binary_splitting<control_type> cbuild("run");
+loop_by_eager_binary_splitting<control_type> cbuild("build");
 //loop_type cbuild("build");
 int build_cutoff_const;
-//loop_by_eager_binary_splitting<control_type> crun("run");
 loop_type crun("run");
 int run_cutoff_const;
 
@@ -522,3 +525,4 @@ int main(int argc, char** argv) {
 
   pasl::sched::launch(argc, argv, init, run, output, destroy);
 }
+

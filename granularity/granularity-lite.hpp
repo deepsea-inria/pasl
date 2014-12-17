@@ -739,6 +739,12 @@ public:
 };
 
 template <class Granularity_control_policy>
+class loop_by_lazy_binary_splitting_scheduling : public loop_control<Granularity_control_policy> {
+public:
+    using loop_control<Granularity_control_policy>::loop_control;
+};
+
+template <class Granularity_control_policy>
 class loop_by_binary_search_splitting : public loop_control<Granularity_control_policy> {
 public:
   loop_by_binary_search_splitting(std::string name = "anonloop"): loop_control<Granularity_control_policy>(name) {}
@@ -1178,6 +1184,7 @@ void parallel_for(loop_by_lazy_binary_splitting<Granularity_control_policy>& lpa
       for (Number i = lo; i < l; i++)
         body(i);
     };
+//    seq_fct1();
 
     cstmt(*lpalgo.gcpolicy, cutoff_fct, compl_fct, seq_fct1, seq_fct1);
 
@@ -1197,4 +1204,96 @@ void parallel_for(loop_by_lazy_binary_splitting<Granularity_control_policy>& lpa
   }
 }
   
+//Lazy binary splitting scheduling
+
+template <
+  class Granularity_control_policy,
+  class Loop_cutoff_fct,
+  class Loop_complexity_measure_fct,
+  class Number,
+  class Body
+>
+class parallel_for_base : public pasl::sched::native::multishot {
+public:
+  Granularity_control_policy* gcpolicy;
+  Loop_cutoff_fct loop_cutoff_fct;
+  Loop_complexity_measure_fct loop_compl_fct;
+  Number l, r;
+  Body body;
+  pasl::sched::native::multishot* join;
   
+  using self_type = parallel_for_base<Granularity_control_policy, Loop_cutoff_fct, Loop_complexity_measure_fct, Number, Body>;
+  
+  parallel_for_base(                                          
+                      Granularity_control_policy* _gcpolicy,
+                      const Loop_cutoff_fct& loop_cutoff_fct,
+                      const Loop_complexity_measure_fct& loop_compl_fct,
+                      const Number& l,
+                      const Number& r,
+                      const Body& body,
+                      pasl::sched::native::multishot* join)                                                
+  : loop_cutoff_fct(loop_cutoff_fct), loop_compl_fct(loop_compl_fct), l(l), r(r), body(body), join(join) {
+    gcpolicy = _gcpolicy;
+  }
+              
+  parallel_for_base(const self_type& other)
+  : loop_cutoff_fct(other.loop_cutoff_fct), loop_compl_fct(other.loop_compl_fct), l(other.l), r(other.r), body(other.body), join(other.join) {
+    gcpolicy = other.gcpolicy;
+  }
+  
+  void run() {
+    while (size() > 0) {
+      auto cutoff_fct = [&] {
+        return loop_cutoff_fct(l, r);
+      };
+      auto compl_fct = [&] {
+        return loop_compl_fct(l, r);
+      };
+                                            
+      Number m = binary_search_estimated(*gcpolicy, loop_cutoff_fct, loop_compl_fct, l, r);
+      auto seq_fct = [&] {
+        for (Number i = l; i < m; i++)
+          body(i);
+      };
+      cstmt(*gcpolicy, cutoff_fct, compl_fct, seq_fct, seq_fct);
+      l = m;
+      pasl::sched::native::yield();
+    }
+  }
+  
+  size_t size()  {
+    return r - l;// + 1;
+  }
+  
+  pasl::sched::thread_p split(size_t nb_items) {
+    self_type* t = new self_type(*this);
+    Number m = (l + r) / 2;
+    r = m;
+    t->l = m;
+    t->set_instrategy(pasl::sched::instrategy::ready_new());
+    t->set_outstrategy(pasl::sched::outstrategy::unary_new());
+    pasl::sched::threaddag::add_dependency(t, join);
+    return t;
+  }
+  
+//  THREAD_COST_UNKNOWN
+  double get_cost() { return pasl::data::estimator::cost::unknown; }
+
+};
+  
+template <
+  class Granularity_control_policy,
+  class Loop_cutoff_fct,
+  class Loop_complexity_measure_fct,
+  class Number,
+  class Body
+>
+void parallel_for(loop_by_lazy_binary_splitting_scheduling<Granularity_control_policy>& lpalgo,
+                  const Loop_cutoff_fct& loop_cutoff_fct,
+                  const Loop_complexity_measure_fct& loop_compl_fct,
+                  Number lo, Number hi, const Body& body) {                                                                  
+  using thread_type = parallel_for_base<Granularity_control_policy, Loop_cutoff_fct, Loop_complexity_measure_fct, Number, Body>;
+  pasl::sched::native::multishot* join = pasl::sched::native::my_thread();
+  thread_type* thread = new thread_type(lpalgo.gcpolicy, loop_cutoff_fct, loop_compl_fct, lo, hi, body, join);
+  join->finish(thread);
+} 
