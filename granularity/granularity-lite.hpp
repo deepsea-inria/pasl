@@ -8,7 +8,15 @@
 #include "estimator.hpp"
 #include "native.hpp"
 #include "benchmark.hpp"
+
+#ifndef _PASL_SCHED_GRANULARITY_H_
+#define _PASL_SCHED_GRANULARITY_H_
+
 /***********************************************************************/
+
+namespace pasl {
+namespace sched {
+namespace granularity {
 
 /*---------------------------------------------------------------------*/
 /* PASL routines */
@@ -1297,3 +1305,9 @@ void parallel_for(loop_by_lazy_binary_splitting_scheduling<Granularity_control_p
   thread_type* thread = new thread_type(lpalgo.gcpolicy, loop_cutoff_fct, loop_compl_fct, lo, hi, body, join);
   join->finish(thread);
 } 
+
+}
+}
+}
+
+#endif /*! _PASL_SCHED_GRANULARITY_H_ */

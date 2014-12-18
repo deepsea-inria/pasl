@@ -7,32 +7,32 @@
 #include "granularity-lite.hpp"
 
 #ifdef CMDLINE
-  typedef control_by_cmdline control_type;
+  typedef pasl::sched::granularity::control_by_cmdline control_type;
 #elif PREDICTION
-  typedef control_by_prediction control_type;
+  typedef pasl::sched::granularity::control_by_prediction control_type;
 #elif CUTOFF_WITH_REPORTING
-  typedef control_by_cutoff_with_reporting control_type;
+  typedef pasl::sched::granularity::control_by_cutoff_with_reporting control_type;
 #elif CUTOFF_WITHOUT_REPORTING
-  typedef control_by_cutoff_without_reporting control_type;
+  typedef pasl::sched::granularity::control_by_cutoff_without_reporting control_type;
 #endif
 
 #ifdef BINARY
-  typedef loop_by_eager_binary_splitting<control_type> loop_type;
+  typedef pasl::sched::granularity::loop_by_eager_binary_splitting<control_type> loop_type;
 #elif LAZY_BINARY
-  typedef loop_by_lazy_binary_splitting<control_type> loop_type;
+  typedef pasl::sched::granularity::loop_by_lazy_binary_splitting<control_type> loop_type;
 #elif SCHEDULING
-  typedef loop_by_lazy_binary_splitting_scheduling<control_type> loop_type;
+  typedef pasl::sched::granularity::loop_by_lazy_binary_splitting_scheduling<control_type> loop_type;
 #elif BINARY_WITH_SAMPLING
-  typedef loop_control_with_sampling<loop_by_eager_binary_splitting<control_type>> loop_type;
+  typedef pasl::sched::granularity::loop_control_with_sampling<loop_by_eager_binary_splitting<control_type>> loop_type;
 #elif BINARY_SEARCH
-  typedef loop_by_binary_search_splitting<control_type> loop_type;
+  typedef pasl::sched::granularity::loop_by_binary_search_splitting<control_type> loop_type;
 #elif LAZY_BINARY_SEARCH
-  typedef loop_by_lazy_binary_search_splitting<control_type> loop_type;
+  typedef pasl::sched::granularity::loop_by_lazy_binary_search_splitting<control_type> loop_type;
 #elif BINARY_SEARCH_WITH_SAMPLING
-  typedef loop_control_with_sampling<loop_by_binary_search_splitting<control_type>> loop_type;
+  typedef pasl::sched::granularity::loop_control_with_sampling<loop_by_binary_search_splitting<control_type>> loop_type;
 #endif
 
-loop_by_eager_binary_splitting<control_type> cbuild("build");
+pasl::sched::granularity::loop_by_eager_binary_splitting<control_type> cbuild("build");
 //loop_type cbuild("build");
 int build_cutoff_const;
 loop_type crun("run");
@@ -232,7 +232,7 @@ class gTreeNode {
       // The centers are offset by size/4 in each of the dimensions
 
 #ifdef LITE
-      parallel_for(cbuild, 
+      pasl::sched::granularity::parallel_for(cbuild, 
         [&] (int L, int R) {return ((R == quadrants) ? n : offsets[R]) - offsets[L] <= build_cutoff_const;},
         [&] (int L, int R) {
         return ((R == quadrants) ? n : offsets[R]) - offsets[L];},
@@ -404,20 +404,12 @@ struct Runner : AbstractRunner {
     std::cerr << "HUI!" << std::endl;
     // find nearest k neighbors for each point
 #ifdef LITE
-#if defined(BINARY_WITH_SAMPLING) || defined(BINARY_SEARCH_WITH_SAMPLING)
-    parallel_for(crun,
-      [&] (int L, int R) {return (R - L) * k * log(n);},
-      int(0), n, [&] (int i) {
-      T.kNearest(vr[i], vr[i]->ngh, k);
-    }, 10);
-#else
-    parallel_for(crun,
+    pasl::sched::granularity::parallel_for(crun,
       [&] (int L, int R) {return (R - L) * k * log(n) <= run_cutoff_const;},
       [&] (int L, int R) {return (R - L) * k * log(n);},
       int(0), n, [&] (int i) {
       T.kNearest(vr[i], vr[i]->ngh, k);
     });
-#endif
 #elif STANDART
     pasl::sched::native::parallel_for1(int(0), n, [&] (int i) {
       T.kNearest(vr[i], vr[i]->ngh, k);
@@ -458,8 +450,7 @@ void initialization() {
   pasl::util::ticks::set_ticks_per_seconds(1000);
   cbuild.initialize(1);
   crun.initialize(1, 10);
-;
-  execmode.init(dynidentifier<execmode_type>());
+  pasl::sched::granularity::execmode.init(pasl::sched::granularity::dynidentifier<pasl::sched::granularity::execmode_type>());
 }
 
 int main(int argc, char** argv) {
