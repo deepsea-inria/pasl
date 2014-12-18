@@ -789,6 +789,21 @@ void set(std::string policy_arg) {
 };
 
 template <
+  class Loop_control_policy,
+  class Number,
+  class Body
+>
+void parallel_for(Loop_control_policy& lpalgo,
+                  Number lo, Number hi, const Body& body) {
+  auto loop_compl_fct = [] (Number lo, Number hi) { return hi-lo; };
+  auto loop_cutoff_fct = [] (Number lo, Number hi) {
+    todo();
+    return 0;
+  };                                 
+  parallel_for(lpalgo, loop_cutoff_fct, loop_compl_fct, lo, hi, body);
+}
+
+template <
   class Granularity_control_policy,
   class Loop_cutoff_fct,
   class Loop_complexity_measure_fct,

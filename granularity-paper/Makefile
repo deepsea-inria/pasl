@@ -60,7 +60,7 @@ MODES=opt optfp elision baseline log dbg dbgfp dbgfs cilk
 # Compilation options for each mode
 
 COMPILE_OPTIONS_COMMON=-DDISABLE_INTERRUPTS -DSTATS_IDLE -DDISABLE_CONG_PSEUDODFS $(OPTIONS_ALL) $(OTHER_OPTIONS)
-COMPILE_OPTIONS_FOR_opt=$(OPTIONS_O2)
+COMPILE_OPTIONS_FOR_opt=$(OPTIONS_O2) -D$(CONTROL_OPT) -D$(LOOP_OPT)
 COMPILE_OPTIONS_FOR_optfp=$(OPTIONS_O2) -DCONTROL_BY_FORCE_PARALLEL
 COMPILE_OPTIONS_FOR_elision=$(OPTIONS_O2) -DSEQUENTIAL_ELISION
 COMPILE_OPTIONS_FOR_baseline=$(OPTIONS_O2) -DSEQUENTIAL_BASELINE
@@ -69,10 +69,10 @@ COMPILE_OPTIONS_FOR_dbg=$(OPTIONS_DEBUG) -DSTATS -DDEBUG
 COMPILE_OPTIONS_FOR_dbgfp=$(OPTIONS_DEBUG) -DSTATS -DDEBUG -DCONTROL_BY_FORCE_SEQUENTIAL
 COMPILE_OPTIONS_FOR_dbgfs=$(OPTIONS_DEBUG) -DSTATS -DDEBUG -DCONTROL_BY_FORCE_PARALLEL
 COMPILE_OPTIONS_FOR_cilk=$(OPTIONS_cilk) $(OPTIONS_O2)
-
+                                                                                                                           
 # Folders where to find all the header files and main sources
-
-INCLUDES=. $(SEQUTIL_PATH) $(PARUTIL_PATH) $(SCHED_PATH) $(PBBS_PATH) $(MALLOC_COUNT_PATH) $(QUICKCHECK_PATH)
+                                                                                                                              
+INCLUDES=. $(SEQUTIL_PATH) $(PARUTIL_PATH) $(SCHED_PATH) $(PBBS_PATH) $(MALLOC_COUNT_PATH) $(QUICKCHECK_PATH) $(GRANULARITY_PATH)
 
 # Folders where to find all the source files
 

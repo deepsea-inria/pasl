@@ -16,8 +16,8 @@
 #include <malloc.h>
 #endif
 
-#include "hash.hpp"
-#include "granularity.hpp"
+#include "hash.hpp"      
+#include "granularity-lite.hpp"
 
 #ifndef _MINICOURSE_SPARRAY_H_
 #define _MINICOURSE_SPARRAY_H_
@@ -33,14 +33,29 @@ static int __jj =  mallopt(M_TRIM_THRESHOLD,-1);
 
 namespace par = pasl::sched::granularity;
 
-#if defined(CONTROL_BY_FORCE_SEQUENTIAL)
-using controller_type = par::control_by_force_sequential;
-#elif defined(CONTROL_BY_FORCE_PARALLEL)
-using controller_type = par::control_by_force_parallel;
-#else
-using controller_type = par::control_by_prediction;
+#ifdef CMDLINE
+  typedef par::control_by_cmdline controller_type;
+#elif PREDICTION
+  typedef par::control_by_prediction controller_type;
+#elif CUTOFF_WITH_REPORTING
+  typedef par::control_by_cutoff_with_reporting controller_type;
+#elif CUTOFF_WITHOUT_REPORTING
+  typedef par::control_by_cutoff_without_reporting controller_type;
 #endif
-using loop_controller_type = par::loop_by_eager_binary_splitting<controller_type>;
+
+#ifdef BINARY
+  typedef par::loop_by_eager_binary_splitting<controller_type> loop_controller_type;
+#elif LAZY_BINARY
+  typedef par::loop_by_lazy_binary_splitting<controller_type> loop_controller_type;
+#elif SCHEDULING
+  typedef par::loop_by_lazy_binary_splitting_scheduling<controller_type> loop_controller_type;
+#elif BINARY_SEARCH
+  typedef par::loop_by_binary_search_splitting<controller_type> loop_controller_type;
+#elif LAZY_BINARY_SEARCH
+  typedef par::loop_by_lazy_binary_search_splitting<controller_type> loop_controller_type;
+#endif
+
+//using loop_controller_type = par::loop_by_eager_binary_splitting<controller_type>;
 
 #ifdef VALUE_32_BITS
 using value_type = int;
@@ -55,6 +70,12 @@ using value_type = long;
 #endif
 
 /*---------------------------------------------------------------------*/
+
+  //! \todo find a better place for this function
+template <class T>
+std::string string_of_template_arg() {
+  return std::string(typeid(T).name());
+}
 
 void todo() {
   pasl::util::atomic::fatal([&] {
@@ -368,7 +389,7 @@ public:
 };
 template <class Func>
 loop_controller_type tabulate_controller_type<Func>::contr("tabulate"+
-                                                           par::string_of_template_arg<Func>());
+                                                           string_of_template_arg<Func>());
 
 template <class Func>
 sparray tabulate(const Func& f, long n) {
@@ -406,8 +427,8 @@ public:
 };
 template <class Assoc_op, class Lift_func>
 controller_type reduce_controller_type<Assoc_op,Lift_func>::contr("reduce"+
-                                                                  par::string_of_template_arg<Assoc_op>()+
-                                                                  par::string_of_template_arg<Lift_func>());
+                                                                  string_of_template_arg<Assoc_op>()+
+                                                                  string_of_template_arg<Lift_func>());
 
 template <class Assoc_op, class Lift_func>
 value_type reduce_rec(const Assoc_op& op, const Lift_func& lift, value_type id, const sparray& xs,
@@ -469,16 +490,16 @@ public:
 };
 template <class Assoc_op, class Lift_func>
 controller_type scan_controller_type<Assoc_op,Lift_func>::body("scan_body"+
-                                                               par::string_of_template_arg<Assoc_op>()+
-                                                               par::string_of_template_arg<Lift_func>());
+                                                               string_of_template_arg<Assoc_op>()+
+                                                               string_of_template_arg<Lift_func>());
 template <class Assoc_op, class Lift_func>
 loop_controller_type scan_controller_type<Assoc_op,Lift_func>::lp1("scan_lp1"+
-                                                                   par::string_of_template_arg<Assoc_op>()+
-                                                                   par::string_of_template_arg<Lift_func>());
+                                                                   string_of_template_arg<Assoc_op>()+
+                                                                   string_of_template_arg<Lift_func>());
 template <class Assoc_op, class Lift_func>
 loop_controller_type scan_controller_type<Assoc_op,Lift_func>::lp2("scan_lp2"+
-                                                                   par::string_of_template_arg<Assoc_op>()+
-                                                                   par::string_of_template_arg<Lift_func>());
+                                                                   string_of_template_arg<Assoc_op>()+
+                                                                   string_of_template_arg<Lift_func>());
 
 class scan_excl_result {
 public:
