@@ -200,13 +200,33 @@ public:
   bool with_estimator() {
     return false;
   }
+
+  void initialize(double init_cst) {
+  }
+
+  void initialize(double init_cst, int estimations_nb) {
+  }
+
+  void set(std::string policy_arg) {
+  }
 };
 
 class control_with_estimator : public control {
 public:
-  virtual estimator_m& get_estimator() = 0;
-  virtual void initialize(double init_cst) = 0;
-  virtual void initialize(double init_cst, int estimations_nb) = 0;
+  estimator_m estimator;
+
+  estimator_m& get_estimator() {
+    return estimator;
+  }
+
+  void initialize(double init_cst) {
+    estimator.set_init_constant(init_cst);
+  }
+
+  void initialize(double init_cst, int estimations_nb) {
+    estimator.set_init_constant(init_cst);
+    estimator.set_minimal_estimations_nb(estimations_nb);
+  }
 
   bool with_estimator() {
     return true;
@@ -226,62 +246,21 @@ public:
 class control_by_cutoff_without_reporting : public control {
 public:
   control_by_cutoff_without_reporting(std::string) { }
-
-  void initialize(double init_cst) {
-  }
-
-  void set(std::string policy_arg) {
-  }
-
 };
 
 class control_by_cutoff_with_reporting : public control_with_estimator {
 public:
-  estimator_m estimator;
-
   control_by_cutoff_with_reporting(std::string name = "") {
       estimator.init(name);
   }
-
-  estimator_m& get_estimator() {
-    return estimator;
-  }
-  
-  void initialize(double init_cst) {
-    estimator.set_init_constant(init_cst);
-  }
-
-  void initialize(double init_cst, int estimations_nb) {
-    estimator.set_init_constant(init_cst);
-    estimator.set_minimal_estimations_nb(estimations_nb);
-  }
-
-  void set(std::string policy_arg) {
-    todo();
-  }
-
 };
 
 class control_by_prediction : public control_with_estimator {
 public:
-  estimator_m estimator;
-
   control_by_prediction(std::string name = "") {
       estimator.init(name);
   }
-
-  estimator_m& get_estimator() {
-    return estimator;
-  }
-  void initialize(double init_cst) {
-    estimator.set_init_constant(init_cst);
-  }
-  void initialize(double init_cst, int estimations_nb) {
-    estimator.set_init_constant(init_cst);
-    estimator.set_minimal_estimations_nb(estimations_nb);
-  }
-  void set(std::string policy_arg) {
-  }
+//  }
 };
 
 class control_by_cmdline : public control_with_estimator {
@@ -294,7 +273,6 @@ public:
     By_prediction
   };
 
-  estimator_m estimator;
   policy_type policy;
 
   control_by_force_parallel cbfp;
