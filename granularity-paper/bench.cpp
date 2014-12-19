@@ -377,8 +377,8 @@ benchmark_type graph_bench() {
   auto bench = [=] {
     *distsp = bfs(*graphp, source);
   };
-  auto output = [=] {
-    long nb_visited = sum(map([] (value_type v) { return (v != dist_unknown); }, *distsp));
+  auto output = [=] {                                                      
+    long nb_visited = sum(map([] (value_type v) { return (v != 0); }, *distsp));
     long max_dist = max(*distsp);
     std::cout << "nb_visited\t" << nb_visited << std::endl;
     std::cout << "max_dist\t" << max_dist << std::endl;
