@@ -68,6 +68,8 @@ int parse_int(std::string name);
   
 long parse_long(std::string name);
 
+long parse_long(std::string name);
+
 int64_t parse_int64(std::string name);
 
 uint64_t parse_uint64(std::string name);
@@ -93,6 +95,8 @@ bool parse_or_default_bool(std::string name, bool d, bool expected=true);
 
 int parse_or_default_int(std::string name, int d, bool expected=true);
   
+long parse_or_default_long(std::string name, long d, bool expected=true);
+
 long parse_or_default_long(std::string name, long d, bool expected=true);
 
 int64_t parse_or_default_int64(std::string name, int64_t d, bool expected=true);

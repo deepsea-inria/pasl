@@ -146,7 +146,6 @@ static void parse_value(type_t type, void* dest, char* arg_value)
       exit(-1); }
   }
 }
-
 static bool parse(type_t type, std::string name, void* dest) 
 { 
   check_set();  
@@ -190,6 +189,12 @@ int parse_int(std::string name) {
   return r;
 }
   
+long parse_long(std::string name) {
+  long r;
+  check (name, parse(LONG, name, &r));
+  return r;
+}
+
 long parse_long(std::string name) {
   long r;
   check (name, parse(LONG, name, &r));
@@ -256,6 +261,16 @@ int parse_or_default_int(std::string name, int d, bool expected) {
   }
 }
   
+long parse_or_default_long(std::string name, long d, bool expected) {
+  long r;
+  if (parse(LONG, name, &r)) {
+    return r;
+  } else {
+    print_default(name, d, expected);
+    return d;
+  }
+}
+
 long parse_or_default_long(std::string name, long d, bool expected) {
   long r;
   if (parse(LONG, name, &r)) {
