@@ -28,7 +28,8 @@ CHUNKEDSEQ_BENCH_PATH=$(PASL_ROOT_PATH)/chunkedseq/bench
 FFTREE_PATH=$(PASL_ROOT_PATH)/fftree/include
 FFTREE_BENCH_PATH=$(PASL_ROOT_PATH)/fftree/benchmark
 GRAPH_PATH=$(PASL_ROOT_PATH)/graph/include
-PBBS_PATH=$(PASL_ROOT_PATH)/tools/pbbs        
+PBBS_PATH=$(PASL_ROOT_PATH)/tools/pbbs
+QUICKCHECK_PATH=$(PASL_ROOT_PATH)/tools/quickcheck
 GRANULARITY_PATH=$(PASL_ROOT_PATH)/granularity
 
 ifeq ($(BENCHTOOLS_PATH),)
