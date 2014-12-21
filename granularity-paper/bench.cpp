@@ -84,9 +84,10 @@ benchmark_type fib_bench() {
   long n = pasl::util::cmdline::parse_or_default_long("n", 38);
   long* result = new long;
   auto init = [=] {
-
+    fib_contr.initialize(1, 10);
   };
   auto bench = [=] {
+//    std::cerr << "Here!" << std::endl;
     *result = fib(n);
   };
   auto output = [=] {
@@ -398,6 +399,9 @@ int main(int argc, char** argv) {
   benchmark_type bench;
   
   auto init = [&] {
+//    pasl::util::ticks::set_ticks_per_seconds(1000);
+//    pasl::sched::granularity::execmode.init(pasl::sched::granularity::dynidentifier<pasl::sched::granularity::execmode_type>());
+
     pasl::util::cmdline::argmap<std::function<benchmark_type()>> m;
     m.add("fib",                  [&] { return fib_bench(); });
     m.add("mfib",                 [&] { return mfib_bench(); });
