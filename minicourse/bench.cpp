@@ -366,7 +366,7 @@ benchmark_type sort_bench() {
 
 benchmark_type graph_bench() {
   adjlist* graphp = new adjlist;
-  sparray* distsp = new sparray;
+  sparray* visitedp = new sparray;
   std::string fname = pasl::util::cmdline::parse_or_default_string("fname", "");
   vtxid_type source = pasl::util::cmdline::parse_or_default_long("source", (value_type)0);
   if (fname == "")
@@ -375,17 +375,17 @@ benchmark_type graph_bench() {
     graphp->load_from_file(fname);
   };
   auto bench = [=] {
-    *distsp = bfs(*graphp, source);
+    *visitedp = bfs(*graphp, source);
   };
   auto output = [=] {
-    long nb_visited = sum(map([] (value_type v) { return (v != dist_unknown); }, *distsp));
-    long max_dist = max(*distsp);
+    long nb_visited = sum(*visitedp);
+    long max_dist = max(*visitedp);
     std::cout << "nb_visited\t" << nb_visited << std::endl;
     std::cout << "max_dist\t" << max_dist << std::endl;
   };
   auto destroy = [=] {
     delete graphp;
-    delete distsp;
+    delete visitedp;
   };
   return make_benchmark(init, bench, output, destroy);
 }
