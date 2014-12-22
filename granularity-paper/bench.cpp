@@ -398,6 +398,7 @@ benchmark_type graph_bench() {
 int main(int argc, char** argv) {
 
   benchmark_type bench;
+  std::cerr << "Main have been started.\n";
   
   auto init = [&] {
 //    pasl::util::ticks::set_ticks_per_seconds(1000);
@@ -432,6 +433,7 @@ int main(int argc, char** argv) {
     
     bench = m.find_by_arg("bench")();
     bench_init(bench);
+    std::cerr << "Initialization is successful!\n";
   };
   auto run = [&] (bool) {
     bench_run(bench);
