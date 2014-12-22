@@ -83,10 +83,11 @@ void bench_destroy(const benchmark_type& b) {
 benchmark_type fib_bench() {
   long n = pasl::util::cmdline::parse_or_default_long("n", 38);
   long* result = new long;
-  auto init = [=] {
-    fib_contr.initialize(1, 10);
+  auto init = [&] {
+
   };
   auto bench = [=] {
+    fib_contr.initialize(1, 10);
 //    std::cerr << "Here!" << std::endl;
     *result = fib(n);
   };
