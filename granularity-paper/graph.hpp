@@ -297,9 +297,9 @@ sparray edge_map(const adjlist& graph, std::atomic<bool>* visited, const sparray
   auto weight = [&] (long lo, long hi) {
     long u = (hi == m) ? n : offsets.partials[hi];
     return u - offsets.partials[lo];
-  };
-  sparray out_frontier = sparray(n);
-  par::parallel_for(edge_map_contr, weight, 0l, m, [&] (long i) {
+  };                                                                 
+  sparray out_frontier = sparray(n);                                 
+  par::parallel_for(edge_map_contr, [&] (long lo, long hi) { par::todo(); return false;}, weight, 0l, m, [&] (long i) {
     vtxid_type src = in_frontier[i];
     long offset = offsets.partials[i];
     neighbor_list out_edges = graph.get_out_edges_of(src);

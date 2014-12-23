@@ -450,7 +450,7 @@ void initialization() {
   pasl::util::ticks::set_ticks_per_seconds(1000);
   cbuild.initialize(1);
   crun.initialize(1, 10);
-  pasl::sched::granularity::execmode.init(pasl::sched::granularity::dynidentifier<pasl::sched::granularity::execmode_type>());
+//  pasl::sched::granularity::execmode.init(pasl::sched::granularity::dynidentifier<pasl::sched::granularity::execmode_type>());
 }
 
 int main(int argc, char** argv) {
@@ -499,7 +499,19 @@ int main(int argc, char** argv) {
       }
     }
     std::string running_mode = pasl::util::cmdline::parse_or_default_string(
-          "mode", std::string("by_force_sequential"));std::cout << "Using " << running_mode << " mode" << std::endl;cbuild.set(running_mode);crun.set(running_mode);
+          "mode", std::string("by_force_sequential"));
+
+    #ifdef CMDLINE
+      std::cout << "Using " << running_mode << " mode" << std::endl;
+    #elif PREDICTION
+      std::cout << "Using by_prediction mode" << std::endl;
+    #elif CUTOFF_WITH_REPORTING
+      std::cout << "Using by_cutoff_with_reporting mode" << std::endl;
+    #elif CUTOFF_WITHOUT_REPORTING        
+      std::cout << "Using by_cutoff_without_reporting mode" << std::endl;
+    #endif
+
+    cbuild.set(running_mode);crun.set(running_mode);
   };
 
   auto run = [&] (bool sequential) {

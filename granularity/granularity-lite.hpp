@@ -61,7 +61,7 @@ Item* new_array(long n) {
 /* Complexity measure */
 
 // type of integer values returned by complexity measures
-using cmeasure_type = long;
+using cmeasure_type = data::estimator::complexity_type;
 
 // a tiny complexity measure forces sequential exec
 constexpr cmeasure_type tiny      = -1l;
@@ -83,8 +83,8 @@ constexpr double shared_coefficient = 2;
 using cost_type = double;
 using namespace pasl::data;
 typedef pasl::data::estimator::distributed estimator_m;
-
-pasl::data::perworker::base<int> unique_estimator_id;
+                           
+pasl::data::perworker::cell<int> unique_estimator_id;
 
 // cutoff expressed in microseconds
 cost_type kappa = 2000.0;
@@ -93,7 +93,7 @@ cost_type kappa = 2000.0;
 class constant_estimator {
 private:
   static std::atomic<cost_type> shared_constant;// = std::atomic<cost_type>(undefined);
-  pasl::data::perworker::base<cost_type> local_constants;
+  pasl::data::perworker::array<cost_type> local_constants;
 
   std::string name;
 
@@ -197,6 +197,7 @@ double since(double start) {
 
 class control {
 public:
+
   bool with_estimator() {
     return false;
   }
@@ -212,8 +213,10 @@ public:
 };
 
 class control_with_estimator : public control {
-public:
+public:                                             
   estimator_m estimator;
+
+  control_with_estimator(std::string name = "") : estimator(name) { }
 
   estimator_m& get_estimator() {
     return estimator;
@@ -250,17 +253,12 @@ public:
 
 class control_by_cutoff_with_reporting : public control_with_estimator {
 public:
-  control_by_cutoff_with_reporting(std::string name = "") {
-      estimator.init(name);
-  }
+  control_by_cutoff_with_reporting(std::string name = "") : control_with_estimator(name) { }
 };
 
 class control_by_prediction : public control_with_estimator {
 public:
-  control_by_prediction(std::string name = "") {
-      estimator.init(name);
-  }
-//  }
+  control_by_prediction(std::string name = "") : control_with_estimator(name) { }
 };
 
 class control_by_cmdline : public control_with_estimator {
@@ -280,13 +278,12 @@ public:
   control_by_cutoff_without_reporting cbcwor;
   control_by_cutoff_with_reporting cbcwtr;
   control_by_prediction cbp;
-
-  control_by_cmdline(std::string name = ""): policy(By_prediction), 
+                                                                         
+  control_by_cmdline(std::string name = ""): control_with_estimator(name),
+                                             policy(By_prediction), 
                                              cbfp(name), cbfs(name), 
                                              cbcwor(name), cbcwtr(name), 
-                                             cbp(name) {
-    estimator.init(name);
-  } 
+                                             cbp(name) {; } 
 
   // to be called by a callback in the PASL runtime
   void set(std::string policy_arg) {
@@ -396,8 +393,8 @@ execmode_type execmode_combine(execmode_type p, execmode_type c) {
 
 // current configuration of the running thread;
 // todo: to be stored in perworker memory
-perworker::base<dynidentifier<execmode_type>> execmode;
-
+perworker::cell<dynidentifier<execmode_type>> execmode;
+             
 execmode_type& my_execmode() {
   return execmode.mine().back();
 }

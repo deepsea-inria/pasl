@@ -30,7 +30,7 @@ sparray dmdvmult(const sparray& m, const sparray& v) {
   auto compl_fct = [n] (long lo, long hi) {
     return (hi-lo)*n;
   };
-  par::parallel_for(dmdvmult_contr, compl_fct, 0l, n, [&] (long i) {
+  par::parallel_for(dmdvmult_contr, [&] (long lo, long hi) { par::todo(); return false;}, compl_fct, 0l, n, [&] (long i) {
     result[i] = ddotprod(m, i, v);
   });
   return result;
