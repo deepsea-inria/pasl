@@ -232,7 +232,6 @@ public: //! \todo find a better way to avoid false sharing
   std::atomic<int> estimations;
   std::atomic<bool> predict_unknown;
 
-//>>>>>>> add lazy binary search
 protected:
   void update(cost_type new_cst);
   void analyse(cost_type measured_cst);
