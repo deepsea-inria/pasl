@@ -472,37 +472,40 @@ benchmark_type synthetic_bench() {
         "m", 2000);
   int p = pasl::util::cmdline::parse_or_default_int(
         "p", 100);
-  int* result = new int;
+
+  std::string running_mode = pasl::util::cmdline::parse_or_default_string(
+        "mode", std::string("by_force_sequential"));
+
+  std::cerr << n << " " << m << " " << p << "\n";
+
+  int total = 0;
+
+  #ifdef CMDLINE
+    std::cout << "Using " << running_mode << " mode" << std::endl;
+  #elif PREDICTION
+    std::cout << "Using by_prediction mode" << std::endl;
+  #elif CUTOFF_WITH_REPORTING
+    std::cout << "Using by_cutoff_with_reporting mode" << std::endl;
+  #elif CUTOFF_WITHOUT_REPORTING        
+    std::cout << "Using by_cutoff_without_reporting mode" << std::endl;
+  #endif
+
+  sol_contr.initialize(1, 10);
+  sil_contr.initialize(1, 10);
+
+  sol_contr.set(running_mode);
+    sil_contr.set(running_mode);
 
   auto init = [&] {
-    sol_contr.initialize(1, 10);
-    sil_contr.initialize(1, 10);
-
-    std::string running_mode = pasl::util::cmdline::parse_or_default_string(
-          "mode", std::string("by_force_sequential"));
-
-    #ifdef CMDLINE
-      std::cout << "Using " << running_mode << " mode" << std::endl;
-    #elif PREDICTION
-      std::cout << "Using by_prediction mode" << std::endl;
-    #elif CUTOFF_WITH_REPORTING
-      std::cout << "Using by_cutoff_with_reporting mode" << std::endl;
-    #elif CUTOFF_WITHOUT_REPORTING        
-      std::cout << "Using by_cutoff_without_reporting mode" << std::endl;
-    #endif
-
-    sol_contr.set(running_mode);
-    sil_contr.set(running_mode);
   };            
 
-  auto bench = [=] {
-    *result = synthetic(n, m, p);
+  auto bench = [&] {
+    total = synthetic(n, m, p);
   };
-  auto output = [=] {                  
-    std::cout << *result << std::endl;
+  auto output = [&] {                  
+    std::cout << total << std::endl;
   };                  
   auto destroy = [=] {
-    delete result;
   };
   return make_benchmark(init, bench, output, destroy);
 }

@@ -29,6 +29,7 @@ int synthetic(int n, int m, int p) {
         [&] (int L, int R) {return true;},
         [&] (int L, int R) {return (R - L);},
         int(0), m, [&] (int i) {
+          int value = 1;
           for (int k = 0; k < p; k++) {
             total++;
           }
