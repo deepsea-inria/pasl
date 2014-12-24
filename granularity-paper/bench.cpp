@@ -17,6 +17,7 @@
 #include "mcss.hpp"
 #include "numeric.hpp"
 #include "exercises.hpp"
+#include "nearestneighbors-lite.hpp"
 
 /***********************************************************************/
 
@@ -392,18 +393,86 @@ benchmark_type graph_bench() {
   return make_benchmark(init, bench, output, destroy);
 }
 
+benchmark_type nearestneighbors_bench() {
+  AbstractRunnerNN* runner = NULL;
+                                                                                            
+  auto init = [&] {
+    nn_build_contr.initialize(1);
+    nn_run_contr.initialize(1, 10);
+
+    int n = pasl::util::cmdline::parse_or_default_int("n", 1000000);
+    int k = pasl::util::cmdline::parse_or_default_int("k", 8);
+    int d = pasl::util::cmdline::parse_or_default_int("d", 2);
+    std::string gen_type = pasl::util::cmdline::parse_or_default_string(
+        "gen", "uniform");
+    bool inSphere = pasl::util::cmdline::parse_or_default_bool(
+        "in-sphere", false);
+    bool onSphere = pasl::util::cmdline::parse_or_default_bool(
+        "on-sphere", false);
+
+    if (d == 2) {
+      if (gen_type.compare("uniform") == 0) {
+        pbbs::point2d* points = pbbs::uniform2d(inSphere, onSphere, n);
+        runner = new RunnerNN<int, pbbs::point2d, 20>(preparePoints<pbbs::point2d, 20>(n, points), n, k);
+      } else if (gen_type.compare("plummer") == 0) {        pbbs::point2d* points = pbbs::plummer2d(n);
+        runner = new RunnerNN<int, pbbs::point2d, 20>(preparePoints<pbbs::point2d, 20>(n, points), n, k);
+      } else {
+        std::cerr << "Wrong generator type " << gen_type << "\n";
+        exit(-1);
+      }
+    } else {
+      if (gen_type.compare("uniform") == 0) {
+        pbbs::point3d* points = pbbs::uniform3d<int, int>(inSphere, onSphere, n);
+        runner = new RunnerNN<int, pbbs::point3d, 20>(preparePoints<pbbs::point3d, 20>(n, points), n, k);
+      } else if (gen_type.compare("plummer") == 0) {
+        pbbs::point3d* points = pbbs::plummer3d<int, int>(n);
+        runner = new RunnerNN<int, pbbs::point3d, 20>(preparePoints<pbbs::point3d, 20>(n, points), n, k);
+      } else {
+        std::cerr << "Wrong generator type " << gen_type << "\n";
+        exit(-1);
+      }
+    }
+    std::string running_mode = pasl::util::cmdline::parse_or_default_string(
+          "mode", std::string("by_force_sequential"));
+
+    #ifdef CMDLINE
+      std::cout << "Using " << running_mode << " mode" << std::endl;
+    #elif PREDICTION
+      std::cout << "Using by_prediction mode" << std::endl;
+    #elif CUTOFF_WITH_REPORTING
+      std::cout << "Using by_cutoff_with_reporting mode" << std::endl;
+    #elif CUTOFF_WITHOUT_REPORTING        
+      std::cout << "Using by_cutoff_without_reporting mode" << std::endl;
+    #endif
+
+    nn_build_contr.set(running_mode);
+    nn_run_contr.set(running_mode);
+  };            
+
+  auto bench = [&] {
+    std::cerr << "Run bench!" << runner << "\n";
+    runner->initialize();
+    std::cerr << "Initialization is successful!\n";
+    runner->run();
+  };
+  auto output = [=] {                  
+    std::cout << "The evaluation have finished" << std::endl;
+  };
+  auto destroy = [=] {
+    runner->free();
+  };
+  return make_benchmark(init, bench, output, destroy);
+}
+
+
 /*---------------------------------------------------------------------*/
 /* PASL Driver */
 
 int main(int argc, char** argv) {
 
   benchmark_type bench;
-  std::cerr << "Main have been started.\n";
   
   auto init = [&] {
-//    pasl::util::ticks::set_ticks_per_seconds(1000);
-//    pasl::sched::granularity::execmode.init(pasl::sched::granularity::dynidentifier<pasl::sched::granularity::execmode_type>());
-
     pasl::util::cmdline::argmap<std::function<benchmark_type()>> m;
     m.add("fib",                  [&] { return fib_bench(); });
     m.add("mfib",                 [&] { return mfib_bench(); });
@@ -420,6 +489,7 @@ int main(int argc, char** argv) {
     m.add("graph",                [&] { return graph_bench(); });
     m.add("duplicate",            [&] { return duplicate_bench(); });
     m.add("ktimes",               [&] { return ktimes_bench(); });
+    m.add("nearest_neighbors",    [&] { return nearestneighbors_bench(); });
     
 
     m.add("map_incr_ex",          [&] { return map_incr_bench(true); });
@@ -433,7 +503,6 @@ int main(int argc, char** argv) {
     
     bench = m.find_by_arg("bench")();
     bench_init(bench);
-    std::cerr << "Initialization is successful!\n";
   };
   auto run = [&] (bool) {
     bench_run(bench);
