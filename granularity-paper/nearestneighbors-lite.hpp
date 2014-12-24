@@ -68,7 +68,6 @@ class gTreeNode {
   // wraps a bounding box around the points and generates
   // a tree.
   static gTreeNode* gTree(vertex** vv, intT n) {
-    
     // calculate bounding box
     point* pt = newA(point, n);
     // copying to an array of points to make reduce more efficient
@@ -90,7 +89,7 @@ class gTreeNode {
     });
     //std::cout << "about to build tree" << std::endl;
     
-    gTreeNode* result = new gTreeNode(v, n, center, box.maxDim());
+    gTreeNode* result = new gTreeNode(v, n, center, box.maxDim());;
     free(v);
     return result;
   }
@@ -207,9 +206,9 @@ class gTreeNode {
       // Give each child its appropriate center and size
       // The centers are offset by size/4 in each of the dimensions
 
-#ifdef LITE
+#ifdef LITE                        
       pasl::sched::granularity::parallel_for(nn_build_contr, 
-        [&] (int L, int R) {return ((R == quadrants) ? n : offsets[R]) - offsets[L] <= build_cutoff_const;},
+        [&] (int L, int R) {return true;},
         [&] (int L, int R) {
         return ((R == quadrants) ? n : offsets[R]) - offsets[L];},
         int(0), quadrants, [&] (int i) {
@@ -218,6 +217,7 @@ class gTreeNode {
         children[i] = newTree(S + offsets[i], l, newcenter, size/2.0);
       });
 #elif STANDART
+//      std::cerr << "STANDART\n";
       pasl::sched::native::parallel_for(
         int(0), quadrants, [&] (int i) {
         point newcenter = center.offsetPoint(i, size/4.0);
@@ -225,6 +225,7 @@ class gTreeNode {
         children[i] = newTree(S + offsets[i], l, newcenter, size/2.0);
       });
 #endif
+//      std::cerr << "after for!\n";
       
       data = nodeData(center);
       for (int i=0 ; i < quadrants; i++)
@@ -298,7 +299,7 @@ struct kNearestNeighbor {
       if (r < rn[0]) {
         pn[0]=p; rn[0] = r;
         for (int i=1; i < k && rn[i-1]<rn[i]; i++) {
-          swap(rn[i-1],rn[i]); swap(pn[i-1],pn[i]); }
+          std::swap(rn[i-1],rn[i]); std::swap(pn[i-1],pn[i]); }
       }
     }
     
@@ -337,7 +338,6 @@ struct kNearestNeighbor {
   void kNearest(vertex *p, vertex** result, int k) {
     kNN nn(p,k);
     nn.nearestNgh(tree);
-;
     for (int i=0; i < k; i++) result[i] = 0;
     for (int i=0; i < k; i++) result[i] = nn[i];
   }
@@ -372,7 +372,6 @@ struct RunnerNN : AbstractRunnerNN {
   }
 
   void initialize() {
-    std::cerr<< "HUI";
     T = kNNT(v, n);
     vr = T.vertices();
   }
@@ -381,7 +380,7 @@ struct RunnerNN : AbstractRunnerNN {
     // find nearest k neighbors for each point
 #ifdef LITE
     pasl::sched::granularity::parallel_for(nn_run_contr,
-      [&] (int L, int R) {return (R - L) * k * log(n) <= run_cutoff_const;},
+      [&] (int L, int R) {return true;},
       [&] (int L, int R) {return (R - L) * k * log(n);},
       int(0), n, [&] (int i) {
       T.kNearest(vr[i], vr[i]->ngh, k);
