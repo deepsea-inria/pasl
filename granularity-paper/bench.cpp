@@ -471,57 +471,54 @@ benchmark_type synthetic_bench() {
   int m = pasl::util::cmdline::parse_or_default_int(
         "m", 2000);
   int p = pasl::util::cmdline::parse_or_default_int(
-        "p", 100);
+        "p", 100);                                         
 
-  std::string running_mode = pasl::util::cmdline::parse_or_default_string(
-        "mode", std::string("by_force_sequential"));
+  int* total = new int;
+      
+  auto init = [&] {
+    std::string running_mode = pasl::util::cmdline::parse_or_default_string(
+          "mode", std::string("by_force_sequential")).c_str();
 
-  int total = 0;
+    #ifdef CMDLINE
+      std::cout << "Using " << running_mode << " mode" << std::endl;
+    #elif PREDICTION
+      std::cout << "Using by_prediction mode" << std::endl;
+    #elif CUTOFF_WITH_REPORTING
+      std::cout << "Using by_cutoff_with_reporting mode" << std::endl;
+    #elif CUTOFF_WITHOUT_REPORTING        
+      std::cout << "Using by_cutoff_without_reporting mode" << std::endl;
+    #endif
 
-  #ifdef CMDLINE
-    std::cout << "Using " << running_mode << " mode" << std::endl;
-  #elif PREDICTION
-    std::cout << "Using by_prediction mode" << std::endl;
-  #elif CUTOFF_WITH_REPORTING
-    std::cout << "Using by_cutoff_with_reporting mode" << std::endl;
-  #elif CUTOFF_WITHOUT_REPORTING        
-    std::cout << "Using by_cutoff_without_reporting mode" << std::endl;
-  #endif
-
-  pasl::util::cmdline::argmap<std::pair<thunk_type,thunk_type>> c;
-  c.add("parallel_for", std::make_pair([running_mode] {
     sol_contr.initialize(1, 10);
     sil_contr.initialize(1, 10);
 
     sol_contr.set(running_mode);
     sil_contr.set(running_mode);
-  }, [&n, &m, &p, &total] {
-    std::cerr << n << " " << m << " " << p;
-    total = synthetic(n, m, p);
-  }));                                                          
-               
-  c.add("recursive", std::make_pair([running_mode] {
+
     sf_contr.initialize(1, 10);
     sg_contr.initialize(1, 10);
-      
+
     sf_contr.set(running_mode);
     sg_contr.set(running_mode);
-  }, [n, m, p, &total] {    
-    total = synthetic_f(n, m, p);
-  }));
-                                       
-  std::pair<thunk_type,thunk_type> runner = c.find_by_arg("algo");
-
-  auto init = [&] {
-    runner.first();
-  };            
-  auto bench = [&] {
-    runner.second();
   };
-  auto output = [&] {                  
-    std::cout << total << std::endl;
+                                     
+  pasl::util::cmdline::argmap_dispatch c;
+  c.add("parallel_for", [=] {
+    std::cerr << n << " " << m << " " << p;
+    *total = synthetic(n, m, p);
+  });
+                        
+  c.add("recursive", [=] {
+    *total = synthetic_f(n, m, p);
+  });
+                                       
+  auto bench = c.find_by_arg("algo");
+                 
+  auto output = [=] {                  
+    std::cout << *total << std::endl;
   };                  
   auto destroy = [=] {
+    delete total;
   };
   return make_benchmark(init, bench, output, destroy);
 }
