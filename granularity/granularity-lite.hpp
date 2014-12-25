@@ -1249,6 +1249,7 @@ public:
         for (Number i = l; i < m; i++)
           body(i);
       };
+
       cstmt_report(*gcpolicy, compl_fct, seq_fct);
       l = m;
       pasl::sched::native::yield();
@@ -1256,7 +1257,7 @@ public:
   }
   
   size_t size()  {
-    return r - l;// + 1;
+    return r < l ? 0:r-l;// + 1;
   }
   
   pasl::sched::thread_p split(size_t nb_items) {

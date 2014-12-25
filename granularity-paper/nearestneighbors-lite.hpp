@@ -212,7 +212,7 @@ class gTreeNode {
         [&] (int L, int R) {
         return ((R == quadrants) ? n : offsets[R]) - offsets[L];},
         int(0), quadrants, [&] (int i) {
-//        std::cerr << "Run on " << size << " " << i << std::endl;
+//        std::cerr << "Run on " << size << " " << i << " " << quadrants << std::endl;
         point newcenter = center.offsetPoint(i, size/4.0);
         intT l = ((i == quadrants-1) ? n : offsets[i+1]) - offsets[i];
         children[i] = newTree(S + offsets[i], l, newcenter, size/2.0);
