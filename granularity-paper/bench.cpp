@@ -454,7 +454,9 @@ benchmark_type nearestneighbors_bench() {
   };            
                      
   auto bench = [=] {
+    std::cerr << "Initialization have started!\n";
     (*runner_link)->initialize();
+    std::cerr << "Initialization have finished!\n";
     (*runner_link)->run();
   };
   auto output = [=] {                  

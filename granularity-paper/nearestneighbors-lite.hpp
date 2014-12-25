@@ -212,6 +212,7 @@ class gTreeNode {
         [&] (int L, int R) {
         return ((R == quadrants) ? n : offsets[R]) - offsets[L];},
         int(0), quadrants, [&] (int i) {
+//        std::cerr << "Run on " << size << " " << i << std::endl;
         point newcenter = center.offsetPoint(i, size/4.0);
         intT l = ((i == quadrants-1) ? n : offsets[i+1]) - offsets[i];
         children[i] = newTree(S + offsets[i], l, newcenter, size/2.0);
@@ -228,9 +229,11 @@ class gTreeNode {
 //      std::cerr << "after for!\n";
       
       data = nodeData(center);
-      for (int i=0 ; i < quadrants; i++)
+      for (int i=0 ; i < quadrants; i++) {
+//        std::cerr << children[i] << std::endl;
         if (children[i]->count > 0)
           data += children[i]->data;
+      }
     } else {
       vertices = new vertex*[count];
       data = nodeData(center);
@@ -372,21 +375,17 @@ struct RunnerNN : AbstractRunnerNN {
   }
 
   void initialize() {
-    std::cerr << "Initialize" << std::endl;
     T = kNNT(v, n);
     vr = T.vertices();
-    std::cerr << "Initialization completed" << std::endl;
   }
 
   void run() {
-      std::cerr << "Run:" << std::endl;
     // find nearest k neighbors for each point
 #ifdef LITE
     pasl::sched::granularity::parallel_for(nn_run_contr,
       [&] (int L, int R) {return true;},
       [&] (int L, int R) {return (R - L) * k * log(n);},
       int(0), n, [&] (int i) {
- //     std::cerr << i << std::endl;
       T.kNearest(vr[i], vr[i]->ngh, k);
     });
 #elif STANDART

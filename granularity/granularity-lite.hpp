@@ -427,12 +427,11 @@ void cstmt_base_with_reporting_unknown(cmeasure_type m, Seq_body_fct& seq_body_f
 
 template <
   class Control,
-  class Cutoff_fct,
   class Complexity_measure_fct,
   class Seq_body_fct
 >
 void cstmt_report(Control& contr,
-           const Cutoff_fct&,
+//           const Cutoff_fct&,
            const Complexity_measure_fct& complexity_measure_fct,
            const Seq_body_fct& seq_body_fct) {
   if (contr.with_estimator()) {
@@ -793,10 +792,11 @@ void parallel_for(loop_by_eager_binary_splitting<Granularity_control_policy>& lp
     for (Number i = lo; i < hi; i++)
       body(i);
   };
-  if (hi - lo < 2) {                                  
-    cstmt(*lpalgo.gcpolicy, [&] { return true; }, [&] {return loop_compl_fct(lo, hi);}, 
-      seq_fct, seq_fct);
-  } else {
+  if (hi - lo < 2
+     || (!lpalgo.gcpolicy->with_estimator() && loop_cutoff_fct(lo, hi))
+     || (lpalgo.gcpolicy->with_estimator() && lpalgo.gcpolicy->get_estimator().predict(loop_compl_fct(lo, hi)) <= kappa)) {
+    cstmt_report(*lpalgo.gcpolicy, [&] {return loop_compl_fct(lo, hi);}, seq_fct);
+  }else {
     auto cutoff_fct = [&] {
       return loop_cutoff_fct(lo, hi);
     };
@@ -902,9 +902,10 @@ void parallel_for_binary_search(loop_by_binary_search_splitting<Granularity_cont
     for (Number i = lo; i < hi; i++)
       body(i);
   };
-  if (hi - lo < 2 || (!lpalgo.gcpolicy->with_estimator() && loop_cutoff_fct(lo, hi))) {
-    cstmt(*lpalgo.gcpolicy, [&] { return true; }, [&] {return loop_compl_fct(lo, hi);}, 
-      seq_fct, seq_fct);
+  if (hi - lo < 2
+     || (!lpalgo.gcpolicy->with_estimator() && loop_cutoff_fct(lo, hi))
+     || (lpalgo.gcpolicy->with_estimator() && lpalgo.gcpolicy->get_estimator().predict(loop_compl_fct(lo, hi)) <= kappa)) {
+    cstmt_report(*lpalgo.gcpolicy, [&] {return loop_compl_fct(lo, hi);}, seq_fct);
   } else {
     auto cutoff_fct = [&] {
       return loop_cutoff_fct(lo, hi);
@@ -929,7 +930,7 @@ void parallel_for_binary_search(loop_by_binary_search_splitting<Granularity_cont
         seq_fct
       );
     } else {
-      cstmt(*lpalgo.gcpolicy, [&] { return true; }, [&] {return loop_compl_fct(lo, l);}, inner_seq_fct, inner_seq_fct);
+      cstmt_report(*lpalgo.gcpolicy, [&] {return loop_compl_fct(lo, l);}, inner_seq_fct);
     }
   }
 }
@@ -1080,7 +1081,7 @@ void parallel_for_lazy_binary_search_bs(loop_by_lazy_binary_search_splitting<Gra
         body(i);
     };
 
-    cstmt(*lpalgo.gcpolicy, [&] { return true; }, [&] {return loop_compl_fct(split_positions[l].first, split_positions[l].second);}, inner_seq_fct, inner_seq_fct);
+    cstmt_report(*lpalgo.gcpolicy, [&] {return loop_compl_fct(split_positions[l].first, split_positions[l].second);}, inner_seq_fct);
   }
 }
 
@@ -1138,8 +1139,8 @@ void parallel_for(loop_by_lazy_binary_search_splitting<Granularity_control_polic
 
     split_positions.push_back(std::make_pair(p, l));
   }
-
-  parallel_for_lazy_binary_search_bs(lpalgo, loop_cutoff_fct, loop_compl_fct, split_positions, 0, (Number)split_positions.size(), body);
+                                                                                                     
+  parallel_for_lazy_binary_search_bs(lpalgo, loop_cutoff_fct, loop_compl_fct, split_positions, (Number)0, (Number)split_positions.size(), body);
 }
 
 //Parallel for by lazy binary splitt 
@@ -1155,6 +1156,7 @@ void parallel_for(loop_by_lazy_binary_splitting<Granularity_control_policy>& lpa
                   const Loop_cutoff_fct& loop_cutoff_fct,
                   const Loop_complexity_measure_fct& loop_compl_fct,
                   Number lo, Number hi, const Body& body) {
+//  std::cerr << lo << " " << hi << std::endl;
   auto seq_fct = [&] {
     for (Number i = lo; i < hi; i++)
       body(i);
@@ -1162,14 +1164,8 @@ void parallel_for(loop_by_lazy_binary_splitting<Granularity_control_policy>& lpa
   if (hi - lo < 2
      || (!lpalgo.gcpolicy->with_estimator() && loop_cutoff_fct(lo, hi))
      || (lpalgo.gcpolicy->with_estimator() && lpalgo.gcpolicy->get_estimator().predict(loop_compl_fct(lo, hi)) <= kappa)) {
-    cstmt(*lpalgo.gcpolicy, [&] { return true; }, [&] {loop_compl_fct(lo, hi);}, 
-      [&] {
-        for (Number i = lo; i < hi; i++)
-          body(i);
-      }
-
-    );
-  } else {
+    cstmt_report(*lpalgo.gcpolicy, [&] {return loop_compl_fct(lo, hi);}, seq_fct);
+  } else {                                                                                              
     auto cutoff_fct = [&] {
       return loop_cutoff_fct(lo, hi);
     };
@@ -1183,8 +1179,8 @@ void parallel_for(loop_by_lazy_binary_splitting<Granularity_control_policy>& lpa
         body(i);
     };
 //    seq_fct1();
-
-    cstmt(*lpalgo.gcpolicy, cutoff_fct, compl_fct, seq_fct1, seq_fct1);
+               
+    cstmt_report(*lpalgo.gcpolicy, compl_fct, seq_fct1);
 
     auto seq_fct2 = [&] {
       for (Number i = l; i < hi; i++)
@@ -1253,7 +1249,7 @@ public:
         for (Number i = l; i < m; i++)
           body(i);
       };
-      cstmt(*gcpolicy, cutoff_fct, compl_fct, seq_fct, seq_fct);
+      cstmt_report(*gcpolicy, compl_fct, seq_fct);
       l = m;
       pasl::sched::native::yield();
     }
