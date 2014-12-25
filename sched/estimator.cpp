@@ -255,7 +255,6 @@ void distributed::update(cost_type new_cst) {
 
 void distributed::analyse(cost_type measured_cst) {
   cost_type cst = get_constant();
-//>>>>>>> bb5dbf8dff06f512686aff43162fb7f1dedabcf1
   if (cst == cost::undefined) {
     // handle the first measure without average
     update(measured_cst);
@@ -285,7 +284,7 @@ bool distributed::can_predict_unknown() {
 
 
 bool distributed::constant_is_known() {
-  return (shared_cst != cost::unknown);
+  return (shared_cst != cost::unknown) && (estimations <= 0);
 }
 
   

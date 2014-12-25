@@ -30,7 +30,8 @@ VERBOSE_DEPENDENCIES=0
 PROGRAMS=\
 	example.cpp \
 	check.cpp \
-	bench.cpp 
+	bench.cpp \
+	synthetic-lite.cpp
 #       add reference to your cpp source here
 
 ####################################################################

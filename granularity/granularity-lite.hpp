@@ -794,7 +794,8 @@ void parallel_for(loop_by_eager_binary_splitting<Granularity_control_policy>& lp
   };
   if (hi - lo < 2
      || (!lpalgo.gcpolicy->with_estimator() && loop_cutoff_fct(lo, hi))
-     || (lpalgo.gcpolicy->with_estimator() && lpalgo.gcpolicy->get_estimator().predict(loop_compl_fct(lo, hi)) <= kappa)) {
+     || (lpalgo.gcpolicy->with_estimator() && lpalgo.gcpolicy->get_estimator().constant_is_known()
+         && lpalgo.gcpolicy->get_estimator().predict(loop_compl_fct(lo, hi)) <= kappa)) {
     cstmt_report(*lpalgo.gcpolicy, [&] {return loop_compl_fct(lo, hi);}, seq_fct);
   }else {
     auto cutoff_fct = [&] {

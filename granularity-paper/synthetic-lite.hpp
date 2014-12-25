@@ -6,7 +6,7 @@
  *
  */
 
-#include "sparray.hpp"
+//#include "sparray.hpp"
 
 #ifndef _MINICOURSE_SYNTHETIC_H_
 #define _MINICOURSE_SYNTHETIC_H_
@@ -28,10 +28,10 @@ int synthetic(int n, int m, int p) {
       pasl::sched::granularity::parallel_for(sil_contr,
         [&] (int L, int R) {return true;},
         [&] (int L, int R) {return (R - L);},
-        int(0), m, [&] (int i) {
+        int(0), m, [&] (int j) {//i) {
           int value = 1;
           for (int k = 0; k < p; k++) {
-            total++;
+            total^= 1;//++;
           }
       });
   });
