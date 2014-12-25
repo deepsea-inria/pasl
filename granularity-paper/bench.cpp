@@ -394,10 +394,10 @@ benchmark_type graph_bench() {
   return make_benchmark(init, bench, output, destroy);
 }
 
-benchmark_type nearestneighbors_bench() {
-  AbstractRunnerNN* runner = NULL;
+benchmark_type nearestneighbors_bench() {            
+  AbstractRunnerNN** runner_link = new AbstractRunnerNN*;
                                                                                             
-  auto init = [&] {
+  auto init = [=] {
     nn_build_contr.initialize(1);
     nn_run_contr.initialize(1, 10);
 
@@ -410,6 +410,8 @@ benchmark_type nearestneighbors_bench() {
         "in-sphere", false);
     bool onSphere = pasl::util::cmdline::parse_or_default_bool(
         "on-sphere", false);
+                             
+    AbstractRunnerNN* runner = NULL;
 
     if (d == 2) {
       if (gen_type.compare("uniform") == 0) {
@@ -431,8 +433,9 @@ benchmark_type nearestneighbors_bench() {
       } else {
         std::cerr << "Wrong generator type " << gen_type << "\n";
         exit(-1);
-      }
+      }                 
     }
+    *runner_link = runner;
     std::string running_mode = pasl::util::cmdline::parse_or_default_string(
           "mode", std::string("by_force_sequential"));
 
@@ -449,18 +452,16 @@ benchmark_type nearestneighbors_bench() {
     nn_build_contr.set(running_mode);
     nn_run_contr.set(running_mode);
   };            
-
-  auto bench = [&] {
-    runner->initialize();
-    std::cout << "Initialization completed!" << std::endl;
-    runner->run();
-    std::cout << "Running completed!" << std::endl;
+                     
+  auto bench = [=] {
+    (*runner_link)->initialize();
+    (*runner_link)->run();
   };
   auto output = [=] {                  
     std::cout << "The evaluation have finished" << std::endl;
-  };              
-  auto destroy = [&] {
-    runner->free();
+  };               
+  auto destroy = [=] {
+    (*runner_link)->free();
   };
   return make_benchmark(init, bench, output, destroy);
 }
@@ -504,7 +505,7 @@ benchmark_type synthetic_bench() {
                                      
   pasl::util::cmdline::argmap_dispatch c;
   c.add("parallel_for", [=] {
-    std::cerr << n << " " << m << " " << p;
+//    std::cerr << n << " " << m << " " << p;
     *total = synthetic(n, m, p);
   });
                         

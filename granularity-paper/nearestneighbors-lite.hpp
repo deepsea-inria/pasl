@@ -372,17 +372,21 @@ struct RunnerNN : AbstractRunnerNN {
   }
 
   void initialize() {
+    std::cerr << "Initialize" << std::endl;
     T = kNNT(v, n);
     vr = T.vertices();
+    std::cerr << "Initialization completed" << std::endl;
   }
 
   void run() {
+      std::cerr << "Run:" << std::endl;
     // find nearest k neighbors for each point
 #ifdef LITE
     pasl::sched::granularity::parallel_for(nn_run_contr,
       [&] (int L, int R) {return true;},
       [&] (int L, int R) {return (R - L) * k * log(n);},
       int(0), n, [&] (int i) {
+ //     std::cerr << i << std::endl;
       T.kNearest(vr[i], vr[i]->ngh, k);
     });
 #elif STANDART
