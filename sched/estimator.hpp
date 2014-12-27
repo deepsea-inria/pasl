@@ -171,9 +171,9 @@ protected:
   
   //! Take into account a measure for updating the constant
   virtual void analyse(cost_type measured_cst) = 0;
-  
+                                      
   //! Log the update to the value of a constant
-  void log_update(cost_type new_cst);
+  void log_update(cost_type new_cst, bool shared);
   
   void check();
   
