@@ -476,8 +476,6 @@ benchmark_type synthetic_bench() {
   int p = pasl::util::cmdline::parse_or_default_int(
         "p", 100);                                         
 
-  int* total = new int;
-      
   auto init = [&] {
     std::string running_mode = pasl::util::cmdline::parse_or_default_string(
           "mode", std::string("by_force_sequential")).c_str();
@@ -507,21 +505,19 @@ benchmark_type synthetic_bench() {
                                      
   pasl::util::cmdline::argmap_dispatch c;
   c.add("parallel_for", [=] {
-//    std::cerr << n << " " << m << " " << p;
-    *total = synthetic(n, m, p);
+    synthetic(n, m, p);
   });
                         
   c.add("recursive", [=] {
-    *total = synthetic_f(n, m, p);
+    synthetic_f(n, m, p);
   });
                                        
   auto bench = c.find_by_arg("algo");
                  
   auto output = [=] {                  
-    std::cout << *total << std::endl;
+    std::cout << synthetic_total << std::endl;
   };                  
   auto destroy = [=] {
-    delete total;
   };
   return make_benchmark(init, bench, output, destroy);
 }
