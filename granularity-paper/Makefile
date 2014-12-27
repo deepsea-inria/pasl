@@ -17,8 +17,8 @@ USE_MATH=1
 ####################################################################
 # Default options
 
-USE_ALLOCATOR=
-USE_HWLOC=
+USE_ALLOCATOR=jemalloc
+USE_HWLOC=0
 USE_NUMA=0
 
 # todo activate? USE_ANSI=1
@@ -31,7 +31,8 @@ PROGRAMS=\
 	example.cpp \
 	check.cpp \
 	bench.cpp \
-	synthetic-lite.cpp
+	synthetic-lite.cpp \
+	nearestneighbors-lite.cpp
 #       add reference to your cpp source here
 
 ####################################################################
