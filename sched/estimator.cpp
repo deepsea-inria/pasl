@@ -173,8 +173,8 @@ uint64_t common::predict_nb_iterations() {
   return nb;
 }
 
-void common::log_update(cost_type new_cst) {
-  LOG_CSTS(new util::logging::estim_update_event_t(this, new_cst));
+void common::log_update(cost_type new_cst, bool shared) {      
+  LOG_CSTS(new util::logging::estim_update_event_t(this, new_cst, shared));
 }
   
 void common::check() {
@@ -234,7 +234,7 @@ bool distributed::init_constant_provided() {
 
 void distributed::update_shared(cost_type new_cst) {
   shared_cst = new_cst;
-  LOG_ONLY(log_update(new_cst));
+  LOG_ONLY(log_update(new_cst, true));
   STAT_COUNT(ESTIM_UPDATE);
 }
 
@@ -251,6 +251,7 @@ void distributed::update(cost_type new_cst) {
   }
   // store the new constant locally in any case
   private_csts.mine() = new_cst;
+  log_update(new_cst, false);
 }
 
 void distributed::analyse(cost_type measured_cst) {

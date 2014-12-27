@@ -71,6 +71,7 @@ typedef enum {
   ESTIM_PREDICT,
   ESTIM_REPORT,
   ESTIM_UPDATE,
+  ESTIM_UPDATE_SHARED,
   STEAL_SUCCESS,
   STEAL_FAIL,
   STEAL_ABORT,
@@ -101,6 +102,7 @@ static inline std::string name_of(event_type_t type) {
     case ESTIM_PREDICT: return std::string("estim_predict");
     case ESTIM_REPORT:  return std::string("estim_report ");
     case ESTIM_UPDATE:  return std::string("estim_update ");
+    case ESTIM_UPDATE_SHARED:  return std::string("estim_update_shared ");
     case STEAL_SUCCESS: return std::string("steal_success");
     case STEAL_FAIL:    return std::string("steal_fail   ");
     case STEAL_ABORT:   return std::string("steal_abort  ");
@@ -133,6 +135,7 @@ static inline event_kind_t kind_of_type(event_type_t type) {
     case ESTIM_PREDICT: return ESTIMS;
     case ESTIM_REPORT: return ESTIMS;
     case ESTIM_UPDATE: return CSTS;
+    case ESTIM_UPDATE_SHARED: return CSTS;
     case STEAL_SUCCESS: return STDWS;
     case STEAL_FAIL: return STDWS;
     case STEAL_ABORT: return STDWS;
@@ -334,9 +337,9 @@ class estim_update_event_t : public estim_event_t {
 private:
   double newcst;
 public:
-  estim_update_event_t(void* estim, double newcst) 
-    : estim_event_t(estim, ESTIM_UPDATE), newcst(newcst) {
-      this->type = ESTIM_UPDATE;}
+  estim_update_event_t(void* estim, double newcst, bool shared) 
+    : estim_event_t(estim, shared ? ESTIM_UPDATE_SHARED : ESTIM_UPDATE), newcst(newcst) {
+      this->type = shared ? ESTIM_UPDATE_SHARED : ESTIM_UPDATE;}
   void print_byte_descr(FILE* f);
   void print_text_descr(FILE* f);
 };
