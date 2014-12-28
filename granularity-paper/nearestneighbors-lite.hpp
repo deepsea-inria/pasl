@@ -6,7 +6,7 @@
  *
  */
 
-//"
+#include "sparray.hpp"
 #include "sequence.hpp"
 #include "geometryData.hpp"
 #include "blockradixsort.hpp"
@@ -195,7 +195,9 @@ class gTreeNode {
     vertices = NULL;
     int quadrants = (1 << center.dimension());
     
-    if (count > gMaxLeafSize) {
+    bool can_split = count > gMaxLeafSize;
+
+    if (can_split) {
       intT offsets[8];
       pbbs::intSort::iSort(S, offsets, n, (intT)quadrants, findChild(this));
       if (0) {
@@ -205,36 +207,44 @@ class gTreeNode {
       }
       // Give each child its appropriate center and size
       // The centers are offset by size/4 in each of the dimensions
-
-#ifdef LITE                        
-      pasl::sched::granularity::parallel_for(nn_build_contr, 
-        [&] (int L, int R) {return true;},
-        [&] (int L, int R) {
-        return ((R == quadrants) ? n : offsets[R]) - offsets[L];},
-        int(0), quadrants, [&] (int i) {
-//        std::cerr << "Run on " << size << " " << i << " " << quadrants << std::endl;
-        point newcenter = center.offsetPoint(i, size/4.0);
-        intT l = ((i == quadrants-1) ? n : offsets[i+1]) - offsets[i];
-        children[i] = newTree(S + offsets[i], l, newcenter, size/2.0);
-      });
-#elif STANDART
-//      std::cerr << "STANDART\n";
-      pasl::sched::native::parallel_for(
-        int(0), quadrants, [&] (int i) {
-        point newcenter = center.offsetPoint(i, size/4.0);
-        intT l = ((i == quadrants-1) ? n : offsets[i+1]) - offsets[i];
-        children[i] = newTree(S + offsets[i], l, newcenter, size/2.0);
-      });
-#endif
-//      std::cerr << "after for!\n";
-      
-      data = nodeData(center);
-      for (int i=0 ; i < quadrants; i++) {
-//        std::cerr << children[i] << std::endl;
-        if (children[i]->count > 0)
-          data += children[i]->data;
+      int t = offsets[quadrants - 1] == n ? 0 : 1;                
+      for (int i = 1; i < quadrants; i++) {
+        if (offsets[i] - offsets[i - 1] != 0) t++;
       }
-    } else {
+
+      if (t == 1) {  
+        can_split = false;
+      }
+
+      if (can_split) {
+#ifdef LITE                        
+        pasl::sched::granularity::parallel_for(nn_build_contr, 
+          [&] (int L, int R) {return true;},
+          [&] (int L, int R) {
+          return ((R == quadrants) ? n : offsets[R]) - offsets[L];},
+          int(0), quadrants, [&] (int i) {
+          point newcenter = center.offsetPoint(i, size/4.0);
+          intT l = ((i == quadrants-1) ? n : offsets[i+1]) - offsets[i];
+          children[i] = newTree(S + offsets[i], l, newcenter, size/2.0);
+        });
+#elif STANDART
+  //      std::cerr << "STANDART\n";
+        pasl::sched::native::parallel_for(
+          int(0), quadrants, [&] (int i) {
+          point newcenter = center.offsetPoint(i, size/4.0);
+          intT l = ((i == quadrants-1) ? n : offsets[i+1]) - offsets[i];
+          children[i] = newTree(S + offsets[i], l, newcenter, size/2.0);
+        });
+#endif
+        
+        data = nodeData(center);
+        for (int i=0 ; i < quadrants; i++) {
+          if (children[i]->count > 0)
+            data += children[i]->data;
+        }
+      }
+    }            
+    if (!can_split) {
       vertices = new vertex*[count];
       data = nodeData(center);
       for (intT i=0; i < count; i++) {

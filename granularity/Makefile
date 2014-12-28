@@ -32,7 +32,8 @@ PROGRAMS=\
 	mergesort.cpp\
 	nearestneighbors.cpp\
 	mergesort-ns.cpp\
-	synthetic.cpp
+	synthetic.cpp\
+	nearestneighbors-lite.cpp
 
 ####################################################################
 # Makefile options

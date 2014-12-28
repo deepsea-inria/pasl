@@ -147,9 +147,9 @@ cost_type common::get_constant_or_pessimistic() {
 
 cost_type common::predict_impl(complexity_type comp) {
   // tiny complexity leads to tiny cost
-  if (comp == complexity::tiny)
+  if (comp == complexity::tiny || comp < 0.0001)
     return cost::tiny;
-  
+                          
   // complexity shouldn't be undefined
   assert (comp >= 0);
   
@@ -182,6 +182,7 @@ void common::check() {
 }
 
 void common::report(complexity_type comp, cost_type elapsed_ticks) {
+  if (comp < 0.0001) return;
   double elapsed_time = elapsed_ticks / (double) local_ticks_per_microsec;
   cost_type measured_cst = elapsed_time / comp;
   LOG_ESTIM(new util::logging::estim_report_event_t(this, comp, elapsed_time, measured_cst));

@@ -1251,7 +1251,20 @@ public:
           body(i);
       };
 
-      cstmt_report(*gcpolicy, compl_fct, seq_fct);
+      if (l == m) {
+        std::cerr << "Fuck up " << l << " " << m << " " << r << std::endl;
+      }
+
+      auto small_compl_fct = [&] {          
+        return loop_compl_fct(l, m);
+      };
+
+//      if (small_compl_fct() < 1) {
+//        std::cerr << "Fuck up " << l << " " << m << " " << r << " " << small_compl_fct() << std::endl;   
+//      }
+
+//      cstmt_report(*gcpolicy, small_compl_fct, seq_fct);
+      seq_fct();
       l = m;
       pasl::sched::native::yield();
     }
@@ -1266,6 +1279,7 @@ public:
     Number m = (l + r) / 2;
     r = m;
     t->l = m;
+//    std::cerr << l << " " << r << " " << t->l << " " << t->r << " " << loop_compl_fct(l, r) << " " << loop_compl_fct(t->l, t->r) << std::endl;
     t->set_instrategy(pasl::sched::instrategy::ready_new());
     t->set_outstrategy(pasl::sched::outstrategy::unary_new());
     pasl::sched::threaddag::add_dependency(t, join);

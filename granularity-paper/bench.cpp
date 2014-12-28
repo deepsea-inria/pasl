@@ -397,8 +397,8 @@ benchmark_type graph_bench() {
 benchmark_type nearestneighbors_bench() {            
   AbstractRunnerNN** runner_link = new AbstractRunnerNN*;
                                                                                             
-  auto init = [=] {
-    nn_build_contr.initialize(1);
+  auto init = [=] {             
+    nn_build_contr.initialize(1, 10);
     nn_run_contr.initialize(1, 10);
 
     int n = pasl::util::cmdline::parse_or_default_int("n", 1000000);
