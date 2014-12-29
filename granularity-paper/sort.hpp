@@ -526,7 +526,7 @@ void cilkmerge(value_type *low1, value_type *high1, value_type *low2,
                 lowdest + lowsize + 2);
     });
   }, seq);
-
+                     
   return;
 }
 
@@ -602,8 +602,143 @@ sparray cilksort(const sparray& xs) {
   sparray tmp = sparray(n);
   if (n > 0)
     cilksort(&ys[0], &tmp[0], n);
+  return ys;       
+}
+
+/*---------------------------------------------------------------------*/
+/* Own Block mergesort */         
+
+int BMS_BLOCK;
+
+void bms_merge_two_parts(value_type* a, int left1, int right1, int left2, 
+                     int right2, value_type* result, int l){
+  int i = left1;
+  int j = left2;
+  int z = l;
+   
+  while (i <= right1 and j <= right2) {
+    if (a[i] < a[j]) {
+      result[z++] = a[i++];
+    } else {
+      result[z++] = a[j++];
+    }
+  }
+   
+  while (i <= right1) {
+    result[z++] = a[i++];
+  }
+   
+  while (j <= right2) {
+    result[z++] = a[j++];
+  }
+
+}
+int bms_lower_bound(value_type* a, int left, int right, int x) {
+  int l = -1;
+  int r = right - left;
+  while (l < r - 1) {
+    int m = (l + r) >> 1;
+    if (a[m+left] <= x)
+      l = m;
+    else
+      r = m;
+  }
+  return l;
+}
+
+std::pair<int, int> bms_find(value_type* a, int left, int mid, int right, int c) {
+  int l = -1;
+  int r = mid - left;
+   
+  int ll = -1;
+  int rr = -1;
+   
+  while (l < r - 1) {
+    int m = (l + r) >> 1;
+    int k = bms_lower_bound(a, mid, right, a[m + left]);
+      
+    if (m + 1 + k + 1 <= c) {
+      l = m;
+      ll = m;
+      rr = k;
+    } else {
+      r = m;
+    }
+  }
+   
+  rr += (c - ll - 1 - rr - 1);
+   
+  return std::pair<int, int>(ll + left, rr + mid);
+}
+
+loop_controller_type bms_merge_contr("merge");
+loop_controller_type bms_memcpy_contr("merge");
+
+static
+void bms_merge(value_type* a, value_type* tmp, int left, int mid, int right) {
+  int i = left;
+  int j = mid;
+  par::parallel_for(bms_merge_contr, 0, (right - left + BMS_BLOCK - 1) / BMS_BLOCK, [&](int k) {
+    std::pair<int, int> l = bms_find(a, left, mid, right, k * BMS_BLOCK);
+    std::pair<int, int> r = bms_find(a, left, mid, right, std::min((k + 1) * BMS_BLOCK, right - left));
+	
+    bms_merge_two_parts(a, l.first + 1, r.first, l.second+1, r.second, tmp, left + k * BMS_BLOCK);
+  });
+    
+  par::parallel_for(bms_memcpy_contr, 0, (right - left + BMS_BLOCK - 1) / BMS_BLOCK, [&](int k) {
+    std::memcpy((a + left + k * BMS_BLOCK), (tmp + left + k * BMS_BLOCK), sizeof(value_type) * std::min(BMS_BLOCK, right - left - k * BMS_BLOCK));
+  });
+}
+
+controller_type bms_sort_contr("mergesort");
+
+static
+void bms_sort(value_type* a, value_type* tmp, int left, int right) {
+  if (left + 1 >= right) 
+    return;
+
+  int mid = (left + right) / 2;
+    
+  par::cstmt(bms_sort_contr,
+    [&] { par::todo(); return true; }, 
+    [&] { return (right - left) * log(right - left);}, 
+    [&] {par::fork2([&] { bms_sort(a, tmp, left, mid);},
+                    [&] { bms_sort(a, tmp, mid, right); }); 
+         bms_merge(a, tmp, left, mid, right);},
+    [&] {std::sort(&a[left], &a[right]);}
+  );
+}
+
+sparray bms_sort_log2n(sparray& xs) {
+  long n = xs.size();
+  BMS_BLOCK = std::floor(std::log(n) * std::log(n));
+  sparray ys = copy(xs);
+  sparray tmp = sparray(n);
+  if (n > 0)
+    bms_sort(&ys[0], &tmp[0], 0, n);
   return ys;
 }
+
+sparray bms_sort_sqrtn(sparray& xs) {
+  long n = xs.size();
+  BMS_BLOCK = std::floor(std::sqrt(n));
+  sparray ys = copy(xs);
+  sparray tmp = sparray(n);
+  if (n > 0)
+    bms_sort(&ys[0], &tmp[0], 0, n);
+  return ys;
+}
+
+sparray bms_sort_n(sparray& xs) {
+  long n = xs.size();
+  BMS_BLOCK = n / 10;
+  sparray ys = copy(xs);
+  sparray tmp = sparray(n);
+  if (n > 0)
+    bms_sort(&ys[0], &tmp[0], 0, n);
+  return ys;
+}
+
 
 /***********************************************************************/
 

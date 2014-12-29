@@ -339,7 +339,20 @@ benchmark_type sort_bench() {
   algos.add("mergesort",          [] (sparray& xs) { return mergesort(xs); });
   algos.add("mergesort_seqmerge", [] (sparray& xs) { return mergesort<false>(xs); });
   algos.add("cilksort",           [] (sparray& xs) { return cilksort(xs); });
+//  algos.add("bmssort",            [] (sparray& xs) { return bms_sort(xs); });
   algos.add("mergesort_ex",       [] (sparray& xs) { return mergesort_ex(xs); });
+                           
+  std::string bench_sort = pasl::util::cmdline::parse_or_default_string(
+        "bench", std::string("bmssort"));
+                                                                         
+  if (bench_sort == "bmssort") {
+    pasl::util::cmdline::argmap<std::function<sparray (sparray&)>> block;
+    block.add("log2n", [] (sparray& xs) { return bms_sort_log2n(xs); });
+    block.add("sqrtn", [] (sparray& xs) { return bms_sort_sqrtn(xs); });
+    block.add("n",     [] (sparray& xs) { return bms_sort_n(xs); });
+    algos.add("bmssort", block.find_by_arg("block"));
+  }
+
   auto sort_fct = algos.find_by_arg("bench");
   auto init = [=] {
     pasl::util::cmdline::argmap_dispatch c;
@@ -354,6 +367,26 @@ benchmark_type sort_bench() {
       *inp = exp_dist_sparray(12323, n);
     });
     c.find_by_arg_or_default_key("generator", "random")();
+
+    bms_memcpy_contr.initialize(1, 10);              
+    bms_merge_contr.initialize(1, 10);
+    bms_sort_contr.initialize(1, 10);
+
+    std::string running_mode = pasl::util::cmdline::parse_or_default_string(
+          "mode", std::string("by_force_sequential"));
+
+    #ifdef CMDLINE
+      std::cout << "Using " << running_mode << " mode" << std::endl;
+    #elif PREDICTION
+      std::cout << "Using by_prediction mode" << std::endl;
+    #elif CUTOFF_WITH_REPORTING
+      std::cout << "Using by_cutoff_with_reporting mode" << std::endl;
+    #elif CUTOFF_WITHOUT_REPORTING        
+      std::cout << "Using by_cutoff_without_reporting mode" << std::endl;
+    #endif
+    bms_memcpy_contr.set(running_mode);
+    bms_merge_contr.set(running_mode);
+    bms_sort_contr.set(running_mode);
   };
   auto bench = [=] {
     *outp = sort_fct(*inp);
@@ -545,6 +578,7 @@ int main(int argc, char** argv) {
     m.add("mergesort",            [&] { return sort_bench(); });
     m.add("mergesort_seqmerge",   [&] { return sort_bench(); });
     m.add("cilksort",             [&] { return sort_bench(); });
+    m.add("bmssort",             [&] { return sort_bench(); });
     m.add("graph",                [&] { return graph_bench(); });
     m.add("duplicate",            [&] { return duplicate_bench(); });
     m.add("ktimes",               [&] { return ktimes_bench(); });
