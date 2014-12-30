@@ -94,8 +94,29 @@ opt: $(PROGRAMS:.cpp=.opt)
 clean_generated:
 	rm -Rf generated/*
 
-clean: clean_build clean_modes clean_generated
+clean: clean_build clean_modes clean_generated clean_bench
 
+####################################################################
+# Benchmark part
+all_bench: basic
+
+PBENCH_PATH=../../pbench
+
+include $(PBENCH_PATH)/Makefile_common
+
+DOCS=README.pdf README.html
+
+fib:
+	ocamlopt $(XLIB_INCLUDES) $(XLIB_LIBS) $(XLIB_SRC) nums.cmxa fib.ml -o $@
+
+basic_bench: basic.pbench
+	ln -sf $< $@ 
+
+doc_bench: $(DOCS)
+
+clean_bench: pbench_clean
+	rm -f $(DOCS) 
+	rm -f basic fib
 
 ####################################################################
 # Main rules for the makefile
