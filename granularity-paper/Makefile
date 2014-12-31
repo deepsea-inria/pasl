@@ -57,7 +57,7 @@ include $(TOOLS_BUILD_FOLDER)/Makefile_options
 # (If extending the list, need to add cases for the definition
 # of COMPILE_OPTIONS_FOR further below, and also for "clean".
 
-MODES=opt optfp elision baseline log dbg dbgfp dbgfs cilk binary
+MODES=opt optfp elision baseline log dbg dbgfp dbgfs cilk binary bsearch lbsearch lbinary sched
 
 # Compilation options for each mode
 
@@ -72,7 +72,13 @@ COMPILE_OPTIONS_FOR_dbgfp=$(OPTIONS_DEBUG) -DSTATS -DDEBUG -DCONTROL_BY_FORCE_SE
 COMPILE_OPTIONS_FOR_dbgfs=$(OPTIONS_DEBUG) -DSTATS -DDEBUG -DCONTROL_BY_FORCE_PARALLEL
 COMPILE_OPTIONS_FOR_cilk=$(OPTIONS_cilk) $(OPTIONS_O2)
 
+#Different mode
 COMPILE_OPTIONS_FOR_binary=$(OPTIONS_O2) -DPREDICTION -DBINARY -DLITE
+COMPILE_OPTIONS_FOR_bsearch=$(OPTIONS_O2) -DPREDICTION -DBINARY_SEARCH -DLITE
+COMPILE_OPTIONS_FOR_lbsearch=$(OPTIONS_O2) -DPREDICTION -DLAZY_BINARY_SEARCH -DLITE
+COMPILE_OPTIONS_FOR_lbinary=$(OPTIONS_O2) -DPREDICTION -DLAZY_BINARY -DLITE
+COMPILE_OPTIONS_FOR_sched=$(OPTIONS_O2) -DPREDICTION -DLAZY_BINARY -DLITE
+
                                                                                                                            
 # Folders where to find all the header files and main sources
                                                                                                                               

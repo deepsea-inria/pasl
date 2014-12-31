@@ -12,6 +12,9 @@ let arg_nb_runs = XCmd.parse_or_default_int "runs" 1
 let arg_mode = "replace"   (* later: investigate the purpose of "mode" *)
 let arg_skips = XCmd.parse_or_default_list_string "skip" []
 let arg_onlys = XCmd.parse_or_default_list_string "only" []
+let modes = XCmd.parse_or_default_list_string "modes" ["binary";"bsearch";"lbsearch";"lbinary";"sched"]
+
+let files = List.map (fun s -> "./bench." ^ s) modes
 
 let run_modes =
   Mk_runs.([
@@ -63,20 +66,23 @@ let name = "fib"
 
 let prog = "./fib"
 
-let mk_algos = mk_list string "algo" ["recursive";"cached"]
+let bench = mk_list string "bench" ["fib"]
+
+let mk_files = mk_progs files
 
 let mk_ns = mk_list int "n" [30;35;39]
 
 let make() =
-  build "." [prog] arg_virtual_build
+    build "." files arg_virtual_build
+(*  build "." [prog] arg_virtual_build*)
 
 let run() =
   Mk_runs.(call (run_modes @ [
     Output (file_results name);
     Timeout 400;
     Args (
-      mk_prog prog
-    & mk_algos
+      mk_files
+    & bench
     & mk_ns)]))
 
 let check = nothing  (* do something here *)
@@ -93,7 +99,65 @@ let plot() =
          Y_axis [Axis.Lower (Some 0.)] ]);
        Formatter fib_formatter;
       Charts mk_unit;
-      Series mk_algos;
+      Series mk_files;
+      X mk_ns;
+      Input (file_results name);
+      Output (file_plots name);
+      Y_label "exectime";
+      Y eval_exectime;
+  ]))
+
+let all () = select make run check plot
+
+end
+
+(*****************************************************************************)
+(** Syntheti experiment *)
+
+module ExpSynthetic = struct
+
+let algo = XCmd.parse_or_default_string "algo" "parallel_for"
+
+let name = "synthetic_" ^ algo
+
+let prog = "./synthetic"
+
+let bench = mk_list string "bench" ["synthetic"]
+
+let mk_algo = mk_list string "algo" [algo]
+
+let mk_files = mk_progs files
+
+let mk_ns = mk_list int "n" [2000;1000;500]
+
+let make() =
+    build "." files arg_virtual_build
+
+let run() =
+  Mk_runs.(call (run_modes @ [
+    Output (file_results name);
+    Timeout 2000;
+    Args (
+      mk_files
+    & mk_algo
+    & bench
+    & mk_ns)]))
+
+let check = nothing  (* do something here *)
+
+let synthetic_formatter =
+ Env.format (Env.(
+   [ ("n", Format_custom (fun n -> sprintf "synthetic(%s)" n)); ]
+  ))
+
+let plot() =
+  Mk_bar_plot.(call ([
+      Bar_plot_opt Bar_plot.([
+         X_titles_dir Vertical;
+         Y_axis [Axis.Lower (Some 0.)] ]);
+       Formatter synthetic_formatter;
+      Charts mk_unit;
+      Series mk_files;
       X mk_ns;
       Input (file_results name);
       Output (file_plots name);
@@ -112,6 +176,7 @@ let _ =
   let arg_actions = XCmd.get_others() in
   let bindings = [
     "fib", ExpFib.all;
+    "synthetic", ExpSynthetic.all
   ]
   in
   Pbench.execute_from_only_skip arg_actions [] bindings;

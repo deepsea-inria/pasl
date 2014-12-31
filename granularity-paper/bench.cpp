@@ -548,7 +548,7 @@ benchmark_type synthetic_bench() {
   auto bench = c.find_by_arg("algo");
                  
   auto output = [=] {                  
-    std::cout << synthetic_total << std::endl;
+    std::cout << "result " << synthetic_total << std::endl;
   };                  
   auto destroy = [=] {
   };
