@@ -368,9 +368,7 @@ benchmark_type sort_bench() {
     });
     c.find_by_arg_or_default_key("generator", "random")();
 
-    bms_memcpy_contr.initialize(1, 10);              
-    bms_merge_contr.initialize(1, 10);
-    bms_sort_contr.initialize(1, 10);
+//    bms_sort_contr.initialize(1, 10);
 
     std::string running_mode = pasl::util::cmdline::parse_or_default_string(
           "mode", std::string("by_force_sequential"));
@@ -431,9 +429,6 @@ benchmark_type nearestneighbors_bench() {
   AbstractRunnerNN** runner_link = new AbstractRunnerNN*;
                                                                                             
   auto init = [=] {             
-    nn_build_contr.initialize(1, 10);
-    nn_run_contr.initialize(1, 10);
-
     int n = pasl::util::cmdline::parse_or_default_int("n", 1000000);
     int k = pasl::util::cmdline::parse_or_default_int("k", 8);
     int d = pasl::util::cmdline::parse_or_default_int("d", 2);
@@ -523,14 +518,8 @@ benchmark_type synthetic_bench() {
       std::cout << "Using by_cutoff_without_reporting mode" << std::endl;
     #endif
 
-    sol_contr.initialize(1, 10);
-    sil_contr.initialize(1, 10);
-
     sol_contr.set(running_mode);
     sil_contr.set(running_mode);
-
-    sf_contr.initialize(1, 10);
-    sg_contr.initialize(1, 10);
 
     sf_contr.set(running_mode);
     sg_contr.set(running_mode);
@@ -555,7 +544,38 @@ benchmark_type synthetic_bench() {
   return make_benchmark(init, bench, output, destroy);
 }
 
+void init_controllers() {
+  int tries = pasl::util::cmdline::parse_or_default_int("tries", 10);
+  double init_est = pasl::util::cmdline::parse_or_default_int("init", 1)
+                                                                        ;
+  // Synthetic benchmark controllers
+  sol_contr.initialize(init_est, tries);
+  sil_contr.initialize(init_est, tries);
 
+  sf_contr.initialize(init_est, tries);
+  sg_contr.initialize(init_est, tries);
+
+  // Nearest neighbors benchmark controllers
+  nn_build_contr.initialize(init_est, tries);
+  nn_run_contr.initialize(init_est, tries);
+
+  // Sort benchmark controllers
+  bms_memcpy_contr.initialize(init_est, tries);
+  bms_merge_contr.initialize(init_est, tries);
+  bms_sort_contr.initialize(init_est, tries);
+
+  quicksort_contr.initialize(init_est, tries);
+
+  merge_contr.initialize(init_est, tries);
+
+  mergesort_contr.initialize(init_est, tries);
+
+  mergesort_ex_contr.initialize(init_est, tries);
+
+  cilkmerge_contr.initialize(init_est, tries);
+
+  cilksort_contr.initialize(init_est, tries);
+}
 
 /*---------------------------------------------------------------------*/
 /* PASL Driver */
@@ -596,6 +616,9 @@ int main(int argc, char** argv) {
     m.add("mergesort_ex",         [&] { return sort_bench(); });
     
     bench = m.find_by_arg("bench")();
+
+    init_controllers();
+
     bench_init(bench);
   };
   auto run = [&] (bool) {
