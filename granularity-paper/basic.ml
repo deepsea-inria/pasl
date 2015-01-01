@@ -12,7 +12,7 @@ let arg_nb_runs = XCmd.parse_or_default_int "runs" 1
 let arg_mode = "replace"   (* later: investigate the purpose of "mode" *)
 let arg_skips = XCmd.parse_or_default_list_string "skip" []
 let arg_onlys = XCmd.parse_or_default_list_string "only" []
-let modes = XCmd.parse_or_default_list_string "modes" ["binary";"bsearch";"lbsearch";"lbinary";"sched"]
+let modes = XCmd.parse_or_default_list_string "modes" ["binary";"bsearch";"lbsearch";"lbinary";"sched";"standart"]
 
 let files = List.map (fun s -> "./bench." ^ s) modes
 
@@ -112,7 +112,7 @@ let all () = select make run check plot
 end
 
 (*****************************************************************************)
-(** Syntheti experiment *)
+(** Synthetic experiment *)
 
 module ExpSynthetic = struct
 
@@ -128,7 +128,10 @@ let mk_algo = mk_list string "algo" [algo]
 
 let mk_files = mk_progs files
 
-let mk_ns = mk_list int "n" [2000;1000;500]
+let mk_ns = mk_list int "n" [3000;2000]
+let mk_ms = mk_list int "m" [3000;2000]
+let mk_tries = mk_list int "tries" [0;1;10]
+let mk_init = mk_list float "init" [1;10000]
 
 let make() =
     build "." files arg_virtual_build
@@ -141,7 +144,7 @@ let run() =
       mk_files
     & mk_algo
     & bench
-    & mk_ns)]))
+    & mk_ns & mk_ms)]))
 
 let check = nothing  (* do something here *)
 
@@ -158,7 +161,7 @@ let plot() =
        Formatter synthetic_formatter;
       Charts mk_unit;
       Series mk_files;
-      X mk_ns;
+      X (mk_ns & mk_ms);
       Input (file_results name);
       Output (file_plots name);
       Y_label "exectime";
