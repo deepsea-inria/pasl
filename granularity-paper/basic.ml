@@ -128,10 +128,11 @@ let mk_algo = mk_list string "algo" [algo]
 
 let mk_files = mk_progs files
 
-let mk_ns = mk_list int "n" [3000;2000]
-let mk_ms = mk_list int "m" [3000;2000]
-let mk_tries = mk_list int "tries" [0;1;10]
-let mk_init = mk_list float "init" [1;10000]
+let mk_ns = mk_list int "n" (XCmd.parse_or_default_list_int "n" [3000;2000])
+let mk_ms = mk_list int "m" (XCmd.parse_or_default_list_int "m" [3000;2000])
+let mk_tries = mk_list int "tries" (XCmd.parse_or_default_list_int "tries" [10])
+let mk_init = mk_list float "init" (XCmd.parse_or_default_list_float "init" [1.])
+let mk_proc = mk_list int "proc" (XCmd.parse_or_default_list_int "proc" [8])
 
 let make() =
     build "." files arg_virtual_build
@@ -144,7 +145,10 @@ let run() =
       mk_files
     & mk_algo
     & bench
-    & mk_ns & mk_ms)]))
+    & mk_ns & mk_ms
+    & mk_tries & mk_init
+    & mk_proc
+)]))
 
 let check = nothing  (* do something here *)
 
@@ -160,7 +164,7 @@ let plot() =
          Y_axis [Axis.Lower (Some 0.)] ]);
        Formatter synthetic_formatter;
       Charts mk_unit;
-      Series mk_files;
+      Series (mk_files & mk_tries & mk_proc & mk_init);
       X (mk_ns & mk_ms);
       Input (file_results name);
       Output (file_plots name);
