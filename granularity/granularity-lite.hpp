@@ -227,7 +227,8 @@ public:
   }
 
   void initialize(double init_cst, int estimations_nb) {
-    estimator.set_init_constant(init_cst);
+    if (estimations_nb == 0)
+     estimator.set_init_constant(init_cst);
     estimator.set_minimal_estimations_nb(estimations_nb);
   }
 
@@ -1263,8 +1264,8 @@ public:
 //        std::cerr << "Fuck up " << l << " " << m << " " << r << " " << small_compl_fct() << std::endl;   
 //      }
 
-//      cstmt_report(*gcpolicy, small_compl_fct, seq_fct);
-      seq_fct();
+      cstmt_report(*gcpolicy, small_compl_fct, seq_fct);
+//      seq_fct();
       l = m;
       pasl::sched::native::yield();
     }
