@@ -906,7 +906,7 @@ void parallel_for_binary_search(loop_by_binary_search_splitting<Granularity_cont
   };
   if (hi - lo < 2
      || (!lpalgo.gcpolicy->with_estimator() && loop_cutoff_fct(lo, hi))
-     || (lpalgo.gcpolicy->with_estimator() && lpalgo.gcpolicy->get_estimator().predict(loop_compl_fct(lo, hi)) <= kappa)) {
+     || (lpalgo.gcpolicy->with_estimator() && lpalgo.gcpolicy->get_estimator().constant_is_known() && lpalgo.gcpolicy->get_estimator().predict(loop_compl_fct(lo, hi)) <= kappa)) {
     cstmt_report(*lpalgo.gcpolicy, [&] {return loop_compl_fct(lo, hi);}, seq_fct);
   } else {
     auto cutoff_fct = [&] {
@@ -1165,7 +1165,7 @@ void parallel_for(loop_by_lazy_binary_splitting<Granularity_control_policy>& lpa
   };
   if (hi - lo < 2
      || (!lpalgo.gcpolicy->with_estimator() && loop_cutoff_fct(lo, hi))
-     || (lpalgo.gcpolicy->with_estimator() && lpalgo.gcpolicy->get_estimator().predict(loop_compl_fct(lo, hi)) <= kappa)) {
+     || (lpalgo.gcpolicy->with_estimator() && lpalgo.gcpolicy->get_estimator().constant_is_known() && lpalgo.gcpolicy->get_estimator().predict(loop_compl_fct(lo, hi)) <= kappa)) {
     cstmt_report(*lpalgo.gcpolicy, [&] {return loop_compl_fct(lo, hi);}, seq_fct);
   } else {                                                                                              
     auto cutoff_fct = [&] {
@@ -1179,10 +1179,13 @@ void parallel_for(loop_by_lazy_binary_splitting<Granularity_control_policy>& lpa
     auto seq_fct1 = [&] {
       for (Number i = lo; i < l; i++)
         body(i);
-    };
-//    seq_fct1();
-               
-    cstmt_report(*lpalgo.gcpolicy, compl_fct, seq_fct1);
+    };                                                                  
+//    seq_fct1();                                                       
+    if (lpalgo.gcpolicy->get_estimator().predict(loop_compl_fct(lo, l)) <= kappa) {
+      cstmt_report(*lpalgo.gcpolicy, [&] { return loop_compl_fct(lo, l); }, seq_fct1);
+    } else {
+      l = lo;
+    }
 
     auto seq_fct2 = [&] {
       for (Number i = l; i < hi; i++)
