@@ -265,28 +265,28 @@ void distributed::analyse(cost_type measured_cst) {
     update(((weighted_average_factor * cst) + measured_cst)
            / (weighted_average_factor + 1.0));
   }
-  estimations--;
+  estimations.mine()--;
 }
 
 void distributed::set_minimal_estimations_nb(int nb) {
-  estimations.store(nb);
+  estimations.mine() = nb;
 }
 
 int distributed::get_minimal_estimations_nb_left() {
-  return estimations.load();
+  return estimations.mine();
 }
 
 void distributed::set_predict_unknown(bool value) {
-  predict_unknown = value;
+  predict_unknown.mine() = value;
 }
 
 bool distributed::can_predict_unknown() {
-  return predict_unknown.load();
+  return predict_unknown.mine();
 }
 
 
 bool distributed::constant_is_known() {
-  return (shared_cst != cost::unknown) && (estimations <= 0);
+  return (shared_cst != cost::unknown) && (estimations.mine() <= 0);
 }
 
   

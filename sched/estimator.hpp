@@ -229,8 +229,10 @@ public: //! \todo find a better way to avoid false sharing
   volatile int padding1[64*2];
   cost_type shared_cst;
   perworker::cell<cost_type> private_csts;
-  std::atomic<int> estimations;
-  std::atomic<bool> predict_unknown;
+  perworker::cell<int> estimations;
+  perworker::cell<bool> predict_unknown;
+//  std::atomic<int> estimations;
+//  std::atomic<bool> predict_unknown;
 
 protected:
   void update(cost_type new_cst);
@@ -240,7 +242,7 @@ protected:
   
 public:
   distributed(std::string name)
-  : init_constant_provided_flg(false), private_csts(cost::undefined),
+  : init_constant_provided_flg(false), private_csts(cost::undefined), estimations(0), predict_unknown(false),
     common(name) {
     util::callback::register_client(this);
   }
