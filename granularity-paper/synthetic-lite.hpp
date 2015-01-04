@@ -15,7 +15,7 @@
 
 /*---------------------------------------------------------------------*/
 
-int synthetic_total;
+pasl::data::perworker::cell<long> synthetic_total(0l);
 
 loop_controller_type sol_contr("synthetic outer loop");
 loop_controller_type sil_contr("synthetic inner loop");
@@ -32,16 +32,19 @@ void synthetic(int n, int m, int p) {
         int(0), m, [&] (int j) {//i) {
           int value = 1;
           for (int k = 0; k < p; k++) {
-            synthetic_total++;
+            value += value ^ k;
           }
+          synthetic_total.mine() += value;
       });
   });
 #elif STANDART
   pasl::sched::native::parallel_for(int(0), n, [&] (int i) {
       pasl::sched::native::parallel_for(int(0), m, [&] (int i) {
+          int value = 1;
           for (int k = 0; k < p; k++) {
-            synthetic_total++;
+            value += value ^ k;
           }
+          synthetic_total.mine() += value;
       });
   });
 
@@ -49,8 +52,10 @@ void synthetic(int n, int m, int p) {
 }
             
 void synthetic_h(int p) {
+  int value = 1;
   for (int i = 0; i < p; i++)
-    synthetic_total++;
+    value += value ^ i;
+  synthetic_total.mine() += value;
 }
                        
 controller_type sg_contr("function g");
