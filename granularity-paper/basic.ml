@@ -134,8 +134,8 @@ let mk_algo = mk_list string "algo" [algo]
 
 let mk_files = mk_progs files
 
-let mk_ns = mk_list int "n" (XCmd.parse_or_default_list_int "n" [3000;2000])
-let mk_ms = mk_list int "m" (XCmd.parse_or_default_list_int "m" [3000;2000])
+let mk_ns = mk_list int "n" (XCmd.parse_or_default_list_int "n" [50000;10000])
+let mk_ms = mk_list int "m" (XCmd.parse_or_default_list_int "m" [50000;10000])
 
 let make() =
     build "." files arg_virtual_build
