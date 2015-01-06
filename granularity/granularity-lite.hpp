@@ -438,9 +438,16 @@ void cstmt_report(Control& contr,
   if (contr.with_estimator()) {
     estimator_m& estimator = contr.get_estimator();
     cmeasure_type m = complexity_measure_fct();
-    cstmt_base_with_reporting(m, seq_body_fct, estimator);
+    estimator.set_predict_unknown(true);
+//    cstmt_base_with_reporting(m, seq_body_fct, estimator);
+    cost_type start = now();
+    execmode.mine().block(my_execmode(), seq_body_fct);
+    cost_type elapsed = since(start);
+    if (estimator.can_predict_unknown()) {
+      estimator.report(m, elapsed);
+    }
   } else {
-    cstmt_base(Force_sequential, seq_body_fct);
+    cstmt_base(my_execmode(), seq_body_fct);
   }
 }
 
@@ -798,6 +805,7 @@ void parallel_for(loop_by_eager_binary_splitting<Granularity_control_policy>& lp
      || (lpalgo.gcpolicy->with_estimator() && lpalgo.gcpolicy->get_estimator().constant_is_known()
          && lpalgo.gcpolicy->get_estimator().predict(loop_compl_fct(lo, hi)) <= kappa)) {
     cstmt_report(*lpalgo.gcpolicy, [&] {return loop_compl_fct(lo, hi);}, seq_fct);
+//    cstmt(*lpalgo.gcpolicy, [&] {return loop_cutoff_fct(lo, hi); }, [&] { return loop_compl_fct(lo, hi); }, seq_fct, seq_fct);
   }else {
     auto cutoff_fct = [&] {
       return loop_cutoff_fct(lo, hi);
@@ -908,6 +916,7 @@ void parallel_for_binary_search(loop_by_binary_search_splitting<Granularity_cont
      || (!lpalgo.gcpolicy->with_estimator() && loop_cutoff_fct(lo, hi))
      || (lpalgo.gcpolicy->with_estimator() && lpalgo.gcpolicy->get_estimator().constant_is_known() && lpalgo.gcpolicy->get_estimator().predict(loop_compl_fct(lo, hi)) <= kappa)) {
     cstmt_report(*lpalgo.gcpolicy, [&] {return loop_compl_fct(lo, hi);}, seq_fct);
+//    cstmt(*lpalgo.gcpolicy, [&] {return loop_cutoff_fct(lo, hi); }, [&] { return loop_compl_fct(lo, hi); }, seq_fct, seq_fct);
   } else {
     auto cutoff_fct = [&] {
       return loop_cutoff_fct(lo, hi);
