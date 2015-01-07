@@ -20,7 +20,7 @@ let files = List.map (fun s -> "./bench." ^ s) modes
 
 let mk_tries = mk_list int "tries" (XCmd.parse_or_default_list_int "tries" [10])
 let mk_init = mk_list float "init" (XCmd.parse_or_default_list_float "init" [1.])
-let mk_proc = mk_list int "proc" (XCmd.parse_or_default_list_int "proc" [8])
+let mk_proc = mk_list int "proc" (XCmd.parse_or_default_list_int "proc" [4])
 
 let run_modes =
   Mk_runs.([
@@ -238,6 +238,70 @@ let all () = select make run check plot
 end
 
 (*****************************************************************************)
+(** Block MergeSort experiment *)
+
+module ExpBMSSort = struct
+
+let name = "bmssort"
+
+let bench = mk_list string "bench" ["bmssort"]
+
+let mk_files = mk_progs files
+
+let mk_ns = mk_list int "n" (XCmd.parse_or_default_list_int "n"
+[500000;1000000;5000000])
+let mk_blocks = mk_list string "block" (XCmd.parse_or_default_list_string
+"block" ["log2n";"n";"sqrtn"]) 
+let mk_gens = mk_list string "gen" (XCmd.parse_or_default_list_string "gen"
+["random";"almost_sorted"])
+
+
+let make() =
+    build "." files arg_virtual_build
+
+let run() =
+  Mk_runs.(call (run_modes @ [
+    Output (file_results name);
+    Timeout 2000;
+    Args (
+      mk_files
+    & bench
+    & mk_ns & mk_blocks & mk_gens
+    & mk_tries & mk_init
+    & mk_proc
+)]))
+
+let check = nothing  (* do something here *)
+
+(*should be more readable*)
+let synthetic_formatter =
+ Env.format (Env.(                                    
+   [ ("n", Format_custom (fun n -> sprintf "n=%s" n));
+     ("block", Format_custom (fun bs -> sprintf "%s" bs));
+     ("gen", Format_custom (fun gen -> sprintf "%s" gen))]
+  ))                                                 
+
+let plot() =
+  Mk_bar_plot.(call ([
+      Bar_plot_opt Bar_plot.([ 
+         X_titles_dir Vertical;
+         Y_axis [Axis.Lower (Some 0.)] ]);
+       Formatter synthetic_formatter;
+      Charts mk_unit;
+      Series (mk_files & mk_tries & mk_proc & mk_init);
+      X (mk_ns & mk_blocks & mk_gens);
+      Input (file_results name);
+      Output (file_plots name);
+      Y_label "exectime";
+      Y eval_exectime;
+  ]))
+
+let all () = select make run check plot
+
+end
+
+
+(*****************************************************************************)
 (** Main *)
 
 let _ =
@@ -245,7 +309,8 @@ let _ =
   let bindings = [
     "fib", ExpFib.all;
     "synthetic", ExpSynthetic.all;
-    "nearest_neighbors", ExpNN.all
+    "nearest_neighbors", ExpNN.all;
+    "bmssort", ExpBMSSort.all
   ]
   in
   Pbench.execute_from_only_skip arg_actions [] bindings;
