@@ -18,8 +18,10 @@ let modes = XCmd.parse_or_default_list_string "modes" ["binary";"bsearch";"lbsea
 
 let files = List.map (fun s -> "./bench." ^ s) modes
 
-let mk_tries = mk_list int "tries" (XCmd.parse_or_default_list_int "tries" [10])
-let mk_init = mk_list float "init" (XCmd.parse_or_default_list_float "init" [1.])
+let mk_tries = mk_list int "tries" (XCmd.parse_or_default_list_int "tries"
+[0;10])
+let mk_init = mk_list float "init" (XCmd.parse_or_default_list_float "init"
+[1.])
 let mk_proc = mk_list int "proc" (XCmd.parse_or_default_list_int "proc" [4])
 
 let run_modes =
@@ -224,9 +226,9 @@ let plot() =
          X_titles_dir Vertical;
          Y_axis [Axis.Lower (Some 0.)] ]);
        Formatter synthetic_formatter;
-      Charts mk_unit;
+      Charts mk_ns;
       Series (mk_files & mk_tries & mk_proc & mk_init);
-      X (mk_ns & mk_ks & mk_ds);
+      X (mk_ks & mk_ds);
       Input (file_results name);
       Output (file_plots name);
       Y_label "exectime";
@@ -249,7 +251,7 @@ let bench = mk_list string "bench" ["bmssort"]
 let mk_files = mk_progs files
 
 let mk_ns = mk_list int "n" (XCmd.parse_or_default_list_int "n"
-[500000;1000000;5000000])
+[50000000;100000000])
 let mk_blocks = mk_list string "block" (XCmd.parse_or_default_list_string
 "block" ["log2n";"n";"sqrtn"]) 
 let mk_gens = mk_list string "gen" (XCmd.parse_or_default_list_string "gen"
@@ -276,8 +278,7 @@ let check = nothing  (* do something here *)
 (*should be more readable*)
 let synthetic_formatter =
  Env.format (Env.(                                    
-   [ ("n", Format_custom (fun n -> sprintf "n=%s" n));
-     ("block", Format_custom (fun bs -> sprintf "%s" bs));
+   [ ("block", Format_custom (fun bs -> sprintf "%s" bs));
      ("gen", Format_custom (fun gen -> sprintf "%s" gen))]
   ))                                                 
 
@@ -287,9 +288,9 @@ let plot() =
          X_titles_dir Vertical;
          Y_axis [Axis.Lower (Some 0.)] ]);
        Formatter synthetic_formatter;
-      Charts mk_unit;
+      Charts mk_ns;
       Series (mk_files & mk_tries & mk_proc & mk_init);
-      X (mk_ns & mk_blocks & mk_gens);
+      X (mk_blocks & mk_gens);
       Input (file_results name);
       Output (file_plots name);
       Y_label "exectime";
