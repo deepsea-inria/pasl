@@ -18,6 +18,7 @@
 #include "fib.hpp"
 #include "mcss.hpp"
 #include "numeric.hpp"
+#include "exercises.hpp"
 
 /***********************************************************************/
 
@@ -112,47 +113,6 @@ public:
   }
   
 };
-
-void check_sort() {
-  pasl::util::cmdline::argmap_dispatch c;
-  class trusted_fct {
-  public:
-    sparray operator()(const sparray& xs) {
-      return seqsort(xs);
-    }
-  };
-  c.add("mergesort", [&] {
-    class untrusted_fct {
-    public:
-      sparray operator()(const sparray& xs) {
-        return mergesort(xs);
-      }
-    };
-    using property_type = sort_correct<trusted_fct, untrusted_fct>;
-    checkit<property_type>("mergesort is correct");
-  });
-  c.add("cilksort", [&] {
-    class untrusted_fct {
-    public:
-      sparray operator()(const sparray& xs) {
-        return cilksort(xs);
-      }
-    };
-    using property_type = sort_correct<trusted_fct, untrusted_fct>;
-    checkit<property_type>("mergesort is correct");
-  });
-  c.add("quicksort", [&] {
-    class untrusted_fct {
-    public:
-      sparray operator()(const sparray& xs) {
-        return quicksort(xs);
-      }
-    };
-    using property_type = sort_correct<trusted_fct, untrusted_fct>;
-    checkit<property_type>("quicksort is correct");
-  });
-  c.find_by_arg("algo")();
-}
 
 /*---------------------------------------------------------------------*/
 /* Unit tests for graph algorithms */
@@ -309,6 +269,118 @@ void check_graph() {
   c.find_by_arg("algo")();
 }
 
+
+/*---------------------------------------------------------------------*/
+/* Unit tests for student exercises */
+
+value_type* ptr_on_first_item(sparray& xs) {
+  if (xs.size() == 0)
+    return nullptr;
+  return &xs[0];
+}
+
+class map_incr_ex_correct : public quickcheck::Property<std::vector<value_type>> {
+public:
+  
+  bool holdsFor(const std::vector<value_type>& vec) {
+    sparray xs = sparray_of_vector(vec);
+    sparray dest = sparray(xs.size());
+    exercises::map_incr(ptr_on_first_item(xs), ptr_on_first_item(dest), xs.size());
+    return same_sparray(dest, map(plus1_fct, xs));
+  }
+  
+};
+
+void check_map_incr_ex() {
+  checkit<map_incr_ex_correct>("solution to map_incr exercise is correct");
+}
+
+class max_ex_correct : public quickcheck::Property<std::vector<value_type>> {
+public:
+  
+  bool holdsFor(const std::vector<value_type>& vec) {
+    sparray xs = sparray_of_vector(vec);
+    return exercises::max(ptr_on_first_item(xs), xs.size()) == max(xs);
+  }
+  
+};
+
+void check_max_ex() {
+  checkit<max_ex_correct>("solution to max exercise is correct");
+}
+
+class plus_ex_correct : public quickcheck::Property<std::vector<value_type>> {
+public:
+  
+  bool holdsFor(const std::vector<value_type>& vec) {
+    sparray xs = sparray_of_vector(vec);
+    
+    return exercises::plus(ptr_on_first_item(xs), xs.size()) == sum(xs);
+  }
+  
+};
+
+void check_plus_ex() {
+  checkit<plus_ex_correct>("solution to plus exercise is correct");
+}
+
+class reduce_ex_correct : public quickcheck::Property<std::vector<value_type>> {
+public:
+  
+  bool holdsFor(const std::vector<value_type>& vec) {
+    sparray xs = sparray_of_vector(vec);
+    return exercises::reduce(plus_fct, 0l, ptr_on_first_item(xs), xs.size()) == sum(xs);
+  }
+  
+};
+
+void check_reduce_ex() {
+  checkit<reduce_ex_correct>("solution to plus exercise is correct");
+}
+
+class duplicate_correct : public quickcheck::Property<std::vector<value_type>> {
+public:
+  
+  bool holdsFor(const std::vector<value_type>& vec) {
+    sparray xs = sparray_of_vector(vec);
+    return same_sparray(exercises::duplicate(xs), duplicate(xs));
+  }
+  
+};
+
+void check_duplicate() {
+  checkit<duplicate_correct>("solution to duplicate is correct");
+}
+
+class ktimes_correct : public quickcheck::Property<std::vector<value_type>> {
+public:
+  
+  bool holdsFor(const std::vector<value_type>& vec) {
+    sparray xs = sparray_of_vector(vec);
+    long k = (rand() % 5) + 1;
+    return same_sparray(exercises::ktimes(xs, k), ktimes(xs, k));
+  }
+  
+};
+
+void check_ktimes() {
+  checkit<ktimes_correct>("solution to ktimes is correct");
+}
+
+class filter_ex_correct : public quickcheck::Property<std::vector<value_type>> {
+public:
+  
+  bool holdsFor(const std::vector<value_type>& vec) {
+    sparray xs = sparray_of_vector(vec);
+    return same_sparray(exercises::filter(is_even_fct, xs), filter(is_even_fct, xs));
+  }
+  
+};
+
+void check_filter_ex() {
+  checkit<filter_ex_correct>("solution to filter is correct");
+}
+
 /*---------------------------------------------------------------------*/
 /* PASL Driver */
 
@@ -316,8 +388,60 @@ void check() {
   nb_tests = pasl::util::cmdline::parse_or_default_long("nb_tests", 500);
   pasl::util::cmdline::argmap_dispatch c;
   c.add("mcss", std::bind(check_mcss));
-  c.add("sort", std::bind(check_sort));
+  class trusted_sort_fct {
+  public:
+    sparray operator()(const sparray& xs) {
+      return seqsort(xs);
+    }
+  };
+  c.add("mergesort", [&] {
+    class untrusted_fct {
+    public:
+      sparray operator()(const sparray& xs) {
+        return mergesort(xs);
+      }
+    };
+    using property_type = sort_correct<trusted_sort_fct, untrusted_fct>;
+    checkit<property_type>("mergesort is correct");
+  });
+  c.add("mergesort_ex", [&] {
+    class untrusted_fct {
+    public:
+      sparray operator()(const sparray& xs) {
+        return mergesort_ex(xs);
+      }
+    };
+    using property_type = sort_correct<trusted_sort_fct, untrusted_fct>;
+    checkit<property_type>("mergesort is correct");
+  });
+  c.add("cilksort", [&] {
+    class untrusted_fct {
+    public:
+      sparray operator()(const sparray& xs) {
+        return cilksort(xs);
+      }
+    };
+    using property_type = sort_correct<trusted_sort_fct, untrusted_fct>;
+    checkit<property_type>("mergesort is correct");
+  });
+  c.add("quicksort", [&] {
+    class untrusted_fct {
+    public:
+      sparray operator()(const sparray& xs) {
+        return quicksort(xs);
+      }
+    };
+    using property_type = sort_correct<trusted_sort_fct, untrusted_fct>;
+    checkit<property_type>("quicksort is correct");
+  });
   c.add("graph", std::bind(check_graph));
+  c.add("map_incr_ex", std::bind(check_map_incr_ex));
+  c.add("max_ex", std::bind(check_max_ex));
+  c.add("plus_ex", std::bind(check_plus_ex));
+  c.add("reduce_ex", std::bind(check_reduce_ex));
+  c.add("duplicate_ex", std::bind(check_duplicate));
+  c.add("ktimes_ex", std::bind(check_ktimes));
+  c.add("filter_ex", std::bind(check_filter_ex));
   c.find_by_arg("check")();
 }
 

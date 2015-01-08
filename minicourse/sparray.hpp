@@ -12,6 +12,9 @@
 #include <vector>
 #include <memory>
 #include <utility>
+#ifndef TARGET_MAC_OS
+#include <malloc.h>
+#endif
 
 #include "hash.hpp"
 #include "granularity.hpp"
@@ -22,6 +25,11 @@
 /***********************************************************************/
 
 /*---------------------------------------------------------------------*/
+
+#ifndef TARGET_MAC_OS
+static int __ii =  mallopt(M_MMAP_MAX,0);
+static int __jj =  mallopt(M_TRIM_THRESHOLD,-1);
+#endif
 
 namespace par = pasl::sched::granularity;
 
@@ -34,7 +42,17 @@ using controller_type = par::control_by_prediction;
 #endif
 using loop_controller_type = par::loop_by_eager_binary_splitting<controller_type>;
 
+#ifdef VALUE_32_BITS
+using value_type = int;
+#define VALUE_MIN INT_MIN
+#define VALUE_MAX INT_MAX
+#define VALUE_NB_BITS 32
+#else
 using value_type = long;
+#define VALUE_MIN LONG_MIN
+#define VALUE_MAX LONG_MAX
+#define VALUE_NB_BITS 64
+#endif
 
 /*---------------------------------------------------------------------*/
 
@@ -435,11 +453,11 @@ value_type sum(const sparray& xs) {
 }
 
 value_type max(const sparray& xs) {
-  return reduce(max_fct, LONG_MIN, xs);
+  return reduce(max_fct, VALUE_MIN, xs);
 }
 
 value_type min(const sparray& xs) {
-  return reduce(min_fct, LONG_MAX, xs);
+  return reduce(min_fct, VALUE_MAX, xs);
 }
 
 template <class Assoc_op, class Lift_func>
@@ -515,8 +533,7 @@ value_type scan_seq(const Assoc_op& op, const Lift_func& lift, value_type id,
 }
 
 template <class Assoc_op, class Lift_func>
-scan_excl_result scan_rec(const Assoc_op& op, const Lift_func& lift, value_type id, const sparray& xs,
-                     const bool is_excl) {
+scan_excl_result scan_rec(const Assoc_op& op, const Lift_func& lift, value_type id, const sparray& xs, const bool is_excl) {
   const long k = 1024;
   using contr_type = scan_controller_type<Assoc_op,Lift_func>;
   long n = xs.size();
@@ -536,7 +553,7 @@ scan_excl_result scan_rec(const Assoc_op& op, const Lift_func& lift, value_type 
         long hi = std::min(lo + k, n);
         sums[i] = reduce_seq(op, lift, id, xs, lo, hi);
       });
-      scan_excl_result scans = scan_rec(op, lift, id, sums, true);
+      scan_excl_result scans = scan_rec(op, identity_fct, id, sums, true);
       sums = {};
       result.partials = sparray(n);
       par::parallel_for(contr_type::lp2, 0l, m, [&] (long i) {
@@ -564,7 +581,12 @@ sparray scan_incl(const Assoc_op& op, const Lift_func& lift, value_type id, cons
 }
 
 template <class Assoc_op>
-scan_excl_result scan(const Assoc_op& op, value_type id, const sparray& xs) {
+sparray scan_incl(const Assoc_op& op, value_type id, const sparray& xs) {
+  return scan_incl(op, identity_fct, id, xs);
+}
+
+template <class Assoc_op>
+scan_excl_result scan_excl(const Assoc_op& op, value_type id, const sparray& xs) {
   return scan_excl(op, identity_fct, id, xs);
 }
 
@@ -586,25 +608,34 @@ sparray prefix_sums_incl(const sparray& xs) {
 
 loop_controller_type pack_contr("pack");
 
-sparray pack(const sparray& flags, const sparray& xs) {
+template <class Pred>
+sparray pack_by_predicate(const Pred& p, const sparray& xs) {
   long n = xs.size();
-  assert(flags.size() == n);
   sparray result = {};
   if (n == 0)
     return result;
-  scan_excl_result offsets = prefix_sums_excl(flags);
+  scan_excl_result offsets = scan_excl(plus_fct, p, 0l, xs);
   value_type m = offsets.total;
   result = sparray(m);
   par::parallel_for(pack_contr, 0l, n, [&] (long i) {
-    if (flags[i] == 1)
+    value_type cur  = offsets.partials[i];
+    value_type next = (i + 1 == n) ? offsets.total : offsets.partials[i+1];
+    if ((cur+1) == next)
       result[offsets.partials[i]] = xs[i];
   });
   return result;
 }
 
+sparray pack(const sparray& flags, const sparray& xs) {
+  return pack_by_predicate([&] (long i) { return flags[i]; }, xs);
+}
+
 template <class Pred>
 sparray filter(const Pred& p, const sparray& xs) {
+  /*
   return pack(map(p, xs), xs);
+   */
+  return pack_by_predicate(p, xs);
 }
 
 /***********************************************************************/

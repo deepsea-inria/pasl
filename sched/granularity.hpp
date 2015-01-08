@@ -242,6 +242,10 @@ void cstmt(control_by_prediction& contr,
   seq_body_fct();
   return;
 #endif
+#ifdef SEQUENTIAL_ELISION
+  par_body_fct();
+  return;
+#endif
   estimator_type& estimator = contr.get_estimator();
   cmeasure_type m = complexity_measure_fct();
   execmode_type c;
@@ -317,10 +321,12 @@ void cstmt(control_by_cmdline& contr,
 // spawn parallel threads; with granularity control
 template <class Body_fct1, class Body_fct2>
 void fork2(const Body_fct1& f1, const Body_fct2& f2) {
-  execmode_type mode = my_execmode();
-#ifdef SEQUENTIAL_ELISION
-  mode = Sequential;
+#if defined(SEQUENTIAL_ELISION) || defined(SEQUENTIAL_BASELINE)
+  f1();
+  f2();
+  return;
 #endif
+  execmode_type mode = my_execmode();
   if (mode == Sequential ||
       mode == Force_sequential ) {
     f1();

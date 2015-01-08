@@ -118,6 +118,7 @@ static void init_basic(int nb_workers) {
   util::atomic::init_print_lock();
   kappa = 1.33 * util::cmdline::parse_or_default_double("kappa", 500.0, false); //LATER: improve
 #ifdef USE_CILK_RUNTIME
+  util::worker::the_group.set_nb(nb_workers);
   return;
 #endif
   util::worker::delta = util::cmdline::parse_or_default_double("delta", kappa/2.0, false);
@@ -190,11 +191,13 @@ static void destroy_messagestrategy() {
 void init() {
   int nb_workers = init_general_purpose();
   init_basic(nb_workers);
+#ifndef USE_CILK_RUNTIME
+  init_scheduler();
+#endif
+  util::callback::init();
 #ifdef USE_CILK_RUNTIME
   return;
 #endif
-  init_scheduler();
-  util::callback::init();
   util::worker::the_group.set_factory(scheduler::the_factory);
   util::worker::the_group.create_threads();
 }
@@ -228,12 +231,14 @@ void launch(thread_p t) {
 }
 
 void destroy() {
+  util::callback::output();
+#ifndef USE_CILK_RUNTIME
+  util::worker::the_group.destroy_threads();
+#endif
+  util::callback::destroy();
 #ifdef USE_CILK_RUNTIME
   return;
 #endif
-  util::callback::output();
-  util::worker::the_group.destroy_threads();
-  util::callback::destroy();
   destroy_scheduler();
   destroy_basic();
 }

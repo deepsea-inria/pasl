@@ -8,9 +8,11 @@
  */
 
 #include <cstring>
+#include <cmath>
 
 #include "native.hpp"
 #include "sparray.hpp"
+#include "exercises.hpp"
 
 #ifndef _MINICOURSE_SORT_H_
 #define _MINICOURSE_SORT_H_
@@ -50,6 +52,11 @@ sparray seqsort(const sparray& xs, long lo, long hi) {
 /*---------------------------------------------------------------------*/
 /* Parallel quicksort */
 
+value_type median(value_type a, value_type b, value_type c) {
+  return  a < b ? (b < c ? b : (a < c ? c : a))
+  : (a < c ? a : (b < c ? c : b));
+}
+
 controller_type quicksort_contr("quicksort");
 
 sparray quicksort(const sparray& xs) {
@@ -58,12 +65,11 @@ sparray quicksort(const sparray& xs) {
   auto seq = [&] {
     result = seqsort(xs);
   };
-  par::cstmt(quicksort_contr, [=] { return nlogn(n); }, [&] {
-    if (n <= 2) {
+  par::cstmt(quicksort_contr, [&] { return nlogn(n); }, [&] {
+    if (n <= 4) {
       seq();
     } else {
-      long m = n/2;
-      value_type p = xs[m];
+      value_type p = median(xs[n/4], xs[n/2], xs[3*n/4]);
       sparray less = filter([&] (value_type x) { return x < p; }, xs);
       sparray equal = filter([&] (value_type x) { return x == p; }, xs);
       sparray greater = filter([&] (value_type x) { return x > p; }, xs);
@@ -149,7 +155,6 @@ void merge_par(const sparray& xs, const sparray& ys, sparray& tmp,
 void merge_par(sparray& xs, sparray& tmp,
                long lo, long mid, long hi) {
   merge_par(xs, xs, tmp, lo, mid, mid, hi, lo);
-
   // copy back to source array
   prim::pcopy(&tmp[0], &xs[0], lo, hi, lo);
 }
@@ -167,6 +172,7 @@ sparray merge(const sparray& xs, const sparray& ys) {
 
 controller_type mergesort_contr("mergesort");
 
+template <bool use_parallel_merge>
 void mergesort_rec(sparray& xs, sparray& tmp, long lo, long hi) {
   long n = hi - lo;
   auto seq = [&] {
@@ -177,23 +183,59 @@ void mergesort_rec(sparray& xs, sparray& tmp, long lo, long hi) {
       seq();
       return;
     }
-
     long mid = (lo + hi) / 2;
     par::fork2([&] {
-      mergesort_rec(xs, tmp, lo, mid);
+      mergesort_rec<use_parallel_merge>(xs, tmp, lo, mid);
     }, [&] {
-      mergesort_rec(xs, tmp, mid, hi);
+      mergesort_rec<use_parallel_merge>(xs, tmp, mid, hi);
     });
-
-    merge_par(xs, tmp, lo, mid, hi);
+    if (use_parallel_merge)
+      merge_par(xs, tmp, lo, mid, hi);
+    else
+      merge_seq(xs, tmp, lo, mid, hi);
   }, seq);
 }
 
+template <bool use_parallel_merge=true>
 sparray mergesort(const sparray& xs) {
   long n = xs.size();
   sparray result = copy(xs);
   sparray tmp = sparray(n);
-  mergesort_rec(result, tmp, 0l, n);
+  mergesort_rec<use_parallel_merge>(result, tmp, 0l, n);
+  return result;
+}
+
+
+/*---------------------------------------------------------------------*/
+/* Parallel mergesort */
+
+controller_type mergesort_ex_contr("mergesort_ex");
+
+void mergesort_ex_rec(sparray& xs, sparray& tmp, long lo, long hi) {
+  long n = hi - lo;
+  auto seq = [&] {
+    in_place_sort(xs, lo, hi);
+  };
+  par::cstmt(mergesort_ex_contr, [&] { return nlogn(n); }, [&] {
+    if (n <= 2) {
+      seq();
+      return;
+    }
+    long mid = (lo + hi) / 2;
+    par::fork2([&] {
+      mergesort_ex_rec(xs, tmp, lo, mid);
+    }, [&] {
+      mergesort_ex_rec(xs, tmp, mid, hi);
+    });
+    exercises::merge_par(xs, tmp, lo, mid, hi);
+  }, seq);
+}
+
+sparray mergesort_ex(const sparray& xs) {
+  long n = xs.size();
+  sparray result = copy(xs);
+  sparray tmp = sparray(n);
+  mergesort_ex_rec(result, tmp, 0l, n);
   return result;
 }
 

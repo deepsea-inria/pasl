@@ -20,9 +20,9 @@
 
 value_type mcss_seq(const sparray& xs) {
   if (xs.size() == 0)
-    return LONG_MIN;
-  long max_so_far = xs[0];
-  long curr_max = xs[0];
+    return VALUE_MIN;
+  value_type max_so_far = xs[0];
+  value_type curr_max = xs[0];
   for (long i = 1; i < xs.size(); i++) {
     curr_max = std::max(xs[i], curr_max+xs[i]);
     max_so_far = std::max(max_so_far, curr_max);
@@ -32,7 +32,7 @@ value_type mcss_seq(const sparray& xs) {
 
 value_type mcss_par(const sparray& xs) {
   sparray ys = prefix_sums_incl(xs);
-  scan_excl_result m = scan(min_fct, 0l, ys);
+  scan_excl_result m = scan_excl(min_fct, 0l, ys);
   sparray zs = tabulate([&] (long i) { return ys[i]-m.partials[i]; }, xs.size());
   return max(zs);
 }

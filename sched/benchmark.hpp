@@ -10,7 +10,7 @@
 #include <jemalloc/jemalloc.h>
 #endif
 
-#ifdef USE_CILK_RUNTIME
+#ifdef USE_LIBNUMA
 #include <numa.h>
 #endif
 
@@ -54,7 +54,7 @@ void launch(const Init& init, const Run& run, const Output& output,
             const Destroy& destroy) {
   bool sequential = (util::cmdline::parse_or_default_int("proc", 1, false) == 0);
   bool report_time = util::cmdline::parse_or_default_bool("report_time", true, false);
-#ifdef USE_CILK_RUNTIME
+#ifdef USE_LIBNUMA
   numa_set_interleave_mask(numa_all_nodes_ptr);
 #endif
   threaddag::init();

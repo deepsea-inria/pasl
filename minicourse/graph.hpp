@@ -40,7 +40,7 @@ edge_type mk_edge(vtxid_type source, vtxid_type dest) {
 long get_nb_vertices_of_edgelist(const edgelist& edges) {
   long nb = 0;
   for (long i = 0; i < edges.size(); i++)
-    nb = std::max(nb, std::max(edges[i].first, edges[i].second));
+    nb = std::max((value_type)nb, std::max(edges[i].first, edges[i].second));
   return nb+1;
 }
 
@@ -83,7 +83,7 @@ private:
   vtxid_type* start_edgelists;
   
   void check(vtxid_type v) const {
-    assert(v >= 0l);
+    assert(v >= (vtxid_type)0);
     assert(v < nb_offsets-1);
   }
   
@@ -171,10 +171,10 @@ public:
   
   long get_out_degree_of(vtxid_type v) const {
     check(v);
-    return start_offsets[v+1] - start_offsets[v];
+    return (long)(start_offsets[v+1] - start_offsets[v]);
   }
   
-  neighbor_list get_neighbors_of(vtxid_type v) const {
+  neighbor_list get_out_edges_of(vtxid_type v) const {
     check(v);
     return &start_edgelists[start_offsets[v]];
   }
@@ -189,7 +189,10 @@ public:
     in.read((char*)header, sizeof(header));
     graph_type = header[0];
     nbbits = int(header[1]);
-    assert(nbbits == 64);
+    assert(nbbits == VALUE_NB_BITS);
+    if (nbbits != VALUE_NB_BITS)
+      pasl::util::atomic::fatal([&] { std::cerr << "Bogus graph file: given " <<
+        nbbits << " but expected " << VALUE_NB_BITS << " bits" << std::endl; });
     nb_vertices = long(header[2]);
     nb_offsets = nb_vertices + 1;
     nb_edges = long(header[3]);
@@ -213,9 +216,9 @@ public:
 std::ostream& output_directed_dot(std::ostream& out, const adjlist& graph) {
   out << "digraph {\n";
   for (long i = 0; i < graph.get_nb_vertices(); ++i) {
-    for (vtxid_type j = 0; j < graph.get_out_degree_of(i); j++) {
-      neighbor_list neighbors = graph.get_neighbors_of(i);
-      out << i << " -> " << neighbors[j] << ";\n";
+    for (long j = 0; j < graph.get_out_degree_of(i); j++) {
+      neighbor_list out_edges = graph.get_out_edges_of(i);
+      out << i << " -> " << out_edges[j] << ";\n";
     }
   }
   return out << "}";
@@ -225,21 +228,14 @@ std::ostream& operator<<(std::ostream& out, const adjlist& graph) {
   return output_directed_dot(out, graph);
 }
 
-
-using adjlist_ref = adjlist&;
-using const_adjlist_ref = const adjlist&;
-
 /*---------------------------------------------------------------------*/
 /* Sequential BFS */
 
-using distance_type = value_type;
-const distance_type dist_unknown = -1l;
-
-sparray bfs_seq(const_adjlist_ref graph, vtxid_type source) {
+sparray bfs_seq(const adjlist& graph, vtxid_type source) {
   long nb_vertices = graph.get_nb_vertices();
-  sparray dists = sparray(nb_vertices);
+  bool* visited = my_malloc<bool>(nb_vertices);
   for (long i = 0; i < nb_vertices; i++)
-    dists[i] = dist_unknown;
+    visited[i] = false;
   sparray frontiers[2];
   frontiers[0] = sparray(nb_vertices);
   frontiers[1] = sparray(nb_vertices);
@@ -248,20 +244,19 @@ sparray bfs_seq(const_adjlist_ref graph, vtxid_type source) {
   frontier_sizes[1] = 0;
   vtxid_type cur = 0; // either 0 or 1, depending on parity of dist
   vtxid_type nxt = 1; // either 1 or 0, depending on parity of dist
-  vtxid_type dist = 0;
-  dists[source] = 0;
+  visited[source] = true;
   frontiers[cur][frontier_sizes[cur]++] = source;
   while (frontier_sizes[cur] > 0) {
     long nb = frontier_sizes[cur];
     for (vtxid_type ix = 0; ix < nb; ix++) {
       vtxid_type vertex = frontiers[cur][ix];
       vtxid_type degree = graph.get_out_degree_of(vertex);
-      neighbor_list neighbors = graph.get_neighbors_of(vertex);
+      neighbor_list out_edges = graph.get_out_edges_of(vertex);
       for (vtxid_type edge = 0; edge < degree; edge++) {
-        vtxid_type other = neighbors[edge];
-        if (dists[other] != dist_unknown)
+        vtxid_type other = out_edges[edge];
+        if (visited[other])
           continue;
-        dists[other] = dist+1;
+        visited[other] = true;
         if (graph.get_out_degree_of(other) > 0)
           frontiers[nxt][frontier_sizes[nxt]++] = other;
       }
@@ -269,49 +264,34 @@ sparray bfs_seq(const_adjlist_ref graph, vtxid_type source) {
     frontier_sizes[cur] = 0;
     cur = 1 - cur;
     nxt = 1 - nxt;
-    dist++;
   }
-  return dists;
+  sparray result = sparray(nb_vertices);
+  for (long i = 0; i < nb_vertices; i++)
+    result[i] = visited[i];
+  free(visited);
+  return result;
 }
 
 /*---------------------------------------------------------------------*/
-/* Ligra */
+/* Parallel BFS */
 
 const value_type not_a_vertexid = -1l;
 
-template <class Func>
-sparray vertex_map(const Func& f, const sparray& vertices) {
-  return filter(f, vertices);
-}
-
-loop_controller_type process_neighbors_contr("process_neighbors");
-
-template <class Update, class Cond, class Emit>
-void process_neighbors(const Update& update, const Cond& cond, const Emit& emit,
-                       const_adjlist_ref graph, long dist, long src) {
-  neighbor_list neighbors = graph.get_neighbors_of(src);
-  long degree = graph.get_out_degree_of(src);
-  par::parallel_for(process_neighbors_contr, 0l, degree, [&] (long j) {
-    vtxid_type dst = neighbors[j];
-    vtxid_type r = (cond(dst) and update(src, dst, dist)) ? dst : not_a_vertexid;
-    emit(j, r);
-  });
-}
-
-sparray extract_vertexids(const sparray& vs) {
+sparray just_vertexids(const sparray& vs) {
   return filter([] (vtxid_type v) { return v != not_a_vertexid; }, vs);
 }
 
-sparray get_out_degrees_of(const_adjlist_ref graph, const sparray& vs) {
+sparray get_out_degrees_of(const adjlist& graph, const sparray& vs) {
   return map([&] (vtxid_type v) { return graph.get_out_degree_of(v); }, vs);
 }
 
+loop_controller_type process_out_edges_contr("process_out_edges");
 loop_controller_type edge_map_contr("edge_map");
 
-template <class Update, class Cond>
-sparray edge_map(const Update& update, const Cond& cond,
-               const_adjlist_ref graph, const sparray& in_frontier, long dist) {
-  scan_excl_result offsets = prefix_sums_excl(get_out_degrees_of(graph, in_frontier));
+sparray edge_map(const adjlist& graph, std::atomic<bool>* visited, const sparray& in_frontier) {
+  // scan_excl_result offsets = prefix_sums_excl(get_out_degrees_of(graph, in_frontier));
+  auto get_outdegree_fct = [&] (vtxid_type v) { return graph.get_out_degree_of(v); };
+  scan_excl_result offsets = scan_excl(plus_fct, get_outdegree_fct, 0l, in_frontier);
   long m = in_frontier.size();
   long n = offsets.total;
   auto weight = [&] (long lo, long hi) {
@@ -322,45 +302,37 @@ sparray edge_map(const Update& update, const Cond& cond,
   par::parallel_for(edge_map_contr, weight, 0l, m, [&] (long i) {
     vtxid_type src = in_frontier[i];
     long offset = offsets.partials[i];
-    auto emit = [&] (value_type j, vtxid_type r) {
-      out_frontier[offset+j] = r;
-    };
-    process_neighbors(update, cond, emit, graph, dist, src);
+    neighbor_list out_edges = graph.get_out_edges_of(src);
+    long degree = graph.get_out_degree_of(src);
+    par::parallel_for(process_out_edges_contr, 0l, degree, [&] (long j) {
+      long dst = out_edges[j];
+      bool orig = false;
+      if (visited[dst].load() || ! visited[dst].compare_exchange_strong(orig, true))
+        dst = not_a_vertexid;
+      out_frontier[offset+j] = dst;
+    });
   });
-  return extract_vertexids(out_frontier);
+  return just_vertexids(out_frontier);
 }
-
-/*---------------------------------------------------------------------*/
-/* Parallel BFS */
 
 loop_controller_type bfs_par_init_contr("bfs_init");
 
-sparray bfs_par(const_adjlist_ref graph, vtxid_type source) {
+sparray bfs_par(const adjlist& graph, vtxid_type source) {
   long n = graph.get_nb_vertices();
-  std::atomic<value_type>* atomic_dists = my_malloc<std::atomic<vtxid_type>>(n);
+  std::atomic<bool>* visited = my_malloc<std::atomic<bool>>(n);
   par::parallel_for(bfs_par_init_contr, 0l, n, [&] (long i) {
-    atomic_dists[i].store(dist_unknown);
+    visited[i].store(false);
   });
-  atomic_dists[source].store(0);
-  auto update = [&] (vtxid_type src, vtxid_type dst, value_type dist) {
-    long u = dist_unknown;
-    return atomic_dists[dst].compare_exchange_strong(u, dist);
-  };
-  auto cond = [&] (vtxid_type other) {
-    return atomic_dists[other].load() == dist_unknown;
-  };
+  visited[source].store(true);
   sparray cur_frontier = { source };
-  long dist = 0;
-  while (cur_frontier.size() > 0) {
-    dist++;
-    cur_frontier = edge_map(update, cond, graph, cur_frontier, dist);
-  }
-  sparray dists = tabulate([&] (long i) { return atomic_dists[i].load(); }, n);
-  free(atomic_dists);
-  return dists;
+  while (cur_frontier.size() > 0)
+    cur_frontier = edge_map(graph, visited, cur_frontier);
+  sparray result = tabulate([&] (value_type i) { return visited[i].load(); }, n);
+  free(visited);
+  return result;
 }
 
-sparray bfs(const_adjlist_ref graph, vtxid_type source) {
+sparray bfs(const adjlist& graph, vtxid_type source) {
 #ifdef SEQUENTIAL_BASELINE
   return bfs_seq(graph, source);
 #else

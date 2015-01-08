@@ -16,6 +16,7 @@
 #include "fib.hpp"
 #include "mcss.hpp"
 #include "numeric.hpp"
+#include "exercises.hpp"
 
 /***********************************************************************/
 
@@ -25,7 +26,7 @@ loop_controller_type almost_sorted_sparray_contr("almost_sorted_sparray");
 sparray almost_sorted_sparray(long s, long n, long nb_swaps) {
   sparray tmp = sparray(n);
   par::parallel_for(almost_sorted_sparray_contr, 0l, n, [&] (long i) {
-    tmp[i] = i;
+    tmp[i] = (value_type)i;
   });
   for (long i = 0; i < nb_swaps; i++)
     std::swap(tmp[random_index(2*i, n)], tmp[random_index(2*i+1, n)]);
@@ -40,7 +41,7 @@ sparray exp_dist_sparray(long s, long n) {
   int lg = log2_up(n)+1;
   par::parallel_for(exp_dist_sparray_contr, 0l, n, [&] (long i) {
     long range = (1 << (random_index(2*(i+s), lg)));
-    tmp[i] = hash64shift((long)(range+random_index(2*(i+s), range)));
+    tmp[i] = (value_type)hash64shift((long)(range+random_index(2*(i+s), range)));
   });
   return tmp;
 }
@@ -81,7 +82,7 @@ void bench_destroy(const benchmark_type& b) {
 
 benchmark_type fib_bench() {
   long n = pasl::util::cmdline::parse_or_default_long("n", 38);
-  value_type* result = new value_type;
+  long* result = new long;
   auto init = [=] {
 
   };
@@ -97,7 +98,25 @@ benchmark_type fib_bench() {
   return make_benchmark(init, bench, output, destroy);
 }
 
-benchmark_type duplicate_bench() {
+benchmark_type mfib_bench() {
+  long n = pasl::util::cmdline::parse_or_default_long("n", 38);
+  long* result = new long;
+  auto init = [=] {
+    
+  };
+  auto bench = [=] {
+    *result = mfib(n);
+  };
+  auto output = [=] {
+    std::cout << "result " << *result << std::endl;
+  };
+  auto destroy = [=] {
+    delete result;
+  };
+  return make_benchmark(init, bench, output, destroy);
+}
+
+benchmark_type map_incr_bench(bool student_soln = false) {
   long n = pasl::util::cmdline::parse_or_default_long("n", 1l<<20);
   sparray* inp = new sparray(0);
   sparray* outp = new sparray(0);
@@ -105,7 +124,13 @@ benchmark_type duplicate_bench() {
     *inp = fill(n, 1);
   };
   auto bench = [=] {
-    *outp = duplicate(*inp);
+    sparray& in = *inp;
+    if (student_soln) {
+      *outp = sparray(in.size());
+      exercises::map_incr(&in[0], &(*outp)[0], in.size());
+    } else {
+      *outp = map([&] (value_type x) { return x+1; }, in);
+    }
   };
   auto output = [=] {
     std::cout << "result " << (*outp)[outp->size()-1] << std::endl;
@@ -117,7 +142,27 @@ benchmark_type duplicate_bench() {
   return make_benchmark(init, bench, output, destroy);
 }
 
-benchmark_type ktimes_bench() {
+benchmark_type duplicate_bench(bool ex = false) {
+  long n = pasl::util::cmdline::parse_or_default_long("n", 1l<<20);
+  sparray* inp = new sparray(0);
+  sparray* outp = new sparray(0);
+  auto init = [=] {
+    *inp = fill(n, 1);
+  };
+  auto bench = [=] {
+    *outp = (ex) ? exercises::duplicate(*inp) : duplicate(*inp);
+  };
+  auto output = [=] {
+    std::cout << "result " << (*outp)[outp->size()-1] << std::endl;
+  };
+  auto destroy = [=] {
+    delete inp;
+    delete outp;
+  };
+  return make_benchmark(init, bench, output, destroy);
+}
+
+benchmark_type ktimes_bench(bool ex = false) {
   long n = pasl::util::cmdline::parse_or_default_long("n", 1l<<20);
   long k = pasl::util::cmdline::parse_or_default_long("k", 4);
   sparray* inp = new sparray(0);
@@ -126,7 +171,7 @@ benchmark_type ktimes_bench() {
     *inp = fill(n, 1);
   };
   auto bench = [=] {
-    *outp = ktimes(*inp, k);
+    *outp = (ex) ? exercises::ktimes(*inp, k) : ktimes(*inp, k);
   };
   auto output = [=] {
     std::cout << "result " << (*outp)[outp->size()-1] << std::endl;
@@ -138,7 +183,9 @@ benchmark_type ktimes_bench() {
   return make_benchmark(init, bench, output, destroy);
 }
 
-benchmark_type reduce_bench() {
+using reduce_bench_type = enum { reduce_normal, reduce_max_ex, reduce_plus_ex, reduce_ex };
+
+benchmark_type reduce_bench(reduce_bench_type t = reduce_normal) {
   long n = pasl::util::cmdline::parse_or_default_long("n", 1l<<20);
   sparray* inp = new sparray(0);
   value_type* result = new value_type;
@@ -146,7 +193,14 @@ benchmark_type reduce_bench() {
     *inp = fill(n, 1);
   };
   auto bench = [=] {
-    *result = sum(*inp);
+    if (t == reduce_normal)
+      *result = sum(*inp);
+    else if (t == reduce_max_ex)
+      *result = exercises::max(&(*inp)[0], inp->size());
+    else if (t == reduce_plus_ex)
+      *result = exercises::plus(&(*inp)[0], inp->size());
+    else if (t == reduce_ex)
+      *result = exercises::reduce(plus_fct, 0l, &(*inp)[0], inp->size());
   };
   auto output = [=] {
     std::cout << "result " << *result << std::endl;
@@ -167,6 +221,26 @@ benchmark_type scan_bench() {
   };
   auto bench = [=] {
     *outp = prefix_sums_excl(*inp).partials;
+  };
+  auto output = [=] {
+    std::cout << "result " << (*outp)[outp->size()-1] << std::endl;
+  };
+  auto destroy = [=] {
+    delete inp;
+    delete outp;
+  };
+  return make_benchmark(init, bench, output, destroy);
+}
+
+benchmark_type filter_bench() {
+  long n = pasl::util::cmdline::parse_or_default_long("n", 1l<<20);
+  sparray* inp = new sparray(0);
+  sparray* outp = new sparray(0);
+  auto init = [=] {
+    *inp = gen_random_sparray(n);
+  };
+  auto bench = [=] {
+    *outp = exercises::filter(is_even_fct, *inp);
   };
   auto output = [=] {
     std::cout << "result " << (*outp)[outp->size()-1] << std::endl;
@@ -257,10 +331,12 @@ benchmark_type sort_bench() {
   sparray* inp = new sparray(0);
   sparray* outp = new sparray(0);
   pasl::util::cmdline::argmap<std::function<sparray (sparray&)>> algos;
-  algos.add("quicksort", [] (sparray& xs) { return quicksort(xs); });
-  algos.add("mergesort", [] (sparray& xs) { return mergesort(xs); });
-  algos.add("cilksort", [] (sparray& xs) { return cilksort(xs); });
-  auto sort_fct = algos.find_by_arg("algo");
+  algos.add("quicksort",          [] (sparray& xs) { return quicksort(xs); });
+  algos.add("mergesort",          [] (sparray& xs) { return mergesort(xs); });
+  algos.add("mergesort_seqmerge", [] (sparray& xs) { return mergesort<false>(xs); });
+  algos.add("cilksort",           [] (sparray& xs) { return cilksort(xs); });
+  algos.add("mergesort_ex",       [] (sparray& xs) { return mergesort_ex(xs); });
+  auto sort_fct = algos.find_by_arg("bench");
   auto init = [=] {
     pasl::util::cmdline::argmap_dispatch c;
     c.add("random", [=] {
@@ -290,26 +366,26 @@ benchmark_type sort_bench() {
 
 benchmark_type graph_bench() {
   adjlist* graphp = new adjlist;
-  sparray* distsp = new sparray;
+  sparray* visitedp = new sparray;
   std::string fname = pasl::util::cmdline::parse_or_default_string("fname", "");
-  vtxid_type source = pasl::util::cmdline::parse_or_default_long("source", 0l);
+  vtxid_type source = pasl::util::cmdline::parse_or_default_long("source", (value_type)0);
   if (fname == "")
     pasl::util::atomic::fatal([] { std::cerr << "missing filename for graph: -fname filename"; });
   auto init = [=] {
     graphp->load_from_file(fname);
   };
   auto bench = [=] {
-    *distsp = bfs(*graphp, source);
+    *visitedp = bfs(*graphp, source);
   };
   auto output = [=] {
-    long nb_visited = sum(map([] (value_type v) { return (v != dist_unknown); }, *distsp));
-    long max_dist = max(*distsp);
+    long nb_visited = sum(*visitedp);
+    long max_dist = max(*visitedp);
     std::cout << "nb_visited\t" << nb_visited << std::endl;
     std::cout << "max_dist\t" << max_dist << std::endl;
   };
   auto destroy = [=] {
     delete graphp;
-    delete distsp;
+    delete visitedp;
   };
   return make_benchmark(init, bench, output, destroy);
 }
@@ -323,16 +399,32 @@ int main(int argc, char** argv) {
   
   auto init = [&] {
     pasl::util::cmdline::argmap<std::function<benchmark_type()>> m;
-    m.add("fib",         [&] { return fib_bench(); });
-    m.add("duplicate",   [&] { return duplicate_bench(); });
-    m.add("ktimes",      [&] { return ktimes_bench(); });
-    m.add("reduce",      [&] { return reduce_bench(); });
-    m.add("scan",        [&] { return scan_bench(); });
-    m.add("mcss",        [&] { return mcss_bench(); });
-    m.add("dmdvmult",    [&] { return dmdvmult_bench(); });
-    m.add("merge",       [&] { return merge_bench(); });
-    m.add("sort",        [&] { return sort_bench(); });
-    m.add("graph",       [&] { return graph_bench(); });
+    m.add("fib",                  [&] { return fib_bench(); });
+    m.add("mfib",                 [&] { return mfib_bench(); });
+    m.add("map_incr",             [&] { return map_incr_bench(); });
+    m.add("reduce",               [&] { return reduce_bench(); });
+    m.add("scan",                 [&] { return scan_bench(); });
+    m.add("mcss",                 [&] { return mcss_bench(); });
+    m.add("dmdvmult",             [&] { return dmdvmult_bench(); });
+    m.add("merge",                [&] { return merge_bench(); });
+    m.add("quicksort",            [&] { return sort_bench(); });
+    m.add("mergesort",            [&] { return sort_bench(); });
+    m.add("mergesort_seqmerge",   [&] { return sort_bench(); });
+    m.add("cilksort",             [&] { return sort_bench(); });
+    m.add("graph",                [&] { return graph_bench(); });
+    m.add("duplicate",            [&] { return duplicate_bench(); });
+    m.add("ktimes",               [&] { return ktimes_bench(); });
+    
+
+    m.add("map_incr_ex",          [&] { return map_incr_bench(true); });
+    m.add("sum_ex",               [&] { return reduce_bench(reduce_plus_ex); });
+    m.add("max_ex",               [&] { return reduce_bench(reduce_max_ex); });
+    m.add("reduce_ex",            [&] { return reduce_bench(reduce_ex); });
+    m.add("duplicate_ex",         [&] { return duplicate_bench(true); });
+    m.add("ktimes_ex",            [&] { return ktimes_bench(true); });
+    m.add("filter_ex",            [&] { return filter_bench(); });
+    m.add("mergesort_ex",         [&] { return sort_bench(); });
+    
     bench = m.find_by_arg("bench")();
     bench_init(bench);
   };
