@@ -608,27 +608,8 @@ sparray prefix_sums_incl(const sparray& xs) {
 
 loop_controller_type pack_contr("pack");
 
-sparray pack(const sparray& flags, const sparray& xs) {
-  long n = xs.size();
-  assert(flags.size() == n);
-  sparray result = {};
-  if (n == 0)
-    return result;
-  scan_excl_result offsets = prefix_sums_excl(flags);
-  value_type m = offsets.total;
-  result = sparray(m);
-  par::parallel_for(pack_contr, 0l, n, [&] (long i) {
-    if (flags[i] == 1)
-      result[offsets.partials[i]] = xs[i];
-  });
-  return result;
-}
-
 template <class Pred>
-sparray filter(const Pred& p, const sparray& xs) {
-  /*
-  return pack(map(p, xs), xs);
-   */
+sparray pack_by_predicate(const Pred& p, const sparray& xs) {
   long n = xs.size();
   sparray result = {};
   if (n == 0)
@@ -643,6 +624,18 @@ sparray filter(const Pred& p, const sparray& xs) {
       result[offsets.partials[i]] = xs[i];
   });
   return result;
+}
+
+sparray pack(const sparray& flags, const sparray& xs) {
+  return pack_by_predicate([&] (long i) { return flags[i]; }, xs);
+}
+
+template <class Pred>
+sparray filter(const Pred& p, const sparray& xs) {
+  /*
+  return pack(map(p, xs), xs);
+   */
+  return pack_by_predicate(p, xs);
 }
 
 /***********************************************************************/

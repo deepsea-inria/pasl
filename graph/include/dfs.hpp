@@ -293,14 +293,6 @@ std::atomic<int>* cong_pseudodfs(const adjlist<Adjlist_seq>& graph,
 }
 */
   
-// now ignores the second template parameter, namely `Frontier`
-template <class Adjlist_seq, bool idempotent = false>
-std::atomic<int>* cong_pseudodfs(const adjlist<Adjlist_seq>& graph,
-                                 typename adjlist<Adjlist_seq>::vtxid_type source) {
-
-  return nullptr;
-}
-#ifndef DISABLE_CONG_PSEUDODFS
 template <class Adjlist_seq, bool idempotent = false>
 std::atomic<int>* cong_pseudodfs(const adjlist<Adjlist_seq>& graph,
                                  typename adjlist<Adjlist_seq>::vtxid_type source) {
@@ -319,10 +311,10 @@ std::atomic<int>* cong_pseudodfs(const adjlist<Adjlist_seq>& graph,
   std::atomic<bool> is_done(false);
   util::barrier::spin ready;
   ready.init(sched::threaddag::get_nb_workers());
-   using counter_type = data::perworker::counter::cbase<long>;
+   using counter_type = data::perworker::counter::carray<long>;
    //using counter_type = std::atomic<long>;
   counter_type counter;
-  data::perworker::base<deque_type> deques;
+  data::perworker::array<deque_type> deques;
   counter.init(0);
   counter++;
   deques.for_each([] (worker_id_t, deque_type& deque) {
@@ -472,7 +464,7 @@ std::atomic<int>* cong_pseudodfs(const adjlist<Adjlist_seq>& graph,
   LOG_BASIC(ALGO_PHASE);
   return visited;
 }
-#endif
+
 
 } // end namespace
 } // end namespace
