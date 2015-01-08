@@ -178,7 +178,7 @@ let arg_use_cilk = XCmd.mem_flag "use_cilk"
 let arg_details = XCmd.mem_flag "details"
 let arg_idempotent = XCmd.parse_or_default_list_int "idempotent" [0;1]
 let arg_exps = XCmd.parse_or_default_list_string "exp" ["all"]
-let arg_mode = Mk_runs.mode_from_command_line()
+let arg_mode = Mk_runs.mode_from_command_line "mode"
 
 
 let arg_proc =

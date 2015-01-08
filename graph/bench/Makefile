@@ -135,13 +135,16 @@ endif
 #  study
 
 ifeq ($(PBENCH_PATH),)
-   PBENCH_PATH=~/pbench/trunk
+   PBENCH_PATH=~/pbench
 endif
 
-study:
-	make -C $(PBENCH_PATH) graph.byte
-	cp $(PBENCH_PATH)/graph.byte study
+include $(PBENCH_PATH)/Makefile_common
 
+graph: graph.pbench
+	ln -sf $< $@ 
+
+clean: pbench_clean
+	
 
 ####################################################################
 #  study --DEPRECATED
