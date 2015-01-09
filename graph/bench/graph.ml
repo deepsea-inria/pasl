@@ -55,6 +55,8 @@ todo: report stddev optionally via get_mean_and_stddev_of
 
 (* ============> paper <=========================
 
+    ./bench.sh baselines -size large
+
 
     ./bench.sh generate accessible baselines overview overheads -size large
 
@@ -654,7 +656,7 @@ let graph_renaming =
 
 let mk_graph_outputs_all_manual : Params.t =
    let mk_file file = (* ?todo: rename "outfile" into "output_file" *)
-      mk string "outfile" (sprintf "/home/rainey/graphdata/%s.adj_bin" file) in
+      mk string "outfile" (sprintf "~/graphdata/%s.adj_bin" file) in
     let mk_manual file ?timeout size bits source =
        let timeout = XOption.unsome_or (XOption.unsome_or (timeout_for_size size) timeout) arg_timeout_opt in
          (mk_file file)
@@ -1056,11 +1058,13 @@ let string_of_exectime ?(prec=2) v =
    | FP_subnormal -> "na"
    | FP_nan -> "na"
 
-let string_of_speedup v =
+let string_of_speedup ?(prec=1) v =
    match classify_float v with
    | FP_subnormal | FP_zero -> "-"
    | FP_normal -> 
-       sprintf "%.1fx" v 
+      if prec = 1 then sprintf "%.1fx" v
+      else if prec = 2 then sprintf "%.2fx" v
+      else failwith "only precision 1 and 2 are supported"
        (* if v < 10. then sprintf "%.2fx" v else sprintf "%.1fx" v *)
    | FP_infinite -> "[timeout]"
    | FP_nan -> "na"
@@ -1850,7 +1854,7 @@ end
 
 
 (*****************************************************************************)
-(** Overview 
+(** Overview
 
    ./bench.sh overview -proc 30 -size small -skip make
 
@@ -1925,12 +1929,12 @@ let plot () =
        (* add (Env.get_as_string env "size");
        add Latex.new_line; *)
        let nb_infos = 2 in
-       let nb_bfs = 4 in
-       let nb_dfs = 4 in
-       add (Latex.tabular_begin (String.concat "" (["|l||"] @ XList.init nb_infos (fun i -> "@{\\,\\,}c@{\\,\\,}|") @ ["|"] @ XList.init nb_bfs (fun i -> "c|") @ ["|"] @ XList.init nb_dfs (fun i -> "c|")  @ ["|c|"] )));
-       add "graph & vertices & edges & seq & LS & ours & runtime & seq & Cong. & our & runtime & our PDFS";
+       let nb_bfs = 3 in
+       let nb_dfs = 3 in
+       add (Latex.tabular_begin (String.concat "" (["|l||"] @ XList.init nb_infos (fun i -> "@{\\,\\,}c@{\\,\\,}|") @ ["c||"] @ XList.init nb_dfs (fun i -> "c|") @ ["|"] @ XList.init nb_bfs (fun i -> "c|")  @ ["|c|"] )));
+       add "graph & vertices & edges & seq & Cong. & our & runtime & seq & LS & ours & our PDFS";
        add Latex.new_line;
-       add " &  &  & BFS & PBFS & PBFS & diff & DFS & PDFS & PDFS & diff. & vs PBFS";
+       add " &  &  & DFS & PDFS & PDFS & diff. & BFS & PBFS & PBFS & vs PBFS";
        add Latex.tabular_newline;
        ~~ List.iter envs_rows (fun env_rows ->
          let results = Results.filter env_rows results in
@@ -1948,27 +1952,35 @@ let plot () =
             let v = Results.get_mean_of "exectime" rs in
             v
             in
-         let v_bfs_seq = exectime_for results_baseline ExpBaselines.mk_bfs in
-         let v_bfs_ls = exectime_for results mk_ls_bfs in
-         let v_bfs_our = exectime_for results mk_our_lazy_parallel_bfs in
          let v_dfs_seq = exectime_for results_baseline ExpBaselines.mk_dfs in
          let v_dfs_cong = exectime_for results mk_cong_parallel_dfs in
          let v_dfs_our = exectime_for results mk_our_parallel_dfs in
+         let v_bfs_seq = exectime_for results_baseline ExpBaselines.mk_bfs in
+         let v_bfs_ls = exectime_for results mk_ls_bfs in
+         let v_bfs_our = exectime_for results mk_our_lazy_parallel_bfs in
+
          Mk_table.cell add (graph_renamer kind);
          Mk_table.cell add (string_of_millions nb_vertices);
          Mk_table.cell add (string_of_millions nb_edges);
          (* Mk_table.cell add (string_of_millions nb_visited_edges); *)
-         Mk_table.cell add (string_of_exectime ~prec:1 v_bfs_seq);
-         Mk_table.cell add (string_of_speedup (v_bfs_seq /. v_bfs_ls));
-         Mk_table.cell add (string_of_speedup (v_bfs_seq /. v_bfs_our));
-         (* Mk_table.cell add (string_of_percentage_change_bounded 0.1 v_bfs_ls v_bfs_our); *)
-         Mk_table.cell add (string_of_percentage_change v_bfs_ls v_bfs_our);
+
          Mk_table.cell add (string_of_exectime ~prec:1 v_dfs_seq);
          Mk_table.cell add (string_of_speedup (v_dfs_seq /. v_dfs_cong));
          Mk_table.cell add (string_of_speedup (v_dfs_seq /. v_dfs_our));
          (* Mk_table.cell add (string_of_percentage_change_bounded 0.1 v_dfs_cong v_dfs_our); *)
          Mk_table.cell add (string_of_percentage_change v_dfs_cong v_dfs_our);
          (* Mk_table.cell ~last:true add (string_of_percentage_change v_bfs_our v_dfs_our); *)
+
+         (* Mk_table.cell add (string_of_exectime ~prec:1 v_bfs_seq);
+            Mk_table.cell add (string_of_speedup (v_bfs_seq /. v_bfs_ls));
+            Mk_table.cell add (string_of_speedup (v_bfs_seq /. v_bfs_our));
+         *)
+         Mk_table.cell add (string_of_speedup ~prec:2 (v_dfs_seq /. v_bfs_seq));
+         Mk_table.cell add (string_of_speedup (v_dfs_seq /. v_bfs_ls));
+         Mk_table.cell add (string_of_speedup (v_dfs_seq /. v_bfs_our));
+         (* Mk_table.cell add (string_of_percentage_change_bounded 0.1 v_bfs_ls v_bfs_our); *)
+         (* Mk_table.cell add (string_of_percentage_change v_bfs_ls v_bfs_our);*)
+
          Mk_table.cell ~last:true add (string_of_speedup (v_bfs_our /. v_dfs_our)); 
          add Latex.tabular_newline;
          );
@@ -1980,6 +1992,7 @@ let all () =
    select make run check plot
 
 end
+
 
 
 (*****************************************************************************)
