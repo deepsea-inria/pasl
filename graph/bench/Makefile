@@ -143,6 +143,9 @@ include $(PBENCH_PATH)/Makefile_common
 graph: graph.pbench
 	ln -sf $< $@ 
 
+overview_plot: graph
+	./graph overview -size large -proc 40 -only plot
+
 clean: pbench_clean
 	
 
