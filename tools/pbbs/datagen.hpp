@@ -5,8 +5,8 @@
 #include "atomic.hpp"
 #include "utils.hpp"
 
-#ifndef _PBBS_DATAGEN_H_
-#define _PBBS_DATAGEN_H_
+#ifndef _PBBS1_DATAGEN_H_
+#define _PBBS1_DATAGEN_H_
 
 namespace pbbs {
   
@@ -18,26 +18,29 @@ namespace pbbs {
     
     //#define HASH_MAX_LONG ((unsigned long) 1 << 63)
     
-    template <class T> T hash(int i);
-    
-    template <>
-    int hash<int>(int i) {
+    static inline int hashi(int i) {
       return utils::hash(i) & (HASH_MAX_INT-1);}
     
-    template <>
-    unsigned int hash<unsigned int>(int i) {
+    static inline unsigned int hashu(int i) {
       return utils::hash(i);}
     
-    template <>
-    double hash<double>(int i) {
-      return ((double) hash<int>(i)/((double) HASH_MAX_INT));}
+    static inline double hashd(int i) {
+      return ((double) hashi(i)/((double) HASH_MAX_INT));}
     
-    template <>
-    long hash<long>(int) {
-      pasl::util::atomic::die("bogus");
-      return 0;
+    template <class T> T hash(int i) {
+      if (typeid(T) == typeid(int)) {
+        return hashi(i);
+      } else if (typeid(T) == typeid(unsigned int)) {
+        return hashu(i);
+      } else if (typeid(T) == typeid(double)) {
+        return hashd(i);
+      } else {
+        pasl::util::atomic::die("bogus");
+        return 0;
+      }
     }
     
+  
     /* template <class T> T hash(long i); */
     
     /*

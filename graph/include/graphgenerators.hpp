@@ -572,7 +572,7 @@ public:
   unsigned int ty;
 };
 
-void generate(generator_type& ty) {
+static inline void generate(generator_type& ty) {
   quickcheck::generate(NB_GENERATORS-1, ty.ty);
 }
 
