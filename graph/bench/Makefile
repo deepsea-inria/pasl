@@ -18,7 +18,7 @@ USE_MATH=1
 # Default options
 
 USE_ALLOCATOR=
-USE_HWLOC=0
+USE_HWLOC=1
 USE_NUMA=0
 
 ####################################################################
