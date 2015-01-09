@@ -23,6 +23,10 @@
 #include <iostream>
 #include "utils.hpp"
 #include "sequence.hpp"
+
+#ifndef _PBBS_RANDPERM_H_
+#define _PBBS_RANDPERM_H_
+
 namespace pbbs {
 using namespace std;
 
@@ -86,3 +90,5 @@ void randPerm(E *A, int n) {
   //cout << "wasted = " << wasted << " rounds = " << round  << endl;
 }
 }
+
+#endif

@@ -20,14 +20,15 @@
 // OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 // WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-#ifndef _BENCH_OCTTREE_INCLUDED
-#define _BENCH_OCTTREE_INCLUDED
 
 #include <iostream>
 #include <cstdlib>
 #include "sequence.hpp"
 #include "geometry.hpp"
 #include "blockradixsort.hpp"
+
+#ifndef _BENCH_OCTTREE_INCLUDED
+#define _BENCH_OCTTREE_INCLUDED
 
 namespace pbbs {
 using namespace std;

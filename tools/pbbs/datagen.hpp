@@ -1,10 +1,12 @@
 
 
-#ifndef _PBBS_DATAGEN_H_
-#define _PBBS_DATAGEN_H_
+
 
 #include "atomic.hpp"
 #include "utils.hpp"
+
+#ifndef _PBBS_DATAGEN_H_
+#define _PBBS_DATAGEN_H_
 
 namespace pbbs {
   

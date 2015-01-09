@@ -1,9 +1,10 @@
 
 
-#ifndef _PBBS_TRANSPOSE_H_
-#define _PBBS_TRANSPOSE_H_
 
 #include "utils.hpp"
+
+#ifndef _PBBS_TRANSPOSE_H_
+#define _PBBS_TRANSPOSE_H_
 
 namespace pbbs {
 

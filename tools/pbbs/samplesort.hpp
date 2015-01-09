@@ -28,6 +28,9 @@
 #include "quicksort.hpp"
 #include "transpose.hpp"
 
+#ifndef _PBBS_SAMPLESORT_H_
+#define _PBBS_SAMPLESORT_H_
+
 namespace pbbs {
 
 template<class E, class BinPred, class intT>
@@ -131,4 +134,6 @@ void sampleSort (E* A, intT n, BinPred f) {
 #define compSort(__A, __n, __f) (sampleSort(__A, __n, __f))
   
 } // end namespace
+
+#endif
 
