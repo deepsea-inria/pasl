@@ -235,8 +235,16 @@ let prog_parallel_seq_init =
   else prog_parallel_cilk_seq_init
 let prog_sequential = "./search.elision2"
 
+let build_in folder bs =
+  let make_cmd = "make -j " in
+  let make_cmd = if folder = ""
+                 then make_cmd
+                 else make_cmd ^ " -C " ^ folder ^ " "
+  in
+  system (make_cmd ^ (String.concat " " bs))
+
 let build bs =
-   system ("make -j " ^ (String.concat " " bs))
+  build_in "" bs
 
 let wrap_name_size name =
    let ssize =
@@ -1303,7 +1311,7 @@ let mk_ls_bfs =
    (mk_algo_frontier "ls_pbfs" "ls_bag"
       & mk int "ls_pbfs_cutoff" 4096  (* used to be 1024 *)
       & mk_ls_pbfs_loop_cutoff)
-
+     
 let mk_seq_bfs =
      mk_traversal_bfs
    & (   (mk_sequential_prog & (mk_sequential_bfs ++ mk_our_parallel_bfs))
@@ -1867,9 +1875,14 @@ module ExpOverview = struct
 
 let name = "overview"
 
+let mk_ligra_bfs =
+  mk_algo "ligra"
+
+
 let mk_parallel_bfs =
       mk_ls_bfs
-   ++ mk_our_lazy_parallel_bfs
+      ++ mk_our_lazy_parallel_bfs
+      ++ mk_ligra_bfs
 
 let mk_parallel_bfs =
    Params.eval (Params.filter env_in_arg_algos mk_parallel_bfs)
@@ -1883,15 +1896,18 @@ let mk_parallel_dfs =
    Params.eval (Params.filter env_in_arg_algos mk_parallel_dfs)
 *)
 
-let prog_parallel_here = (*"./search.sta"*)  "./search.opt2" 
+let prog_parallel_here = (*"./search.sta"*)  (*"./search.opt2" *) "./search.virtual"
+let prog_ligra = "ligra.cilk"
+let prog_ligra_here = "./" ^ prog_ligra
 
 let mk_parallel_prog_maxproc_here =
    mk_prog prog_parallel_here
    & mk int "proc" arg_proc
    & mk int "delta" 50
 
-let make () =
-   build [prog_parallel_here] 
+let make () = (
+  build [prog_parallel_here];
+  build_in "../../../ligra/" [prog_ligra])
 
 let run () =
    Mk_runs.(call (run_modes @ [
