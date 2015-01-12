@@ -2180,6 +2180,98 @@ let check () =
 
 
 (*****************************************************************************)
+(** ExpLigra *)
+
+module ExpLigra = struct
+
+let name = "ligra"
+
+let mk_programs_ours = (mk_prog "./search.opt2" & mk_our_lazy_parallel_bfs)
+let mk_programs_ligra = (mk_prog "./search.virtual" & mk_algo "liagra")
+let mk_programs_algos = mk_programs_ours ++ mk_programs_ligra
+
+let mk_procs = mk int "proc" arg_proc
+
+let make () =
+  build [
+    "../../../ligra/ligra.cilk_32";
+    "../../../ligra/ligra.cilk_64";
+    "search.opt2" ]
+
+let run () =
+   Mk_runs.(call (run_modes @ [
+      Output (file_results name);
+      Args (
+            mk_procs
+          & mk_graph_inputs
+          & mk_programs_algos
+       ) ] ))
+
+let check () =
+   Results.check_consistent_output_filter_by_params_from_file
+     "result" mk_graph_files (file_results name)
+
+let plot () =
+   (* table *)
+   let results = Results.from_file (file_results name) in
+   let tex_file = file_tables_src name in
+   let pdf_file = file_tables name in
+   Mk_table.build_table tex_file pdf_file (fun add ->
+    let env = Env.empty in
+    let envs_tables = mk_sizes env in
+    ~~ List.iter envs_tables (fun env_tables ->
+       let results = Results.filter env_tables results in
+       let env = Env.append env env_tables in
+       let envs_rows = mk_kind_for_size env in
+       add (Env.get_as_string env "size"); add Latex.new_line; 
+       add (Latex.tabular_begin "|l||c|c|c|");
+       add "graph & our PBFS & ligra";
+       add Latex.tabular_newline;
+       ~~ List.iter envs_rows (fun env_rows ->
+         let results = Results.filter env_rows results in
+         let env = Env.append env env_rows in
+         let kind = Env.get_as_string env "kind" in
+         let exectime_for rs mk_base =
+            let rs = Results.filter (Params.to_env mk_base) rs in
+            Results.check_consistent_inputs [] rs;
+            let v = Results.get_mean_of "exectime" rs in
+            v
+            in
+         let v_our = exectime_for results mk_programs_ours in
+         let v_ligra = exectime_for results mk_programs_ligra in
+         Mk_table.cell add (graph_renamer kind);
+         Mk_table.cell add (string_of_exectime v_our);
+         Mk_table.cell add (string_of_exectime v_ligra);
+         Mk_table.cell ~last:true add (string_of_percentage_change v_our v_ligra);
+         add Latex.tabular_newline;
+         );
+       add Latex.tabular_end;
+       add Latex.new_page;
+      ));
+   (* barplot *)
+   Mk_bar_plot.(call ([
+      Bar_plot_opt Bar_plot.([
+         Chart_opt Chart.([Dimensions (10.,5.) ]);
+         X_titles_dir Vertical;
+         Y_axis [Axis.Lower (Some 0.) ] ]);
+      Formatter my_formatter;
+      Charts (mk_sizes & mk_procs);
+      Series mk_programs_algos;
+      X mk_kind_for_size;
+      Input (file_results name);
+      Output (file_plots name);
+      Y_label "exectime";
+      Y eval_exectime
+      ]))
+
+
+let all () = select make run check plot
+
+end
+
+
+
+(*****************************************************************************)
 (** OLD Binaries                Mk_table.escape add (string_of_percentage_change v_baseline v ^ report_exectime_if_required v);performances *)
 
 module ExpOldBinaries = struct
@@ -2557,6 +2649,7 @@ let _ =
       "overview", ExpOverview.all;
       "overheads", ExpOverheads.all;
       "idempotence", ExpIdempotence.all;
+      "ligra", ExpLigra.all;
       "old_binaries", ExpOldBinaries.all;
       "old_sequential", ExpOldSequential.all;
       "old_parallel_baseline", ExpOldBaselines.all;

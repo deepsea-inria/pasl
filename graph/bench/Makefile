@@ -134,6 +134,8 @@ endif
 ####################################################################
 #  study
 
+PBENCH_OCAMLCOMP=ocamlc
+
 ifeq ($(PBENCH_PATH),)
    PBENCH_PATH=~/pbench
 endif
@@ -145,6 +147,9 @@ graph: graph.pbench
 
 overview_plot: graph
 	./graph overview -size large -proc 40 -only plot
+
+ligra_comp: graph
+	./graph ligra -size small -proc 40 --virtual_run -skip make
 
 clean: pbench_clean
 	
