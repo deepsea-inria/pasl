@@ -145,11 +145,14 @@ include $(PBENCH_PATH)/Makefile_common
 graph: graph.pbench
 	ln -sf $< $@ 
 
+overview: graph
+	./graph overview -size large -proc 40
+
 overview_plot: graph
 	./graph overview -size large -proc 40 -only plot
 
 ligra_comp: graph
-	./graph ligra -size small -proc 40 --virtual_run -skip make
+	./graph ligra -size small -proc 40 -skip make
 
 clean: pbench_clean
 	
@@ -166,6 +169,6 @@ old_study:
 
 
 
-
+# ./graph overview -size large -proc 40 -skip make --virtual_run
 
 ##valgrind option: --demangle=no
