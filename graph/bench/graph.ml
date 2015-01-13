@@ -1882,7 +1882,7 @@ let mk_ligra_bfs =
 let mk_parallel_bfs =
       mk_ls_bfs
       ++ mk_our_lazy_parallel_bfs
-      ++ mk_ligra_bfs
+(*      ++ mk_ligra_bfs*)
 
 let mk_parallel_bfs =
    Params.eval (Params.filter env_in_arg_algos mk_parallel_bfs)
@@ -2187,7 +2187,7 @@ module ExpLigra = struct
 let name = "ligra"
 
 let mk_programs_ours = (mk_prog "./search.opt2" & mk_our_lazy_parallel_bfs)
-let mk_programs_ligra = (mk_prog "./search.virtual" & mk_algo "liagra")
+let mk_programs_ligra = (mk_prog "./search.virtual" & mk_algo "ligra")
 let mk_programs_algos = mk_programs_ours ++ mk_programs_ligra
 
 let mk_procs = mk int "proc" arg_proc
