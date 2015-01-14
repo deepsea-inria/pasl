@@ -629,6 +629,33 @@ let mk_graph_outputs_all_generated : Params.t =
 
 let graph_renaming = 
    [ "livejournal1", "livejournal";
+     "paths_524288_phases_1", "para_chains_524k";
+     "wikipedia-20070206", "wikipedia-2007";
+     "paths_100_phases_1", "par_chains_100";
+     "paths_20_phases_1", "par_chains_20";
+     "paths_8_phases_1", "par_chains_8";
+     "chain", "chain";
+     "tree_binary", "complete_bin_tree";
+     "tree_depth_2", "trees_10k_10k";
+     "tree_2_512_512", "trees_512_512";
+     "tree_2_512_1024", "trees_512_1024";
+     "tree_2_512_512", "trees_512_512";
+     "tree_2_512_1024", "trees_512_1024";
+     "unbalanced_tree", "unbalanced_tree";
+     "random_arity_3", "random_arity_3";
+     "random_arity_8", "random_arity_8";
+     "random_arity_100", "random_arity_100"; 
+     "phased_low_50", "phases_50_d5"; 
+     "phased_mix_10", "phases_10_d2_x"; 
+     (* "phased_mix_2", "phases_2_arity_2_but_one"; *)
+     "phased_524288_single", "trees_524k";
+     "grid_sq", "square_grid";
+     "cube", "cube_grid";
+    ]
+
+(*
+let graph_renaming = 
+   [ "livejournal1", "livejournal";
      "paths_524288_phases_1", "parallel_chains_524k";
      "wikipedia-20070206", "wikipedia-2007";
      "paths_100_phases_1", "parallel_chains_100";
@@ -652,7 +679,7 @@ let graph_renaming =
      "grid_sq", "square_grid";
      "cube", "cube_grid";
     ]
-
+*)
 
 let mk_graph_outputs_all_manual : Params.t =
    let mk_file file = (* ?todo: rename "outfile" into "output_file" *)
@@ -1907,6 +1934,7 @@ let make () =
 let mk_ligra = (* todo: add to mk_parallel_bfs (?) *)
     mk_prog "./search.virtual" 
   & mk_algo "ligra" 
+   & mk int "proc" arg_proc
 
 let run () =
    Mk_runs.(call (run_modes @ [
@@ -1946,12 +1974,16 @@ let plot () =
        (* add (Env.get_as_string env "size");
        add Latex.new_line; *)
        let nb_infos = 3 in
-       let nb_bfs = 5 in
-       let nb_dfs = 4 in
-       add (Latex.tabular_begin (String.concat "" (["|l||"] @ XList.init nb_infos (fun i -> "@{\\,\\,}c@{\\,\\,}|") @ ["|"] @ XList.init nb_dfs (fun i -> "c|") @ ["|"] @ XList.init nb_bfs (fun i -> "c|")  @ ["|c|"] )));
-       add "graph & verti. & edges & max & seq & our & Cong. &  & seq & ours & LS &  & Ligra & \!our PDFS\! ";
+       let nb_bfs = 3 in
+       let nb_dfs = 3 in
+       add (Latex.tabular_begin (String.concat "" (["|l|"] @ XList.init nb_infos (fun i -> "@{\\,\\,}c@{\\,\\,}|") @ ["|"] @ XList.init nb_dfs (fun i -> "c|") @ ["r||"] @ XList.init nb_bfs (fun i -> "c|")  @ ["r|r||r|"] )));
+       add (Latex.tabular_multicol 4 "|c||" (Latex.bold "Input graph")); add " & ";
+       add (Latex.tabular_multicol 4 "|c||" (Latex.bold "DFS")); add " & ";
+       add (Latex.tabular_multicol 5 "|c||" (Latex.bold "BFS")); add " & ";
+       add Latex.tabular_newline;
+       add "graph & verti. & edges & max & seq & our & Cong. & \\bf{Cong.} & seq & our & LS & \\bf{LS vs} & Ligra & our PBFS ";
        add Latex.new_line;
-       add " &  (m) & (m) & dist & DFS & PDFS & PDFS & ratio & BFS & PBFS & PBFS & ratio & ratio & vs PBFS";
+       add " &  (m) & (m) & dist & DFS & PDFS & PDFS & \\bf{vs ours} & BFS & PBFS & PBFS & \\bf{ ours} & vs ours & vs PDFS";
        add Latex.tabular_newline;
        ~~ List.iter envs_rows (fun env_rows ->
          let results = Results.filter env_rows results in
@@ -1988,19 +2020,24 @@ let plot () =
          Mk_table.cell add (string_of_exectime ~prec:1 v_dfs_seq);
          Mk_table.cell add (string_of_speedup (v_dfs_seq /. v_dfs_our));
          Mk_table.cell add (string_of_speedup (v_dfs_seq /. v_dfs_cong));
-         (*Mk_table.cell add (string_of_percentage_change v_dfs_our v_dfs_cong);*)
-         Mk_table.cell add (sprintf "%.1f" (v_dfs_cong /. v_dfs_our));
+         Mk_table.cell add (Latex.bold (string_of_percentage_change v_dfs_our v_dfs_cong));
+         (*Mk_table.cell add (sprintf "%.1f" (v_dfs_cong /. v_dfs_our));*)
 
          Mk_table.cell add (string_of_exectime ~prec:1 v_bfs_seq);
          Mk_table.cell add (string_of_speedup (v_bfs_seq /. v_bfs_our));
          Mk_table.cell add (string_of_speedup (v_bfs_seq /. v_bfs_ls));
+         Mk_table.cell add (Latex.bold (string_of_percentage_change v_bfs_our v_bfs_ls));
+         Mk_table.cell add (string_of_percentage_change v_bfs_our v_bfs_ligra);
+
+(*
          Mk_table.cell add (sprintf "%.1f" (v_bfs_ls /. v_bfs_our));
          Mk_table.cell add (sprintf "%.1f" (v_bfs_ligra /. v_bfs_our));
+*)
          (* Mk_table.cell add (string_of_speedup (v_bfs_seq /. v_bfs_ligra)); *)
          (* Mk_table.cell add (string_of_percentage_change_bounded 0.1 v_bfs_ls v_bfs_our); *)
 
-         (* Mk_table.cell ~last:true add (string_of_percentage_change v_bfs_our v_dfs_our); *)
-         Mk_table.cell ~last:true add (sprintf "%.1f" (v_bfs_our /. v_dfs_our)); 
+         Mk_table.cell ~last:true add (string_of_percentage_change v_dfs_our v_bfs_our ); 
+         (*  Mk_table.cell ~last:true add (sprintf "%.1f" (v_bfs_our /. v_dfs_our)); *)
          add Latex.tabular_newline;
          );
        add Latex.tabular_end;
