@@ -160,8 +160,6 @@ int* dfs_by_frontier_segment(const Adjlist& graph,
 
 template <class Index, class Item, bool idempotent>
 bool try_to_mark(std::atomic<Item>* visited, Index target) {
-  if (visited[target].load(std::memory_order_relaxed))
-    return false;
   if (! idempotent) {
     Item orig = 0;
     if (! visited[target].compare_exchange_strong(orig, 1))
@@ -178,6 +176,8 @@ bool try_to_mark(const Adjlist& graph,
                  typename Adjlist::vtxid_type target) {
   using vtxid_type = typename Adjlist::vtxid_type;
   const vtxid_type max_outdegree_for_idempotent = 30;
+  if (visited[target].load(std::memory_order_relaxed))
+    return false;
   vtxid_type d = graph.adjlists[target].get_out_degree();
   if (idempotent) {
     if (d <= max_outdegree_for_idempotent)
