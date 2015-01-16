@@ -653,8 +653,8 @@ let graph_renaming =
      "random_arity_3", "random_arity_3";
      "random_arity_8", "random_arity_8";
      "random_arity_100", "random_arity_100"; 
-     "phased_low_50", "phases_50_d5"; 
-     "phased_mix_10", "phases_10_d2_x"; 
+     "phased_low_50", "phases_50_d_5"; 
+     "phased_mix_10", "phases_10_d_2_one"; 
      (* "phased_mix_2", "phases_2_arity_2_but_one"; *)
      "phased_524288_single", "trees_524k";
      "grid_sq", "square_grid";
@@ -2172,7 +2172,7 @@ let run () =
       Args (mk_parallel_prog_maxproc
           & mk_idempotent_all
           & mk_graph_inputs
-          & (mk_our_parallel_dfs ++ mk_our_parallel_bfs)
+          & (mk_our_parallel_dfs (* ++ mk_our_parallel_bfs *))
           )
         ] ))
 
@@ -2192,7 +2192,7 @@ let plot () =
        let nb_series = List.length envs_serie in
        Mk_table.escape add (Env.get_as_string env "algo");
        add Latex.new_line;
-       add (Latex.tabular_begin (String.concat "" (["|l|"] @ XList.init (nb_series) (fun i -> "c|"))));
+       add (Latex.tabular_begin (String.concat "" (["|l|"] @ XList.init (nb_series) (fun i -> "c|"))  ));
        ~~ List.iter envs_serie (fun env_serie ->
           let env = Env.append env env_serie in
           add " & ";
