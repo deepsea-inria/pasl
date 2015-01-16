@@ -180,10 +180,14 @@ bool try_to_mark(const Adjlist& graph,
   using vtxid_type = typename Adjlist::vtxid_type;
   const vtxid_type max_outdegree_for_idempotent = 30;
   vtxid_type d = graph.adjlists[source].get_out_degree();
-  if (d <= max_outdegree_for_idempotent)
-    return try_to_mark<vtxid_type,Item,true>(visited, target);
-  else
-    return try_to_mark<vtxid_type,Item,idempotent>(visited, target);
+  if (idempotent) {
+    if (d <= max_outdegree_for_idempotent)
+      return try_to_mark<vtxid_type,Item,true>(visited, target);
+    else
+      return try_to_mark<vtxid_type,Item,false>(visited, target);
+  } else {
+    return try_to_mark<vtxid_type,Item,false>(visited, target);
+  }
 }
 
 extern int our_pseudodfs_cutoff;
