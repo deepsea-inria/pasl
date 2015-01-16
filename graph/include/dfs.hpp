@@ -158,15 +158,11 @@ int* dfs_by_frontier_segment(const Adjlist& graph,
 /*---------------------------------------------------------------------*/
 /* Parallel (pseudo) depth-first search of a graph in adacency-list format */
 
-template <class Index, class Item, bool idempotent>
-bool try_to_mark(std::atomic<Item>* visited, Index target) {
-  if (! idempotent) {
-    Item orig = 0;
-    if (! visited[target].compare_exchange_strong(orig, 1))
-      return false;
-  } else {
-    visited[target].store(1, std::memory_order_relaxed);
-  }
+template <class Index, class Item>
+bool try_to_mark_non_idempotent(std::atomic<Item>* visited, Index target) {
+  Item orig = 0;
+  if (! visited[target].compare_exchange_strong(orig, 1))
+    return false;
   return true;
 }
   
@@ -178,14 +174,15 @@ bool try_to_mark(const Adjlist& graph,
   const vtxid_type max_outdegree_for_idempotent = 30;
   if (visited[target].load(std::memory_order_relaxed))
     return false;
-  vtxid_type d = graph.adjlists[target].get_out_degree();
   if (idempotent) {
-    if (d <= max_outdegree_for_idempotent)
-      return try_to_mark<vtxid_type,Item,true>(visited, target);
-    else
-      return try_to_mark<vtxid_type,Item,false>(visited, target);
+    if (graph.adjlists[target].get_out_degree() <= max_outdegree_for_idempotent) {
+      visited[target].store(1, std::memory_order_relaxed);
+      return true;
+    } else {
+      return try_to_mark_non_idempotent<vtxid_type,Item>(visited, target);
+    }
   } else {
-    return try_to_mark<vtxid_type,Item,false>(visited, target);
+    return try_to_mark_non_idempotent<vtxid_type,Item>(visited, target);
   }
 }
 
@@ -385,7 +382,7 @@ std::atomic<int>* cong_pseudodfs(const adjlist<Adjlist_seq>& graph,
             vtxid_type* neighbors = graph.adjlists[v].get_out_neighbors();
             for (vtxid_type edge = 0; edge < degree; edge++) {
               vtxid_type other = neighbors[edge];
-              if (try_to_mark<vtxid_type, int, idempotent>(visited, other)) {
+              if (try_to_mark<adjlist<Adjlist_seq>, int, idempotent>(graph, visited, other)) {
                 next.push_back(other);
                 int deque_sz = (int)my_deque.size();
                 auto frontier_sz = next.size();
