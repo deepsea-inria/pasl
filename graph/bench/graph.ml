@@ -1960,7 +1960,7 @@ let run () =
           & mk_graph_inputs
           & (   (mk_parallel_prog_maxproc_here & mk_traversal_bfs & mk_parallel_bfs)
              ++ (mk_parallel_prog_maxproc_here & mk_traversal_dfs & mk_parallel_dfs)
-             ++ (mk int "proc" arg_proc & mk_ligra & mk_traversal_bfs)
+             ++ (mk_ligra & mk_traversal_bfs)
              ))
       ]))
 
