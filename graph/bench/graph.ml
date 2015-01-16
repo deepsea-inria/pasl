@@ -2172,7 +2172,7 @@ let run () =
       Args (mk_parallel_prog_maxproc
           & mk_idempotent_all
           & mk_graph_inputs
-          & (mk_our_parallel_dfs ++ mk_our_parallel_bfs)
+          & (mk_our_parallel_dfs (* ++ mk_our_parallel_bfs *))
           )
         ] ))
 
@@ -2192,7 +2192,7 @@ let plot () =
        let nb_series = List.length envs_serie in
        Mk_table.escape add (Env.get_as_string env "algo");
        add Latex.new_line;
-       add (Latex.tabular_begin (String.concat "" (["|l|"] @ XList.init (nb_series) (fun i -> "c|"))));
+       add (Latex.tabular_begin (String.concat "" (["|l|"] @ XList.init (nb_series) (fun i -> "c|"))  ));
        ~~ List.iter envs_serie (fun env_serie ->
           let env = Env.append env env_serie in
           add " & ";
