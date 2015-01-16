@@ -175,11 +175,10 @@ bool try_to_mark(std::atomic<Item>* visited, Index target) {
 template <class Adjlist, class Item, bool idempotent>
 bool try_to_mark(const Adjlist& graph,
                  std::atomic<Item>* visited,
-                 typename Adjlist::vtxid_type source,
                  typename Adjlist::vtxid_type target) {
   using vtxid_type = typename Adjlist::vtxid_type;
   const vtxid_type max_outdegree_for_idempotent = 30;
-  vtxid_type d = graph.adjlists[source].get_out_degree();
+  vtxid_type d = graph.adjlists[target].get_out_degree();
   if (idempotent) {
     if (d <= max_outdegree_for_idempotent)
       return try_to_mark<vtxid_type,Item,true>(visited, target);
@@ -198,7 +197,7 @@ extern int our_pseudodfs_cutoff;
 #define PARALLEL_WHILE sched::native::parallel_while
 #endif
 
-template <class Adjlist, class Frontier, bool use_mixed_idempotent_opt = false, bool idempotent = false>
+template <class Adjlist, class Frontier, bool idempotent = false>
 std::atomic<int>* our_pseudodfs(const Adjlist& graph, typename Adjlist::vtxid_type source) {
   using vtxid_type = typename Adjlist::vtxid_type;
   using edgelist_type = typename Frontier::edgelist_type;
@@ -224,7 +223,7 @@ std::atomic<int>* our_pseudodfs(const Adjlist& graph, typename Adjlist::vtxid_ty
     return visited;
   PARALLEL_WHILE(frontier, size, fork, set_in_env, [&] (Frontier& frontier) {
     frontier.for_at_most_nb_outedges(our_pseudodfs_cutoff, [&](vtxid_type other_vertex) {
-      if (try_to_mark<vtxid_type, int, idempotent>(visited, other_vertex))
+      if (try_to_mark<Adjlist, int, idempotent>(graph, visited, other_vertex))
         frontier.push_vertex_back(other_vertex);
     });
   });
