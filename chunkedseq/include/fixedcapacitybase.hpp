@@ -123,21 +123,44 @@ public:
  * \param num number of items to copy
  *
  */
+  template <class T>
+bool is_trivially_copyable() {
+#ifdef __GNUC__
+  return __has_trivial_copy(T);
+#else
+  return std::is_trivially_copyable<T>::value;
+#endif
+}
+
 template <class Alloc>
 void copy(typename Alloc::pointer destination,
              typename Alloc::const_pointer source,
              typename Alloc::size_type num) {
+  typedef typename Alloc::value_type value_type;
+  typedef typename Alloc::size_type size_type;
+
+  std::copy(source, source+num, destination);
+
+      /*
+  if (is_trivially_copyable<value_type>()) {
+    std::memcpy((void*)destination, (const void*)source, sizeof(value_type) * num);
+  } else {
+    Alloc alloc;
+    for (size_type i = 0; i < num; i++)
+      alloc.construct(&destination[i], source[i]);
+      } */
+
   /* Taken from STL documentation:
          When copying overlapping ranges, std::copy is appropriate
          when copying to the left (beginning of the destination 
          range is outside the source range) while std::copy_backward 
          is appropriate when copying to the right (end of the destination 
          range is outside the source range).
-   */
+   */ /*
   if (destination < source || destination >= source+num)
     std::copy(source, source+num, destination);
   else
-    std::copy_backward(source, source+num, destination+num);
+  std::copy_backward(source, source+num, destination+num); */
 }
 
 template <class Alloc>
