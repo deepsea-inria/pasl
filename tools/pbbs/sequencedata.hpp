@@ -26,6 +26,9 @@
 #include <math.h>
 #include "datagen.hpp"
 
+#ifndef _PBBS_SEQDATA_H_
+#define _PBBS_SEQDATA_H_
+
 namespace pbbs {
 namespace dataGen {
   
@@ -140,3 +143,5 @@ namespace dataGen {
  
 }
 }
+
+#endif

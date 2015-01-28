@@ -158,32 +158,32 @@ int* dfs_by_frontier_segment(const Adjlist& graph,
 /*---------------------------------------------------------------------*/
 /* Parallel (pseudo) depth-first search of a graph in adacency-list format */
 
-template <class Index, class Item, bool idempotent>
-bool try_to_mark(std::atomic<Item>* visited, Index target) {
-  if (visited[target].load(std::memory_order_relaxed))
+template <class Index, class Item>
+bool try_to_mark_non_idempotent(std::atomic<Item>* visited, Index target) {
+  Item orig = 0;
+  if (! visited[target].compare_exchange_strong(orig, 1))
     return false;
-  if (! idempotent) {
-    Item orig = 0;
-    if (! visited[target].compare_exchange_strong(orig, 1))
-      return false;
-  } else {
-    visited[target].store(1, std::memory_order_relaxed);
-  }
   return true;
 }
   
 template <class Adjlist, class Item, bool idempotent>
 bool try_to_mark(const Adjlist& graph,
                  std::atomic<Item>* visited,
-                 typename Adjlist::vtxid_type source,
                  typename Adjlist::vtxid_type target) {
   using vtxid_type = typename Adjlist::vtxid_type;
   const vtxid_type max_outdegree_for_idempotent = 30;
-  vtxid_type d = graph.adjlists[source].get_out_degree();
-  if (d <= max_outdegree_for_idempotent)
-    return try_to_mark<vtxid_type,Item,true>(visited, target);
-  else
-    return try_to_mark<vtxid_type,Item,idempotent>(visited, target);
+  if (visited[target].load(std::memory_order_relaxed))
+    return false;
+  if (idempotent) {
+    if (graph.adjlists[target].get_out_degree() <= max_outdegree_for_idempotent) {
+      visited[target].store(1, std::memory_order_relaxed);
+      return true;
+    } else {
+      return try_to_mark_non_idempotent<vtxid_type,Item>(visited, target);
+    }
+  } else {
+    return try_to_mark_non_idempotent<vtxid_type,Item>(visited, target);
+  }
 }
 
 extern int our_pseudodfs_cutoff;
@@ -194,7 +194,7 @@ extern int our_pseudodfs_cutoff;
 #define PARALLEL_WHILE sched::native::parallel_while
 #endif
 
-template <class Adjlist, class Frontier, bool use_mixed_idempotent_opt = false, bool idempotent = false>
+template <class Adjlist, class Frontier, bool idempotent = false>
 std::atomic<int>* our_pseudodfs(const Adjlist& graph, typename Adjlist::vtxid_type source) {
   using vtxid_type = typename Adjlist::vtxid_type;
   using edgelist_type = typename Frontier::edgelist_type;
@@ -220,7 +220,7 @@ std::atomic<int>* our_pseudodfs(const Adjlist& graph, typename Adjlist::vtxid_ty
     return visited;
   PARALLEL_WHILE(frontier, size, fork, set_in_env, [&] (Frontier& frontier) {
     frontier.for_at_most_nb_outedges(our_pseudodfs_cutoff, [&](vtxid_type other_vertex) {
-      if (try_to_mark<vtxid_type, int, idempotent>(visited, other_vertex))
+      if (try_to_mark<Adjlist, int, idempotent>(graph, visited, other_vertex))
         frontier.push_vertex_back(other_vertex);
     });
   });
@@ -293,14 +293,6 @@ std::atomic<int>* cong_pseudodfs(const adjlist<Adjlist_seq>& graph,
 }
 */
   
-// now ignores the second template parameter, namely `Frontier`
-template <class Adjlist_seq, bool idempotent = false>
-std::atomic<int>* cong_pseudodfs(const adjlist<Adjlist_seq>& graph,
-                                 typename adjlist<Adjlist_seq>::vtxid_type source) {
-
-  return nullptr;
-}
-#ifndef DISABLE_CONG_PSEUDODFS
 template <class Adjlist_seq, bool idempotent = false>
 std::atomic<int>* cong_pseudodfs(const adjlist<Adjlist_seq>& graph,
                                  typename adjlist<Adjlist_seq>::vtxid_type source) {
@@ -319,10 +311,10 @@ std::atomic<int>* cong_pseudodfs(const adjlist<Adjlist_seq>& graph,
   std::atomic<bool> is_done(false);
   util::barrier::spin ready;
   ready.init(sched::threaddag::get_nb_workers());
-   using counter_type = data::perworker::counter::cbase<long>;
+   using counter_type = data::perworker::counter::carray<long>;
    //using counter_type = std::atomic<long>;
   counter_type counter;
-  data::perworker::base<deque_type> deques;
+  data::perworker::array<deque_type> deques;
   counter.init(0);
   counter++;
   deques.for_each([] (worker_id_t, deque_type& deque) {
@@ -390,7 +382,7 @@ std::atomic<int>* cong_pseudodfs(const adjlist<Adjlist_seq>& graph,
             vtxid_type* neighbors = graph.adjlists[v].get_out_neighbors();
             for (vtxid_type edge = 0; edge < degree; edge++) {
               vtxid_type other = neighbors[edge];
-              if (try_to_mark<vtxid_type, int, idempotent>(visited, other)) {
+              if (try_to_mark<adjlist<Adjlist_seq>, int, idempotent>(graph, visited, other)) {
                 next.push_back(other);
                 int deque_sz = (int)my_deque.size();
                 auto frontier_sz = next.size();
@@ -472,7 +464,7 @@ std::atomic<int>* cong_pseudodfs(const adjlist<Adjlist_seq>& graph,
   LOG_BASIC(ALGO_PHASE);
   return visited;
 }
-#endif
+
 
 } // end namespace
 } // end namespace

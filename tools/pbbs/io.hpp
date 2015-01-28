@@ -20,14 +20,16 @@
 // OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 // WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-#ifndef _BENCH_IO
-#define _BENCH_IO
+
 
 #include <iostream>
 #include <fstream>
 #include <string>
 #include <cstring>
 #include "sequence.hpp"
+
+#ifndef _BENCH_IO
+#define _BENCH_IO
 
 namespace pbbs {
 namespace benchIO {

@@ -6,13 +6,15 @@
  *
  */
 
-#ifndef _PASL_GRAPHFILESHARED_H_
-#define _PASL_GRAPHFILESHARED_H_
+
 
 #include "graphgenerators.hpp"
 #include "graphio.hpp"
 #include "graphconversions.hpp"
 #include "cmdline.hpp"
+
+#ifndef _PASL_GRAPHFILESHARED_H_
+#define _PASL_GRAPHFILESHARED_H_
 
 /***********************************************************************/
 
@@ -154,7 +156,7 @@ void generate_graph_by_nb_edges(Adjlist& graph) {
   adjlist_from_edgelist(edges, graph);
 }
 
-void parse_fname(std::string fname, std::string& base, std::string& extension) {
+static inline void parse_fname(std::string fname, std::string& base, std::string& extension) {
   if (fname == "")
     util::atomic::die("bogus filename");
   std::stringstream ss(fname);

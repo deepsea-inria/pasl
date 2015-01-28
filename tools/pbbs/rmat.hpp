@@ -1,10 +1,12 @@
 
 
-#ifndef _PBBS_RMAT_H_
-#define _PBBS_RMAT_H_
+
 
 #include "utils.hpp"
 #include "datagen.hpp"
+
+#ifndef _PBBS_RMAT_H_
+#define _PBBS_RMAT_H_
 
 namespace pbbs {
 

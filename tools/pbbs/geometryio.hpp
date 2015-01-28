@@ -21,11 +21,13 @@
 // WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 
-#ifndef _BENCH_GEOMETRY_IO
-#define _BENCH_GEOMETRY_IO
+
 #include "io.hpp"
 #include "utils.hpp"
 #include "geometry.hpp"
+
+#ifndef _BENCH_GEOMETRY_IO
+#define _BENCH_GEOMETRY_IO
 
 namespace pbbs {
 using namespace benchIO;

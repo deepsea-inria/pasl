@@ -444,7 +444,7 @@ public:
     return counters.mine(my_id);
   }
   
-  /*! \brief Increments the value in the cell of the calling worker thread by one
+  /*! \brief Increments the value in the cell of the calling worker thread by `+d`
    *
    * \pre `my_id` equals the id of the calling worker thread
    */
@@ -452,7 +452,7 @@ public:
     return delta(my_id, d);
   }
   
-  /*! \brief Decrements the value in the cell of the calling worker thread by one
+  /*! \brief Decrements the value in the cell of the calling worker thread by `-d`
    *
    * \pre `my_id` equals the id of the calling worker thread
    */
@@ -462,12 +462,12 @@ public:
   
   //! \brief Increments the value in the cell of the calling worker thread by one
   number_type operator++(int) {
-    return decr(util::worker::get_my_id(), 1l);
+    return incr(util::worker::get_my_id(), 1l);
   }
   
   //! \brief Decrements the value in the cell of the calling worker thread by one
   number_type operator--(int) {
-    return incr(util::worker::get_my_id(), 1l);
+    return decr(util::worker::get_my_id(), 1l);
   }
   
   //! \brief Returns the sum of all the values in the array
