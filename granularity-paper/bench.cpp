@@ -499,8 +499,9 @@ benchmark_type nearestneighbors_bench() {
 benchmark_type synthetic_bench() {
   int n = pasl::util::cmdline::parse_or_default_int(
         "n", 2000);
+  int cn = pasl::util::cmdline::parse_or_default_int("c", 10000000);
   int m = pasl::util::cmdline::parse_or_default_int(
-        "m", 2000);
+        "m", cn / n);
   int p = pasl::util::cmdline::parse_or_default_int(
         "p", 100);                                         
 
