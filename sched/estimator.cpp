@@ -265,15 +265,23 @@ void distributed::analyse(cost_type measured_cst) {
     update(((weighted_average_factor * cst) + measured_cst)
            / (weighted_average_factor + 1.0));
   }
-  estimations.mine()--;
+  if (estimations.mine() < minimal_estimations_nb.mine()) {
+    estimations++;
+    if (estimations.sum() >= minimal_estimations_nb.mine()) {
+      estimations.mine() = minimal_estimations_nb.mine();
+    }
+  }
 }
 
 void distributed::set_minimal_estimations_nb(int nb) {
-  estimations.mine() = nb;
+  minimal_estimations_nb.init(nb);
+  estimations.store(0);
+//  estimations.mine() = nb;
 }
 
 int distributed::get_minimal_estimations_nb_left() {
-  return estimations.mine();
+  return minimal_estimations_nb.mine() - estimations.sum();
+//  return estimations.mine();
 }
 
 void distributed::set_predict_unknown(bool value) {
@@ -286,7 +294,7 @@ bool distributed::can_predict_unknown() {
 
 
 bool distributed::constant_is_known() {
-  return (shared_cst != cost::unknown) && (estimations.mine() <= 0);
+  return (shared_cst != cost::unknown) && (get_minimal_estimations_nb_left() <= 0);
 }
 
   

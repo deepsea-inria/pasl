@@ -424,6 +424,10 @@ public:
   void init(number_type v) {
     counters.init(v);
   }
+
+  number_type& mine() {
+    return counters.mine();
+  }
   
   //! \brief Returns reference to the contents of the cell at position `id` in the array
   number_type& operator[](const index_type id) {

@@ -229,10 +229,12 @@ public: //! \todo find a better way to avoid false sharing
   volatile int padding1[64*2];
   cost_type shared_cst;
   perworker::cell<cost_type> private_csts;
-  perworker::cell<int> estimations;
+//  perworker::cell<int> estimations;
+  perworker::counter::carray<int> estimations;
   perworker::cell<bool> predict_unknown;
 //  std::atomic<int> estimations;
 //  std::atomic<bool> predict_unknown;
+  perworker::array<int> minimal_estimations_nb;
 
 protected:
   void update(cost_type new_cst);
