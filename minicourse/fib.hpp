@@ -8,6 +8,7 @@
  */
 
 #include <math.h>
+#include <climits>
 
 #ifndef _MINICOURSE_FIB_H_
 #define _MINICOURSE_FIB_H_
@@ -20,7 +21,7 @@
 long de_moivre(long n) {
   const double phi = 1.61803399;
   double res = pow(phi, (double)n);
-  return (long)res;
+  return (long) max(res, LONG_MAX); 
 }
 
 long fib_seq(long n) {
