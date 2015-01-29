@@ -148,7 +148,7 @@ public:
    */
   virtual uint64_t predict_nb_iterations() = 0;
   
-  //! Outputs the value of the constant as it is at the end of the program
+  //! Outputs the value of the constant as it is at the end of the pro, ,gram
   virtual void output() = 0;
 };
 
@@ -244,7 +244,7 @@ protected:
   
 public:
   distributed(std::string name)
-  : init_constant_provided_flg(false), private_csts(cost::undefined), estimations(0), predict_unknown(false),
+  : init_constant_provided_flg(false), private_csts(cost::undefined), predict_unknown(false),
     common(name) {
     util::callback::register_client(this);
   }

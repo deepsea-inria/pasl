@@ -14,7 +14,7 @@
 #include "dup.hpp"
 #include "string.hpp"
 #include "sort.hpp"
-#include "graph.hpp"
+#include "graph-lite.hpp"
 #include "fib.hpp"
 #include "mcss.hpp"
 #include "numeric.hpp"

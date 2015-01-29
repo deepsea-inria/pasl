@@ -82,7 +82,7 @@ COMPILE_OPTIONS_FOR_standart=$(OPTIONS_O2) -DPREDICTION -DSCHEDULING -DSTANDART
                                                                                                                            
 # Folders where to find all the header files and main sources
                                                                                                                               
-INCLUDES=. $(SEQUTIL_PATH) $(PARUTIL_PATH) $(SCHED_PATH) $(PBBS_PATH) $(MALLOC_COUNT_PATH) $(QUICKCHECK_PATH) $(GRANULARITY_PATH)
+INCLUDES=. $(SEQUTIL_PATH) $(PARUTIL_PATH) $(SCHED_PATH) $(PBBS_PATH) $(MALLOC_COUNT_PATH) $(QUICKCHECK_PATH) $(GRANULARITY_PATH) $(GRAPH_PATH) $(GRAPH_PATH)/../bench $(CHUNKEDSEQ_PATH) $(MATRIX_MARKET_PATH)
 
 # Folders where to find all the source files
 
