@@ -197,6 +197,13 @@ double since(double start) {
 
 class control {
 public:
+  estimator_m estimator;
+
+  control(std::string name = "") : estimator(name) { }
+
+  estimator_m& get_estimator() {
+    return estimator;
+  }
 
   bool with_estimator() {
     return false;
@@ -214,13 +221,8 @@ public:
 
 class control_with_estimator : public control {
 public:                                             
-  estimator_m estimator;
 
-  control_with_estimator(std::string name = "") : estimator(name) { }
-
-  estimator_m& get_estimator() {
-    return estimator;
-  }
+  control_with_estimator(std::string name = "" ): control(name) {}
 
   void initialize(double init_cst) {
     estimator.set_init_constant(init_cst);
@@ -239,17 +241,17 @@ public:
 
 class control_by_force_parallel : public control {
 public:
-  control_by_force_parallel(std::string) { }
+  control_by_force_parallel(std::string name = "") : control(name) { }
 };
 
 class control_by_force_sequential : public control {
 public:
-  control_by_force_sequential(std::string) { }
+  control_by_force_sequential(std::string name = "") : control(name) { }
 };
 
 class control_by_cutoff_without_reporting : public control {
 public:
-  control_by_cutoff_without_reporting(std::string) { }
+  control_by_cutoff_without_reporting(std::string name = "") : control(name) { }
 };
 
 class control_by_cutoff_with_reporting : public control_with_estimator {

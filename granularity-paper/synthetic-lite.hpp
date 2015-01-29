@@ -18,7 +18,8 @@
 pasl::data::perworker::cell<long> synthetic_total(0l);
 
 loop_controller_type sol_contr("synthetic outer loop");
-loop_controller_type sil_contr("synthetic inner loop");
+par::loop_by_eager_binary_splitting<par::control_by_force_sequential> sil_contr("synthetic inner loop");
+//loop_controller_type sil_contr("synthetic inner loop");
                                 
 void synthetic(int n, int m, int p) {
 #ifdef LITE
