@@ -28,12 +28,15 @@ VERBOSE_MAKE=0
 VERBOSE_DEPENDENCIES=0
 
 PROGRAMS=\
-	fib.cpp\
-	mergesort.cpp\
-	nearestneighbors.cpp\
-	mergesort-ns.cpp\
 	synthetic.cpp\
-	nearestneighbors-lite.cpp
+
+#	mergesort.cpp\
+#	nearestneighbors.cpp\
+#	mergesort-ns.cpp\
+
+#	nearestneighbors-lite.cpp
+
+#	fib.cpp\
 
 ####################################################################
 # Makefile options
@@ -69,7 +72,10 @@ COMPILE_OPTIONS_FOR_seq=$(OPTIONS_O2) -DSTATS -DSEQUENTIAL_ELISION
 COMPILE_OPTIONS_FOR_opt=$(OPTIONS_O2) 
 # Folders where to find all the header files and main sources
 
-INCLUDES=. $(SEQUTIL_PATH) $(PARUTIL_PATH) $(SCHED_PATH) $(PBBS_PATH) $(MALLOC_COUNT_PATH) $(GRAPH_PATH)
+INCLUDES=. $(SEQUTIL_PATH) $(PARUTIL_PATH) $(SCHED_PATH) $(PBBS_PATH) $(MALLOC_COUNT_PATH) $(GRAPH_PATH) $(GRAPH_PATH)/../bench $(CHUNKEDSEQ_PATH) $(MATRIX_MARKET_PATH) $(QUICKCHECK_PATH)  
+
+print_options:
+	echo $(COMPILE_OPTIONS_COMMON)
 
 # Folders where to find all the source files
 
