@@ -128,7 +128,7 @@ ifeq ($(COMPILER),)
    COMPILER=g++
 endif
 
-COMPILER+= -std=gnu++1y
+COMPILER+= -std=gnu++14
 
 
 ####################################################################

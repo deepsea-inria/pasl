@@ -151,28 +151,7 @@ std::ostream& operator<<(std::ostream& out, const parray<Item>& xs) {
   
 /*---------------------------------------------------------------------*/
 /* Data parallel operations */
-  
-template <class Item, class Lift_fct, class Output>
-class reduce_controller_type {
-public:
-  static controller_type binary;
-  static controller_type nary;
-  static loop_controller_type loop;
-};
 
-template <class Item, class Lift_fct, class Output>
-controller_type reduce_controller_type<Item,Lift_fct,Output>::binary("reduce_binary_"
-                                                                           + sota<Item>()+sota<Lift_fct>()+sota<Output>());
-template <class Item, class Lift_fct, class Output>
-controller_type reduce_controller_type<Item,Lift_fct,Output>::nary("reduce_nary_"
-                                                                         + sota<Item>()+sota<Lift_fct>()+sota<Output>());
-template <class Item, class Lift_fct, class Output>
-loop_controller_type reduce_controller_type<Item,Lift_fct,Output>::loop("reduce_loop_"
-                                                                              + sota<Item>()+sota<Lift_fct>()+sota<Output>());
-  
-template <class Item, class Lift_fct, class Output>
-reduce_controller_type<Item, Lift_fct, Output> reduce_contr;
-  
 template <class PArray>
 class parray_slice {
 public:
@@ -267,9 +246,9 @@ template <
 void reduce_binary(Input in,
                    const Sequential_fct& sequential_fct,
                    const Complexity_fct& complexity_fct,
-                   Granularity_control& contr,
+                   Granularity_control* contr,
                    Output& out) {
-  par::cstmt(contr, [&] { return complexity_fct(in); }, [&] {
+  par::cstmt(*contr, [&] { return complexity_fct(in); }, [&] {
     if (! in.can_split()) {
       sequential_fct(in, out);
     } else {
@@ -290,23 +269,7 @@ void reduce_binary(Input in,
   });
 }
   
-  template <
-  class Input,
-  class Sequential_fct,
-  class Complexity_fct,
-  //  class Compute_weights_fct,
-  //  class Weighted_complexity_fct,
-  class Granularity_control,
-  class Output
-  >
-  void reduce_nary(Input in,
-                   const Sequential_fct& sequential_fct,
-                   const Complexity_fct& complexity_fct,
-                   //                 const Compute_weights_fct& compute_weights_fct,
-                   //                 const Weighted_complexity_fct& weighted_complexity_fct,
-                   Granularity_control& contr,
-                   Output& out);
-  
+
 template <
   class Input,
   class Sequential_fct,
@@ -321,9 +284,10 @@ void reduce_nary(Input in,
                  const Complexity_fct& complexity_fct,
 //                 const Compute_weights_fct& compute_weights_fct,
 //                 const Weighted_complexity_fct& weighted_complexity_fct,
-                 Granularity_control& contr,
+                 Granularity_control contr,
                  Output& out) {
-  par::cstmt(contr.nary, [&] { return complexity_fct(in); }, [&] {
+  /*
+  par::cstmt(*contr.nary, [&] { return complexity_fct(in); }, [&] {
     if (! in.can_split()) {
       sequential_fct(in, out);
     } else {
@@ -333,7 +297,7 @@ void reduce_nary(Input in,
       parray<Output> outs;
 //      parray<long> weights;
 //      compute_weights_fct(b, weights);
-      par::parallel_for(contr.loop,
+      par::parallel_for(*contr.loop,
 //                        [&] (long lo, long hi) { return weighted_complexity_fct(weights, lo, hi); },
                         0l, b,
                         [&] (long i) {
@@ -353,13 +317,47 @@ void reduce_nary(Input in,
       auto compl_fct2 = [&] (Input) {
         return 0;
       };
-//      reduce_nary(slice, reduce_seq, recur_complexity_fct, contr, out);
-      reduce_nary(in, sequential_fct, compl_fct2, contr, out);
+      //      reduce_nary(slice, reduce_seq, recur_complexity_fct, contr, out);
     }
   }, [&] {
     sequential_fct(in, out);
   });
+*/
+        auto sequential_fct2 = [&] (Input, Output) {
+      };
+      reduce_nary(in, sequential_fct, complexity_fct, contr, out);
+
 }
+
+template <class Item, class Lift_fct, class Output>
+class reduce_controller_type {
+public:
+  static controller_type binary;
+  static controller_type nary;
+  static loop_controller_type loop;
+};
+
+template <class Item, class Lift_fct, class Output>
+controller_type reduce_controller_type<Item,Lift_fct,Output>::binary("reduce_binary_"
+                                                                           + sota<Item>()+sota<Lift_fct>()+sota<Output>());
+template <class Item, class Lift_fct, class Output>
+controller_type reduce_controller_type<Item,Lift_fct,Output>::nary("reduce_nary_"
+                                                                         + sota<Item>()+sota<Lift_fct>()+sota<Output>());
+template <class Item, class Lift_fct, class Output>
+loop_controller_type reduce_controller_type<Item,Lift_fct,Output>::loop("reduce_loop_"
+                                                                              + sota<Item>()+sota<Lift_fct>()+sota<Output>());
+  
+class reduce_controller_alias_type {
+public:
+
+  reduce_controller_alias_type(controller_type* binary, controller_type* nary, loop_controller_type* loop)
+    : binary(binary), nary(nary), loop(loop) { }
+
+  controller_type* binary;
+  controller_type* nary;
+  loop_controller_type* loop;
+  
+};
   
 template <class Item, class Liftn_fct, class Output>
 void reduce_skel(const parray<Item>& xs, const Liftn_fct& liftn_fct, Output& out) {
@@ -379,9 +377,10 @@ void reduce_skel(const parray<Item>& xs, const Liftn_fct& liftn_fct, Output& out
   auto weighted_complexity_fct = [&] (const parray<long>& weights, long lo, long hi) {
     return hi - lo;
   }; */
-  auto gc = reduce_contr<Item, Liftn_fct, Output>;
-  reduce_nary(slice, sequential_fct, complexity_fct, gc, out);
- // reduce_binary(slice, sequential_fct, complexity_fct, reduce_contr<Item,Liftn_fct,Output>.binary, out);
+  using rct = reduce_controller_type<Item, Liftn_fct, Output>;
+  reduce_controller_alias_type gc2(&rct::binary, &rct::nary, &rct::loop);
+  reduce_nary(slice, sequential_fct, complexity_fct, gc2, out);
+  //  reduce_binary(slice, sequential_fct, complexity_fct, gc2.binary, out);
 }
 
 template <class Item, class Associative_operation>
