@@ -21,7 +21,7 @@
 long de_moivre(long n) {
   const double phi = 1.61803399;
   double res = pow(phi, (double)n);
-  return (long) max(res, LONG_MAX); 
+  return (long) res;
 }
 
 long fib_seq(long n) {
