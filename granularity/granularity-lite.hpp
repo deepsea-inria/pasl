@@ -579,16 +579,17 @@ void cstmt(control_by_prediction& contr,
            const Complexity_measure_fct& complexity_measure_fct,
            const Par_body_fct& par_body_fct,
            const Seq_body_fct& seq_body_fct) {
-/*  if (my_execmode() == Sequential || my_execmode() == Force_sequential) {
-    cstmt_base(Force_sequential, seq_body_fct);
+  execmode_type mode = my_execmode();  //if (mode == Sequential || mode == Force_sequential) {
+/*    cstmt_base(Force_sequential, seq_body_fct);
     return;
-  } */
-
+  }*/
 
   estimator_m& estimator = contr.get_estimator();
   cmeasure_type m = complexity_measure_fct();
+
   execmode_type c;
-  if (my_execmode() == Sequential || my_execmode() == Force_sequential)
+  if (mode == Sequential || mode == Force_sequential)
+//  if (my_execmode() == Sequential || my_execmode() == Force_sequential)
     c = Force_sequential;
   else if (m == tiny)
     c = Sequential;
@@ -598,9 +599,10 @@ void cstmt(control_by_prediction& contr,
     c = estimator.constant_is_known() ? ((estimator.predict(m) <= kappa) ? Sequential : Parallel) : Unknown;
   if (c == Sequential) {
 //    if (my_execmode() != Sequential && my_execmode() != Force_sequential)
-      cstmt_base_with_reporting(m, seq_body_fct, estimator);
+    cstmt_base_with_reporting(m, seq_body_fct, estimator);
 //    else
 //      cstmt_base(Force_sequential, seq_body_fct);
+//    cstmt_base(Sequential, seq_body_fct);
   } else if (c == Unknown) {
     cstmt_base_with_reporting_unknown(m, par_body_fct, estimator);
   } else if (c == Parallel) {
