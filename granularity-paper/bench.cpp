@@ -537,7 +537,20 @@ benchmark_type synthetic_bench() {
                                        
   auto bench = c.find_by_arg("algo");
                  
-  auto output = [=] {                  
+  auto output = [=] {   
+#ifdef LOGGING
+    int inner_reports = sil_contr.gcpolicy->get_estimator().reports.sum() + sg_contr.get_estimator().reports.sum();
+    int outer_reports = sol_contr.gcpolicy->get_estimator().reports.sum() + sf_contr.get_estimator().reports.sum();
+
+    int inner_predicts = sil_contr.gcpolicy->get_estimator().predicts.sum() + sg_contr.get_estimator().predicts.sum();
+    int outer_predicts = sol_contr.gcpolicy->get_estimator().predicts.sum() + sf_contr.get_estimator().predicts.sum();
+
+    std::cout << "The number of reports was: " << (inner_reports + outer_reports) << " (Inner: "
+              << inner_reports << ", Outer: " << outer_reports << ")" << std::endl;
+    std::cout << "The number of predicts was: " << (inner_predicts + outer_predicts) << "(Inner: "
+              << inner_predicts << ", Outer: " << outer_predicts << ")" << std::endl;
+#endif
+    
     std::cout << "result " << synthetic_total.mine() << std::endl;
   };                  
   auto destroy = [=] {

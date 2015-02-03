@@ -452,7 +452,7 @@ void cstmt_report(Control& contr,
   body_fct();
 }
 
-
+     
 template <
   class Cutoff_fct,
   class Complexity_measure_fct,
@@ -593,6 +593,7 @@ void cstmt(control_by_prediction& contr,
     c = Parallel;
   else
     c = estimator.constant_is_known() ? ((estimator.predict(m) <= kappa) ? Sequential : Parallel) : Unknown;
+//  }
   if (c == Sequential) {
 //    if (my_execmode() != Sequential && my_execmode() != Force_sequential)
     cstmt_base_with_reporting(m, seq_body_fct, estimator);
@@ -811,13 +812,29 @@ void parallel_for(loop_by_eager_binary_splitting<Granularity_control_policy>& lp
     for (Number i = lo; i < hi; i++)
       body(i);
   };
-  if (hi - lo < 2
-     || (!lpalgo.gcpolicy->with_estimator() && loop_cutoff_fct(lo, hi))
-     || (lpalgo.gcpolicy->with_estimator() && lpalgo.gcpolicy->get_estimator().constant_is_known()
-         && lpalgo.gcpolicy->get_estimator().predict(loop_compl_fct(lo, hi)) <= kappa)) {
-    cstmt_report(*lpalgo.gcpolicy, [&] {return loop_compl_fct(lo, hi);}, seq_fct);
+  execmode_type mode = my_execmode();
+  if (mode == Sequential || mode == Force_sequential) {
+    seq_fct();
+    return;
+  }
+
+  if (!lpalgo.gcpolicy->with_estimator() && loop_cutoff_fct(lo, hi)) {
+    seq_fct();
+    return;
+  }
+  if (lpalgo.gcpolicy->with_estimator() && lpalgo.gcpolicy->get_estimator().constant_is_known()) {
+    double prediction = lpalgo.gcpolicy->get_estimator().predict(loop_compl_fct(lo, hi));
+    if (prediction <= kappa) {
+      cstmt_base_with_reporting(prediction, seq_fct, lpalgo.gcpolicy->get_estimator());
+      return;
+    }    
+  }
+
+  if (hi - lo < 2) {
+//    cstmt_report(*lpalgo.gcpolicy, [&] {return loop_compl_fct(lo, hi);}, seq_fct);
 //    cstmt(*lpalgo.gcpolicy, [&] {return loop_cutoff_fct(lo, hi); }, [&] { return loop_compl_fct(lo, hi); }, seq_fct, seq_fct);
-  }else {
+    seq_fct();
+  } else {
     auto cutoff_fct = [&] {
       return loop_cutoff_fct(lo, hi);
     };

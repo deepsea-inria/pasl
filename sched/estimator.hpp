@@ -178,6 +178,11 @@ protected:
   void check();
   
 public:
+#ifdef LOGGING
+  perworker::counter::carray<int> reports;
+  perworker::counter::carray<int> predicts;
+
+#endif
   
   common(std::string name)
   : name(name) {
