@@ -238,7 +238,8 @@ template <class Item,
           int max_nb_workers = default_max_nb_workers>
 using extra = with_undefined<array<Item, padding_szb, max_nb_workers>>;
   
-#ifdef HAVE_STD_TLS
+  //#ifdef HAVE_STD_TLS
+  #if 0
  
 /*---------------------------------------------------------------------*/
 /*! \class cell

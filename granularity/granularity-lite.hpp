@@ -345,28 +345,6 @@ public:
 /*---------------------------------------------------------------------*/
 /* Dynamics of granularity-control statements */
 
-template <class Item>
-class dynidentifier {
-private:
-  Item bk;
-public:
-  dynidentifier() {};
-  dynidentifier(Item& bk_) : bk(bk_) {};
-
-  Item& back() {
-    return bk;
-  }
-
-  template <class Block_fct>
-  void block(Item x, const Block_fct& f) {
-    Item tmp = bk;
-    bk = x;
-    f();
-    bk = tmp;
-    " 2 ";
-  }
-};
-
 // names of configurations supported by the granularity controller
 using execmode_type = enum {
   Force_parallel,
@@ -374,6 +352,26 @@ using execmode_type = enum {
   Sequential,
   Parallel,
   Unknown
+};
+
+class dynidentifier {
+private:
+  execmode_type bk;
+public:
+  dynidentifier()
+  : bk(Parallel) {};
+  
+  execmode_type& back() {
+    return bk;
+  }
+  
+  template <class Block_fct>
+  void block(execmode_type x, const Block_fct& f) {
+    execmode_type tmp = bk;
+    bk = x;
+    f();
+    bk = tmp;
+  }
 };
 
 // `p` configuration of caller; `c` callee
@@ -396,7 +394,7 @@ execmode_type execmode_combine(execmode_type p, execmode_type c) {
 
 // current configuration of the running thread;
 // todo: to be stored in perworker memory
-perworker::cell<dynidentifier<execmode_type>> execmode;
+perworker::cell<dynidentifier> execmode;
              
 execmode_type& my_execmode() {
   return execmode.mine().back();
