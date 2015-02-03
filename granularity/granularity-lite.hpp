@@ -432,24 +432,24 @@ template <
   class Body_fct
 >
 void cstmt_report(Control& contr,
-//           const Cutoff_fct&,
            const Complexity_measure_fct& complexity_measure_fct,
-//           const Seq_body_fct& par_body_fct,
            const Body_fct& body_fct) {
-/*  if (contr.with_estimator() && my_execmode() != Sequential) {
+/*  execmode_type mode = my_execmode();
+  if (contr.with_estimator() && mode != Sequential && mode != Force_sequential) {
     estimator_m& estimator = contr.get_estimator();
     cmeasure_type m = complexity_measure_fct();
     estimator.set_predict_unknown(true);
 //    cstmt_base_with_reporting(m, seq_body_fct, estimator);
     cost_type start = now();
-    execmode.mine().block(my_execmode(), body_fct);
+    execmode.mine().block(mode, body_fct);
     cost_type elapsed = since(start);
     if (estimator.can_predict_unknown()) {
       estimator.report(m, elapsed);
     }
-  } else*/ {
-    cstmt_base(my_execmode(), body_fct);
-  }
+  } else {
+    body_fct();
+  }  */
+  body_fct();
 }
 
 
@@ -577,19 +577,17 @@ void cstmt(control_by_prediction& contr,
            const Complexity_measure_fct& complexity_measure_fct,
            const Par_body_fct& par_body_fct,
            const Seq_body_fct& seq_body_fct) {
-  execmode_type mode = my_execmode();  //if (mode == Sequential || mode == Force_sequential) {
-/*    cstmt_base(Force_sequential, seq_body_fct);
+  execmode_type mode = my_execmode();  if (mode == Sequential || mode == Force_sequential) {
+    cstmt_base(Force_sequential, seq_body_fct);
     return;
-  }*/
+  }
 
   estimator_m& estimator = contr.get_estimator();
   cmeasure_type m = complexity_measure_fct();
 
   execmode_type c;
-  if (mode == Sequential || mode == Force_sequential)
 //  if (my_execmode() == Sequential || my_execmode() == Force_sequential)
-    c = Force_sequential;
-  else if (m == tiny)
+  if (m == tiny)
     c = Sequential;
   else if (m == undefined)
     c = Parallel;
@@ -606,8 +604,7 @@ void cstmt(control_by_prediction& contr,
   } else if (c == Parallel) {
     estimator.set_predict_unknown(false);
     cstmt_base(Parallel, par_body_fct);
-  } else 
-    cstmt_base(Force_sequential, seq_body_fct);
+  }
 }
 
 template <
@@ -646,7 +643,6 @@ void cstmt(control_by_cmdline& contr,
            const Complexity_measure_fct& complexity_measure_fct,
            const Par_body_fct& par_body_fct,
            const Seq_body_fct& seq_body_fct) {
-//  std::cerr << "CSTMT: ";
   using cmd = control_by_cmdline;
   switch (contr.get()) {
     case control_by_cmdline::policy_type::By_force_parallel:
