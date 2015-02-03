@@ -280,7 +280,7 @@ void distributed::set_minimal_estimations_nb(int nb) {
 }
 
 int distributed::get_minimal_estimations_nb_left() {
-  return minimal_estimations_nb.mine() - estimations.sum();
+  return minimal_estimations_nb.mine() <= estimations.mine() ? 0 : minimal_estimations_nb.mine() - estimations.sum();
 //  return estimations.mine();
 }
 
