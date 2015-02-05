@@ -1,10 +1,11 @@
-#ifndef _BENCH_GEOM_INCLUDED
-#define _BENCH_GEOM_INCLUDED
 
 #include <iostream>
 #include <algorithm>
 #include <math.h>
 #include <iomanip>
+
+#ifndef _BENCH_GEOM_INCLUDED
+#define _BENCH_GEOM_INCLUDED
 
 namespace pbbs {
 

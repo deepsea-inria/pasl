@@ -1,10 +1,10 @@
 
 
-#ifndef _PBBS_BLOCKRADIXSORT_H_
-#define _PBBS_BLOCKRADIXSORT_H_
-
 #include "sequence.hpp"
 #include "transpose.hpp"
+
+#ifndef _PBBS_BLOCKRADIXSORT_H_
+#define _PBBS_BLOCKRADIXSORT_H_
 
 namespace pbbs {
   

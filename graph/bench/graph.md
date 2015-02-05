@@ -39,6 +39,9 @@ The action selects the overall behavior of the script.
 :   Run experiments which collects data points for baseline (i.e., best
     sequential) graph-search algorithms.
 
+`overview`
+:   Run experiments for the evaluation section of our SPAA'15 submission.
+
 `work_efficiency`
 :   Run the experiment which evaluates the work efficiency of the parallel
     graph algorithms.

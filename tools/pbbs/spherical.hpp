@@ -21,11 +21,12 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-#ifndef included_Transform_SphericalHarmonic_hh
-#define included_Transform_SphericalHarmonic_hh
 
 #include "geometry.hpp"
 #include <complex>
+
+#ifndef included_Transform_SphericalHarmonic_hh
+#define included_Transform_SphericalHarmonic_hh
 
 namespace pbbs {
 

@@ -81,8 +81,12 @@ ifeq ($(HWLOC_INSTALL_PATH),)
 endif
 
 ifeq ($(CILKRTS_PATH),)
-   CILKRTS_PATH=$(PASL_ROOT_PATH)/external/libcilkrts
+   CILKRTS_OPTIONS=
+else
+  CILKRTS_OPTIONS=-I$(CILKRTS_PATH)/include -L$(CILKRTS_PATH)/lib 
 endif
+
+
 
 ####################################################################
 # Target OS detection (linux or macos)
@@ -124,16 +128,16 @@ ifeq ($(COMPILER),)
    COMPILER=g++
 endif
 
-COMPILER+= -std=gnu++1y #-std=gnu++11
+COMPILER+= -std=gnu++1y
 
 
 ####################################################################
 # Compiler optimization flags
 
 OPTIONS_ARCH_NATIVE=-march=native
-OPTIONS_DEBUG=-O0 -g -DDEBUG
-OPTIONS_O2=-O2 -DNDEBUG
-OPTIONS_O3=-O3 -DNDEBUG
+OPTIONS_DEBUG=-O0 -g -DDEBUG 
+OPTIONS_O2=-DNDEBUG -O2 -fno-optimize-sibling-calls 
+OPTIONS_O3=-Ofast -funsafe-loop-optimizations -DNDEBUG
 
 
 ####################################################################
@@ -241,16 +245,18 @@ endif
 ####################################################################
 # Cilk alternative runtime support
 
-OPTIONS_cilk=-I$(CILKRTS_PATH)/include -L$(CILKRTS_PATH)/lib -fcilkplus -lcilkrts -lnuma -DUSE_CILK_RUNTIME
+OPTIONS_cilk=-fcilkplus -lcilkrts -DUSE_CILK_RUNTIME $(CILKRTS_OPTIONS)
 
 ####################################################################
 # HWLOC support
 
+HWLOC_FLAGS=$(shell pkg-config --define-variable=HWLOC_INSTALL=$(HWLOC_INSTALL_PATH) --cflags $(HWLOC_PATH)/lib/pkgconfig/hwloc.pc)
+HWLOC_LIBS=$(shell pkg-config --define-variable=HWLOC_INSTALL=$(HWLOC_INSTALL_PATH) --libs $(HWLOC_PATH)/lib/pkgconfig/hwloc.pc)
+OPTIONS_HWLOC_ALL=-DHAVE_HWLOC $(HWLOC_FLAGS) $(HWLOC_LIBS)
+
 OPTIONS_HWLOC=
 ifeq ($(strip $(USE_HWLOC)),1)
-   HWLOC_FLAGS=$(shell pkg-config --define-variable=HWLOC_INSTALL=$(HWLOC_INSTALL_PATH) --cflags $(HWLOC_PATH)/lib/pkgconfig/hwloc.pc)
-   HWLOC_LIBS=$(shell pkg-config --define-variable=HWLOC_INSTALL=$(HWLOC_INSTALL_PATH) --libs $(HWLOC_PATH)/lib/pkgconfig/hwloc.pc)
-   OPTIONS_HWLOC=-DHAVE_HWLOC $(HWLOC_FLAGS) $(HWLOC_LIBS)
+   OPTIONS_HWLOC=$(OPTIONS_HWLOC_ALL)
 endif
 
 
@@ -260,7 +266,7 @@ endif
 
 OPTIONS_NUMA=
 ifeq ($(strip $(USE_NUMA)),1)
-   OPTIONS_NUMA=-lnuma
+   OPTIONS_NUMA=-lnuma -DUSE_LIBNUMA
 endif
 
 

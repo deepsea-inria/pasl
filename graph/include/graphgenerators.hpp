@@ -12,7 +12,7 @@
 #include "graphio.hpp"
 #include "rmat.hpp"
 
-#include "quickcheck.hh"
+ #include "quickcheck.hh"
 
 #ifndef _PASL_GRAPHGENERATORS_H_
 #define _PASL_GRAPHGENERATORS_H_
@@ -45,7 +45,8 @@ void init_layout(bool make_layout, point*& layout, typename Edge_bag::value_type
 
 template <class Edge_bag>
 void add_to_layout(bool make_layout, point*& layout, typename Edge_bag::value_type::vtxid_type id, double x, double y) {
-  if (!make_layout)
+  if
+  (!make_layout)
     return;
   layout[id] = point(x,y); // TODO: do i need an operator= to be defined on points?
 }
@@ -572,7 +573,7 @@ public:
   unsigned int ty;
 };
 
-void generate(generator_type& ty) {
+static inline void generate(generator_type& ty) {
   quickcheck::generate(NB_GENERATORS-1, ty.ty);
 }
 

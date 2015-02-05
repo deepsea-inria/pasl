@@ -35,7 +35,7 @@ void set(int argc, char** argv)
 {
   global_argc = argc;
   global_argv = argv;
-  print_warning_on_use_of_default_value = parse_or_default_bool("warning", true, false);
+  print_warning_on_use_of_default_value = parse_or_default_bool("warning", false, false);
 }
 
 std::string name_of_my_executable() {
@@ -82,6 +82,7 @@ void die (const char *fmt, ...)
 
 typedef enum {
   INT,
+  LONG,
   INT64,
   UINT64,
   FLOAT,
@@ -107,6 +108,10 @@ static void parse_value(type_t type, void* dest, char* arg_value)
     case INT: {
       int* vi = (int*) dest;
       *vi = atoi(arg_value);
+      break; }
+    case LONG: {
+      long* vi = (long*) dest;
+      sscanf(arg_value, "%ld", vi);
       break; }
     case INT64: {
       int64_t* vi = (int64_t*) dest;
@@ -184,6 +189,12 @@ int parse_int(std::string name) {
   check (name, parse(INT, name, &r));
   return r;
 }
+  
+long parse_long(std::string name) {
+  long r;
+  check (name, parse(LONG, name, &r));
+  return r;
+}
 
 int64_t parse_int64(std::string name) {
   int64_t r;
@@ -238,6 +249,16 @@ bool parse_or_default_bool(std::string name, bool d, bool expected) {
 int parse_or_default_int(std::string name, int d, bool expected) {
   int r;
   if (parse(INT, name, &r)) {
+    return r;
+  } else {
+    print_default(name, d, expected);
+    return d;
+  }
+}
+  
+long parse_or_default_long(std::string name, long d, bool expected) {
+  long r;
+  if (parse(LONG, name, &r)) {
     return r;
   } else {
     print_default(name, d, expected);

@@ -58,7 +58,7 @@ public:
    * Returns the execution time predicted for this thread by
    * the estimator mechanism.
    */
-  virtual cost_t get_cost() = 0;
+  virtual cost_type get_cost() = 0;
   
   /*! \brief To be called by the scheduler to run the thread
    */
@@ -136,14 +136,14 @@ public:
  */
 class noop : public thread {
 public:
-  cost_t get_cost() { return data::estimator::cost::tiny; }
+  cost_type get_cost() { return data::estimator::cost::tiny; }
   void run() {}
 };
 
 /*---------------------------------------------------------------------*/
   
 #define THREAD_COST_UNKNOWN \
-cost_t get_cost() { return pasl::data::estimator::cost::unknown; }
+cost_type get_cost() { return pasl::data::estimator::cost::unknown; }
   
 } // end namespace
 } // end namespace

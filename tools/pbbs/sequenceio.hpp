@@ -20,14 +20,16 @@
 // OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 // WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-#ifndef _SEQUENCE_IO
-#define _SEQUENCE_IO
+
 
 #include <iostream>
 #include <fstream>
 #include <string>
 #include <cstring>
 #include "io.hpp"
+
+#ifndef _SEQUENCE_IO
+#define _SEQUENCE_IO
 
 namespace pbbs {
 

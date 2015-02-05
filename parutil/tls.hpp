@@ -39,9 +39,10 @@
  *
  */
 
-/***********************************************************************/
+/*---------------------------------------------------------------------*/
+/* GCC-specific thread-local storage */
 
-#ifdef HAVE_GCC_TLS
+#if defined(HAVE_GCC_TLS)
 
 #define __tls_varid(__thename)\
   __ ##  __thename ## _tls
@@ -65,6 +66,7 @@
   __tls_varid(__thename)
 
 /*---------------------------------------------------------------------*/
+/* Pthread-specific thread-local storage */
 
 #else
 

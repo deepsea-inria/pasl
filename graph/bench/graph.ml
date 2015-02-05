@@ -55,6 +55,8 @@ todo: report stddev optionally via get_mean_and_stddev_of
 
 (* ============> paper <=========================
 
+    ./bench.sh baselines -size large
+
 
     ./bench.sh generate accessible baselines overview overheads -size large
 
@@ -178,14 +180,8 @@ let arg_use_cilk = XCmd.mem_flag "use_cilk"
 let arg_details = XCmd.mem_flag "details"
 let arg_idempotent = XCmd.parse_or_default_list_int "idempotent" [0;1]
 let arg_exps = XCmd.parse_or_default_list_string "exp" ["all"]
-let arg_mode =
-   let m = XCmd.parse_or_default_string "mode" "normal" in
-   let mc = XCmd.mem_flag "complete" in
-   let mr = XCmd.mem_flag "replace" in
-   (* Pbench.error "incompatible mode options" => todo *)
-   if mc then "complete"
-   else if mr then "replace"
-   else m
+let arg_mode = Mk_runs.mode_from_command_line "mode"
+
 
 let arg_proc =
    if arg_proc >= 0 then arg_proc else begin
@@ -201,7 +197,7 @@ let arg_ls_pbfs_loop_cutoff = XCmd.parse_or_default_int "ls_pbfs_loop_cutoff" 51
 
 let run_modes =
   Mk_runs.([
-    Mode (Mk_runs.string_of_mode arg_mode);
+    Mode arg_mode;
     Virtual arg_virtual_run;
     Runs arg_nb_runs; ])
 
@@ -239,8 +235,16 @@ let prog_parallel_seq_init =
   else prog_parallel_cilk_seq_init
 let prog_sequential = "./search.elision2"
 
+let build_in folder bs =
+  let make_cmd = "make -j " in
+  let make_cmd = if folder = ""
+                 then make_cmd
+                 else make_cmd ^ " -C " ^ folder ^ " "
+  in
+  system (make_cmd ^ (String.concat " " bs))
+
 let build bs =
-   system ("make -j " ^ (String.concat " " bs))
+  build_in "" bs
 
 let wrap_name_size name =
    let ssize =
@@ -633,6 +637,33 @@ let mk_graph_outputs_all_generated : Params.t =
 
 let graph_renaming = 
    [ "livejournal1", "livejournal";
+     "paths_524288_phases_1", "para_chains_524k";
+     "wikipedia-20070206", "wikipedia-2007";
+     "paths_100_phases_1", "par_chains_100";
+     "paths_20_phases_1", "par_chains_20";
+     "paths_8_phases_1", "par_chains_8";
+     "chain", "chain";
+     "tree_binary", "complete_bin_tree";
+     "tree_depth_2", "trees_10k_10k";
+     "tree_2_512_512", "trees_512_512";
+     "tree_2_512_1024", "trees_512_1024";
+     "tree_2_512_512", "trees_512_512";
+     "tree_2_512_1024", "trees_512_1024";
+     "unbalanced_tree", "unbalanced_tree";
+     "random_arity_3", "random_arity_3";
+     "random_arity_8", "random_arity_8";
+     "random_arity_100", "random_arity_100"; 
+     "phased_low_50", "phases_50_d_5"; 
+     "phased_mix_10", "phases_10_d_2_one"; 
+     (* "phased_mix_2", "phases_2_arity_2_but_one"; *)
+     "phased_524288_single", "trees_524k";
+     "grid_sq", "square_grid";
+     "cube", "cube_grid";
+    ]
+
+(*
+let graph_renaming = 
+   [ "livejournal1", "livejournal";
      "paths_524288_phases_1", "parallel_chains_524k";
      "wikipedia-20070206", "wikipedia-2007";
      "paths_100_phases_1", "parallel_chains_100";
@@ -650,17 +681,17 @@ let graph_renaming =
      "random_arity_8", "random_arity_8";
      "random_arity_100", "random_arity_100"; 
      "phased_low_50", "phases_50_arity_5"; 
-     "phased_mix_10", "phases_10_arity_2_but_one"; 
+     "phased_mix_10", "phases_10_arity_2_x"; 
      (* "phased_mix_2", "phases_2_arity_2_but_one"; *)
      "phased_524288_single", "trees_arity_524k";
      "grid_sq", "square_grid";
      "cube", "cube_grid";
     ]
-
+*)
 
 let mk_graph_outputs_all_manual : Params.t =
    let mk_file file = (* ?todo: rename "outfile" into "output_file" *)
-      mk string "outfile" (sprintf "/home/rainey/graphdata/%s.adj_bin" file) in
+      mk string "outfile" (sprintf "~/graphdata/%s.adj_bin" file) in
     let mk_manual file ?timeout size bits source =
        let timeout = XOption.unsome_or (XOption.unsome_or (timeout_for_size size) timeout) arg_timeout_opt in
          (mk_file file)
@@ -1040,12 +1071,23 @@ let my_formatter =
 
 (** Table cells formatter *)
 
-let string_of_millions v =
+let string_of_millions ?(munit=false) v =
    let x = v /. 1000000. in
-   if x >= 10. then sprintf "%.0fm" x
-   else if x >= 1. then sprintf "%.1fm" x
-   else if x >= 0.1 then sprintf "%.2fm" x
-   else sprintf "%.3fm" x
+   let f = 
+     if x >= 10. then sprintf "%.0f" x
+     else if x >= 1. then sprintf "%.1f" x
+     else if x >= 0.1 then sprintf "%.2f" x
+     else sprintf "%.3f" x in
+   f ^ (if munit then "m" else "")
+
+let string_of_exp_range n = 
+  let v = float_of_int n in
+  if n < 1000 then sprintf "%.0f" v
+  else if n < 10000 then sprintf "%.1fk" (v /. 1000.)
+  else if n < 100000 then sprintf "%.0fk" (v /. 1000.)
+  else if n < 1000000 then sprintf "%.0fk" (v /. 1000.)
+  else if n < 10000000 then sprintf "%.1fm" (v /. 1000000.)
+  else sprintf "%.0fm" (v /. 1000000.)
 
 let optfloat_of_float v =
    match classify_float v with
@@ -1062,11 +1104,13 @@ let string_of_exectime ?(prec=2) v =
    | FP_subnormal -> "na"
    | FP_nan -> "na"
 
-let string_of_speedup v =
+let string_of_speedup ?(prec=1) v =
    match classify_float v with
    | FP_subnormal | FP_zero -> "-"
    | FP_normal -> 
-       sprintf "%.1fx" v 
+      if prec = 1 then sprintf "%.1fx" v
+      else if prec = 2 then sprintf "%.2fx" v
+      else failwith "only precision 1 and 2 are supported"
        (* if v < 10. then sprintf "%.2fx" v else sprintf "%.1fx" v *)
    | FP_infinite -> "[timeout]"
    | FP_nan -> "na"
@@ -1077,10 +1121,10 @@ let string_of_percentage_value v =
     let sx = sprintf "%.0f" x in
     sx
 
-let string_of_percentage v =
+let string_of_percentage ?(show_plus=false) v =
    match classify_float v with
    | FP_subnormal | FP_zero | FP_normal ->
-       sprintf "%s%s%s"  (if v > 0. then "+" else "") (string_of_percentage_value v) "%"
+       sprintf "%s%s%s"  (if v > 0. && show_plus then "+" else "") (string_of_percentage_value v) "%"
    | FP_infinite -> "$+\\infty$"
    | FP_nan -> "na"
 
@@ -1305,7 +1349,7 @@ let mk_ls_bfs =
    (mk_algo_frontier "ls_pbfs" "ls_bag"
       & mk int "ls_pbfs_cutoff" 4096  (* used to be 1024 *)
       & mk_ls_pbfs_loop_cutoff)
-
+     
 let mk_seq_bfs =
      mk_traversal_bfs
    & (   (mk_sequential_prog & (mk_sequential_bfs ++ mk_our_parallel_bfs))
@@ -1856,7 +1900,7 @@ end
 
 
 (*****************************************************************************)
-(** Overview 
+(** Overview
 
    ./bench.sh overview -proc 30 -size small -skip make
 
@@ -1869,9 +1913,14 @@ module ExpOverview = struct
 
 let name = "overview"
 
+let mk_ligra_bfs =
+  mk_algo "ligra"
+
+
 let mk_parallel_bfs =
       mk_ls_bfs
-   ++ mk_our_lazy_parallel_bfs
+      ++ mk_our_lazy_parallel_bfs
+(*      ++ mk_ligra_bfs*)
 
 let mk_parallel_bfs =
    Params.eval (Params.filter env_in_arg_algos mk_parallel_bfs)
@@ -1885,15 +1934,23 @@ let mk_parallel_dfs =
    Params.eval (Params.filter env_in_arg_algos mk_parallel_dfs)
 *)
 
-let prog_parallel_here = (*"./search.sta"*)  "./search.opt2" 
+let prog_parallel_here = (*"./search.sta"*)  (*"./search.opt2" *) "./search.virtual"
+let prog_ligra = "ligra.cilk"
+let prog_ligra_here = "./" ^ prog_ligra
 
 let mk_parallel_prog_maxproc_here =
    mk_prog prog_parallel_here
    & mk int "proc" arg_proc
    & mk int "delta" 50
 
-let make () =
-   build [prog_parallel_here] 
+let make () = (
+  build [prog_parallel_here];
+  build_in "../../../ligra/" [prog_ligra])
+
+let mk_ligra = (* todo: add to mk_parallel_bfs (?) *)
+    mk_prog "./search.virtual" 
+  & mk_algo "ligra" 
+   & mk int "proc" arg_proc
 
 let run () =
    Mk_runs.(call (run_modes @ [
@@ -1902,7 +1959,9 @@ let run () =
             mk int "idempotent" 0
           & mk_graph_inputs
           & (   (mk_parallel_prog_maxproc_here & mk_traversal_bfs & mk_parallel_bfs)
-             ++ (mk_parallel_prog_maxproc_here  & mk_traversal_dfs & mk_parallel_dfs)))
+             ++ (mk_parallel_prog_maxproc_here & mk_traversal_dfs & mk_parallel_dfs)
+             ++ (mk_ligra & mk_traversal_bfs)
+             ))
       ]))
 
 let check () =
@@ -1930,52 +1989,71 @@ let plot () =
        let envs_rows = mk_kind_for_size env in
        (* add (Env.get_as_string env "size");
        add Latex.new_line; *)
-       let nb_infos = 2 in
-       let nb_bfs = 4 in
-       let nb_dfs = 4 in
-       add (Latex.tabular_begin (String.concat "" (["|l||"] @ XList.init nb_infos (fun i -> "@{\\,\\,}c@{\\,\\,}|") @ ["|"] @ XList.init nb_bfs (fun i -> "c|") @ ["|"] @ XList.init nb_dfs (fun i -> "c|")  @ ["|c|"] )));
-       add "graph & vertices & edges & seq & LS & ours & runtime & seq & Cong. & our & runtime & our PDFS";
+       let nb_infos = 3 in
+       let nb_bfs = 3 in
+       let nb_dfs = 3 in
+       add (Latex.tabular_begin (String.concat "" (["|l|"] @ XList.init nb_infos (fun i -> "@{\\,\\,}c@{\\,\\,}|") @ ["|"] @ XList.init nb_dfs (fun i -> "c|") @ ["r||"] @ XList.init nb_bfs (fun i -> "c|")  @ ["r|r||r|"] )));
+       add (Latex.tabular_multicol 4 "|c||" (Latex.bold "Input graph")); add " & ";
+       add (Latex.tabular_multicol 4 "|c||" (Latex.bold "DFS")); add " & ";
+       add (Latex.tabular_multicol 5 "|c||" (Latex.bold "BFS")); add " & ";
+       add Latex.tabular_newline;
+       add "graph & verti. & edges & max & seq & our & Cong. & \\bf{Cong.} & seq & our & LS & \\bf{LS vs} & Ligra & our PBFS ";
        add Latex.new_line;
-       add " &  &  & BFS & PBFS & PBFS & diff & DFS & PDFS & PDFS & diff. & vs PBFS";
+       add " &  (m) & (m) & dist & DFS & PDFS & PDFS & \\bf{vs ours} & BFS & PBFS & PBFS & \\bf{ ours} & vs ours & vs PDFS";
        add Latex.tabular_newline;
        ~~ List.iter envs_rows (fun env_rows ->
          let results = Results.filter env_rows results in
          let results_baseline = Results.filter env_rows results_baseline in
          let results_accessible = Results.filter env_rows results_accessible in
+         let results_baseline_bfs = Results.filter_by_params mk_traversal_bfs results_baseline in
          let env = Env.append env env_rows in
          let kind = Env.get_as_string env "kind" in
          let nb_vertices = Results.get_unique_of "nb_vertices" results_accessible in
          let _nb_visited_vertices = Results.get_unique_of "nb_visited" results_accessible in
          let nb_edges = Results.get_unique_of "nb_edges" results_accessible in
          let _nb_visited_edges = Results.get_unique_of "nb_edges_processed" results_accessible in
+         let max_dist = Results.get_unique_of "max_dist" results_baseline_bfs in
          let exectime_for rs mk_base =
-            let rs = Results.filter (Params.to_env mk_base) rs in
+            let rs = Results.filter_by_params mk_base rs in
             Results.check_consistent_inputs [] rs;
             let v = Results.get_mean_of "exectime" rs in
             v
             in
          let v_bfs_seq = exectime_for results_baseline ExpBaselines.mk_bfs in
          let v_bfs_ls = exectime_for results mk_ls_bfs in
+         let v_bfs_ligra = exectime_for results mk_ligra in
          let v_bfs_our = exectime_for results mk_our_lazy_parallel_bfs in
          let v_dfs_seq = exectime_for results_baseline ExpBaselines.mk_dfs in
          let v_dfs_cong = exectime_for results mk_cong_parallel_dfs in
          let v_dfs_our = exectime_for results mk_our_parallel_dfs in
+
          Mk_table.cell add (graph_renamer kind);
          Mk_table.cell add (string_of_millions nb_vertices);
          Mk_table.cell add (string_of_millions nb_edges);
-         (* Mk_table.cell add (string_of_millions nb_visited_edges); *)
-         Mk_table.cell add (string_of_exectime ~prec:1 v_bfs_seq);
-         Mk_table.cell add (string_of_speedup (v_bfs_seq /. v_bfs_ls));
-         Mk_table.cell add (string_of_speedup (v_bfs_seq /. v_bfs_our));
-         (* Mk_table.cell add (string_of_percentage_change_bounded 0.1 v_bfs_ls v_bfs_our); *)
-         Mk_table.cell add (string_of_percentage_change v_bfs_ls v_bfs_our);
+         Mk_table.cell add (string_of_exp_range (int_of_float max_dist));
+         (* Mk_table.cell add (string_of_millions nb_visited_edges); * *)
+
          Mk_table.cell add (string_of_exectime ~prec:1 v_dfs_seq);
-         Mk_table.cell add (string_of_speedup (v_dfs_seq /. v_dfs_cong));
          Mk_table.cell add (string_of_speedup (v_dfs_seq /. v_dfs_our));
-         (* Mk_table.cell add (string_of_percentage_change_bounded 0.1 v_dfs_cong v_dfs_our); *)
-         Mk_table.cell add (string_of_percentage_change v_dfs_cong v_dfs_our);
-         (* Mk_table.cell ~last:true add (string_of_percentage_change v_bfs_our v_dfs_our); *)
-         Mk_table.cell ~last:true add (string_of_speedup (v_bfs_our /. v_dfs_our)); 
+         Mk_table.cell add (string_of_speedup (v_dfs_seq /. v_dfs_cong));
+         Mk_table.cell add (Latex.bold (string_of_percentage_change v_dfs_our v_dfs_cong));
+         (*Mk_table.cell add (sprintf "%.1f" (v_dfs_cong /. v_dfs_our));*)
+
+         Mk_table.cell add (string_of_exectime ~prec:1 v_bfs_seq);
+         Mk_table.cell add (string_of_speedup (v_bfs_seq /. v_bfs_our));
+         Mk_table.cell add (string_of_speedup (v_bfs_seq /. v_bfs_ls));
+         Mk_table.cell add (Latex.bold (string_of_percentage_change v_bfs_our v_bfs_ls));
+         Mk_table.cell add (string_of_percentage_change v_bfs_our v_bfs_ligra);
+
+(*
+         Mk_table.cell add (sprintf "%.1f" (v_bfs_ls /. v_bfs_our));
+         Mk_table.cell add (sprintf "%.1f" (v_bfs_ligra /. v_bfs_our));
+*)
+         (* Mk_table.cell add (string_of_speedup (v_bfs_seq /. v_bfs_ligra)); *)
+         (* Mk_table.cell add (string_of_percentage_change_bounded 0.1 v_bfs_ls v_bfs_our); *)
+
+         Mk_table.cell ~last:true add (string_of_percentage_change v_dfs_our v_bfs_our ); 
+         (*  Mk_table.cell ~last:true add (sprintf "%.1f" (v_bfs_our /. v_dfs_our)); *)
          add Latex.tabular_newline;
          );
        add Latex.tabular_end;
@@ -1986,6 +2064,7 @@ let all () =
    select make run check plot
 
 end
+
 
 
 (*****************************************************************************)
@@ -2093,7 +2172,7 @@ let run () =
       Args (mk_parallel_prog_maxproc
           & mk_idempotent_all
           & mk_graph_inputs
-          & (mk_our_parallel_dfs ++ mk_our_parallel_bfs)
+          & (mk_our_parallel_dfs (* ++ mk_our_parallel_bfs *))
           )
         ] ))
 
@@ -2113,7 +2192,7 @@ let plot () =
        let nb_series = List.length envs_serie in
        Mk_table.escape add (Env.get_as_string env "algo");
        add Latex.new_line;
-       add (Latex.tabular_begin (String.concat "" (["|l|"] @ XList.init (nb_series) (fun i -> "c|"))));
+       add (Latex.tabular_begin (String.concat "" (["|l|"] @ XList.init (nb_series) (fun i -> "c|"))  ));
        ~~ List.iter envs_serie (fun env_serie ->
           let env = Env.append env env_serie in
           add " & ";
@@ -2154,6 +2233,116 @@ let check () =
    Results.check_consistent_output_filter_by_params_from_file
       "result" mk_graph_files (file_results name)
 *)
+
+
+(*****************************************************************************)
+(** ExpLigra *)
+
+module ExpLigra = struct
+
+let name = "ligra"
+
+let mk_programs_ours = (mk_prog "./search.opt2" & mk_our_lazy_parallel_bfs)
+let mk_programs_ligra = (mk_prog "./search.virtual" & mk_algo "ligra")
+let mk_programs_algos = mk_programs_ours ++ mk_programs_ligra
+
+(* todo: let mk_procs = mk int "proc" arg_proc*)
+let mk_procs = mk_list int "proc" [1;arg_proc] 
+
+let make () =
+  build [
+    "../../../ligra/ligra.cilk_32";
+    "../../../ligra/ligra.cilk_64";
+    "search.opt2" ]
+
+let run () =
+   Mk_runs.(call (run_modes @ [
+      Output (file_results name);
+      Args (
+            mk_procs
+          & mk_traversal_bfs
+          & mk_graph_inputs
+          & mk int "idempotent" 0
+          & mk_programs_algos
+       ) ] ))
+
+
+let check () =
+   Results.check_consistent_output_filter_by_params_from_file
+     "result" mk_graph_files (file_results name)
+
+let plot () =
+   (* table *)
+   let results = Results.from_file (file_results name) in
+   let tex_file = file_tables_src name in
+   let pdf_file = file_tables name in
+   Mk_table.build_table tex_file pdf_file (fun add ->
+    let env = Env.empty in
+    let envs_tables = mk_sizes env in
+    ~~ List.iter envs_tables (fun env_tables ->
+       let results = Results.filter env_tables results in
+       let env = Env.append env env_tables in
+       let envs_rows = mk_kind_for_size env in
+       add (Env.get_as_string env "size"); add Latex.new_line; 
+       add (Latex.tabular_begin "|l|c|c||c|c|c||c|c|c|");
+       add "graph & max-dist & BFS & our PBFS & ligra & diff & our PBFS & ligra & diff";
+       add Latex.tabular_newline;
+       add "  & & seq & 1core & 1core & 1core & Ncore & Ncore & Ncore";
+       add Latex.tabular_newline;
+       ~~ List.iter envs_rows (fun env_rows ->
+         let results = Results.filter env_rows results in
+         let env = Env.append env env_rows in
+         let kind = Env.get_as_string env "kind" in
+         let exectime_for rs mk_base =
+            let rs = Results.filter (Params.to_env mk_base) rs in
+            Results.check_consistent_inputs [] rs;
+            let v = Results.get_mean_of "exectime" rs in
+            v
+            in
+         let results_baseline_bfs = Results.filter_by_params (mk_traversal_bfs & mk int "proc" 0) results in
+         let max_dist = Results.get_unique_of "max_dist" results_baseline_bfs in
+         let v_base = exectime_for results (mk_algo "bfs_by_dual_arrays" & mk int "proc" 0) in
+         let v_our1 = exectime_for results (mk_programs_ours & mk int "proc" 1) in
+         let v_ligra1 = exectime_for results (mk_programs_ligra & mk int "proc" 1) in
+         let v_our = exectime_for results (mk_programs_ours & mk int "proc" arg_proc) in
+         let v_ligra = exectime_for results (mk_programs_ligra & mk int "proc" arg_proc) in
+         Mk_table.cell add (graph_renamer kind);
+         Mk_table.cell add (string_of_exp_range (int_of_float max_dist));
+         Mk_table.cell add (string_of_exectime v_base);
+
+         Mk_table.cell add (string_of_percentage_change v_base v_our1);
+         Mk_table.cell add (string_of_percentage_change v_base v_ligra1);
+         Mk_table.cell add (string_of_percentage_change v_our1 v_ligra1);
+
+         Mk_table.cell add (string_of_exectime v_our);
+         Mk_table.cell add (string_of_exectime v_ligra);
+         Mk_table.cell ~last:true add (string_of_percentage_change v_our v_ligra);
+         add Latex.tabular_newline;
+         );
+       add Latex.tabular_end;
+       add Latex.new_page;
+      ));
+   (* barplot *)
+   Mk_bar_plot.(call ([
+      Bar_plot_opt Bar_plot.([
+         Chart_opt Chart.([Dimensions (10.,5.) ]);
+         X_titles_dir Vertical;
+         Y_axis [Axis.Lower (Some 0.) ] ]);
+      Formatter my_formatter;
+      Charts (mk_sizes & mk_procs);
+      Series mk_programs_algos;
+      X mk_kind_for_size;
+      Input (file_results name);
+      Output (file_plots name);
+      Y_label "exectime";
+      Y eval_exectime
+      ]))
+
+
+let all () = select make run check plot
+
+end
+
 
 
 (*****************************************************************************)
@@ -2534,6 +2723,7 @@ let _ =
       "overview", ExpOverview.all;
       "overheads", ExpOverheads.all;
       "idempotence", ExpIdempotence.all;
+      "ligra", ExpLigra.all;
       "old_binaries", ExpOldBinaries.all;
       "old_sequential", ExpOldSequential.all;
       "old_parallel_baseline", ExpOldBaselines.all;

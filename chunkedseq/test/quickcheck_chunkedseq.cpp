@@ -125,11 +125,11 @@ void seq_dispatch_by_container() {
     using deque_type = chunkedseq::bootstrapped::deque<value_type, Chunk_capacity>;
     chunkedseq_dispatch_by_property<sequence_container_properties<deque_type>>();
   });
-#ifndef SKIP_NON_DEQUE
   c.add("chunked_bootstrapped_stack", [] {
     using deque_type = chunkedseq::bootstrapped::stack<value_type, Chunk_capacity>;
     chunkedseq_dispatch_by_property<sequence_container_properties<deque_type>>();
   });
+#ifndef SKIP_NON_DEQUE
   c.add("chunked_ftree_deque", [] {
     using deque_type = chunkedseq::ftree::deque<value_type, Chunk_capacity>;
     chunkedseq_dispatch_by_property<sequence_container_properties<deque_type>>();

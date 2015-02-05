@@ -68,9 +68,9 @@ SKIP_FOR_PAR=-DSKIP_OTHER_CHUNKED_SEQ -DSKIP_OTHER_SEQUENTIAL -DSKIP_OTHER_FRONT
 COMPILE_OPTIONS_FOR_elision2=$(SKIP_FOR_PAR) $(OPTIONS_O2) $(OPTIONS_ALLOCATORS) -DSEQUENTIAL_ELISION
 COMPILE_OPTIONS_FOR_elision3=$(SKIP_FOR_PAR) $(OPTIONS_O3) $(OPTIONS_ALLOCATORS) -DSEQUENTIAL_ELISION 
 COMPILE_OPTIONS_FOR_dbg=$(SKIP_FOR_PAR) $(OPTIONS_DEBUG) -DSTATS $(FASTER) -DUSE_UCONTEXT -DDISABLE_INTERRUPTS -DDEBUG_OPTIM_STRATEGY 
-COMPILE_OPTIONS_FOR_opt2=$(SKIP_FOR_PAR) $(OPTIONS_O2) $(OPTIONS_ALLOCATORS)
+COMPILE_OPTIONS_FOR_opt2=$(SKIP_FOR_PAR) $(OPTIONS_O2) $(OPTIONS_ALLOCATORS) $(OPTIONS_HWLOC_ALL)
 COMPILE_OPTIONS_FOR_opt3=$(SKIP_FOR_PAR) $(OPTIONS_O3) $(OPTIONS_ALLOCATORS)
-COMPILE_OPTIONS_FOR_sta=$(SKIP_FOR_PAR) $(OPTIONS_O2) $(OPTIONS_ALLOCATORS) -DSTATS
+COMPILE_OPTIONS_FOR_sta=$(SKIP_FOR_PAR) $(OPTIONS_O2) $(OPTIONS_ALLOCATORS) -DSTATS $(OPTIONS_HWLOC_ALL)
 COMPILE_OPTIONS_FOR_idle=$(SKIP_FOR_PAR) $(OPTIONS_O2) $(OPTIONS_ALLOCATORS) -DSTATS_IDLE
 COMPILE_OPTIONS_FOR_log=$(SKIP_FOR_PAR) $(OPTIONS_O2) $(OPTIONS_ALLOCATORS) -DSTATS -DLOGGING
 COMPILE_OPTIONS_FOR_pref=$(SKIP_FOR_PAR) $(OPTIONS_O2) $(OPTIONS_ALLOCATORS) -DSTATS -DUSE_PREFETCHING
@@ -134,14 +134,28 @@ endif
 ####################################################################
 #  study
 
+PBENCH_OCAMLCOMP=ocamlc
+
 ifeq ($(PBENCH_PATH),)
-   PBENCH_PATH=~/pbench/trunk
+   PBENCH_PATH=~/pbench
 endif
 
-study:
-	make -C $(PBENCH_PATH) graph.byte
-	cp $(PBENCH_PATH)/graph.byte study
+include $(PBENCH_PATH)/Makefile_common
 
+graph: graph.pbench
+	ln -sf $< $@ 
+
+overview: graph
+	./graph overview -size large -proc 40
+
+overview_plot: graph
+	./graph overview -size large -proc 40 -only plot
+
+ligra_comp: graph
+	./graph ligra -size small -proc 40 -skip make
+
+clean: pbench_clean
+	
 
 ####################################################################
 #  study --DEPRECATED
@@ -155,6 +169,6 @@ old_study:
 
 
 
-
+# ./graph overview -size large -proc 40 -skip make --virtual_run
 
 ##valgrind option: --demangle=no

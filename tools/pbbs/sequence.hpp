@@ -1,9 +1,11 @@
 
 
-#ifndef _PBBS_SEQUENCE_H_
-#define _PBBS_SEQUENCE_H_
+
 
 #include "utils.hpp"
+
+#ifndef _PBBS_SEQUENCE_H_
+#define _PBBS_SEQUENCE_H_
 
 namespace pbbs {
   
@@ -184,7 +186,20 @@ _body						\
     ET scanSerial(ET *In, ET* Out, intT n, F f, ET zero) {
       return scanSerial(Out, (intT) 0, n, f, getA<ET,intT>(In), zero, false, false);
     }
-    
+
+
+    #define blocked_for(_i, _s, _e, _bsize, _body)  {	\
+intT _ss = _s;					\
+intT _ee = _e;					\
+intT _n = _ee-_ss;					\
+intT _l = nblocks(_n,_bsize);			\
+native::parallel_for1(intT(0), _l, [&] (intT i) { \
+intT _s = _ss + _i * (_bsize);			\
+intT _e = std::min(_s + (_bsize), _ee);			\
+_body						\
+});						\
+}
+
     // back indicates it runs in reverse direction
     template <class ET, class intT, class F, class G>
     ET scan(ET* Out, intT s, intT e, F f, G g,  ET zero, bool inclusive, bool back) {

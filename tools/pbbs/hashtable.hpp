@@ -1,10 +1,12 @@
 
 
-#ifndef _PBBS_HASHTABLE_H_
-#define _PBBS_HASHTABLE_H_
+
 
 #include "sequence.hpp"
 #include <iostream>
+
+#ifndef _PBBS_HASHTABLE_H_
+#define _PBBS_HASHTABLE_H_
 
 namespace pbbs {
   

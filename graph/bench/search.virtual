@@ -1,0 +1,17 @@
+#!/bin/bash
+
+incmd=$@
+
+if [[ $incmd == *"-algo ligra"* ]]
+then
+    if [[ $incmd == *"-bits 32"* ]]
+    then
+        outcmd="../../../ligra/ligra.cilk_32 $@"
+    else
+        outcmd="../../../ligra/ligra.cilk_64 $@"
+    fi
+else
+    outcmd="./search.opt2 $@"
+fi
+
+$outcmd

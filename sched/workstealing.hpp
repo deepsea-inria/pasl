@@ -224,7 +224,7 @@ class cas_si_private;
 class cas_si_shared : public threadset_shared {
 protected:
   typedef thread_p state_t;
-  data::perworker::base<std::atomic<state_t>> states;
+  data::perworker::array<std::atomic<state_t>> states;
 
 public:
   cas_si_shared();
@@ -270,8 +270,8 @@ static const request_t REQUEST_BLOCKED = -2;
 
 class cas_ri_shared : public threadset_shared {
 protected:
-  data::perworker::base<answer_t> answers;
-  data::perworker::base<std::atomic<request_t>> requests;
+  data::perworker::array<answer_t> answers;
+  data::perworker::array<std::atomic<request_t>> requests;
 
 public:
   cas_ri_shared();
@@ -377,7 +377,7 @@ public:
 
 class shared_deques_shared : public scheduler::_shared {
 protected:
-  data::perworker::base<chase_lev_deque*> deques;
+  data::perworker::array<chase_lev_deque*> deques;
   barrier_t creation_barrier;
 
 public:
