@@ -647,7 +647,7 @@ void generate(size_t& _tgt_nb_edges, edgelist<Edge_bag>& graph) {
   static const edgeid_type max_nb_edges = 10000;
   tgt_nb_edges = std::min(tgt_nb_edges, max_nb_edges);
   size_t scale;
-  quickcheck::generate(50, scale);
+  quickcheck::generate(70, scale);
   tgt_nb_edges *= edgeid_type(scale);
   generator_type which_generator;
   generate(which_generator);

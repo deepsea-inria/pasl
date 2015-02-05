@@ -4,7 +4,7 @@
 #include "graphconversions.hpp"
 #include "ls_bag.hpp"
 #include "frontierseg.hpp"
-#include "dijkstra.hpp"
+#include "bellman_ford.hpp"
 #include "benchmark.hpp"
 
 namespace pasl {
@@ -14,7 +14,7 @@ namespace graph {
   
 using namespace data;
   
-int nb_tests = 1000;
+int nb_tests = 500;
 
 template <class Size, class Values_equal,
 class Array1, class Array2,
@@ -92,10 +92,10 @@ public:
 };
   
 /*---------------------------------------------------------------------*/
-/* Dijkstra */
+/* Bellman ford */
 
 template <class Adjlist_seq>
-void check_dijkstra() {
+void check_bellman_ford() {
     using adjlist_type = adjlist<Adjlist_seq>;
     using vtxid_type = typename adjlist_type::vtxid_type;
     using chunkedbag_type = pcontainer::bag<vtxid_type>;
@@ -106,78 +106,80 @@ void check_dijkstra() {
     
     util::cmdline::argmap_dispatch c;
     
-    auto get_visited_seq = [] (vtxid_type* dists, vtxid_type i) {
-        return (dists[i] != graph_constants<vtxid_type>::unknown_vtxid) ? 1 : 0;
-    };
-    
-    auto get_visited_par = [] (std::atomic<vtxid_type>* dists, vtxid_type i) {
-        vtxid_type dist = dists[i].load();
-        return (dist != graph_constants<vtxid_type>::unknown_vtxid) ? 1 : 0;
-    };
-    
-    auto trusted_dijkstra = [&] (const adjlist_type& graph, vtxid_type source) -> vtxid_type* {
-        vtxid_type nb_vertices = graph.get_nb_vertices();
-        if (nb_vertices == 0)
-            return NULL;
-        return dijkstra_dummy(graph, source);
+    auto get_visited_seq = [] (int* visited, vtxid_type i) {
+        return visited[i];
     };
 
-  c.add("dijkstra_dummy_test", [&] {
-      auto by_vertexid_frontier = [&] (const adjlist_type& graph, vtxid_type source) -> vtxid_type* {
-          vtxid_type nb_vertices = graph.get_nb_vertices();
-          if (nb_vertices == 0)
-              return NULL;
-          return dijkstra_dummy(graph, source);
-      };
-    using prop_by_vertexid_frontier =
-    prop_search_same<adjlist_type, typeof(trusted_dijkstra), typeof(by_vertexid_frontier),
-    typeof(get_visited_seq), typeof(get_visited_seq), int>;
-    prop_by_vertexid_frontier (trusted_dijkstra, by_vertexid_frontier,
+    
+    auto trusted_bellman_ford = [&] (const adjlist_type& graph, vtxid_type source) -> int* {
+        vtxid_type nb_vertices = graph.get_nb_vertices();
+        if (nb_vertices == 0)
+            return 0;
+        int* res =  bellman_ford_seq(graph, source);
+//        std::cout << "Source : " << source << std::endl;
+//        std::cout << graph << std::endl;
+//        
+//        for (int i = 0; i < nb_vertices; ++i) {
+//            std::cout << res[i] << " ";
+//        }
+//        std::cout << std::endl;
+        return res;
+    };
+
+    c.add("bellman_ford_dummy_test", [&] {
+        auto dummy_test = [&] (const adjlist_type& graph, vtxid_type source) -> int* {
+            vtxid_type nb_vertices = graph.get_nb_vertices();
+            if (nb_vertices == 0)
+                return 0;
+            return bellman_ford_seq(graph, source);
+        };
+        using prop_by_vertexid_frontier =
+        prop_search_same<adjlist_type, typeof(trusted_bellman_ford), typeof(dummy_test),
+        typeof(get_visited_seq), typeof(get_visited_seq), int>;
+        prop_by_vertexid_frontier (trusted_bellman_ford, dummy_test,
                                get_visited_seq, get_visited_seq).check(nb_tests);
-  });
+    });
+    c.add("bellman_ford_par_test", [&] {
+        auto par_test = [&] (const adjlist_type& graph, vtxid_type source) -> int* {
+            vtxid_type nb_vertices = graph.get_nb_vertices();
+            if (nb_vertices == 0)
+                return 0;
+            return bellman_ford_par(graph, source);
+        };
+        using prop_by_vertexid_frontier =
+        prop_search_same<adjlist_type, typeof(trusted_bellman_ford), typeof(par_test),
+        typeof(get_visited_seq), typeof(get_visited_seq), int>;
+        prop_by_vertexid_frontier (trusted_bellman_ford, par_test,
+                                   get_visited_seq, get_visited_seq).check(nb_tests);
+    });
 
   util::cmdline::dispatch_by_argmap_with_default_all(c, "algo");
 }
-  
-/*---------------------------------------------------------------------*/
-  
-int cong_pdfs_cutoff = 16;
-int our_pseudodfs_cutoff = 16;
-int ls_pbfs_cutoff = 256;
-int ls_pbfs_loop_cutoff = 256;
-int our_bfs_cutoff = 8;
-int our_lazy_bfs_cutoff = 8;
-    
-bool should_disable_random_permutation_of_vertices;
-  
+
 } // end namespace
 } // end namespace
 
 /*---------------------------------------------------------------------*/
 
 int main(int argc, char ** argv) {
-  using vtxid_type = long;
-  using adjlist_seq_type = pasl::graph::flat_adjlist_seq<vtxid_type>;
+    using vtxid_type = long;
+    using adjlist_seq_type = pasl::graph::flat_adjlist_seq<vtxid_type>;
   
-  auto init = [&] {
-    pasl::graph::should_disable_random_permutation_of_vertices = pasl::util::cmdline::parse_or_default_bool("should_disable_random_permutation_of_vertices", false, false);
-    pasl::graph::nb_tests = pasl::util::cmdline::parse_or_default_int("nb_tests", 1000);
-    pasl::graph::ls_pbfs_cutoff = pasl::util::cmdline::parse_or_default_int("ls_pbfs_cutoff", 64);
-  };
-  auto run = [&] (bool sequential) {
-    pasl::util::cmdline::argmap_dispatch c;
-    c.add("dijkstra",         [] { pasl::graph::check_dijkstra<adjlist_seq_type>(); });
-    pasl::util::cmdline::dispatch_by_argmap_with_default_all(c, "test");
-  };
-  auto output = [&] {
-    std::cout << "All tests complete" << std::endl;
-  };
-  auto destroy = [&] {
-    ;
-  };
-  pasl::sched::launch(argc, argv, init, run, output, destroy);
+    auto init = [&] {
+        pasl::graph::nb_tests = pasl::util::cmdline::parse_or_default_int("nb_tests", pasl::graph::nb_tests);
+    };
+    auto run = [&] (bool sequential) {
+        pasl::util::cmdline::argmap_dispatch c;
+        c.add("bellman_ford",         [] { pasl::graph::check_bellman_ford<adjlist_seq_type>(); });
+        pasl::util::cmdline::dispatch_by_argmap_with_default_all(c, "test");
+    };
+    auto output = [&] {
+        std::cout << "All tests complete" << std::endl;
+    };
+    auto destroy = [&] {};
+    pasl::sched::launch(argc, argv, init, run, output, destroy);
 
-  return 0;
+    return 0;
 }
 
 /***********************************************************************/

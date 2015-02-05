@@ -33,7 +33,7 @@ public:
 template <class Distance_type>
 class shortest_path_constants {
 public:
-    static constexpr Distance_type inf_dist = std::numeric_limits<Distance_type>::max();
+    static constexpr Distance_type inf_dist = std::numeric_limits<Distance_type>::max() / 100;
 };
     
 template <class Vertex_id>

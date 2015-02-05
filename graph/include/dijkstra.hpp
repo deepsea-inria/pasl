@@ -5,7 +5,6 @@
 #ifndef _PASL_GRAPH_DIJKSTRA_H_
 #define _PASL_GRAPH_DIJKSTRA_H_
 
-
 #define PUSH_ZERO_ARITY_VERTICES 0
 
 
