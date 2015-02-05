@@ -123,13 +123,13 @@ public:
     prepare_and_swap_with_scheduler();
   }
 
-  void fork2(multishot_p thread0, multishot_p thread1) {
+  bool fork2(multishot_p thread0, multishot_p thread1) {
     LOG_THREAD_FORK(this, thread0, thread1);
     prepare();
     threaddag::binary_fork_join(thread0, thread1, this);
     if (context::capture<multishot*>(context::addr(cxt))) {
       //      util::atomic::aprintf("steal happened: executing join continuation\n");
-      return;
+      return true;
     }
     scheduler_p sched = threaddag::my_sched();
     //    worker_id_t id = sched->get_id();
@@ -145,7 +145,7 @@ public:
     if (! sched->local_has() || sched->local_peek() != thread1) {
       //      util::atomic::aprintf("%d %d detected steal of %p\n",id,util::worker::get_my_id(),thread1);
       exit_to_scheduler();
-      return; // unreachable
+      return true; // unreachable
     }
     //    util::atomic::aprintf("%d %d ran %p; going to run thread %p\n",id,util::worker::get_my_id(),thread0,thread1);
     // prepare thread1 for local run
@@ -161,6 +161,7 @@ public:
     thread1->run();
     swap_with_scheduler();
     // run end of sched->exec() starting after thread1->exec()
+    return false;
   }
 
   friend class sched::scheduler::_private;
