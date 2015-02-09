@@ -159,6 +159,10 @@ cost_type common::predict_impl(complexity_type comp) {
 }
 
 cost_type common::predict(complexity_type comp) {
+#ifdef LOGGING
+  predicts++;
+#endif
+
   cost_type t = predict_impl(comp);
   LOG_ESTIM(new util::logging::estim_predict_event_t(this, comp, t));
   return t;
@@ -183,6 +187,11 @@ void common::check() {
 
 void common::report(complexity_type comp, cost_type elapsed_ticks) {
   if (comp < 0.0001) return;
+
+#ifdef LOGGING
+  reports++;
+#endif
+
   double elapsed_time = elapsed_ticks / (double) local_ticks_per_microsec;
   cost_type measured_cst = elapsed_time / comp;
   LOG_ESTIM(new util::logging::estim_report_event_t(this, comp, elapsed_time, measured_cst));
@@ -280,7 +289,7 @@ void distributed::set_minimal_estimations_nb(int nb) {
 }
 
 int distributed::get_minimal_estimations_nb_left() {
-  return minimal_estimations_nb.mine() - estimations.sum();
+  return minimal_estimations_nb.mine() <= estimations.mine() ? 0 : minimal_estimations_nb.mine() - estimations.sum();
 //  return estimations.mine();
 }
 
