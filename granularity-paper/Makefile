@@ -57,7 +57,7 @@ include $(TOOLS_BUILD_FOLDER)/Makefile_options
 # (If extending the list, need to add cases for the definition
 # of COMPILE_OPTIONS_FOR further below, and also for "clean".
 
-MODES=opt optfp elision baseline log dbg dbgfp dbgfs cilk binary bsearch lbsearch lbinary sched standart
+MODES=opt optfp elision baseline log dbg dbgfp dbgfs cilk binary bsearch lbsearch lbinary sched standart dbinary
 
 # Compilation options for each mode
 
@@ -79,6 +79,9 @@ COMPILE_OPTIONS_FOR_lbsearch=$(OPTIONS_O2) -DPREDICTION -DLAZY_BINARY_SEARCH -DL
 COMPILE_OPTIONS_FOR_lbinary=$(OPTIONS_O2) -DPREDICTION -DLAZY_BINARY -DLITE
 COMPILE_OPTIONS_FOR_sched=$(OPTIONS_O2) -DPREDICTION -DSCHEDULING -DLITE
 COMPILE_OPTIONS_FOR_standart=$(OPTIONS_O2) -DPREDICTION -DSCHEDULING -DSTANDART
+
+#Dual
+COMPILE_OPTIONS_FOR_dbinary=$(OPTIONS_O2) -DPREDICTION -DBINARY -DLITE -DDUAL
                                                                                                                            
 # Folders where to find all the header files and main sources
                                                                                                                               
@@ -108,7 +111,7 @@ clean: clean_build clean_modes clean_generated clean_bench
 # Benchmark part
 all_bench: basic_bench
 
-PBENCH_PATH=../../pbench
+#PBENCH_PATH=../../pbench
 
 include $(PBENCH_PATH)/Makefile_common
 

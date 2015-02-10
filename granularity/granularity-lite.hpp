@@ -193,6 +193,10 @@ double since(double start) {
 }                               
 
 /*---------------------------------------------------------------------*/
+#ifdef DUAL
+perworker::cell<bool>cant_predict;
+#endif
+/*---------------------------------------------------------------------*/
 /* Granularity controller */
 
 class control {
@@ -420,8 +424,11 @@ void cstmt_base_with_reporting_unknown(cmeasure_type m, Seq_body_fct& seq_body_f
   cost_type start = now();
   execmode.mine().block(Unknown, seq_body_fct);
   cost_type elapsed = since(start);
-  if (!estimator.constant_is_known() || estimator.can_predict_unknown()) {
-//    "Reported"l
+#ifdef DUAL
+  if (!estimator.constant_is_known() && !cant_predict.mine()) {
+#else
+  if (!estimator.constant_is_known()) { // || estimator.can_predict_unknown()) {
+#endif
     estimator.report(m, elapsed);
   }
 }
@@ -587,11 +594,11 @@ void cstmt(control_by_prediction& contr,
 
   execmode_type c;
 //  if (my_execmode() == Sequential || my_execmode() == Force_sequential)
-  if (m == tiny)
+  if (m == tiny) {
     c = Sequential;
-  else if (m == undefined)
+  } else if (m == undefined) {
     c = Parallel;
-  else
+  } else
     c = estimator.constant_is_known() ? ((estimator.predict(m) <= kappa) ? Sequential : Parallel) : Unknown;
 //  }
   if (c == Sequential) {
@@ -603,7 +610,9 @@ void cstmt(control_by_prediction& contr,
   } else if (c == Unknown) {
     cstmt_base_with_reporting_unknown(m, par_body_fct, estimator);
   } else if (c == Parallel) {
-    estimator.set_predict_unknown(false);
+#ifndef DUAL
+//    estimator.set_predict_unknown(false);
+#endif
     cstmt_base(Parallel, par_body_fct);
   }
 }
@@ -683,6 +692,21 @@ void cstmt(control_by_cmdline& contr,
 template <class Body_fct1, class Body_fct2>
 void fork2(const Body_fct1& f1, const Body_fct2& f2) {
   execmode_type mode = my_execmode();
+#ifdef DUAL
+  if (mode == Sequential ||  
+      mode == Force_sequential) {
+    f1();  // sequentialize
+    f2();
+  } else {
+    cant_predict.mine() = false;
+
+    bool steal = pasl::sched::native::fork2([&mode,&f1] { execmode.mine().block(mode, f1); },
+                                            [&mode,&f2] { execmode.mine().block(mode, f2); });
+    if (mode == Unknown && steal) {
+      cant_predict.mine() = true;
+    }
+  }
+#else
   if (mode == Sequential ||  
       mode == Force_sequential || mode == Unknown) {
     f1();  // sequentialize
@@ -691,6 +715,7 @@ void fork2(const Body_fct1& f1, const Body_fct2& f2) {
     pasl::sched::native::fork2([&mode,&f1] { execmode.mine().block(mode, f1); },
                                [&mode,&f2] { execmode.mine().block(mode, f2); });
   }
+#endif
 }
 
 

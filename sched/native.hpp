@@ -213,17 +213,19 @@ static inline int my_deque_size() {
 /*---------------------------------------------------------------------*/
 
 template <class Exp1, class Exp2>
-void fork2(const Exp1& exp1, const Exp2& exp2) {
+bool fork2(const Exp1& exp1, const Exp2& exp2) {
 #if defined(SEQUENTIAL_ELISION)
   exp1();
   exp2();
+  return false;
 #elif defined(USE_CILK_RUNTIME)
   cilk_spawn exp1();
   exp2();
   cilk_sync;
+  return true;
 #else
-  my_thread()->fork2(new_multishot_by_lambda(exp1),
-                     new_multishot_by_lambda(exp2));
+  return my_thread()->fork2(new_multishot_by_lambda(exp1),
+                            new_multishot_by_lambda(exp2));
 #endif
 }
 
