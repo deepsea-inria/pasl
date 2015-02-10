@@ -700,10 +700,17 @@ void fork2(const Body_fct1& f1, const Body_fct2& f2) {
   } else {
     cant_predict.mine() = false;
 
-    bool steal = pasl::sched::native::fork2([&mode,&f1] { execmode.mine().block(mode, f1); },
+/*    bool steal = pasl::sched::native::fork2([&mode,&f1] { execmode.mine().block(mode, f1); },
                                             [&mode,&f2] { execmode.mine().block(mode, f2); });
     if (mode == Unknown && steal) {
       cant_predict.mine() = true;
+    }*/
+
+    if (pasl::sched::native::fork2([&mode,&f1] { execmode.mine().block(mode, f1); },
+                                   [&mode,&f2] { execmode.mine().block(mode, f2); })) {
+      if (mode == Unknown) {
+        cant_predict.mine() = false;
+      }
     }
   }
 #else
