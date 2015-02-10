@@ -709,7 +709,7 @@ void fork2(const Body_fct1& f1, const Body_fct2& f2) {
     if (pasl::sched::native::fork2([&mode,&f1] { execmode.mine().block(mode, f1); },
                                    [&mode,&f2] { execmode.mine().block(mode, f2); })) {
       if (mode == Unknown) {
-        cant_predict.mine() = false;
+        cant_predict.mine() = true;
       }
     }
   }
