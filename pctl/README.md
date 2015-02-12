@@ -48,16 +48,73 @@ class parray;
 Type                 | Description
 ---------------------|---------------------------------------------------
 `value_type`         | Alias for template parameter `Item`
+`reference`          | Alias for `Item&`
+`const_reference`    | Alias for `const Item&`
 
-+----------------+--------------------------------------+
-| Operation      | Description                          |
-+================+======================================+
-| `operator[]`   | Access element                       |
-+----------------+--------------------------------------+
-| `size`         | Return size                          |
-+----------------+--------------------------------------+
-| `swap`         | Exchange contents                    |
-+----------------+--------------------------------------+
++-----------------------------------+-----------------------------------+
+| Constructor                       | Description                       |
++===================================+===================================+
+| [empty container                  | constructs an empty container with|
+|constructor](#pa-e-c-c) (default   |no items                           |
+|constructor)                       |                                   |
++-----------------------------------+-----------------------------------+
+| [initializer list](#pa-i-l-c)     | constructs a container with the   |
+|                                   |items specified in a given         |
+|                                   |initializer list                   |
++-----------------------------------+-----------------------------------+
+| [move constructor](#pa-m-c)       | constructs a container that       |
+|                                   |acquires the items of a given      |
+|                                   |parallel array                     |
++-----------------------------------+-----------------------------------+
+
+### Empty container constructor {#pa-e-c-c}
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+parray();
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+### Initializer-list constructor {#pa-i-l-c}
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+parray(initializer_list<value_type> il);
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+### Move constructor {#pa-m-c}
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+parray(parray&& x);
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
++------------------------+--------------------------------------+
+| Operation              | Description                          |
++========================+======================================+
+| [`operator[]`](#pa-i-o)| Access element                       |
+|                        |                                      |
++------------------------+--------------------------------------+
+| [`size`](#pa-si)       | Return size                          |
++------------------------+--------------------------------------+
+| [`swap`](#pa-sw)       | Exchange contents                    |
++------------------------+--------------------------------------+
+
+### Indexing operator {#pa-i-o}
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+reference operator[](long i);
+const_reference operator[](long i) const;
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+### Size operator {#pa-si}
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+long size() const;
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+### Exchange operator {#pa-sw}
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+void swap();
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Chunked sequence {#chunkedseq}
 ================
@@ -73,22 +130,19 @@ Reduction
 
 ### Level 0
 
-+--------------------------------------------+-----------------------------------+
-| Template parameter                         | Description                       |
-+============================================+===================================+
-| [`Item`](#reduce-0-item)                   | Type of the items in the input    |
-|                                            |sequence                           |
-+--------------------------------------------+-----------------------------------+
-| [`Result`](#reduce-0-result)               | Type of the result of the         |
-|                                            |reduction                          |
-+--------------------------------------------+-----------------------------------+
-| [`Assoc_oper`](#reduce-0-assoc)            | Associative combining operator    |
-+--------------------------------------------+-----------------------------------+
-| [`Assoc_oper_compl`](#reduce-0-assoc-compl)| Complexity function for the       |
-|                                            |associative combining operator     |
-+--------------------------------------------+-----------------------------------+
++---------------------------------+-----------------------------------+
+| Template parameter              | Description                       |
++=================================+===================================+
+| [`Item`](#r0-i)                 | Type of the items in the input    |
+|                                 |sequence                           |
++---------------------------------+-----------------------------------+
+| [`Assoc_oper`](#r0-a)           | Associative combining operator    |
++---------------------------------+-----------------------------------+
+| [`Assoc_oper_compl`](#r0-a-c)   | Complexity function for the       |
+|                                 |associative combining operator     |
++---------------------------------+-----------------------------------+
 
-#### Item {#reduce-0-item}
+#### Item {#r0-i}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 class Item
@@ -96,50 +150,25 @@ class Item
 
 Type of the items being processed by the reduction.
 
-#### Result {#reduce-0-result}
-
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-class Result               
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Type of the result value to be returned by the reduction.
-
-#### Associative combining operator {#reduce-0-assoc}
+#### Associative combining operator {#r0-a}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 class Assoc_oper {
 public:
-  Result operator()(Result x, Result y);
+  Item operator()(Item x, Item y);
 };
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-#### Complexity function {#reduce-0-assoc-compl}
+#### Complexity function {#r0-a-c}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-class Assoc_oper {
+class Assoc_oper_compl {
 public:
-  long operator()(Result* lo, Result* hi);
+  long operator()(Item* lo, Item* hi);
 };
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
 
 #### Parallel array
-
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-namespace pasl {
-namespace data {
-namespace parray {
-
-template <
-  class Item,
-  class Assoc_oper
->
-Result reduce(const parray<Item>& xs,
-              Result id,
-              Assoc_oper op);
-
-} } }
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 namespace pasl {
@@ -151,10 +180,18 @@ template <
   class Assoc_oper,
   class Assoc_oper_compl
 >
-Result reduce(const parray<Item>& xs,
-              Result id,
-              Assoc_oper op,
-              Assoc_oper_compl assoc_oper_compl);
+Item reduce(const parray<Item>& xs,
+            Item id,
+            Assoc_oper op,
+            Assoc_oper_compl assoc_oper_compl);
+
+template <
+  class Item,
+  class Assoc_oper
+>
+Item reduce(const parray<Item>& xs,
+            Item id,
+            Assoc_oper assoc_oper);
 
 } } }
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -173,76 +210,68 @@ long sum(const parray<long>& xs) {
 }
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-
-#### STL string
-
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-namespace pasl {
-namespace data {
-namespace pstring {
-
-template <
-  class Result,
-  class Assoc_oper,
-  class Lift
->
-Result reduce(const std::string& str,
-              Result id,
-              Assoc_oper op);
-
-} } }
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-namespace pasl {
-namespace data {
-namespace pstring {
-
-template <
-  class Result,
-  class Assoc_oper,
-  class Assoc_oper_compl
->
-Result reduce(const std::string& str,
-              Result id,
-              Assoc_oper op,
-              Assoc_oper_compl assoc_oper_compl);
-
-} } }
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-#### Chunked sequence
-
 ### Level 1
 
-+--------------------------------------------+-----------------------------------+
-| Template parameter                         | Description                       |
-+============================================+===================================+
-| [`Lift`](#reduce-1-lift)                   | Lifting operator                  |
-+--------------------------------------------+-----------------------------------+
-| [`Lift_compl`](#reduce-1-lift-compl)       | Complexity function for the lift  |
-|                                            |operator                           |
-+--------------------------------------------+-----------------------------------+
++----------------------------------+-----------------------------------+
+| Template parameter               | Description                       |
++==================================+===================================+
+| [`Result`](#r1-r)                | Type of the result being returned |
+|                                  |by the reduction                   |
++----------------------------------+-----------------------------------+
+| [`Lift`](#r1-l)                  | Lifting operator                  |
++----------------------------------+-----------------------------------+
+| [`Lift_compl`](#r1-l-c)          | Complexity function for the lift  |
+|                                  |operator                           |
++----------------------------------+-----------------------------------+
+| [`Assoc_oper`](#r1-a-o)          | Associative combining operator    |
++----------------------------------+-----------------------------------+
+| [`Assoc_oper_compl`](#r1-a-o-c)  | Complexity function for the       |
+|                                  |associative combining operator     |
++----------------------------------+-----------------------------------+
 
-#### Lift {#reduce-1-lift}
+#### Result {#r1-r}
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+class Result               
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Type of the result value to be returned by the reduction.
+
+#### Lift {#r1-l}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 class Lift {
 public:
-  Result operator(Item x);
+  Result operator()(Item x);
 };
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-
-#### Lift complexity function {#reduce-1-lift-compl}
+#### Lift complexity function {#r1-l-c}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 class Lift_compl {
 public:
-  long operator(const Item* lo, const Item* hi);
+  long operator()(const Item* lo, const Item* hi);
 };
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+#### Associative combining operator {#r1-a-o}
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+class Assoc_oper {
+public:
+  Result operator()(Result x, Result y);
+};
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+#### Complexity function {#r1-a-o-c}
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+class Assoc_oper_compl {
+public:
+  long operator()(const Result* lo, const Result* hi);
+};
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 #### Parallel array
 
@@ -250,14 +279,13 @@ public:
 namespace pasl {
 namespace data {
 namespace parray {
+namespace level1 {
 
 template <
   class Item,
   class Result,
   class Assoc_oper,
-  class Assoc_oper_compl,
-  class Lift,
-  class Lift_complexity
+  class Lift
 >
 Result reduce(const parray<Item>& xs,
               Result id,
@@ -278,9 +306,9 @@ Result reduce(const parray<Item>& xs,
               Assoc_oper assoc_oper,
               Assoc_oper_compl assoc_oper_compl,
               Lift lift,
-              Lift_complexity lift_complexity);
+              Lift_compl lift_compl);
 
-} } }
+} } } }
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 #### STL string
@@ -289,6 +317,7 @@ Result reduce(const parray<Item>& xs,
 namespace pasl {
 namespace data {
 namespace pstring {
+namespace level1 {
 
 template <
   class Item,
@@ -314,9 +343,9 @@ Result reduce(const std::string& str,
               Assoc_oper assoc_oper,
               Assoc_oper_compl assoc_oper_compl,
               Lift lift,
-              Lift_complexity lift_complexity);
+              Lift_compl lift_compl);
 
-} } }
+} } } }
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 ***Example: nested reduction.***
@@ -353,13 +382,13 @@ long occurrence_count(const parray<std::string>& strs, char c) {
 
 ### Level 2
 
-+--------------------------------------------+-----------------------------------+
-| Template parameter                         | Description                       |
-+============================================+===================================+
-| [`Liftn`](#reduce-2-liftn)                 | Range-based lifting operator      |
-+--------------------------------------------+-----------------------------------+
++--------------------------+-----------------------------------+
+| Template parameter       | Description                       |
++==========================+===================================+
+| [`Liftn`](#r2-l)         | Range-based lifting operator      |
++--------------------------+-----------------------------------+
 
-#### Range-based lifting operator {#reduce-2-liftn}
+#### Range-based lifting operator {#r2-l}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 class Liftn {
@@ -375,6 +404,7 @@ public:
 namespace pasl {
 namespace data {
 namespace parray {
+namespace level2 {
 
 template <
   class Item,
@@ -391,28 +421,28 @@ Result reduce(const parray<Item>& xs,
               Liftn liftn,
               Lift_compl lift_compl);
 
-} } }
+} } } }
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 ### Level 3
 
-+--------------------------------------------+--------------------------------+
-| Template parameter                         | Description                    |
-+============================================+================================+
-| [`Output`](#reduce-3-output)               | Type of the object to receive  |
-|                                            |the output of the reduction     |
-+--------------------------------------------+--------------------------------+
-| [`Output_base`](#reduce-3-output-base)     | Function for combining a range |
-|                                            |of output values in memory      |
-|                                            |                                |
-+--------------------------------------------+--------------------------------+
-| [`Output_compl`](#reduce-3-output-compl)   | Complexity function for        |
-|                                            |combining ranges of output items|
-|                                            |                                |
-+--------------------------------------------+--------------------------------+
++-----------------------------+--------------------------------+
+| Template parameter          | Description                    |
++=============================+================================+
+| [`Output`](#r3-o)           | Type of the object to receive  |
+|                             |the output of the reduction     |
++-----------------------------+--------------------------------+
+| [`Output_base`](#r3-o-b)    | Function for combining a range |
+|                             |of output values in memory      |
+|                             |                                |
++-----------------------------+--------------------------------+
+| [`Output_compl`](#r3-o-c)   | Complexity function for        |
+|                             |combining ranges of output items|
+|                             |                                |
++-----------------------------+--------------------------------+
 
 
-#### Output {#reduce-3-output}
+#### Output {#r3-o}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 class Output
@@ -420,13 +450,13 @@ class Output
 
 Type of the object to receive the output of the reduction.
 
-+----------------------------------------+-------------------------------------+
-| Operation                              | Description                         |
-+========================================+=====================================+
-| [`initialize`](#dpo-output-initialize) | Initialize contents                 |
-+----------------------------------------+-------------------------------------+
-| [`merge`](#dpo-output-merge)           | Merge contents                      |
-+----------------------------------------+-------------------------------------+
++-------------------------+-------------------------------------+
+| Operation               | Description                         |
++=========================+=====================================+
+| [`initialize`](#ro-i)   | Initialize contents                 |
++-------------------------+-------------------------------------+
+| [`merge`](#ro-m)        | Merge contents                      |
++-------------------------+-------------------------------------+
 
 ***Example: cell.***
 
@@ -461,7 +491,7 @@ public:
 } } }
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-##### Initialize {#dpo-output-initialize}
+##### Initialize {#ro-i}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 void initialize(Output& output);
@@ -469,7 +499,7 @@ void initialize(Output& output);
 
 Initialize the contents of the output.
 
-##### Merge {#dpo-output-merge}
+##### Merge {#ro-m}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 void merge(Output& source);
@@ -477,7 +507,7 @@ void merge(Output& source);
 
 Transfer the contents referenced by `source` to the output.
 
-#### Output base {#reduce-3-output-base}
+#### Output base {#r3-o-b}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 class Output_base {
@@ -486,62 +516,62 @@ public:
 };
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-#### Output complexity function {#reduce-3-output-compl}
+#### Output complexity function {#r3-o-c}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 class Output_compl {
 public:
-  long operator()(Output* lo, Output* hi);
+  long operator()(const Output* lo, const Output* hi);
 };
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 ### Level 4
 
-+-------------------------------------------------------+-----------------------------------+
-| Parameter                                             | Description                       |
-+=======================================================+===================================+
-| [`Input`](#reduce-4-input)                            | Type of input to the reduction    |
-+-------------------------------------------------------+-----------------------------------+
-| [`Input_base`](#reduce-4-input-base)                  | Functor to compute for the base   |
-|                                                       |processing of the input            |
-+-------------------------------------------------------+-----------------------------------+
-| [`Input_compl`](#reduce-4-input-compl)                | Functor to return the complexity  |
-|                                                       |value for processing a given input |
-+-------------------------------------------------------+-----------------------------------+
-| [`Compute_weights`](#reduce-4-compute-weights)        | Functor to compute the array of   |
-|                                                       |weight values associated with a    |
-|                                                       |given input                        |
-+-------------------------------------------------------+-----------------------------------+
-| [`Weighted_compl`](#reduce-4-weighted-compl)          | Functor using precomputed weights |
-|                                                       |to return the complexity value for |
-|                                                       |processing a given input           |
-+-------------------------------------------------------+-----------------------------------+
++-------------------------------+-----------------------------------+
+| Parameter                     | Description                       |
++===============================+===================================+
+| [`Input`](#r4-i)              | Type of input to the reduction    |
++-------------------------------+-----------------------------------+
+| [`Input_base`](#r4-i-b)       | Functor to compute for the base   |
+|                               |processing of the input            |
++-------------------------------+-----------------------------------+
+| [`Input_compl`](#r4-i-c)      | Functor to return the complexity  |
+|                               |value for processing a given input |
++-------------------------------+-----------------------------------+
+| [`Compute_weights`](#r4-c-w)  | Functor to compute the array of   |
+|                               |weight values associated with a    |
+|                               |given input                        |
++-------------------------------+-----------------------------------+
+| [`Weighted_compl`](#r4-w-c)   | Functor using precomputed weights |
+|                               |to return the complexity value for |
+|                               |processing a given input           |
++-------------------------------+-----------------------------------+
                                                                    
-#### Input {#reduce-4-input}
+#### Input {#r4-i}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 class Input
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-+-------------------------------------------+-------------------------------------------+
-| Operation                                 | Description                               |
-+===========================================+===========================================+
-| [`initialize`](#reduce-4-input-initialize)| Initialize contents                       |
-|                                           |                                           |
-+-------------------------------------------+-------------------------------------------+
-| [`can_split`](#reduce-4-input-can-split)  | Return value to indicate whether split is |
-|                                           |possible                                   |
-+-------------------------------------------+-------------------------------------------+
-| [`size`](#reduce-4-input-size)            | Return size                               |
-+-------------------------------------------+-------------------------------------------+
-| [`nb_blocks`](#reduce-4-input-nb-blocks)  | Return the number of blocks               |
-+-------------------------------------------+-------------------------------------------+
-| [`block_size`](#reduce-4-input-block-size)| Return the number of elements per block   |
-+-------------------------------------------+-------------------------------------------+
-| [`split`](#reduce-4-input-split)          | Split the input                           |
-+-------------------------------------------+-------------------------------------------+
-| [`slice`](#reduce-4-input-slice)          | Return a new slice                        |
-+-------------------------------------------+-------------------------------------------+
++-----------------------------+-------------------------------------------+
+| Operation                   | Description                               |
++=============================+===========================================+
+| [`initialize`](#r4i-i)      | Initialize contents                       |
+|                             |                                           |
++-----------------------------+-------------------------------------------+
+| [`can_split`](#r4i-c-s)     | Return value to indicate whether split is |
+|                             |possible                                   |
++-----------------------------+-------------------------------------------+
+| [`size`](#r4i-si)           | Return size                               |
++-----------------------------+-------------------------------------------+
+| [`nb_blocks`](#r4i-n-b)     | Return the number of blocks               |
++-----------------------------+-------------------------------------------+
+| [`block_size`](#r4i-b-s)    | Return the number of elements per block   |
++-----------------------------+-------------------------------------------+
+| [`split`](#r4i-sp)          | Split the input                           |
++-----------------------------+-------------------------------------------+
+| [`slice`](#r4i-sl)          | Return a new slice                        |
++-----------------------------+-------------------------------------------+
 
 ***Example: Parallel array slice.***
 
@@ -549,6 +579,7 @@ class Input
 namespace pasl {
 namespace data {
 namespace parray {
+namespace level4 {
 
 template <class PArray>
 class slice {
@@ -606,10 +637,10 @@ public:
   
 };
 
-} } }
+} } } }
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-##### Initialize {#reduce-4-input-initialize}
+##### Initialize {#r4i-i}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 void initialize(Input& input);
@@ -617,18 +648,18 @@ void initialize(Input& input);
 
 Initialize the contents of the input.
 
-##### Can split {#reduce-4-input-can-split}
+##### Can split {#r4i-c-s}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-bool can_split();
+bool can_split() const;
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Return a boolean value to indicate whether a split is possible.
 
-##### Size {#reduce-4-input-size}
+##### Size {#r4i-si}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-long size();
+long size() const;
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Return a number to report the number of items in the input.
@@ -644,13 +675,13 @@ Return a number to report the number of blocks in the input.
 ##### Block size {#reduce-4-input-block-size}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-long block_size();
+long block_size() const;
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Return a number to report the number of items contained by each block
 in the input.
 
-#### Split {#reduce-4-input-split}
+#### Split {#r4i-sp}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 void split(Input& destination);
@@ -662,7 +693,7 @@ Transfer a fraction of the input to the input referenced by
 The behavior of this method may be undefined when the `can_split`
 function would return `false`.
 
-##### Slice {#reduce-4-input-slice}
+##### Slice {#r4i-sl}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 Input slice(long lo, long hi);
@@ -671,7 +702,7 @@ Input slice(long lo, long hi);
 Return a new slice that represents the items in the right-open range
 `[lo, hi)`.
 
-#### Input base {#reduce-4-input-base}
+#### Input base {#r4-i-b}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 class Input_base {
@@ -680,7 +711,7 @@ public:
 };
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-#### Input complexity function {#reduce-4-input-compl}
+#### Input complexity function {#r4-i-c}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 class Input_compl {
@@ -689,7 +720,7 @@ public:
 };
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-#### Compute Weights {#reduce-4-compute-weights}
+#### Compute Weights {#r4-c-w}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 class Compute_weights {
@@ -698,7 +729,7 @@ public:
 };
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-#### Weighted complexity function {#reduce-4-weighted-compl}
+#### Weighted complexity function {#r4-w-c}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 class Weighted_compl {
