@@ -49,6 +49,186 @@ namespace graph {
         return dists;
     }
     
+    /*---------------------------------------------------------------------*/
+    /*---------------------------------------------------------------------*/
+    /*---------------------------------------------------------------------*/
+    /* Bellman-Ford; parallel 1 */
+    /*---------------------------------------------------------------------*/
+    template <class Adjlist_seq>
+    int* bellman_ford_par1(const adjlist<Adjlist_seq>& graph,
+                          typename adjlist<Adjlist_seq>::vtxid_type source) {
+        int inf_dist = shortest_path_constants<int>::inf_dist;
+        long nb_vertices = graph.get_nb_vertices();
+        int* dists = data::mynew_array<int>(nb_vertices);
+        
+        fill_array_seq(dists, nb_vertices, inf_dist);
+        
+        dists[source] = 0;
+        
+        LOG_BASIC(ALGO_PHASE);
+        for (int i = 0; i < nb_vertices; i++) process_vertices_par1(graph, dists, 0, nb_vertices);
+        return dists;
+    }
+    
+    template <class Adjlist_seq>
+    void process_vertex_seq(const adjlist<Adjlist_seq>& graph,
+                              int* dists, int vertex) {
+        long degree = graph.adjlists[vertex].get_in_degree();
+        long* neighbors = graph.adjlists[vertex].get_in_neighbors();
+
+        for (int edge = 0; edge < degree; edge++) {
+            long other = neighbors[edge];
+            if (dists[vertex] > dists[other] + 1) {
+                dists[vertex] = dists[other] + 1;
+            }
+        }
+    }
+    
+    template <class Adjlist_seq>
+    void process_vertices_seq(const adjlist<Adjlist_seq>& graph,
+                            int* dists, int start, int stop) {
+        
+        for (int i = start; i < stop; i++) {
+            if (stop == 64 && i == 20) {
+                int k = 3;
+            }
+            process_vertex_seq(graph, dists, i);
+        }
+    }
+
+    template <class Adjlist_seq>
+    void process_vertices_par1(const adjlist<Adjlist_seq>& graph,
+                            int* dists, int start, int stop) {
+        int nb = stop - start;
+        if (nb < 1000000) {
+            process_vertices_seq(graph, dists, start, stop);
+        } else {
+            std::cout << "HERE!!!" << std::endl;
+            int mid = (start + stop) / 2;
+            sched::native::fork2([&] { process_vertices_par1(graph,  dists, start, mid); },
+                                 [&] { process_vertices_par1(graph,  dists, mid, stop); });
+            
+        }
+    }
+    
+    /*---------------------------------------------------------------------*/
+    /*---------------------------------------------------------------------*/
+    /*---------------------------------------------------------------------*/
+    /* Bellman-Ford; parallel 2 */
+    /*---------------------------------------------------------------------*/
+    template <class Adjlist_seq>
+    int* bellman_ford_par2(const adjlist<Adjlist_seq>& graph,
+                           typename adjlist<Adjlist_seq>::vtxid_type source) {
+        int inf_dist = shortest_path_constants<int>::inf_dist;
+        long nb_vertices = graph.get_nb_vertices();
+        int* dists = data::mynew_array<int>(nb_vertices);
+        
+        fill_array_seq(dists, nb_vertices, inf_dist);
+        
+        dists[source] = 0;
+        
+        LOG_BASIC(ALGO_PHASE);
+        int* pref_sum = data::mynew_array<int>(nb_vertices + 1);
+        pref_sum[0] = 0;
+        for (int i = 1; i < nb_vertices + 1; i++) {
+            pref_sum[i] = pref_sum[i - 1] + graph.adjlists[i - 1].get_in_degree();
+        }
+        
+        for (int i = 0; i < nb_vertices; i++) process_vertices_par2(graph, dists, 0, nb_vertices, pref_sum);
+        return dists;
+    }
+    
+    template <class Adjlist_seq>
+    void process_vertices_par2(const adjlist<Adjlist_seq>& graph,
+                               int * dists, int start, int stop, int * pref_sum) {
+        int nb_edges = pref_sum[stop] - pref_sum[start];
+        if (nb_edges < 1000000) {
+            process_vertices_seq(graph, dists, start, stop);
+        } else {
+            int mid_val = (pref_sum[start] + pref_sum[stop]) / 2;
+            int left = start, right = stop;
+            while (right - left > 1) {
+                int m = (left + right) / 2;
+                if (pref_sum[m] <= mid_val) {
+                    left = m;
+                } else {
+                    right = m;
+                }
+            }
+            
+            sched::native::fork2([&] { process_vertices_par2(graph,  dists, start, left, pref_sum); },
+                                 [&] { process_vertices_par2(graph,  dists, left, stop, pref_sum); });
+            
+        }
+    }
+    
+    /*---------------------------------------------------------------------*/
+    /*---------------------------------------------------------------------*/
+    /*---------------------------------------------------------------------*/
+    /* Bellman-Ford; parallel 3 */
+    /*---------------------------------------------------------------------*/
+    template <class Adjlist_seq>
+    int* bellman_ford_par3(const adjlist<Adjlist_seq>& graph,
+                           typename adjlist<Adjlist_seq>::vtxid_type source) {
+        int inf_dist = shortest_path_constants<int>::inf_dist;
+        long nb_vertices = graph.get_nb_vertices();
+        int* dists = data::mynew_array<int>(nb_vertices);
+        
+        fill_array_seq(dists, nb_vertices, inf_dist);
+        
+        dists[source] = 0;
+        
+        LOG_BASIC(ALGO_PHASE);
+        int* pref_sum = data::mynew_array<int>(nb_vertices + 1);
+        pref_sum[0] = 0;
+        for (int i = 1; i < nb_vertices + 1; i++) {
+            pref_sum[i] = pref_sum[i - 1] + graph.adjlists[i - 1].get_in_degree();
+        }
+        
+        for (int i = 0; i < nb_vertices; i++) process_vertices_par3(graph, dists, 0, nb_vertices, pref_sum);
+        return dists;
+    }
+    
+    template <class Adjlist_seq>
+    void process_vertices_par3(const adjlist<Adjlist_seq>& graph,
+                               int * dists, int start, int stop, int * pref_sum) {
+        int nb_edges = pref_sum[stop] - pref_sum[start];
+        if (nb_edges < 1000000) {
+            if (start - stop == 1) {
+                int d;
+                process_vertex_par(graph, start, 0, graph.adjlists[start].get_in_degree(), &d);
+                dists[start] = d;
+            } else {
+                process_vertices_seq(graph, dists, start, stop);
+            }
+        } else {
+            int mid_val = (pref_sum[start] + pref_sum[stop]) / 2;
+            int left = start, right = stop;
+            while (right - left > 1) {
+                int m = (left + right) / 2;
+                if (pref_sum[m] <= mid_val) {
+                    left = m;
+                } else {
+                    right = m;
+                }
+            }
+            
+            sched::native::fork2([&] { process_vertices_par3(graph,  dists, start, left, pref_sum); },
+                                 [&] { process_vertices_par3(graph,  dists, left, stop, pref_sum); });
+            
+        }
+    }
+    
+    template <class Adjlist_seq>
+    void process_vertex_par(const adjlist<Adjlist_seq>& graph,
+                            int vertex, int start, int stop, int * d) {
+        int nb_edges = stop - start;
+        if (nb_edges < 1000) {
+            
+        } else {
+            
+        }
+    }
     
     /*---------------------------------------------------------------------*/
     /*---------------------------------------------------------------------*/
@@ -302,7 +482,7 @@ namespace graph {
 
         for (size_t step = 0; step < nb_vertices; step++) {
             vtxid_type dist = bfsres[step].load();
-            dists[step] = dist == -1 ? shortest_path_constants<int>::inf_dist : dist;
+            dists[step] = dist == -1 ? inf_dist : dist;
         }
         return dists;
     }
