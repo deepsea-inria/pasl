@@ -39,7 +39,7 @@ namespace pasl {
 namespace data {
 namespace parray {
 
-template <class Item>
+template <class Item, class Alloc = std::allocator<Item>>
 class parray;
 
 } } }
@@ -58,6 +58,14 @@ Type                 | Description
 |constructor](#pa-e-c-c) (default   |no items                           |
 |constructor)                       |                                   |
 +-----------------------------------+-----------------------------------+
+| [fill constructor](#pa-e-f-c)     | constructs a container with a     |
+|                                   |specified number of copies of a    |
+|                                   |given item                         |
++-----------------------------------+-----------------------------------+
+| [copy constructor](#pa-e-cp-c)    | constructs a container with a copy|
+|                                   |of each of the items in the given  |
+|                                   |container, in the same order       |
++-----------------------------------+-----------------------------------+
 | [initializer list](#pa-i-l-c)     | constructs a container with the   |
 |                                   |items specified in a given         |
 |                                   |initializer list                   |
@@ -73,11 +81,43 @@ Type                 | Description
 parray();
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+***Complexity.*** Constant time.
+
+Constructs an empty container with no items;
+
+### Fill container {#pa-e-f-c}
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+parray(long n, const value_type& val);
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Constructs a container with `n` copies of `val`.
+
+***Complexity.*** Work and span are linear and logarithmic in the size
+   of the resulting container, respectively.
+
+### Copy constructor {#pa-e-cp-c}
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+parray(const parray& other);
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Constructs a container with a copy of each of the itemsin `other`, in
+the same order.
+
+***Complexity.*** Work and span are linear and logarithmic in the size
+   of the resulting container, respectively.
+
 ### Initializer-list constructor {#pa-i-l-c}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 parray(initializer_list<value_type> il);
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Constructs a container with the items in `il`.
+
+***Complexity.*** Work and span are linear in the size of the resulting
+   container.
 
 ### Move constructor {#pa-m-c}
 
@@ -85,6 +125,18 @@ parray(initializer_list<value_type> il);
 parray(parray&& x);
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+Constructs a container that acquires the items of `other`.
+
+***Complexity.*** Constant time.
+
+### Destructor {#pa-destr}
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+~parray();
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+***Complexity.*** Work and span are linear and logarithmic in the size
+   of the container, respectively.
 
 +------------------------+--------------------------------------+
 | Operation              | Description                          |
@@ -93,6 +145,8 @@ parray(parray&& x);
 |                        |                                      |
 +------------------------+--------------------------------------+
 | [`size`](#pa-si)       | Return size                          |
++------------------------+--------------------------------------+
+| [`resize`](#pa-rsz)    | Change size                          |
 +------------------------+--------------------------------------+
 | [`swap`](#pa-sw)       | Exchange contents                    |
 +------------------------+--------------------------------------+
@@ -110,11 +164,150 @@ const_reference operator[](long i) const;
 long size() const;
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-### Exchange operator {#pa-sw}
+### Resize {#ps-rsz}
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+void resize(long n, const value_type& val);
+void resize(long n) {
+  value_type val;
+  resize(n, val);
+}
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Resizes the container so that it contains `n` items.
+
+The contents of the current container are removed and replaced by `n`
+copies of the item referenced by `val`.
+
+***Complexity.*** Let `m` be the maximum of the size of the container
+   just before and the size just after the resize operation, namely
+   `n`. Work and span are linear and logarithmic in `m`, respectively.
+
+### Exchange operation {#pa-sw}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 void swap();
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Slice
+-----
+
+The `slice` structure provides an abstraction of a subarray for
+parallel arrays. A `slice` value can be viewed as a triple `(a, lo,
+hi)`, where `a` is a pointer to the underlying parallel array, `lo` is
+the starting index, and `hi` is the index one past the end of the
+range. The `slice` container class maintains the following invariant:
+`0 <= lo` and `hi <= a->size()`.
+
+The `slice` class is a template class that takes a single parameter:
+the `PArray_pointer`. For correct behavior, this type must be that of
+a pointer to either a const or non-const pointer to an object of the
+`parray` class.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+namespace pasl {
+namespace pctl {
+namespace parray {
+
+template <class PArray_pointer>
+class slice {
+public:
+
+  PArray_pointer pointer;
+  long lo;
+  long hi;
+
+  slice();
+  slice(PArray_pointer _pointer);
+  slice(long _lo, long _hi, PArray_pointer _pointer=nullptr);
+  
+};
+
+} } }
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
++-----------------------------------+-----------------------------------+
+| Public field                      | Description                       |
++===================================+===================================+
+| [`pointer`](#pa-sl-p)             | Pointer to a parallel-array       |
+|                                   |structure (or a null pointer)      |
++-----------------------------------+-----------------------------------+
+| [`lo`](#pa-sl-lo)                 | Starting index                    |
++-----------------------------------+-----------------------------------+
+| [`hi`](#pa-sl-hi)                 | Index that is one past the last   |
+|                                   |item in therange                   |
++-----------------------------------+-----------------------------------+
+
+### Pointer {#pa-sl-p}
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+PArray_pointer pointer;
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Pointer to the parrallel-array structure (or null pointer, if range is
+empty).
+
+### Starting index {#pa-sl-lo}
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+long lo;
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Starting index of the range.
+
+### One-past-end index {#pa-sl-hi}
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+long hi;
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+One position past the end of the range.
+
++-----------------------------------+-----------------------------------+
+| Constructor                       | Description                       |
++===================================+===================================+
+| [empty slice](#pa-sl-e-c) (default| Construct an empty slice with no  |
+|constructor)                       |items                              |
++-----------------------------------+-----------------------------------+
+| [full range](#pa-sl-pt)           | Construct a slice for a full range|
+|                                   |                                   |
++-----------------------------------+-----------------------------------+
+| [specified range](#pa-sl-ra)      | Construct a slice for a specified |
+|                                   |range                              |
++-----------------------------------+-----------------------------------+
+
+### Empty slice {#pa-sl-e-c}
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+slice();
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Construct an empty slice with no items.
+
+### Full range {#pa-sl-pt}
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+slice(PArray_pointer _pointer);
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Construct a slice with the full range of the items in the parallel
+array pointed to by `_pointer`.
+
+### Specified range {#pa-sl-ra}
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+slice(long _lo, long _hi, PArray_pointer _pointer=nullptr);
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Construct a slice with the right-open range `[lo, hi)` of the items in
+the parallel array pointed to by `_pointer`.
+
+If the range is empty, then `_pointer` may be the null pointer
+value. Otherwise, `_pointer` must be a valid pointer to a
+parallel-array object.
+
+Behavior is undefined if the range does not fit in the size of the
+underlying parallel array.
 
 Chunked sequence {#chunkedseq}
 ================
@@ -128,7 +321,30 @@ Tabulation
 Reduction
 ---------
 
-### Level 0
++-----------------------------------+-----------------------------------+
+| Abstraction layer                 | Description                       |
++===================================+===================================+
+| [Level 0](#red-l-0)               | Apply a specified monoid to       |
+|                                   |combine the items of a specified   |
+|                                   |sequence container                 |
++-----------------------------------+-----------------------------------+
+| [Level 1](#red-l-1)               | Introduces a lift operator that   |
+|                                   |allows the client to inline a "map"|
+|                                   |operation into the leaves of the   |
+|                                   |reduce tree                        |
++-----------------------------------+-----------------------------------+
+| [Level 2](#red-l-2)               | Introduces a range-based lift     |
+|                                   |operation                          |
++-----------------------------------+-----------------------------------+
+| [Level 3](#red-l-3)               | Introduces a "mergeable output"   |
+|                                   |abstraction instead of the monoid  |
++-----------------------------------+-----------------------------------+
+| [Level 4](#red-l-4)               | Introduces a "splittlable input"  |
+|                                   |instead of a container             |
++-----------------------------------+-----------------------------------+
+
+
+### Level 0 {#red-l-0}
 
 +---------------------------------+-----------------------------------+
 | Template parameter              | Description                       |
@@ -210,7 +426,7 @@ long sum(const parray<long>& xs) {
 }
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-### Level 1
+### Level 1 {#red-l-1}
 
 +----------------------------------+-----------------------------------+
 | Template parameter               | Description                       |
@@ -269,7 +485,7 @@ public:
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 class Assoc_oper_compl {
 public:
-  long operator()(const Result* lo, const Result* hi);
+  long operator()(long lo, long hi);
 };
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -380,7 +596,7 @@ long occurrence_count(const parray<std::string>& strs, char c) {
 }
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-### Level 2
+### Level 2 {#red-l-2}
 
 +--------------------------+-----------------------------------+
 | Template parameter       | Description                       |
@@ -424,7 +640,7 @@ Result reduce(const parray<Item>& xs,
 } } } }
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-### Level 3
+### Level 3 {#red-l-3}
 
 +-----------------------------+--------------------------------+
 | Template parameter          | Description                    |
@@ -453,7 +669,7 @@ Type of the object to receive the output of the reduction.
 +-------------------------+-------------------------------------+
 | Operation               | Description                         |
 +=========================+=====================================+
-| [`initialize`](#ro-i)   | Initialize contents                 |
+| [`init`](#ro-i)         | Initialize contents                 |
 +-------------------------+-------------------------------------+
 | [`merge`](#ro-m)        | Merge contents                      |
 +-------------------------+-------------------------------------+
@@ -478,7 +694,7 @@ public:
   cell(const cell& other)
   : result(other.result), merge(other.merge) { }
 
-  void initialize(cell& other) {
+  void init(cell& other) {
 
   }
 
@@ -494,7 +710,7 @@ public:
 ##### Initialize {#ro-i}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-void initialize(Output& output);
+void init(Output& output);
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Initialize the contents of the output.
@@ -521,11 +737,11 @@ public:
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 class Output_compl {
 public:
-  long operator()(const Output* lo, const Output* hi);
+  long operator()(long lo, long hi);
 };
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-### Level 4
+### Level 4 {#red-l-4}
 
 +-------------------------------+-----------------------------------+
 | Parameter                     | Description                       |
@@ -556,7 +772,7 @@ class Input
 +-----------------------------+-------------------------------------------+
 | Operation                   | Description                               |
 +=============================+===========================================+
-| [`initialize`](#r4i-i)      | Initialize contents                       |
+| [`init`](#r4i-i)            | Initialize contents                       |
 |                             |                                           |
 +-----------------------------+-------------------------------------------+
 | [`can_split`](#r4i-c-s)     | Return value to indicate whether split is |
@@ -568,82 +784,15 @@ class Input
 +-----------------------------+-------------------------------------------+
 | [`block_size`](#r4i-b-s)    | Return the number of elements per block   |
 +-----------------------------+-------------------------------------------+
-| [`split`](#r4i-sp)          | Split the input                           |
+| [`split`](#r4i-sp)          | Divide the input into two pieces          |
 +-----------------------------+-------------------------------------------+
-| [`slice`](#r4i-sl)          | Return a new slice                        |
+| [`range`](#r4i-sl)          | Copy a range to a given input object      |
 +-----------------------------+-------------------------------------------+
-
-***Example: Parallel array slice.***
-
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-namespace pasl {
-namespace data {
-namespace parray {
-namespace level4 {
-
-template <class PArray>
-class slice {
-public:
-
-  const PArray* array;
-  long lo;
-  long hi;
-  
-  slice()
-  : lo(0), hi(0), array(nullptr) {}
-  
-  slice(const PArray* array)
-  : lo(0), hi(0), array(array) {
-    lo = 0;
-    hi = array->size();
-  }
-  
-  void initialize(const slice& other) {
-    *this = other;
-  }
-  
-  bool can_split() const {
-    return size() <= 1;
-  }
-  
-  long size() const {
-    return hi - lo;
-  }
-  
-  long nb_blocks() const {
-    return 1 + ((size() - 1) / block_size());
-  }
-  
-  long block_size() const {
-    return (long)std::pow(size(), 0.5);
-  }
-  
-  void split(slice& destination) {
-    assert(can_split());
-    destination = *this;
-    long mid = (lo + hi) / 2;
-    hi = mid;
-    destination.lo = mid;
-  }
-  
-  slice slice(long lo2, long hi2) {
-    assert(lo2 >= lo2);
-    assert(hi2 <= hi);
-    slice tmp = *this;
-    tmp.lo = lo2;
-    tmp.hi = hi2;
-    return tmp;
-  }
-  
-};
-
-} } } }
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 ##### Initialize {#r4i-i}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-void initialize(Input& input);
+void init(Input& input);
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Initialize the contents of the input.
@@ -664,7 +813,7 @@ long size() const;
 
 Return a number to report the number of items in the input.
 
-##### Number of blocks {#reduce-4-input-nb-blocks}
+##### Number of blocks {#r4i-n-b}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 long nb_blocks();
@@ -672,7 +821,7 @@ long nb_blocks();
 
 Return a number to report the number of blocks in the input.
 
-##### Block size {#reduce-4-input-block-size}
+##### Block size {#r4i-b-s}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 long block_size() const;
@@ -684,23 +833,23 @@ in the input.
 #### Split {#r4i-sp}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-void split(Input& destination);
+void split(Input& dest);
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Transfer a fraction of the input to the input referenced by
-`destination`.
+`dest`.
 
 The behavior of this method may be undefined when the `can_split`
 function would return `false`.
 
-##### Slice {#r4i-sl}
+##### Range {#r4i-sl}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-Input slice(long lo, long hi);
+void range(long lo2, long hi2, Input& dest) const;
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Return a new slice that represents the items in the right-open range
-`[lo, hi)`.
+Construct the input object referenced by `dest` with the right-open
+range `[lo2, hi2)`.
 
 #### Input base {#r4-i-b}
 
