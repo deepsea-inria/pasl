@@ -14,7 +14,7 @@ namespace graph {
   
 using namespace data;
   
-int nb_tests = 500;
+int nb_tests = 2;
 
 template <class Size, class Values_equal,
 class Array1, class Array2,
@@ -93,6 +93,8 @@ public:
   
 /*---------------------------------------------------------------------*/
 /* Bellman ford */
+    
+
 
 template <class Adjlist_seq>
 void check_bellman_ford() {
@@ -118,39 +120,86 @@ void check_bellman_ford() {
         int* res =  bellman_ford_seq(graph, source);
 //        std::cout << "Source : " << source << std::endl;
 //        std::cout << graph << std::endl;
-//        
+//
 //        for (int i = 0; i < nb_vertices; ++i) {
 //            std::cout << res[i] << " ";
 //        }
-//        std::cout << std::endl;
+        std::cout << std::endl;
         return res;
     };
-
-    c.add("bellman_ford_dummy_test", [&] {
-        auto dummy_test = [&] (const adjlist_type& graph, vtxid_type source) -> int* {
+    
+    c.add("bellman_ford_seq", [&] {
+        uint64_t start_time = util::microtime::now();
+        
+        auto par_test = [&] (const adjlist_type& graph, vtxid_type source) -> int* {
             vtxid_type nb_vertices = graph.get_nb_vertices();
             if (nb_vertices == 0)
                 return 0;
             return bellman_ford_seq(graph, source);
         };
         using prop_by_vertexid_frontier =
-        prop_search_same<adjlist_type, typeof(trusted_bellman_ford), typeof(dummy_test),
+        prop_search_same<adjlist_type, typeof(trusted_bellman_ford), typeof(par_test),
         typeof(get_visited_seq), typeof(get_visited_seq), int>;
-        prop_by_vertexid_frontier (trusted_bellman_ford, dummy_test,
-                               get_visited_seq, get_visited_seq).check(nb_tests);
+        prop_by_vertexid_frontier (trusted_bellman_ford, par_test,
+                                   get_visited_seq, get_visited_seq).check(nb_tests);
+        double exec_time = util::microtime::seconds_since(start_time);
+        printf ("exectime BF Seq  %.3lf\n", exec_time);
     });
-    c.add("bellman_ford_par_test", [&] {
+
+    c.add("bellman_ford_par1", [&] {
+        uint64_t start_time = util::microtime::now();
+        
         auto par_test = [&] (const adjlist_type& graph, vtxid_type source) -> int* {
             vtxid_type nb_vertices = graph.get_nb_vertices();
             if (nb_vertices == 0)
                 return 0;
-            return bellman_ford_par(graph, source);
+            return bellman_ford_par1(graph, source);
         };
         using prop_by_vertexid_frontier =
         prop_search_same<adjlist_type, typeof(trusted_bellman_ford), typeof(par_test),
         typeof(get_visited_seq), typeof(get_visited_seq), int>;
         prop_by_vertexid_frontier (trusted_bellman_ford, par_test,
                                    get_visited_seq, get_visited_seq).check(nb_tests);
+        double exec_time = util::microtime::seconds_since(start_time);
+        printf ("exectime BF Par1 %.3lf\n", exec_time);
+    });
+    
+    c.add("bellman_ford_par2", [&] {
+        uint64_t start_time = util::microtime::now();
+        
+        auto par_test = [&] (const adjlist_type& graph, vtxid_type source) -> int* {
+            vtxid_type nb_vertices = graph.get_nb_vertices();
+            if (nb_vertices == 0)
+                return 0;
+            return bellman_ford_par2(graph, source);
+        };
+        using prop_by_vertexid_frontier =
+        prop_search_same<adjlist_type, typeof(trusted_bellman_ford), typeof(par_test),
+        typeof(get_visited_seq), typeof(get_visited_seq), int>;
+        prop_by_vertexid_frontier (trusted_bellman_ford, par_test,
+                                   get_visited_seq, get_visited_seq).check(nb_tests);
+        
+        double exec_time = util::microtime::seconds_since(start_time);
+        printf ("exectime BF Par2 %.3lf\n", exec_time);
+    });
+    
+    c.add("bellman_ford_par3", [&] {
+        uint64_t start_time = util::microtime::now();
+        
+        auto par_test = [&] (const adjlist_type& graph, vtxid_type source) -> int* {
+            vtxid_type nb_vertices = graph.get_nb_vertices();
+            if (nb_vertices == 0)
+                return 0;
+            return bellman_ford_par3(graph, source);
+        };
+        using prop_by_vertexid_frontier =
+        prop_search_same<adjlist_type, typeof(trusted_bellman_ford), typeof(par_test),
+        typeof(get_visited_seq), typeof(get_visited_seq), int>;
+        prop_by_vertexid_frontier (trusted_bellman_ford, par_test,
+                                   get_visited_seq, get_visited_seq).check(nb_tests);
+        
+        double exec_time = util::microtime::seconds_since(start_time);
+        printf ("exectime BF Par3 %.3lf\n", exec_time);
     });
 
   util::cmdline::dispatch_by_argmap_with_default_all(c, "algo");
