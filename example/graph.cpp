@@ -23,6 +23,11 @@ namespace pasl {
   }
 }
 
+long sum(pa::parray<long>& xs) {
+  return pa::reduce(xs, 0l, [&] (long x, long y) {
+    return x + y;
+  });
+}
 
 int main(int argc, char **argv) {
   
@@ -32,7 +37,7 @@ int main(int argc, char **argv) {
   auto run = [&] (bool) {
     pa::parray<long> foo = { 1, -1, 1, 3 };
     std::cout << foo << std::endl;
-    //std::cout << pa::sum(foo) << std::endl;
+    std::cout << sum(foo) << std::endl;
   };
   auto output = [&] {
   };

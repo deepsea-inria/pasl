@@ -9,6 +9,17 @@ The purpose of this document is to serve as a working draft of the
 design and implementation of the Parallel Container Template Library
 (PCTL).
 
+***Essential terminology.***
+
+A *function call operator* (or, just "call operator") is a member
+function of a C++ class that is specified by the name `operator()`.
+
+A *functor* is a C++ class which defines a call operator.
+
+A *right-open range* is ...
+
+*work* *span* 
+
 Containers
 ==========
 
@@ -20,6 +31,8 @@ Class name                           | Description
 [`array`](#parray)                   | Array class
 [`chunkedseq`](#chunkedseq)          | Chunked Sequence class
 
+Table: Sequence containers that are provided by pctl.
+
 Associative containers
 ----------------------
 
@@ -27,6 +40,8 @@ Class name          | Description
 --------------------|-------------------------
 set                 | Set class
 map                 | Associative map class
+
+Table: Associative containers that are provided by pctl.
 
 Parallel array {#parray}
 ==============
@@ -45,11 +60,18 @@ class parray;
 } } }
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Type                 | Description
----------------------|---------------------------------------------------
-`value_type`         | Alias for template parameter `Item`
-`reference`          | Alias for `Item&`
-`const_reference`    | Alias for `const Item&`
++-----------------------------------+-----------------------------------+
+| Type                              | Description                       |
++===================================+===================================+
+| `value_type`                      | Alias for template parameter      |
+|                                   |`Item`                             |
++-----------------------------------+-----------------------------------+
+| `reference`                       | Alias for `value_type&`           |
++-----------------------------------+-----------------------------------+
+| `const_reference`                 | Alias for `const value_type&`     |
++-----------------------------------+-----------------------------------+
+
+Table: Parallel-array type definitions.
 
 +-----------------------------------+-----------------------------------+
 | Constructor                       | Description                       |
@@ -74,6 +96,10 @@ Type                 | Description
 |                                   |acquires the items of a given      |
 |                                   |parallel array                     |
 +-----------------------------------+-----------------------------------+
+| [destructor](#pa-destr)           | destructs a container             |
++-----------------------------------+-----------------------------------+
+
+Table: Parallel-array constructors and destructors.
 
 ### Empty container constructor {#pa-e-c-c}
 
@@ -102,7 +128,7 @@ Constructs a container with `n` copies of `val`.
 parray(const parray& other);
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Constructs a container with a copy of each of the itemsin `other`, in
+Constructs a container with a copy of each of the items in `other`, in
 the same order.
 
 ***Complexity.*** Work and span are linear and logarithmic in the size
@@ -135,13 +161,15 @@ Constructs a container that acquires the items of `other`.
 ~parray();
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+Destructs the container.
+
 ***Complexity.*** Work and span are linear and logarithmic in the size
    of the container, respectively.
 
 +------------------------+--------------------------------------+
 | Operation              | Description                          |
 +========================+======================================+
-| [`operator[]`](#pa-i-o)| Access element                       |
+| [`operator[]`](#pa-i-o)| Access member item                   |
 |                        |                                      |
 +------------------------+--------------------------------------+
 | [`size`](#pa-si)       | Return size                          |
@@ -151,6 +179,8 @@ Constructs a container that acquires the items of `other`.
 | [`swap`](#pa-sw)       | Exchange contents                    |
 +------------------------+--------------------------------------+
 
+Table: Parallel-array member functions.
+
 ### Indexing operator {#pa-i-o}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
@@ -158,13 +188,22 @@ reference operator[](long i);
 const_reference operator[](long i) const;
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+Returns a reference at the specified location `i`. No bounds check is
+performed.
+
+***Complexity.*** Constant time.
+
 ### Size operator {#pa-si}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 long size() const;
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-### Resize {#ps-rsz}
+Returns the size of the container.
+
+***Complexity.*** Constant time.
+
+### Resize {#pa-rsz}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 void resize(long n, const value_type& val);
@@ -186,8 +225,13 @@ copies of the item referenced by `val`.
 ### Exchange operation {#pa-sw}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-void swap();
+void swap(parray& other);
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Exchanges the contents of the container with those of `other`. Does
+not invoke any move, copy, or swap operations on individual items.
+
+***Complexity.*** Constant time.
 
 Slice
 -----
@@ -238,6 +282,8 @@ public:
 |                                   |item in therange                   |
 +-----------------------------------+-----------------------------------+
 
+Table: Parallel-array slice fields.
+
 ### Pointer {#pa-sl-p}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
@@ -275,6 +321,8 @@ One position past the end of the range.
 | [specified range](#pa-sl-ra)      | Construct a slice for a specified |
 |                                   |range                              |
 +-----------------------------------+-----------------------------------+
+
+Table: Parallel-array slice constructors.
 
 ### Empty slice {#pa-sl-e-c}
 
@@ -343,6 +391,7 @@ Reduction
 |                                   |instead of a container             |
 +-----------------------------------+-----------------------------------+
 
+Table: Abstraction layers used by pctl for reduction operators.
 
 ### Level 0 {#red-l-0}
 
@@ -352,11 +401,12 @@ Reduction
 | [`Item`](#r0-i)                 | Type of the items in the input    |
 |                                 |sequence                           |
 +---------------------------------+-----------------------------------+
-| [`Assoc_oper`](#r0-a)           | Associative combining operator    |
+| [`Combine`](#r0-a)              | Associative combining operator    |
 +---------------------------------+-----------------------------------+
-| [`Assoc_oper_compl`](#r0-a-c)   | Complexity function for the       |
-|                                 |associative combining operator     |
+| [`Weight`](#r0-w)               | Weight function (optional)        |
 +---------------------------------+-----------------------------------+
+
+Table: Shared template parameters for all level-0 reduce operations.
 
 #### Item {#r0-i}
 
@@ -364,67 +414,151 @@ Reduction
 class Item
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Type of the items being processed by the reduction.
+Type of the items to be processed by the reduction.
 
 #### Associative combining operator {#r0-a}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-class Assoc_oper {
-public:
-  Item operator()(Item x, Item y);
-};
+class Combine;
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-#### Complexity function {#r0-a-c}
+The combining operator is a C++ functor that takes two items and
+returns a single item. The call operator for the `Combine` class
+should have the following type.
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-class Assoc_oper_compl {
+Item operator()(Item x, Item y);
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The behavior of the reduction is well defined only if the combining
+operator is *associative*, in the following sense.
+
+***Post condition: associativity.*** Let `f` be an object of type
+`Assoc_oper`. The operator `f` is associative if, for any `x`, `y`,
+and `z` that are values of type `Item`, the following equality holds:
+
+`f(x, f(y, z)) == f(f(x, y), z)`
+
+For instance, the following functor is associative because the
+`std::max` function is itself associative.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+class Max_combine {
 public:
-  long operator()(Item* lo, Item* hi);
+  long operator()(long x, long y) {
+    return std::max(x, y);
+  }
 };
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+#### Weight function {#r0-w}
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+class Weight;
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The weight function is a C++ functor that takes a single item and
+returns a non-negative "weight value" describing the size of the item.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+long operator()(Item x);
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+***Post condition: congruence.*** Let `w` be a value of type `Weight`
+   and `f` be a value of type `Combine`.  Then, for any `x` and `y`
+   that are values of type `Item`, the following holds.  Let $C(
+   \mathtt{f(x,y)} )$ denote the cost (i.e., asymptotic work
+   complexity) of performing the call `f(x, y)`.  Then, $\mathtt{w(x)}
+   + \mathtt{w(y)} \leq O(C(\mathtt{f(x,y)}))$.
+
 #### Parallel array
+
+At this level, we have two types of reduction for parallel arrays. The
+first one assumes that the combining operator takes constant time and
+the second does not.
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 namespace pasl {
 namespace data {
 namespace parray {
 
-template <
-  class Item,
-  class Assoc_oper,
-  class Assoc_oper_compl
->
-Item reduce(const parray<Item>& xs,
-            Item id,
-            Assoc_oper op,
-            Assoc_oper_compl assoc_oper_compl);
+template <class Item, class Combine>
+Item reduce(const parray<Item>& xs, Item id, Combine combine);
 
 template <
   class Item,
-  class Assoc_oper
+  class Weight,
+  class Combine
 >
 Item reduce(const parray<Item>& xs,
             Item id,
-            Assoc_oper assoc_oper);
+            Weight weight,
+            Combine combine);
 
 } } }
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-***Example: summing an array of numbers.***
+***Complexity.*** TODO
+
+***Example: taking the maximum value of an array of numbers.*** The
+following code takes the maximum value of `xs` using our `Max_combine`
+functor.
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-auto plus = [&] (long x, long y) {
-  return x + y;
-};
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-long sum(const parray<long>& xs) {
-  return reduce(xs, 0, plus);
+long max(const parray<long>& xs) {
+  return reduce(xs, 0, Max_combine());
 }
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Alternatively, one can use specify the same algorithm as above by
+replacing the `Max_combine` functor by an appropriate C++ lambda
+expression.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+long max(const parray<long>& xs) {
+  return reduce(xs, LONG_MIN, [&] (long x, long y) {
+    return std::max(x, y);
+  });
+}
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+***Example: using a non-constant time combining operator.***
+
+Now, let us consider a case where the associative combining operator
+takes linear time in proportion with its two arguments. For this
+example, we will consider the following max function, which examines a
+given array of arrays.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+long max(const parray<parray<long>>& xss) {
+  auto weight = [&] (const parray<long>& xs) {
+    return xs.size();
+  };
+  parray<long> id = { LONG_MIN };
+  parray<long> a =
+    reduce(xss, id, weight, [&] (const parray<long>& xs1,
+                                 const parray<long>& xs2) {
+      parray<long> r = { std::max(max(xs1), max(xs2)) };
+      return r;
+    });
+  return a[0];
+}
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+It should be clear that the weight function that we are using is a
+valid weight function with respect to our [congruence
+condition](#r0-w). The reason is that the amount of work required to
+find the maximum number in a given array of numbers is simply linear
+in the size of the array. As such, the size is the correct measure for
+the weight.
+
+Given that we are only interested in the single maximum value, it is
+unfortunate that our combining operator has to pay to package the
+current maximum value in the array `r`. The abstraction boundaries, in
+particular, the type of the `reduce` function here leaves us no
+choice, however. In the next level of abstraction, we are going to see
+that, by generalizing our `reduce` function a little, we can sidestep
+this issue.
 
 ### Level 1 {#red-l-1}
 

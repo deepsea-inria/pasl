@@ -11,8 +11,8 @@
 
 #include "prim.hpp"
 
-#ifndef _PARRAY_PCTL_PARRAY_H_
-#define _PARRAY_PCTL_PARRAY_H_
+#ifndef _PARRAY_PCTL_PARRAY_BASE_H_
+#define _PARRAY_PCTL_PARRAY_BASE_H_
 
 namespace pasl {
 namespace pctl {
@@ -174,4 +174,4 @@ public:
 } // end namespace
 } // end namespace
 
-#endif /*! _PARRAY_PCTL_PARRAY_H_ */
+#endif /*! _PARRAY_PCTL_PARRAY_BASE_H_ */
