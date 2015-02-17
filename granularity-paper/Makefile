@@ -57,7 +57,7 @@ include $(TOOLS_BUILD_FOLDER)/Makefile_options
 # (If extending the list, need to add cases for the definition
 # of COMPILE_OPTIONS_FOR further below, and also for "clean".
 
-MODES=opt optfp elision baseline log dbg dbgfp dbgfs cilk binary bsearch lbsearch lbinary sched standart dbinary
+MODES=opt optfp elision baseline log dbg dbgfp dbgfs cilk binary bsearch lbsearch lbinary sched standart dbinary dlog
 
 # Compilation options for each mode
 
@@ -67,6 +67,7 @@ COMPILE_OPTIONS_FOR_optfp=$(OPTIONS_O2) -DCONTROL_BY_FORCE_PARALLEL
 COMPILE_OPTIONS_FOR_elision=$(OPTIONS_O2) -DSEQUENTIAL_ELISION
 COMPILE_OPTIONS_FOR_baseline=$(OPTIONS_O2) -DSEQUENTIAL_BASELINE
 COMPILE_OPTIONS_FOR_log=$(OPTIONS_O2) -DSTATS -DLOGGING -D$(CONTROL_OPT) -D$(LOOP_OPT) -D$(LIB)
+COMPILE_OPTIONS_FOR_dlog=$(OPTIONS_O2) -DSTATS -DLOGGING -D$(CONTROL_OPT) -D$(LOOP_OPT) -D$(LIB) -DDUAL
 COMPILE_OPTIONS_FOR_dbg=$(OPTIONS_DEBUG) -DSTATS -DDEBUG
 COMPILE_OPTIONS_FOR_dbgfp=$(OPTIONS_DEBUG) -DSTATS -DDEBUG -DCONTROL_BY_FORCE_SEQUENTIAL
 COMPILE_OPTIONS_FOR_dbgfs=$(OPTIONS_DEBUG) -DSTATS -DDEBUG -DCONTROL_BY_FORCE_PARALLEL
