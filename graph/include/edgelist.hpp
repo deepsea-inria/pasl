@@ -14,6 +14,9 @@
 
 #define FORCE_SEQUENTIAL_REMOVE_DUPLICATES 1 // until we debug parallel code
 
+#define MIN_EDGE_WEIGHT 1
+#define MAX_EDGE_WEIGHT 100
+
 #if defined(SEQUENTIAL_ELISION) || defined(FORCE_SEQUENTIAL_REMOVE_DUPLICATES)
 #include <unordered_set>
 #endif
@@ -23,6 +26,7 @@
 #include "container.hpp"
 #include "hashtable.hpp"
 #include "utils.hpp"
+#include "quickcheck.hh"
 
 /***********************************************************************/
 
@@ -52,6 +56,29 @@ public:
   }
   
 };
+    
+    template <class Vertex_id>
+    class wedge : public edge<Vertex_id>{
+    public:
+        
+        typedef Vertex_id vtxid_type;
+        
+        vtxid_type src;
+        vtxid_type dst;
+        vtxid_type w;
+        
+        wedge(vtxid_type src, vtxid_type dst)
+        : src(src), dst(dst) {
+            unsigned int res;
+            quickcheck::generate(MAX_EDGE_WEIGHT - MIN_EDGE_WEIGHT, res);
+            w = MIN_EDGE_WEIGHT + ((int) res);}
+        
+        wedge()
+        : src(vtxid_type(0)), dst(vtxid_type(0)), w(vtxid_type(0)) { }
+
+                
+    };
+    
   
 /*---------------------------------------------------------------------*/
 
@@ -119,6 +146,20 @@ bool operator!=(const edge<Vertex_id>& e1,
   return ! (e1 == e2);
 }
 
+    template <class Vertex_id>
+    bool operator==(const wedge<Vertex_id>& e1,
+                    const wedge<Vertex_id>& e2) {
+        return e1.src == e2.src
+        && e1.dst == e2.dst
+        && e1.w == e2.w;
+    }
+    
+    template <class Vertex_id>
+    bool operator!=(const wedge<Vertex_id>& e1,
+                    const wedge<Vertex_id>& e2) {
+        return ! (e1 == e2);
+    }
+    
 template <class Edge_bag>
 bool operator==(const edgelist<Edge_bag>& e1, const edgelist<Edge_bag>& e2) {
   using edge_type = typename Edge_bag::value_type;
@@ -167,7 +208,7 @@ void remove_duplicates_sequential(edgelist<Edge_bag>& src, edgelist<Edge_bag>& d
   using vtxid_type = typename edge_bag_type::value_type::vtxid_type;
   using edge_type = typename edgelist_type::edge_type;
   vtxid_type nb_vertices = src.nb_vertices;
-  std::unordered_set<edge<vtxid_type>, edge_hash<vtxid_type>> edges;
+  std::unordered_set<edge_type, edge_hash<vtxid_type>> edges;
   edgeid_type nb_edges = src.get_nb_edges();
   for (edgeid_type i = 0; i < nb_edges; i++)
     edges.insert(src.edges[i]);

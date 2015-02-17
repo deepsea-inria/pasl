@@ -35,12 +35,13 @@ namespace graph {
             bool changed = false;
             for (size_t i = 0; i < nb_vertices; i++) {
                 vtxid_type degree = graph.adjlists[i].get_out_degree();
-                vtxid_type* neighbors = graph.adjlists[i].get_out_neighbors();
                 for (vtxid_type edge = 0; edge < degree; edge++) {
-                    vtxid_type other = neighbors[edge];
-                    if (dists[other] > dists[i] + 1) {
+                    vtxid_type other = graph.adjlists[i].get_out_neighbor(edge);
+                    vtxid_type w = graph.adjlists[i].get_out_neighbor_weight(edge);
+                    
+                    if (dists[other] > dists[i] + w) {
                         changed = true;
-                        dists[other] = dists[i] + 1;
+                        dists[other] = dists[i] + w;
                     }
                 }
             }
@@ -66,47 +67,48 @@ namespace graph {
         dists[source] = 0;
         
         LOG_BASIC(ALGO_PHASE);
-        for (int i = 0; i < nb_vertices; i++) process_vertices_par1(graph, dists, 0, nb_vertices);
+        bool changed = false;
+
+        for (int i = 0; i < nb_vertices; i++) {
+            changed = false;
+            process_vertices_par1(graph, dists, 0, nb_vertices, changed);
+            if (!changed) break;
+        }
         return dists;
     }
     
     template <class Adjlist_seq>
     void process_vertex_seq(const adjlist<Adjlist_seq>& graph,
-                              int* dists, int vertex) {
+                              int* dists, int vertex, bool& changed) {
         long degree = graph.adjlists[vertex].get_in_degree();
-        long* neighbors = graph.adjlists[vertex].get_in_neighbors();
-
         for (int edge = 0; edge < degree; edge++) {
-            long other = neighbors[edge];
-            if (dists[vertex] > dists[other] + 1) {
-                dists[vertex] = dists[other] + 1;
+            long other = graph.adjlists[vertex].get_in_neighbor(edge);
+            long w = graph.adjlists[vertex].get_in_neighbor_weight(edge);
+            if (dists[vertex] > dists[other] + w) {
+                dists[vertex] = dists[other] + w;
+                changed = true;
             }
         }
     }
     
     template <class Adjlist_seq>
     void process_vertices_seq(const adjlist<Adjlist_seq>& graph,
-                            int* dists, int start, int stop) {
-        
+                            int* dists, int start, int stop, bool& changed) {
         for (int i = start; i < stop; i++) {
-            if (stop == 64 && i == 20) {
-                int k = 3;
-            }
-            process_vertex_seq(graph, dists, i);
+            process_vertex_seq(graph, dists, i, changed);
         }
     }
 
     template <class Adjlist_seq>
     void process_vertices_par1(const adjlist<Adjlist_seq>& graph,
-                            int* dists, int start, int stop) {
+                            int* dists, int start, int stop, bool& changed) {
         int nb = stop - start;
-        if (nb < 1000000) {
-            process_vertices_seq(graph, dists, start, stop);
+        if (nb < 3) {
+            process_vertices_seq(graph, dists, start, stop, changed);
         } else {
-            std::cout << "HERE!!!" << std::endl;
             int mid = (start + stop) / 2;
-            sched::native::fork2([&] { process_vertices_par1(graph,  dists, start, mid); },
-                                 [&] { process_vertices_par1(graph,  dists, mid, stop); });
+            sched::native::fork2([&] { process_vertices_par1(graph,  dists, start, mid, changed); },
+                                 [&] { process_vertices_par1(graph,  dists, mid, stop, changed); });
             
         }
     }

@@ -117,9 +117,9 @@ void generate_cube_grid(typename Edge_bag::value_type::vtxid_type nb_on_side,
     for (vtxid_type j = 0; j < dn; j++)
       for (vtxid_type k = 0; k < dn; k++) {
         vtxid_type l = loc3d(i,j,k);
-        dst.edges[3*l] =   edge<vtxid_type>(l,loc3d(i+1,j,k));
-        dst.edges[3*l+1] = edge<vtxid_type>(l,loc3d(i,j+1,k));
-        dst.edges[3*l+2] = edge<vtxid_type>(l,loc3d(i,j,k+1));
+        dst.edges[3*l] =   edge_type(l,loc3d(i+1,j,k));
+        dst.edges[3*l+1] = edge_type(l,loc3d(i,j+1,k));
+        dst.edges[3*l+2] = edge_type(l,loc3d(i,j,k+1));
         // double dec = k / (nb_on_side + 1) / (2 * nb_on_side);
         // add_to_layout(..., l, i / (nb_on_side+1) + dec, (nb_on_side-1-j) / (nb_on_side+1) - dec);
       }

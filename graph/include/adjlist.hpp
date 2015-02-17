@@ -101,62 +101,52 @@ public:
   
   typedef Vertex_id_bag vtxid_bag_type;
   typedef typename vtxid_bag_type::value_type vtxid_type;
+    
+  asymmetric_vertex(vtxid_bag_type out_neighbors, vtxid_bag_type in_neighbors)
+    : in_neighbors(in_neighbors), out_neighbors(out_neighbors) {
+
+    }
   
   vtxid_bag_type in_neighbors;
   vtxid_bag_type out_neighbors;
   
-  vtxid_type get_in_neighbor(vtxid_type j) const {
-    return in_neighbors[j];
-  }
+    vtxid_type get_in_neighbor(vtxid_type j) const {
+        return in_neighbors[2 * j];
+    }
+    vtxid_type get_in_neighbor_weight(vtxid_type j) const {
+        return in_neighbors[2 * j + 1];
+    }
+    
   
   vtxid_type get_out_neighbor(vtxid_type j) const {
-    return out_neighbors[j];
+    return out_neighbors[2 * j];
   }
-  
-  vtxid_type* get_in_neighbors() const {
-    return in_neighbors.data();
-  }
-  
-  vtxid_type* get_out_neighbors() const {
-    return out_neighbors.data();
-  }
+    
+    vtxid_type get_out_neighbor_weight(vtxid_type j) const {
+        return out_neighbors[2 * j + 1];
+    }
+
   
   void set_in_neighbor(vtxid_type j, vtxid_type nbr) {
-    in_neighbors[j] = nbr;
+    in_neighbors[2 * j] = nbr;
   }
   
   void set_out_neighbor(vtxid_type j, vtxid_type nbr) {
-    out_neighbors[j] = nbr;
+    out_neighbors[2 * j] = nbr;
   }
   
   vtxid_type get_in_degree() const {
-    return vtxid_type(in_neighbors.size());
+    return vtxid_type(in_neighbors.size() / 2);
   }
   
   vtxid_type get_out_degree() const {
-    return vtxid_type(out_neighbors.size());
-  }
-  
-  void set_in_degree(vtxid_type j) {
-    in_neighbors.alloc(j);
-  }
-  
-  void set_out_degree(vtxid_type j) {
-    out_neighbors.alloc(j);
-  }
-  
-  void swap_in_neighbors(vtxid_bag_type& other) {
-    in_neighbors.swap(other);
-  }
-  
-  void swap_out_neighbors(vtxid_bag_type& other) {
-    out_neighbors.swap(other);
-  }
+    return vtxid_type(out_neighbors.size() / 2);
+  }  
   
   void check(vtxid_type nb_vertices) const {
-    for (vtxid_type i = 0; i < in_neighbors.size(); i++)
+    for (vtxid_type i = 0; i < in_neighbors.size(); i += 2)
       check_vertex(in_neighbors[i], nb_vertices);
-    for (vtxid_type i = 0; i < out_neighbors.size(); i++)
+    for (vtxid_type i = 0; i < out_neighbors.size(); i += 2)
       check_vertex(out_neighbors[i], nb_vertices);
   }
   
@@ -257,13 +247,16 @@ public:
   typedef Vertex_id vtxid_type;
   typedef size_t size_type;
   typedef data::pointer_seq<vtxid_type> vertex_seq_type;
-  typedef symmetric_vertex<vertex_seq_type> value_type;
+  typedef asymmetric_vertex<vertex_seq_type> value_type;
   typedef flat_adjlist_seq<vtxid_type, true> alias_type;
   
   char* underlying_array;
-  vtxid_type* offsets;
+    vtxid_type* offsets;
+    vtxid_type* offsets_in;
   vtxid_type nb_offsets;
-  vtxid_type* edges;
+    vtxid_type* edges;
+    vtxid_type* edges_in;
+    
   
   flat_adjlist_seq()
   : underlying_array(NULL), offsets(NULL),
@@ -309,16 +302,24 @@ public:
     edges = NULL;
   }
   
-  vtxid_type degree(vtxid_type v) const {
-    assert(v >= 0);
-    assert(v < size());
-    return offsets[v + 1] - offsets[v];
-  }
+    vtxid_type degree(vtxid_type v) const {
+        assert(v >= 0);
+        assert(v < size());
+        return offsets[v + 1] - offsets[v];
+    }
+    
+    vtxid_type degree_in(vtxid_type v) const {
+        assert(v >= 0);
+        assert(v < size());
+        return offsets_in[v + 1] - offsets_in[v];
+    }
+    
+    
   
   value_type operator[](vtxid_type ix) const {
     assert(ix >= 0);
     assert(ix < size());
-    return value_type(vertex_seq_type(&edges[offsets[ix]], degree(ix)));
+    return value_type(vertex_seq_type(&edges[offsets[ix]], degree(ix)), vertex_seq_type(&edges_in[offsets_in[ix]], degree_in(ix)));
   }
   
   vtxid_type size() const {
@@ -336,11 +337,15 @@ public:
     util::atomic::die("unsupported");
   }
   
-  void init(char* bytes, vtxid_type nb_vertices, edgeid_type nb_edges) {
+  void init(char* bytes, char* bytes_in, vtxid_type nb_vertices, edgeid_type nb_edges) {
     nb_offsets = nb_vertices + 1;
     underlying_array = bytes;
-    offsets = (vtxid_type*)bytes;
+      offsets = (vtxid_type*)bytes;
+      offsets_in = (vtxid_type*)bytes_in;
+      
     edges = &offsets[nb_offsets];
+      edges_in = &offsets_in[nb_offsets];
+      
   }
   
   value_type* data() {
