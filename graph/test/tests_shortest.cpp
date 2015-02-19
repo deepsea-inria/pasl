@@ -49,12 +49,12 @@ int main(int argc, char ** argv) {
             enabled_mask[i] = false;
         }
         enabled_mask[COMPLETE]      = false;
-        enabled_mask[BALANCED_TREE] = false;
+        enabled_mask[BALANCED_TREE] = true;
         enabled_mask[CHAIN]         = false;
         enabled_mask[STAR]          = false;
         enabled_mask[SQUARE_GRID]   = false;
-        enabled_mask[RANDOM_SPARSE] = true;
-        enabled_mask[RANDOM_DENSE]  = true;
+        enabled_mask[RANDOM_SPARSE] = false;
+        enabled_mask[RANDOM_DENSE]  = false;
         
 
         std::cout << "Generating graphs..." << std::endl;
@@ -64,8 +64,8 @@ int main(int argc, char ** argv) {
             generator_type which_generator;
             which_generator.ty = i;
             graph_by_type[i] = adjlist_type();
-            src_by_type[i] = generate(which_generator, 7000, graph_by_type[i]);
-//            std::cout << graph_by_type[i] << std::endl;
+            src_by_type[i] = generate(which_generator, 1000000, graph_by_type[i]);
+            std::cout << "Done generating " << graph_types[i] << " with default ";
             res_by_type[i] = bellman_ford_seq(graph_by_type[i], (int) src_by_type[i]);
         }
         std::cout << "DONE" << std::endl;
@@ -123,15 +123,15 @@ void help_test(int graph_type, Algo algo) {
     EXPECT_TRUE(same_arrays(graph_type, g.get_nb_vertices(), algo(g, src_by_type[graph_type]), res_by_type[graph_type]));
 }
 
-//// Seq1
-//TEST(Seq1, CompleteGraph)   {help_test(COMPLETE,        bellman_ford_seq<adjlist_seq_type>);}
-//TEST(Seq1, BalancedTree)    {help_test(BALANCED_TREE,   bellman_ford_seq<adjlist_seq_type>);}
-//TEST(Seq1, Chain)           {help_test(CHAIN,           bellman_ford_seq<adjlist_seq_type>);}
-//TEST(Seq1, SquareGrid)      {help_test(SQUARE_GRID,     bellman_ford_seq<adjlist_seq_type>);}
-//TEST(Seq1, Star)            {help_test(STAR,            bellman_ford_seq<adjlist_seq_type>);}
-//TEST(Seq1, RandomSparse)    {help_test(RANDOM_SPARSE,   bellman_ford_seq<adjlist_seq_type>);}
-//TEST(Seq1, RandomDense)     {help_test(RANDOM_DENSE,    bellman_ford_seq<adjlist_seq_type>);}
-//
+// Seq1
+TEST(Seq1, CompleteGraph)   {help_test(COMPLETE,        bellman_ford_seq<adjlist_seq_type>);}
+TEST(Seq1, BalancedTree)    {help_test(BALANCED_TREE,   bellman_ford_seq<adjlist_seq_type>);}
+TEST(Seq1, Chain)           {help_test(CHAIN,           bellman_ford_seq<adjlist_seq_type>);}
+TEST(Seq1, SquareGrid)      {help_test(SQUARE_GRID,     bellman_ford_seq<adjlist_seq_type>);}
+TEST(Seq1, Star)            {help_test(STAR,            bellman_ford_seq<adjlist_seq_type>);}
+TEST(Seq1, RandomSparse)    {help_test(RANDOM_SPARSE,   bellman_ford_seq<adjlist_seq_type>);}
+TEST(Seq1, RandomDense)     {help_test(RANDOM_DENSE,    bellman_ford_seq<adjlist_seq_type>);}
+
 //// Par1
 //TEST(Par1, CompleteGraph)   {help_test(COMPLETE,        bellman_ford_par1<adjlist_seq_type>);}
 //TEST(Par1, BalancedTree)    {help_test(BALANCED_TREE,   bellman_ford_par1<adjlist_seq_type>);}

@@ -299,17 +299,20 @@ namespace graph {
         return true;
     }
     
-    template <class Adjlist_alias, class Frontier>
+    template <class Adjlist_alias, class Frontier, class WeightedSeq, class DistFromParent>
     void process_vertices_par4(Adjlist_alias graph_alias,
                               std::atomic<bool>* visited,
                               Frontier& prev,
-                              Frontier& next) {
+                              Frontier& next,
+                              WeightedSeq& next_vertices,
+                              int * dists,
+                              DistFromParent& dists_from_parent ) {
         using vtxid_type = typename Adjlist_alias::vtxid_type;
         using size_type = typename Frontier::size_type;
         using edgelist_type = typename Frontier::edgelist_type;
         vtxid_type unknown = graph_constants<vtxid_type>::unknown_vtxid;
         auto cutoff = [] (Frontier& f) {
-            return f.nb_outedges() <= vtxid_type(1000);
+            return f.nb_outedges() <= vtxid_type(100000);
         };
         auto split = [] (Frontier& src, Frontier& dst) {
             assert(src.nb_outedges() > 1);
@@ -323,14 +326,62 @@ namespace graph {
         };
         sched::native::forkjoin(prev, next, cutoff, split, append, set_env, set_env,
                                 [&] (Frontier& prev, Frontier& next) {
-                                    prev.for_each_outedge([&] (vtxid_type other) {
-                                        if (try_to_set_visited(other, visited))
-                                            next.push_vertex_back(other);
-                                        // warning: always does DONT_PUSH_ZERO_ARITY_VERTICES
+                                    
+                                    prev.for_each_outedge([&] (vtxid_type from, vtxid_type to, vtxid_type weight) {
+//                                        std::cout << "Considering edge " << from << " " << to << " " << weight << std::endl;
+                                        
+                                        if (dists[to] > dists[from] + weight) {
+                                            if ((*dists_from_parent[to])[from] > dists[from] + weight)
+                                                (*dists_from_parent[to])[from] = dists[from] + weight;
+                                            if (try_to_set_visited(to, visited)) {
+                                                next.push_vertex_back(to);
+                                                next_vertices.push_back(to);
+                                            }
+                                        }
                                     });
+      
                                     prev.clear();
                                 });
     }
+
+    template <class Adjlist, class WeightedSeq, class DistFromParent>
+    void process_next_vert(Adjlist&  graph,
+                           std::atomic<bool>* visited,
+                               WeightedSeq& next_vertices,
+                               int * dists,
+                               DistFromParent& dists_from_parent ) {
+        using vtxid_type = typename Adjlist::vtxid_type;
+        if (next_vertices.get_cached() < 100000) {
+            next_vertices.for_each([&] (vtxid_type vertex) {
+                visited[vertex] = false;
+                long degree = graph.adjlists[vertex].get_in_degree();
+                for (int edge = 0; edge < degree; edge++) {
+                    long from = graph.adjlists[vertex].get_in_neighbor(edge);
+                    if (dists[vertex] > (*dists_from_parent[vertex])[from]) {
+                        dists[vertex] = (*dists_from_parent[vertex])[from];
+                    }
+                }
+            });
+        } else {
+//            std::cout << "Deg of first" <<  << std::endl;
+            
+//            std::cout << next_vertices.size() << " ";
+            
+            WeightedSeq other;
+            int nb = *(next_vertices.begin());
+            nb = next_vertices.get_cached() / 2;
+            next_vertices.split([nb] (vtxid_type n) { return nb <= n; }, other);
+            
+//            std::cout << next_vertices.size() << " ";
+//            std::cout << other.size() << std::endl;
+
+            sched::native::fork2([&] { process_next_vert(graph, visited, next_vertices, dists, dists_from_parent); },
+                                 [&] { process_next_vert(graph, visited, other, dists, dists_from_parent); });
+            
+        }
+    }
+    
+    
     
     template <class Graph, class SizeType, class VertexIdType>
     class graph_env {
@@ -397,12 +448,12 @@ namespace graph {
         fill_array_par(visited, nb_vertices, false);
         int steps = 0;
         while (! frontiers[cur].empty()) {
-            print_dists(nb_vertices, dists);
+//            print_dists(nb_vertices, dists);
             next_vertices.clear();
             steps++;
-            if (frontiers[cur].nb_outedges() <= 10000) {
+            if (frontiers[cur].nb_outedges() <= 100000) {
                 frontiers[cur].for_each_outedge_when_front_and_back_empty([&] (vtxid_type from, vtxid_type to, vtxid_type weight) {
-                    std::cout << "Considering edge " << from << " " << to << " " << weight << std::endl;
+//                    std::cout << "Considering edge " << from << " " << to << " " << weight << std::endl;
 
                     if (dists[to] > dists[from] + weight) {
                         if ((*dists_from_parent[to])[from] > dists[from] + weight)
@@ -415,23 +466,9 @@ namespace graph {
                 });
                 frontiers[cur].clear_when_front_and_back_empty();
             } else {
-                process_vertices_par4(graph_alias, visited, frontiers[cur], frontiers[nxt]);
+                process_vertices_par4(graph_alias, visited, frontiers[cur], frontiers[nxt], next_vertices, dists, dists_from_parent);
             }
-            std::cout << "In next vertices : ";
-            next_vertices.for_each([&] (vtxid_type vertex) {
-                std::cout << vertex << " " ;
-                long degree = graph.adjlists[vertex].get_in_degree();
-                for (int edge = 0; edge < degree; edge++) {
-                    long from = graph.adjlists[vertex].get_in_neighbor(edge);
-                    if (dists[vertex] > (*dists_from_parent[vertex])[from]) {
-                        dists[vertex] = (*dists_from_parent[vertex])[from];
-                    }
-                }
-                
-                visited[vertex] = false;
-            });
-            
-            std::cout << std::endl;
+            process_next_vert(graph, visited, next_vertices, dists, dists_from_parent);
             cur = 1 - cur;
             nxt = 1 - nxt;
         }
