@@ -51,10 +51,10 @@ namespace graph {
     /*---------------------------------------------------------------------*/
     /*---------------------------------------------------------------------*/
     /*---------------------------------------------------------------------*/
-    /* Bellman-Ford; serial */
+    /* Bellman-Ford; serial classic */
     /*---------------------------------------------------------------------*/
     template <class Adjlist_seq>
-    int* bellman_ford_seq(const adjlist<Adjlist_seq>& graph,
+    int* bellman_ford_seq_classic(const adjlist<Adjlist_seq>& graph,
                             typename adjlist<Adjlist_seq>::vtxid_type source) {
         using vtxid_type = typename adjlist<Adjlist_seq>::vtxid_type;
         int inf_dist = shortest_path_constants<int>::inf_dist;
@@ -86,6 +86,48 @@ namespace graph {
         }
         std::cout << "Rounds : " << steps << std::endl;
         
+        return normalize(graph, dists);
+    }
+    
+    /*---------------------------------------------------------------------*/
+    /*---------------------------------------------------------------------*/
+    /*---------------------------------------------------------------------*/
+    /* Bellman-Ford; serial bfs */
+    /*---------------------------------------------------------------------*/
+    template <class Adjlist_seq>
+    int* bellman_ford_seq_bfs(const adjlist<Adjlist_seq>& graph,
+                          typename adjlist<Adjlist_seq>::vtxid_type source) {
+        
+        using vtxid_type = typename adjlist<Adjlist_seq>::vtxid_type;
+        int inf_dist = shortest_path_constants<int>::inf_dist;
+        vtxid_type nb_vertices = graph.get_nb_vertices();
+        int* dists = data::mynew_array<int>(nb_vertices);
+        
+        fill_array_seq(dists, nb_vertices, inf_dist);
+        
+        dists[source] = 0;
+
+        
+        LOG_BASIC(ALGO_PHASE);
+        std::queue<vtxid_type> queue;
+        queue.push(source);
+        int steps = 0;
+        while (!queue.empty()) {
+            steps++;
+            vtxid_type from = queue.front();
+            queue.pop();
+            vtxid_type degree = graph.adjlists[from].get_out_degree();
+            for (vtxid_type edge = 0; edge < degree; edge++) {
+                vtxid_type other = graph.adjlists[from].get_out_neighbor(edge);
+                vtxid_type w = graph.adjlists[from].get_out_neighbor_weight(edge);
+                
+                if (dists[other] > dists[from] + w) {
+                    queue.push(other);
+                    dists[other] = dists[from] + w;
+                }
+            }
+        }
+        std::cout << "Rounds : " << steps << std::endl;
         return normalize(graph, dists);
     }
     

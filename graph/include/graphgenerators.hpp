@@ -382,7 +382,39 @@ void generate_randlocal(typename Edge_bag::value_type::vtxid_type dim,
   dst.nb_vertices = num_rows;
   dst.check();
 }
+    
+    template <class Edge_bag>
+    void generate_custom_graph_by_nb_edges(edgeid_type tgt_nb_edges, edgelist<Edge_bag>& dst, double fraction, double avg_degree) {
+        using edgelist_type = edgelist<Edge_bag>;
+        using edge_bag_type = Edge_bag;
+        using vtxid_type = typename edge_bag_type::value_type::vtxid_type;
+        using edge_type = typename edgelist_type::edge_type;
+        dst.edges.alloc(tgt_nb_edges);
+        vtxid_type nb_vertices;
+        nb_vertices = tgt_nb_edges / avg_degree;
+        nb_vertices = std::max(vtxid_type(3), nb_vertices);
+        int num_less = (int) tgt_nb_edges * fraction;
+        int cur_less = 0;
+        for (int i = 0; i < tgt_nb_edges; ++i) {
+            vtxid_type from = rand() % nb_vertices;
+            vtxid_type to = rand() % nb_vertices;
+            
+            while (from == to)
+                to = rand() % nb_vertices;
+            
+            if (cur_less <= num_less) {
+                cur_less++;
+                if (from > to) std::swap(from, to);
+            } else {
+                if (from < to) std::swap(from, to);
+            }
+            dst.edges[i] = edge_type(from, to);
+        };
+        dst.nb_vertices = nb_vertices;
+        dst.check();
+    }
 
+    
 template <class Edge_bag>
 void generate_randlocal_by_nb_edges(edgeid_type tgt_nb_edges, edgelist<Edge_bag>& dst, bool is_sparse) {
     using edgelist_type = edgelist<Edge_bag>;
@@ -580,11 +612,11 @@ void generate_unbalanced_tree(typename edgelist<Edge_bag>::vtxid_type depth_of_t
 enum { BALANCED_TREE,
        COMPLETE, PHASED, PARALLEL_PATHS, RMAT, 
 	 SQUARE_GRID, CUBE_GRID, CHAIN, STAR,
-       RANDOM_SPARSE, RANDOM_DENSE,
+       RANDOM_SPARSE, RANDOM_DENSE, RANDOM_CUSTOM,
   NB_GENERATORS };
     
 std::string const graph_types[] = {"BalancedTree", "Complete", "Phased", "ParallelPaths", "RMAT", "SquareGrid",
-    "CubeGrid", "Chain", "Star", "RandomSparse", "RandomDense"};
+    "CubeGrid", "Chain", "Star", "RandomSparse", "RandomDense", "RandomCustom"};
 
 class generator_type {
 public:
@@ -601,11 +633,14 @@ static inline void generate(generator_type& ty) {
 template <class Edge_bag>
 void generate(edgeid_type& tgt_nb_edges,
               generator_type& which_generator,
-              edgelist<Edge_bag>& graph) {
+              edgelist<Edge_bag>& graph,
+              double fraction = -1,
+              double avg_degree = -1) {
   using vtxid_type = typename Edge_bag::value_type::vtxid_type;
   using edge_type = edge<vtxid_type>;
   using edgelist_bag_type = Edge_bag;
   using edgelist_type = edgelist<edgelist_bag_type>;
+
   switch (which_generator.ty) {
     case COMPLETE: {
       generate_complete_graph_by_nb_edges(tgt_nb_edges, graph);
@@ -647,10 +682,15 @@ void generate(edgeid_type& tgt_nb_edges,
       generate_randlocal_by_nb_edges(tgt_nb_edges, graph, true);
       break;
     }
-    case RANDOM_DENSE: {
-      generate_randlocal_by_nb_edges(tgt_nb_edges, graph, false);
-      break;
-    }
+      case RANDOM_DENSE: {
+          generate_randlocal_by_nb_edges(tgt_nb_edges, graph, false);
+          break;
+      }
+      case RANDOM_CUSTOM: {
+          generate_custom_graph_by_nb_edges(tgt_nb_edges, graph, fraction, avg_degree);
+          break;
+      }
+          
           
     default: {
       util::atomic::die("unknown graph type %d",which_generator.ty);

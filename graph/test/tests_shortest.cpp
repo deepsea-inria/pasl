@@ -15,16 +15,19 @@ using namespace pasl::graph;
 using namespace pasl::data;
 
 template <class Adjlist_seq>
-int generate(generator_type& which_generator, size_t _tgt_nb_edges, adjlist<Adjlist_seq>& graph) {
+int generate(generator_type& which_generator, size_t _tgt_nb_edges, adjlist<Adjlist_seq>& graph,
+             double fraction = -1,
+             double avg_degree = -1,
+             bool need_shuffle = true) {
     using vtxid_type = typename adjlist<Adjlist_seq>::vtxid_type;
     using edge_type = wedge<vtxid_type>;
     using edgelist_bag_type = pasl::data::array_seq<edge_type>;
     using edgelist_type = edgelist<edgelist_bag_type>;
     edgelist_type edg;
-    generate(_tgt_nb_edges, which_generator, edg);
+    generate(_tgt_nb_edges, which_generator, edg, fraction, avg_degree);
     std::vector<int> map_vector;
     for (int i = 0; i < edg.nb_vertices; ++i) map_vector.push_back(i);
-    std::random_shuffle ( map_vector.begin(), map_vector.end() );
+    if (fraction == -1 && need_shuffle) std::random_shuffle ( map_vector.begin(), map_vector.end() );
     for (edgeid_type i = 0; i < edg.edges.size(); i++) {
         edg.edges[i].dst = map_vector[edg.edges[i].dst];
         edg.edges[i].src = map_vector[edg.edges[i].src];
@@ -49,12 +52,14 @@ int main(int argc, char ** argv) {
             enabled_mask[i] = false;
         }
         enabled_mask[COMPLETE]      = false;
-        enabled_mask[BALANCED_TREE] = true;
+        enabled_mask[BALANCED_TREE] = false;
         enabled_mask[CHAIN]         = false;
         enabled_mask[STAR]          = false;
         enabled_mask[SQUARE_GRID]   = false;
         enabled_mask[RANDOM_SPARSE] = false;
         enabled_mask[RANDOM_DENSE]  = false;
+        enabled_mask[RANDOM_CUSTOM] = true;
+        
         
 
         std::cout << "Generating graphs..." << std::endl;
@@ -64,9 +69,26 @@ int main(int argc, char ** argv) {
             generator_type which_generator;
             which_generator.ty = i;
             graph_by_type[i] = adjlist_type();
-            src_by_type[i] = generate(which_generator, 1000000, graph_by_type[i]);
-            std::cout << "Done generating " << graph_types[i] << " with default ";
-            res_by_type[i] = bellman_ford_seq(graph_by_type[i], (int) src_by_type[i]);
+            if (i == RANDOM_CUSTOM) {
+                src_by_type[i] = generate(which_generator, 1000000, graph_by_type[i], 0.2, 20);
+            } else {
+                src_by_type[i] = generate(which_generator, 10000, graph_by_type[i]);
+            }
+            std::cout << "Done generating " << graph_types[i] << " with ";
+            
+            vtxid_type nb_vertices = graph_by_type[i].get_nb_vertices();
+            int num_less = 0, num_edges = graph_by_type[i].nb_edges;
+            for (size_t from = 0; from < nb_vertices; from++) {
+                vtxid_type degree = graph_by_type[i].adjlists[from].get_out_degree();
+                for (vtxid_type edge = 0; edge < degree; edge++) {
+                    vtxid_type to = graph_by_type[i].adjlists[from].get_out_neighbor(edge);
+                    if (from < to) num_less++;
+                }
+            }
+            std::cout << "Fraction = " << (.0 + num_less) / num_edges << " ";
+            std::cout << "AvgDegree = " << (.0 + num_edges) / nb_vertices << " ";
+            
+            res_by_type[i] = bellman_ford_seq_classic(graph_by_type[i], (int) src_by_type[i]);
         }
         std::cout << "DONE" << std::endl;
     };
@@ -123,14 +145,26 @@ void help_test(int graph_type, Algo algo) {
     EXPECT_TRUE(same_arrays(graph_type, g.get_nb_vertices(), algo(g, src_by_type[graph_type]), res_by_type[graph_type]));
 }
 
-// Seq1
-TEST(Seq1, CompleteGraph)   {help_test(COMPLETE,        bellman_ford_seq<adjlist_seq_type>);}
-TEST(Seq1, BalancedTree)    {help_test(BALANCED_TREE,   bellman_ford_seq<adjlist_seq_type>);}
-TEST(Seq1, Chain)           {help_test(CHAIN,           bellman_ford_seq<adjlist_seq_type>);}
-TEST(Seq1, SquareGrid)      {help_test(SQUARE_GRID,     bellman_ford_seq<adjlist_seq_type>);}
-TEST(Seq1, Star)            {help_test(STAR,            bellman_ford_seq<adjlist_seq_type>);}
-TEST(Seq1, RandomSparse)    {help_test(RANDOM_SPARSE,   bellman_ford_seq<adjlist_seq_type>);}
-TEST(Seq1, RandomDense)     {help_test(RANDOM_DENSE,    bellman_ford_seq<adjlist_seq_type>);}
+// SeqClassic
+TEST(SeqClassic, CompleteGraph)   {help_test(COMPLETE,        bellman_ford_seq_classic<adjlist_seq_type>);}
+TEST(SeqClassic, BalancedTree)    {help_test(BALANCED_TREE,   bellman_ford_seq_classic<adjlist_seq_type>);}
+TEST(SeqClassic, Chain)           {help_test(CHAIN,           bellman_ford_seq_classic<adjlist_seq_type>);}
+TEST(SeqClassic, SquareGrid)      {help_test(SQUARE_GRID,     bellman_ford_seq_classic<adjlist_seq_type>);}
+TEST(SeqClassic, Star)            {help_test(STAR,            bellman_ford_seq_classic<adjlist_seq_type>);}
+TEST(SeqClassic, RandomSparse)    {help_test(RANDOM_SPARSE,   bellman_ford_seq_classic<adjlist_seq_type>);}
+TEST(SeqClassic, RandomDense)     {help_test(RANDOM_DENSE,    bellman_ford_seq_classic<adjlist_seq_type>);}
+TEST(SeqClassic, RandomCustom)    {help_test(RANDOM_CUSTOM,   bellman_ford_seq_classic<adjlist_seq_type>);}
+
+
+// SeqBfs
+TEST(SeqBfs, CompleteGraph)   {help_test(COMPLETE,        bellman_ford_seq_bfs<adjlist_seq_type>);}
+TEST(SeqBfs, BalancedTree)    {help_test(BALANCED_TREE,   bellman_ford_seq_bfs<adjlist_seq_type>);}
+TEST(SeqBfs, Chain)           {help_test(CHAIN,           bellman_ford_seq_bfs<adjlist_seq_type>);}
+TEST(SeqBfs, SquareGrid)      {help_test(SQUARE_GRID,     bellman_ford_seq_bfs<adjlist_seq_type>);}
+TEST(SeqBfs, Star)            {help_test(STAR,            bellman_ford_seq_bfs<adjlist_seq_type>);}
+TEST(SeqBfs, RandomSparse)    {help_test(RANDOM_SPARSE,   bellman_ford_seq_bfs<adjlist_seq_type>);}
+TEST(SeqBfs, RandomDense)     {help_test(RANDOM_DENSE,    bellman_ford_seq_bfs<adjlist_seq_type>);}
+TEST(SeqBfs, RandomCustom)    {help_test(RANDOM_CUSTOM,   bellman_ford_seq_bfs<adjlist_seq_type>);}
 
 //// Par1
 //TEST(Par1, CompleteGraph)   {help_test(COMPLETE,        bellman_ford_par1<adjlist_seq_type>);}
@@ -150,12 +184,12 @@ TEST(Seq1, RandomDense)     {help_test(RANDOM_DENSE,    bellman_ford_seq<adjlist
 //TEST(Par2, RandomSparse)    {help_test(RANDOM_SPARSE,   bellman_ford_par2<adjlist_seq_type>);}
 //TEST(Par2, RandomDense)     {help_test(RANDOM_DENSE,    bellman_ford_par2<adjlist_seq_type>);}
 
-// Par4
-TEST(Par4, CompleteGraph)   {help_test(COMPLETE,        bellman_ford_par4<adjlist_seq_type>);}
-TEST(Par4, BalancedTree)    {help_test(BALANCED_TREE,   bellman_ford_par4<adjlist_seq_type>);}
-TEST(Par4, Chain)           {help_test(CHAIN,           bellman_ford_par4<adjlist_seq_type>);}
-TEST(Par4, SquareGrid)      {help_test(SQUARE_GRID,     bellman_ford_par4<adjlist_seq_type>);}
-TEST(Par4, Star)            {help_test(STAR,            bellman_ford_par4<adjlist_seq_type>);}
-TEST(Par4, RandomSparse)    {help_test(RANDOM_SPARSE,   bellman_ford_par4<adjlist_seq_type>);}
-TEST(Par4, RandomDense)     {help_test(RANDOM_DENSE,    bellman_ford_par4<adjlist_seq_type>);}
+//// Par4
+//TEST(Par4, CompleteGraph)   {help_test(COMPLETE,        bellman_ford_par4<adjlist_seq_type>);}
+//TEST(Par4, BalancedTree)    {help_test(BALANCED_TREE,   bellman_ford_par4<adjlist_seq_type>);}
+//TEST(Par4, Chain)           {help_test(CHAIN,           bellman_ford_par4<adjlist_seq_type>);}
+//TEST(Par4, SquareGrid)      {help_test(SQUARE_GRID,     bellman_ford_par4<adjlist_seq_type>);}
+//TEST(Par4, Star)            {help_test(STAR,            bellman_ford_par4<adjlist_seq_type>);}
+//TEST(Par4, RandomSparse)    {help_test(RANDOM_SPARSE,   bellman_ford_par4<adjlist_seq_type>);}
+//TEST(Par4, RandomDense)     {help_test(RANDOM_DENSE,    bellman_ford_par4<adjlist_seq_type>);}
 
