@@ -51,9 +51,13 @@ void adjlist_from_edgelist(const edgelist<Edge_bag>& edg, adjlist<flat_adjlist_s
     
     data::array_seq<vtxid_type> degrees;
     data::array_seq<vtxid_type> degrees_in;
+    data::array_seq<vtxid_type> degrees_help;
+    data::array_seq<vtxid_type> degrees_in_help;
     
     degrees.alloc(nb_vertices);
     degrees_in.alloc(nb_vertices);
+    degrees_help.alloc(nb_vertices);
+    degrees_in_help.alloc(nb_vertices);
     
     for (vtxid_type i = 0; i < nb_vertices; i++) {
         degrees[i] = 0;
@@ -72,6 +76,8 @@ void adjlist_from_edgelist(const edgelist<Edge_bag>& edg, adjlist<flat_adjlist_s
     for (vtxid_type i = 1; i < nb_offsets; i++)
         offsets_in[i] = offsets_in[i - 1] + 2 * degrees_in[i - 1];
     for (vtxid_type i = 0; i < nb_vertices; i++) {
+        degrees_help[i] =degrees[i];
+        degrees_in_help[i] = degrees_in[i];
         degrees[i] = 0;
         degrees_in[i] = 0;
         
@@ -79,15 +85,18 @@ void adjlist_from_edgelist(const edgelist<Edge_bag>& edg, adjlist<flat_adjlist_s
     
   for (edgeid_type i = 0; i < edg.edges.size(); i++) {
     edge_type e = edg.edges[i];
-    vtxid_type cnt = degrees[e.src];
-      edges[offsets[e.src] + 2 * cnt] = e.dst;
-      edges[offsets[e.src] + 2 * cnt + 1] = e.w;
+      vtxid_type cnt = degrees[e.src];
+      vtxid_type cnt_final = degrees_help[e.src];
+      edges[offsets[e.src] + cnt] = e.dst;
+      edges[offsets[e.src] + cnt + cnt_final] = e.w;
       
     degrees[e.src]++;
 
       vtxid_type cnt_in = degrees_in[e.dst];
-      edges_in[offsets_in[e.dst] + 2 * cnt_in] = e.src;
-      edges_in[offsets_in[e.dst] + 2 * cnt_in + 1] = e.w;
+      vtxid_type cnt_in_final = degrees_in_help[e.dst];
+
+      edges_in[offsets_in[e.dst] + cnt_in] = e.src;
+      edges_in[offsets_in[e.dst] + cnt_in + cnt_in_final] = e.w;
       degrees_in[e.dst]++;
   }
     

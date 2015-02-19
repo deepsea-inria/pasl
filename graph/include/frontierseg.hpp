@@ -359,14 +359,14 @@ public:
 
   template <class Body>
   void for_each_edgelist_when_front_and_back_empty(const Body& func) const {
-    m.for_each([&] (vtxid_type v) { func(create_edgelist(v)); });
+    m.for_each([&] (vtxid_type v) { func(v, create_edgelist(v)); });
   }
   
   template <class Body>
   void for_each_outedge_when_front_and_back_empty(const Body& func) const {
-    for_each_edgelist_when_front_and_back_empty([&] (edgelist_type edges) {
+    for_each_edgelist_when_front_and_back_empty([&] (vtxid_type from, edgelist_type edges) {
       for (auto e = edges.lo; e < edges.hi; e++)
-        func(*e);
+        func(from, *e, *(e + edges.size()));
     });
   }
 
@@ -470,7 +470,7 @@ using chunkedstack = data::chunkedseq::bootstrapped::stack<Vertex, chunk_capacit
 
 template <class Graph>
 using frontiersegbag = frontiersegbase::frontiersegbase<Graph, frontiersegbase::chunkedbag>;
-  
+    
 template <class Graph>
 using frontiersegstack = frontiersegbase::frontiersegbase<Graph, frontiersegbase::chunkedstack>;
 

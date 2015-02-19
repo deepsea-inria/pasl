@@ -384,11 +384,29 @@ void generate_randlocal(typename Edge_bag::value_type::vtxid_type dim,
 }
 
 template <class Edge_bag>
-void generate_randlocal_by_nb_edges(edgeid_type tgt_nb_edges, edgelist<Edge_bag>& dst) {
-  using vtxid_type = typename Edge_bag::value_type::vtxid_type;
-  edgeid_type degree = 8;
-  tgt_nb_edges = std::min(degree, tgt_nb_edges);
-  generate_randlocal(10, degree, tgt_nb_edges, dst);
+void generate_randlocal_by_nb_edges(edgeid_type tgt_nb_edges, edgelist<Edge_bag>& dst, bool is_sparse) {
+    using edgelist_type = edgelist<Edge_bag>;
+    using edge_bag_type = Edge_bag;
+    using vtxid_type = typename edge_bag_type::value_type::vtxid_type;
+    using edge_type = typename edgelist_type::edge_type;
+    dst.edges.alloc(tgt_nb_edges);
+    vtxid_type nb_vertices;
+    if (is_sparse) {
+        nb_vertices = tgt_nb_edges / 10;
+    } else {
+        nb_vertices = ((vtxid_type)sqrt(tgt_nb_edges)) * 3;
+    }
+    nb_vertices = std::max(vtxid_type(3), nb_vertices);
+
+    sched::native::parallel_for(edgeid_type(0), tgt_nb_edges, [&] (edgeid_type i) {
+        vtxid_type from = rand() % nb_vertices;
+        vtxid_type to = rand() % nb_vertices;
+        while (from == to)
+            to = rand() % nb_vertices;
+        dst.edges[i] = edge_type(from, to);
+    });
+    dst.nb_vertices = nb_vertices;
+    dst.check();
 }
   
 template <class Edge_bag>
@@ -562,8 +580,11 @@ void generate_unbalanced_tree(typename edgelist<Edge_bag>::vtxid_type depth_of_t
 enum { BALANCED_TREE,
        COMPLETE, PHASED, PARALLEL_PATHS, RMAT, 
 	 SQUARE_GRID, CUBE_GRID, CHAIN, STAR,
-       //RANDOM,
+       RANDOM_SPARSE, RANDOM_DENSE,
   NB_GENERATORS };
+    
+std::string const graph_types[] = {"BalancedTree", "Complete", "Phased", "ParallelPaths", "RMAT", "SquareGrid",
+    "CubeGrid", "Chain", "Star", "RandomSparse", "RandomDense"};
 
 class generator_type {
 public:
@@ -622,11 +643,15 @@ void generate(edgeid_type& tgt_nb_edges,
       generate_balanced_tree(tgt_nb_edges, graph);
       break;
     }
- /*
-    case RANDOM: {
-      generate_randlocal_by_nb_edges(tgt_nb_edges, graph);
+    case RANDOM_SPARSE: {
+      generate_randlocal_by_nb_edges(tgt_nb_edges, graph, true);
       break;
-    } */
+    }
+    case RANDOM_DENSE: {
+      generate_randlocal_by_nb_edges(tgt_nb_edges, graph, false);
+      break;
+    }
+          
     default: {
       util::atomic::die("unknown graph type %d",which_generator.ty);
     }

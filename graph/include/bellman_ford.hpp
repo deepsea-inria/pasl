@@ -13,6 +13,41 @@
 namespace pasl {
 namespace graph {
 
+    void print_dists(int size, int * dist) {
+        for (int i = 0; i < size; i++) {
+            std::cout << dist[i] << " ";
+        }
+        std::cout << std::endl;
+    }
+    
+    /*---------------------------------------------------------------------*/
+    /*---------------------------------------------------------------------*/
+    /*---------------------------------------------------------------------*/
+    /* Normalize -inf; serial */
+    /*---------------------------------------------------------------------*/
+    template <class Adjlist_seq>
+    int* normalize(const adjlist<Adjlist_seq>& graph, int * dists) {
+        using vtxid_type = typename adjlist<Adjlist_seq>::vtxid_type;
+        vtxid_type nb_vertices = graph.get_nb_vertices();
+//        print_dists(nb_vertices, dists);
+
+        for (size_t i = 0; i < nb_vertices; i++) {
+            vtxid_type degree = graph.adjlists[i].get_out_degree();
+            for (vtxid_type edge = 0; edge < degree; edge++) {
+                vtxid_type other = graph.adjlists[i].get_out_neighbor(edge);
+                vtxid_type w = graph.adjlists[i].get_out_neighbor_weight(edge);
+                
+                if (dists[other] > dists[i] + w) {
+                    dists[other] = shortest_path_constants<int>::minus_inf_dist;
+                }
+            }
+        }
+//        print_dists(nb_vertices, dists);
+
+        return dists;
+    }
+    
+    
     /*---------------------------------------------------------------------*/
     /*---------------------------------------------------------------------*/
     /*---------------------------------------------------------------------*/
@@ -31,7 +66,9 @@ namespace graph {
         dists[source] = 0;
         
         LOG_BASIC(ALGO_PHASE);
+        int steps = 0;
         for (size_t step = 0; step < nb_vertices; step++) {
+            steps++;
             bool changed = false;
             for (size_t i = 0; i < nb_vertices; i++) {
                 vtxid_type degree = graph.adjlists[i].get_out_degree();
@@ -47,7 +84,9 @@ namespace graph {
             }
             if (!changed) break;
         }
-        return dists;
+        std::cout << "Rounds : " << steps << std::endl;
+        
+        return normalize(graph, dists);
     }
     
     /*---------------------------------------------------------------------*/
@@ -69,12 +108,16 @@ namespace graph {
         LOG_BASIC(ALGO_PHASE);
         bool changed = false;
 
+        int steps = 0;
         for (int i = 0; i < nb_vertices; i++) {
+            steps++;
             changed = false;
             process_vertices_par1(graph, dists, 0, nb_vertices, changed);
             if (!changed) break;
         }
-        return dists;
+        std::cout << "Rounds : " << steps << std::endl;
+
+        return normalize(graph, dists);
     }
     
     template <class Adjlist_seq>
@@ -103,9 +146,10 @@ namespace graph {
     void process_vertices_par1(const adjlist<Adjlist_seq>& graph,
                             int* dists, int start, int stop, bool& changed) {
         int nb = stop - start;
-        if (nb < 3) {
+        if (nb < 100000) {
             process_vertices_seq(graph, dists, start, stop, changed);
         } else {
+//            std::cout << "Fork" << std::endl;
             int mid = (start + stop) / 2;
             sched::native::fork2([&] { process_vertices_par1(graph,  dists, start, mid, changed); },
                                  [&] { process_vertices_par1(graph,  dists, mid, stop, changed); });
@@ -132,20 +176,31 @@ namespace graph {
         LOG_BASIC(ALGO_PHASE);
         int* pref_sum = data::mynew_array<int>(nb_vertices + 1);
         pref_sum[0] = 0;
+
         for (int i = 1; i < nb_vertices + 1; i++) {
             pref_sum[i] = pref_sum[i - 1] + graph.adjlists[i - 1].get_in_degree();
         }
         
-        for (int i = 0; i < nb_vertices; i++) process_vertices_par2(graph, dists, 0, nb_vertices, pref_sum);
-        return dists;
+        bool changed = false;
+        int steps = 0;
+
+        for (int i = 0; i < nb_vertices; i++) {
+            steps++;
+            changed = false;
+            process_vertices_par2(graph, dists, 0, nb_vertices, pref_sum, changed);
+            if (!changed) break;
+        }
+        std::cout << "Rounds : " << steps << std::endl;
+
+        return normalize(graph, dists);
     }
     
     template <class Adjlist_seq>
     void process_vertices_par2(const adjlist<Adjlist_seq>& graph,
-                               int * dists, int start, int stop, int * pref_sum) {
+                               int * dists, int start, int stop, int * pref_sum, bool & changed) {
         int nb_edges = pref_sum[stop] - pref_sum[start];
-        if (nb_edges < 1000000) {
-            process_vertices_seq(graph, dists, start, stop);
+        if (nb_edges < 100000) {
+            process_vertices_seq(graph, dists, start, stop, changed);
         } else {
             int mid_val = (pref_sum[start] + pref_sum[stop]) / 2;
             int left = start, right = stop;
@@ -158,8 +213,8 @@ namespace graph {
                 }
             }
             
-            sched::native::fork2([&] { process_vertices_par2(graph,  dists, start, left, pref_sum); },
-                                 [&] { process_vertices_par2(graph,  dists, left, stop, pref_sum); });
+            sched::native::fork2([&] { process_vertices_par2(graph,  dists, start, left, pref_sum, changed); },
+                                 [&] { process_vertices_par2(graph,  dists, left, stop, pref_sum, changed); });
             
         }
     }
@@ -235,259 +290,163 @@ namespace graph {
     /*---------------------------------------------------------------------*/
     /*---------------------------------------------------------------------*/
     /*---------------------------------------------------------------------*/
-    /* Breadth-first search of a graph in adjacency-list format; parallel */
-    
-    // Parallel BFS using Shardl and Leiserson's algorithm:
-    // Process each frontier by doing a parallel_for on the vertex ids
-    // from the frontier, and handling the edges of each vertex using
-    // a parallel_for.
-    
-    extern int ls_pbfs_cutoff;
-    extern int ls_pbfs_loop_cutoff;
-    
-    template <bool idempotent = false>
-    class ls_pbfs {
-    public:
-        
-        using self_type = ls_pbfs<idempotent>;
-        using idempotent_ls_pbfs = ls_pbfs<true>;
-        
-        //! \todo: move this to a common namespace
-        template <class Index, class Item>
-        static bool try_to_set_dist(Index target,
-                                    Item unknown, Item dist,
-                                    std::atomic<Item>* dists) {
-            if (dists[target].load(std::memory_order_relaxed) != unknown)
-                return false;
-            if (idempotent)
-                dists[target].store(dist, std::memory_order_relaxed);
-            else if (! dists[target].compare_exchange_strong(unknown, dist))
-                return false;
-            return true;
-        }
-        
-        template <class Adjlist_seq, class Frontier>
-        static void process_layer(const adjlist<Adjlist_seq>& graph,
-                                  std::atomic<typename adjlist<Adjlist_seq>::vtxid_type>* dists,
-                                  typename adjlist<Adjlist_seq>::vtxid_type dist_of_next,
-                                  typename adjlist<Adjlist_seq>::vtxid_type source,
-                                  Frontier& prev,
-                                  Frontier& next) {
-            using vtxid_type = typename adjlist<Adjlist_seq>::vtxid_type;
-            using size_type = typename Frontier::size_type;
-            vtxid_type unknown = graph_constants<vtxid_type>::unknown_vtxid;
-            auto cutoff = [] (Frontier& f) {
-                return f.size() <= vtxid_type(ls_pbfs_cutoff);
-            };
-            auto split = [] (Frontier& src, Frontier& dst) {
-                src.split_approximate(dst);
-            };
-            auto append = [] (Frontier& src, Frontier& dst) {
-                src.concat(dst);
-            };
-            sched::native::forkjoin(prev, next, cutoff, split, append, [&] (Frontier& prev, Frontier& next) {
-                prev.for_each([&] (vtxid_type vertex) {
-                    vtxid_type degree = graph.adjlists[vertex].get_out_degree();
-                    vtxid_type* neighbors = graph.adjlists[vertex].get_out_neighbors();
-                    data::pcontainer::combine(vtxid_type(0), degree, next, [&] (vtxid_type edge, Frontier& next) {
-                        vtxid_type other = neighbors[edge];
-                        if (try_to_set_dist(other, unknown, dist_of_next, dists)) {
-                            if (PUSH_ZERO_ARITY_VERTICES || graph.adjlists[other].get_out_degree() > 0)
-                                next.push_back(other);
-                        }
-                    }, ls_pbfs_loop_cutoff);
-                });
-                prev.clear();
-            });
-        }
-        
-        template <class Adjlist_seq, class Frontier>
-        static std::atomic<typename adjlist<Adjlist_seq>::vtxid_type>*
-        main(const adjlist<Adjlist_seq>& graph,
-             typename adjlist<Adjlist_seq>::vtxid_type source) {
-#ifdef GRAPH_SEARCH_STATS
-            peak_frontier_size = 0l;
-#endif
-            using vtxid_type = typename adjlist<Adjlist_seq>::vtxid_type;
-            using size_type = typename Frontier::size_type;
-            vtxid_type unknown = graph_constants<vtxid_type>::unknown_vtxid;
-            vtxid_type nb_vertices = graph.get_nb_vertices();
-            std::atomic<vtxid_type>* dists = data::mynew_array<std::atomic<vtxid_type>>(nb_vertices);
-            fill_array_par(dists, nb_vertices, unknown);
-            LOG_BASIC(ALGO_PHASE);
-            Frontier prev;
-            Frontier next;
-            vtxid_type dist = 0;
-            prev.push_back(source);
-            dists[source].store(dist);
-            while (! prev.empty()) {
-                dist++;
-                if (prev.size() <= ls_pbfs_cutoff)
-                    idempotent_ls_pbfs::process_layer(graph, dists, dist, source, prev, next);
-                else
-                    self_type::process_layer(graph, dists, dist, source, prev, next);
-                prev.swap(next);
-#ifdef GRAPH_SEARCH_STATS
-                peak_frontier_size = std::max((size_t)prev.size(), peak_frontier_size);
-#endif
-            }
-            return dists;
-        }
-        
-    };
-
-
+    /* Bellman-Ford; parallel 4 */
     /*---------------------------------------------------------------------*/
+    bool try_to_set_visited(int target, std::atomic<bool>* visited) {
+        bool uknown = false;
+        if (! visited[target].compare_exchange_strong(uknown, true))
+            return false;
+        return true;
+    }
     
-    // Parallel BFS using our frontier-segment-based algorithm:
-    // Process each frontier by doing a parallel_for on the set of
-    // outgoing edges, which is represented using our "frontier" data
-    // structures that supports splitting according to the nb of edges.
-    
-    int our_bfs_cutoff = 8;
-    
-    template <bool idempotent = false>
-    class our_bfs {
-    public:
-        
-        using self_type = our_bfs<idempotent>;
-        using idempotent_our_bfs = our_bfs<true>;
-        
-        template <class Adjlist_alias, class Frontier>
-        static void process_layer(Adjlist_alias graph_alias,
-                                  std::atomic<typename Adjlist_alias::vtxid_type>* dists,
-                                  typename Adjlist_alias::vtxid_type& dist_of_next,
-                                  typename Adjlist_alias::vtxid_type source,
-                                  Frontier& prev,
-                                  Frontier& next) {
-            using vtxid_type = typename Adjlist_alias::vtxid_type;
-            using size_type = typename Frontier::size_type;
-            using edgelist_type = typename Frontier::edgelist_type;
-            vtxid_type unknown = graph_constants<vtxid_type>::unknown_vtxid;
-            auto cutoff = [] (Frontier& f) {
-                return f.nb_outedges() <= vtxid_type(our_bfs_cutoff);
-            };
-            auto split = [] (Frontier& src, Frontier& dst) {
-                assert(src.nb_outedges() > 1);
-                src.split(src.nb_outedges() / 2, dst);
-            };
-            auto append = [] (Frontier& src, Frontier& dst) {
-                src.concat(dst);
-            };
-            auto set_env = [graph_alias] (Frontier& f) {
-                f.set_graph(graph_alias);
-            };
-            sched::native::forkjoin(prev, next, cutoff, split, append, set_env, set_env,
-                                    [&] (Frontier& prev, Frontier& next) {
-                                        prev.for_each_outedge([&] (vtxid_type other) {
-                                            if (ls_pbfs<idempotent>::try_to_set_dist(other, unknown, dist_of_next, dists))
-                                                next.push_vertex_back(other);
-                                            // warning: always does DONT_PUSH_ZERO_ARITY_VERTICES
-                                        });
-                                        prev.clear();
+    template <class Adjlist_alias, class Frontier>
+    void process_vertices_par4(Adjlist_alias graph_alias,
+                              std::atomic<bool>* visited,
+                              Frontier& prev,
+                              Frontier& next) {
+        using vtxid_type = typename Adjlist_alias::vtxid_type;
+        using size_type = typename Frontier::size_type;
+        using edgelist_type = typename Frontier::edgelist_type;
+        vtxid_type unknown = graph_constants<vtxid_type>::unknown_vtxid;
+        auto cutoff = [] (Frontier& f) {
+            return f.nb_outedges() <= vtxid_type(1000);
+        };
+        auto split = [] (Frontier& src, Frontier& dst) {
+            assert(src.nb_outedges() > 1);
+            src.split(src.nb_outedges() / 2, dst);
+        };
+        auto append = [] (Frontier& src, Frontier& dst) {
+            src.concat(dst);
+        };
+        auto set_env = [graph_alias] (Frontier& f) {
+            f.set_graph(graph_alias);
+        };
+        sched::native::forkjoin(prev, next, cutoff, split, append, set_env, set_env,
+                                [&] (Frontier& prev, Frontier& next) {
+                                    prev.for_each_outedge([&] (vtxid_type other) {
+                                        if (try_to_set_visited(other, visited))
+                                            next.push_vertex_back(other);
+                                        // warning: always does DONT_PUSH_ZERO_ARITY_VERTICES
                                     });
+                                    prev.clear();
+                                });
+    }
+    
+    template <class Graph, class SizeType, class VertexIdType>
+    class graph_env {
+    public:
+        
+        Graph g;
+        
+        graph_env() { }
+        graph_env(Graph g) : g(g) { }
+        
+        SizeType operator()(VertexIdType v) const {
+            return g.adjlists[v].get_in_degree();
         }
         
-        template <class Adjlist, class Frontier>
-        static std::atomic<typename Adjlist::vtxid_type>*
-        main(const Adjlist& graph,
-             typename Adjlist::vtxid_type source) {
-            using vtxid_type = typename Adjlist::vtxid_type;
-            using size_type = typename Frontier::size_type;
-            vtxid_type unknown = graph_constants<vtxid_type>::unknown_vtxid;
-            vtxid_type nb_vertices = graph.get_nb_vertices();
-            std::atomic<vtxid_type>* dists = data::mynew_array<std::atomic<vtxid_type>>(nb_vertices);
-            fill_array_par(dists, nb_vertices, unknown);
-            LOG_BASIC(ALGO_PHASE);
-            auto graph_alias = get_alias_of_adjlist(graph);
-            vtxid_type dist = 0;
-            dists[source].store(dist);
-            Frontier frontiers[2];
-            frontiers[0].set_graph(graph_alias);
-            frontiers[1].set_graph(graph_alias);
-            vtxid_type cur = 0; // either 0 or 1, depending on parity of dist
-            vtxid_type nxt = 1; // either 1 or 0, depending on parity of dist
-            frontiers[0].push_vertex_back(source);
-            while (! frontiers[cur].empty()) {
-                dist++;
-                if (frontiers[cur].nb_outedges() <= our_bfs_cutoff) {
-                    // idempotent_our_bfs::process_layer(graph_alias, dists, dist, source, prev, next);
-                    // idempotent_our_bfs::process_layer_sequentially(graph_alias, dists, dist, source, prev, next);
-                    frontiers[cur].for_each_outedge_when_front_and_back_empty([&] (vtxid_type other) {
-                        if (ls_pbfs<true>::try_to_set_dist(other, unknown, dist, dists))
-                            frontiers[nxt].push_vertex_back(other);
-                    });
-                    frontiers[cur].clear_when_front_and_back_empty();
-                } else {
-                    self_type::process_layer(graph_alias, dists, dist, source, frontiers[cur], frontiers[nxt]);
-                }
-                cur = 1 - cur;
-                nxt = 1 - nxt;
-            }
-            return dists;
-        }
-        
-        template <class Adjlist, class Frontier>
-        static std::atomic<typename Adjlist::vtxid_type>*
-        main_with_swap(const Adjlist& graph,
-                       typename Adjlist::vtxid_type source) {
-            using vtxid_type = typename Adjlist::vtxid_type;
-            using size_type = typename Frontier::size_type;
-            vtxid_type unknown = graph_constants<vtxid_type>::unknown_vtxid;
-            vtxid_type nb_vertices = graph.get_nb_vertices();
-            std::atomic<vtxid_type>* dists = data::mynew_array<std::atomic<vtxid_type>>(nb_vertices);
-            fill_array_par(dists, nb_vertices, unknown);
-            LOG_BASIC(ALGO_PHASE);
-            auto graph_alias = get_alias_of_adjlist(graph);
-            vtxid_type dist = 0;
-            dists[source].store(dist);
-            Frontier prev(graph_alias);
-            Frontier next(graph_alias);
-            prev.push_vertex_back(source);
-            while (! prev.empty()) {
-                dist++;
-                if (prev.nb_outedges() <= our_bfs_cutoff) {
-                    // idempotent_our_bfs::process_layer(graph_alias, dists, dist, source, prev, next);
-                    // idempotent_our_bfs::process_layer_sequentially(graph_alias, dists, dist, source, prev, next);
-                    prev.for_each_outedge_when_front_and_back_empty([&] (vtxid_type other) {
-                        if (ls_pbfs<true>::try_to_set_dist(other, unknown, dist, dists))
-                            next.push_vertex_back(other);
-                    });
-                    prev.clear_when_front_and_back_empty();
-                } else {
-                    self_type::process_layer(graph_alias, dists, dist, source, prev, next);
-                }
-                prev.swap(next);
-            }
-            return dists;
-        }
     };
     
-    /*---------------------------------------------------------------------*/
-    /*---------------------------------------------------------------------*/
-    /*---------------------------------------------------------------------*/
-    /* Bellman-Ford; parallel */
-    /*---------------------------------------------------------------------*/
     template <class Adjlist_seq>
-    int* bellman_ford_par(const adjlist<Adjlist_seq>& graph,
-                          typename adjlist<Adjlist_seq>::vtxid_type source) {
+    int* bellman_ford_par4(const adjlist<Adjlist_seq>& graph,
+                           typename adjlist<Adjlist_seq>::vtxid_type source) {
         using vtxid_type = typename adjlist<Adjlist_seq>::vtxid_type;
         using adjlist_type = adjlist<Adjlist_seq>;
-        using adjlist_alias_type = typename adjlist_type::alias_type;        
-        using frontiersegbag_type = pasl::graph::frontiersegbag<adjlist_alias_type>;
+        using adjlist_alias_type = typename adjlist_type::alias_type;
+        using Frontier = pasl::graph::frontiersegbag<adjlist_alias_type>;
         
-        std::atomic<vtxid_type>* bfsres = our_bfs<false>::main<adjlist_type, frontiersegbag_type>(graph, source);
+        using size_type = size_t;
+        using graph_type = adjlist_type;
+        using vtxid_type = typename graph_type::vtxid_type;
+        using graph_env = graph_env<adjlist_alias_type, size_type, vtxid_type>;
+        using cache_type = data::cachedmeasure::weight<vtxid_type, vtxid_type, size_type, graph_env>;
+        using seq_type = data::chunkedseq::bootstrapped::bagopt<vtxid_type, 1024, cache_type>;
         
-        int inf_dist = shortest_path_constants<int>::inf_dist;
+        auto inf_dist = shortest_path_constants<int>::inf_dist;
+        vtxid_type unknown = graph_constants<vtxid_type>::unknown_vtxid;
         vtxid_type nb_vertices = graph.get_nb_vertices();
         int* dists = data::mynew_array<int>(nb_vertices);
-
-        for (size_t step = 0; step < nb_vertices; step++) {
-            vtxid_type dist = bfsres[step].load();
-            dists[step] = dist == -1 ? inf_dist : dist;
+        std::map<int, int>** dists_from_parent = data::mynew_array<std::map<int, int>*>(nb_vertices);
+        for (int i = 0; i < nb_vertices; ++i) {
+            auto cur_size = graph.adjlists[i].get_in_degree();
+            dists_from_parent[i] = new std::map<int, int>();
+            for (int j = 0; j < cur_size; j++) {
+                (*dists_from_parent[i])[graph.adjlists[i].get_in_neighbor(j)] = inf_dist;
+            }
         }
-        return dists;
+        fill_array_seq(dists, nb_vertices, inf_dist);
+        dists[source] = 0;
+
+        LOG_BASIC(ALGO_PHASE);
+        auto graph_alias = get_alias_of_adjlist(graph);
+        Frontier frontiers[2];
+        seq_type next_vertices;
+        
+        using measure_type = typename cache_type::measure_type;
+        graph_env env(graph_alias);
+        measure_type meas(env);
+        next_vertices.set_measure(meas);
+        
+        frontiers[0].set_graph(graph_alias);
+        frontiers[1].set_graph(graph_alias);
+        vtxid_type cur = 0; // either 0 or 1, depending on parity of dist
+        vtxid_type nxt = 1; // either 1 or 0, depending on parity of dist
+        frontiers[0].push_vertex_back(source);
+
+        std::atomic<bool>* visited = data::mynew_array<std::atomic<bool>>(nb_vertices);
+        fill_array_par(visited, nb_vertices, false);
+        int steps = 0;
+        while (! frontiers[cur].empty()) {
+            print_dists(nb_vertices, dists);
+            next_vertices.clear();
+            steps++;
+            if (frontiers[cur].nb_outedges() <= 10000) {
+                frontiers[cur].for_each_outedge_when_front_and_back_empty([&] (vtxid_type from, vtxid_type to, vtxid_type weight) {
+                    std::cout << "Considering edge " << from << " " << to << " " << weight << std::endl;
+
+                    if (dists[to] > dists[from] + weight) {
+                        if ((*dists_from_parent[to])[from] > dists[from] + weight)
+                            (*dists_from_parent[to])[from] = dists[from] + weight;
+                        if (try_to_set_visited(to, visited)) {
+                            frontiers[nxt].push_vertex_back(to);
+                            next_vertices.push_back(to);
+                        }
+                    }
+                });
+                frontiers[cur].clear_when_front_and_back_empty();
+            } else {
+                process_vertices_par4(graph_alias, visited, frontiers[cur], frontiers[nxt]);
+            }
+            std::cout << "In next vertices : ";
+            next_vertices.for_each([&] (vtxid_type vertex) {
+                std::cout << vertex << " " ;
+                long degree = graph.adjlists[vertex].get_in_degree();
+                for (int edge = 0; edge < degree; edge++) {
+                    long from = graph.adjlists[vertex].get_in_neighbor(edge);
+                    if (dists[vertex] > (*dists_from_parent[vertex])[from]) {
+                        dists[vertex] = (*dists_from_parent[vertex])[from];
+                    }
+                }
+                
+                visited[vertex] = false;
+            });
+            
+            std::cout << std::endl;
+            cur = 1 - cur;
+            nxt = 1 - nxt;
+        }
+        
+        
+        std::cout << "Rounds : " << steps << std::endl;
+        
+        return normalize(graph, dists);
     }
+    
+    
+    
+    
+    
+
 
 
 } // end namespace

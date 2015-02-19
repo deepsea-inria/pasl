@@ -14,8 +14,8 @@
 
 #define FORCE_SEQUENTIAL_REMOVE_DUPLICATES 1 // until we debug parallel code
 
-#define MIN_EDGE_WEIGHT 1
-#define MAX_EDGE_WEIGHT 100
+#define MIN_EDGE_WEIGHT 5
+#define MAX_EDGE_WEIGHT 10000
 
 #if defined(SEQUENTIAL_ELISION) || defined(FORCE_SEQUENTIAL_REMOVE_DUPLICATES)
 #include <unordered_set>
