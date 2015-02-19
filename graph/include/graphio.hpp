@@ -81,11 +81,10 @@ std::ostream& operator<<(std::ostream& out, const edgelist<Edge_bag>& edges) {
   return output_directed_dot(out, edges);
 }
 
-    template <class Vertex_id>
-    std::ostream& operator<<(std::ostream& out, const wedge<Vertex_id>& edge) {
-        return out << edge.src << " -> " << edge.dst << " Weight = " << edge.w;
-    }
-    
+template <class Vertex_id>
+std::ostream& operator<<(std::ostream& out, const wedge<Vertex_id>& edge) {
+  return out << edge.src << " -> " << edge.dst << " Weight = " << edge.w;
+}    
 
 template<class Adjlist_seq>
 std::ostream& operator<<(std::ostream& out, const adjlist<Adjlist_seq>& graph) {

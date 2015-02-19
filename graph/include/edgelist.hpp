@@ -57,27 +57,27 @@ public:
   
 };
     
-    template <class Vertex_id>
-    class wedge : public edge<Vertex_id>{
-    public:
-        
-        typedef Vertex_id vtxid_type;
-        
-        vtxid_type src;
-        vtxid_type dst;
-        vtxid_type w;
-        
-        wedge(vtxid_type src, vtxid_type dst)
-        : src(src), dst(dst) {
-            unsigned int res;
-            quickcheck::generate(MAX_EDGE_WEIGHT - MIN_EDGE_WEIGHT, res);
-            w = MIN_EDGE_WEIGHT + ((int) res);}
-        
-        wedge()
-        : src(vtxid_type(0)), dst(vtxid_type(0)), w(vtxid_type(0)) { }
-
-                
-    };
+template <class Vertex_id>
+class wedge : public edge<Vertex_id>{
+public:
+  
+  typedef Vertex_id vtxid_type;
+  
+  vtxid_type src;
+  vtxid_type dst;
+  vtxid_type w;
+  
+  wedge(vtxid_type src, vtxid_type dst)
+  : src(src), dst(dst) {
+    unsigned int res;
+    quickcheck::generate(MAX_EDGE_WEIGHT - MIN_EDGE_WEIGHT, res);
+    w = MIN_EDGE_WEIGHT + ((int) res);}
+  
+  wedge()
+  : src(vtxid_type(0)), dst(vtxid_type(0)), w(vtxid_type(0)) { }
+  
+  
+};
     
   
 /*---------------------------------------------------------------------*/
@@ -146,19 +146,19 @@ bool operator!=(const edge<Vertex_id>& e1,
   return ! (e1 == e2);
 }
 
-    template <class Vertex_id>
-    bool operator==(const wedge<Vertex_id>& e1,
-                    const wedge<Vertex_id>& e2) {
-        return e1.src == e2.src
-        && e1.dst == e2.dst
-        && e1.w == e2.w;
-    }
-    
-    template <class Vertex_id>
-    bool operator!=(const wedge<Vertex_id>& e1,
-                    const wedge<Vertex_id>& e2) {
-        return ! (e1 == e2);
-    }
+template <class Vertex_id>
+bool operator==(const wedge<Vertex_id>& e1,
+                const wedge<Vertex_id>& e2) {
+  return e1.src == e2.src
+  && e1.dst == e2.dst
+  && e1.w == e2.w;
+}
+
+template <class Vertex_id>
+bool operator!=(const wedge<Vertex_id>& e1,
+                const wedge<Vertex_id>& e2) {
+  return ! (e1 == e2);
+}
     
 template <class Edge_bag>
 bool operator==(const edgelist<Edge_bag>& e1, const edgelist<Edge_bag>& e2) {

@@ -383,62 +383,61 @@ void generate_randlocal(typename Edge_bag::value_type::vtxid_type dim,
   dst.check();
 }
     
-    template <class Edge_bag>
-    void generate_custom_graph_by_nb_edges(edgeid_type tgt_nb_edges, edgelist<Edge_bag>& dst, double fraction, double avg_degree) {
-        using edgelist_type = edgelist<Edge_bag>;
-        using edge_bag_type = Edge_bag;
-        using vtxid_type = typename edge_bag_type::value_type::vtxid_type;
-        using edge_type = typename edgelist_type::edge_type;
-        dst.edges.alloc(tgt_nb_edges);
-        vtxid_type nb_vertices;
-        nb_vertices = tgt_nb_edges / avg_degree;
-        nb_vertices = std::max(vtxid_type(3), nb_vertices);
-        int num_less = (int) tgt_nb_edges * fraction;
-        int cur_less = 0;
-        for (int i = 0; i < tgt_nb_edges; ++i) {
-            vtxid_type from = rand() % nb_vertices;
-            vtxid_type to = rand() % nb_vertices;
-            
-            while (from == to)
-                to = rand() % nb_vertices;
-            
-            if (cur_less <= num_less) {
-                cur_less++;
-                if (from > to) std::swap(from, to);
-            } else {
-                if (from < to) std::swap(from, to);
-            }
-            dst.edges[i] = edge_type(from, to);
-        };
-        dst.nb_vertices = nb_vertices;
-        dst.check();
+template <class Edge_bag>
+void generate_custom_graph_by_nb_edges(edgeid_type tgt_nb_edges, edgelist<Edge_bag>& dst, double fraction, double avg_degree) {
+  using edgelist_type = edgelist<Edge_bag>;
+  using edge_bag_type = Edge_bag;
+  using vtxid_type = typename edge_bag_type::value_type::vtxid_type;
+  using edge_type = typename edgelist_type::edge_type;
+  dst.edges.alloc(tgt_nb_edges);
+  vtxid_type nb_vertices;
+  nb_vertices = tgt_nb_edges / avg_degree;
+  nb_vertices = std::max(vtxid_type(3), nb_vertices);
+  int num_less = (int) tgt_nb_edges * fraction;
+  int cur_less = 0;
+  for (int i = 0; i < tgt_nb_edges; ++i) {
+    vtxid_type from = rand() % nb_vertices;
+    vtxid_type to = rand() % nb_vertices;
+    
+    while (from == to)
+      to = rand() % nb_vertices;
+    
+    if (cur_less <= num_less) {
+      cur_less++;
+      if (from > to) std::swap(from, to);
+    } else {
+      if (from < to) std::swap(from, to);
     }
-
+    dst.edges[i] = edge_type(from, to);
+  };
+  dst.nb_vertices = nb_vertices;
+  dst.check();
+}
     
 template <class Edge_bag>
 void generate_randlocal_by_nb_edges(edgeid_type tgt_nb_edges, edgelist<Edge_bag>& dst, bool is_sparse) {
-    using edgelist_type = edgelist<Edge_bag>;
-    using edge_bag_type = Edge_bag;
-    using vtxid_type = typename edge_bag_type::value_type::vtxid_type;
-    using edge_type = typename edgelist_type::edge_type;
-    dst.edges.alloc(tgt_nb_edges);
-    vtxid_type nb_vertices;
-    if (is_sparse) {
-        nb_vertices = tgt_nb_edges / 10;
-    } else {
-        nb_vertices = ((vtxid_type)sqrt(tgt_nb_edges)) * 3;
-    }
-    nb_vertices = std::max(vtxid_type(3), nb_vertices);
-
-    sched::native::parallel_for(edgeid_type(0), tgt_nb_edges, [&] (edgeid_type i) {
-        vtxid_type from = rand() % nb_vertices;
-        vtxid_type to = rand() % nb_vertices;
-        while (from == to)
-            to = rand() % nb_vertices;
-        dst.edges[i] = edge_type(from, to);
-    });
-    dst.nb_vertices = nb_vertices;
-    dst.check();
+  using edgelist_type = edgelist<Edge_bag>;
+  using edge_bag_type = Edge_bag;
+  using vtxid_type = typename edge_bag_type::value_type::vtxid_type;
+  using edge_type = typename edgelist_type::edge_type;
+  dst.edges.alloc(tgt_nb_edges);
+  vtxid_type nb_vertices;
+  if (is_sparse) {
+    nb_vertices = tgt_nb_edges / 10;
+  } else {
+    nb_vertices = ((vtxid_type)sqrt(tgt_nb_edges)) * 3;
+  }
+  nb_vertices = std::max(vtxid_type(3), nb_vertices);
+  
+  sched::native::parallel_for(edgeid_type(0), tgt_nb_edges, [&] (edgeid_type i) {
+    vtxid_type from = rand() % nb_vertices;
+    vtxid_type to = rand() % nb_vertices;
+    while (from == to)
+      to = rand() % nb_vertices;
+    dst.edges[i] = edge_type(from, to);
+  });
+  dst.nb_vertices = nb_vertices;
+  dst.check();
 }
   
 template <class Edge_bag>
@@ -640,7 +639,6 @@ void generate(edgeid_type& tgt_nb_edges,
   using edge_type = edge<vtxid_type>;
   using edgelist_bag_type = Edge_bag;
   using edgelist_type = edgelist<edgelist_bag_type>;
-
   switch (which_generator.ty) {
     case COMPLETE: {
       generate_complete_graph_by_nb_edges(tgt_nb_edges, graph);
@@ -682,16 +680,14 @@ void generate(edgeid_type& tgt_nb_edges,
       generate_randlocal_by_nb_edges(tgt_nb_edges, graph, true);
       break;
     }
-      case RANDOM_DENSE: {
-          generate_randlocal_by_nb_edges(tgt_nb_edges, graph, false);
-          break;
-      }
-      case RANDOM_CUSTOM: {
-          generate_custom_graph_by_nb_edges(tgt_nb_edges, graph, fraction, avg_degree);
-          break;
-      }
-          
-          
+    case RANDOM_DENSE: {
+      generate_randlocal_by_nb_edges(tgt_nb_edges, graph, false);
+      break;
+    }
+    case RANDOM_CUSTOM: {
+      generate_custom_graph_by_nb_edges(tgt_nb_edges, graph, fraction, avg_degree);
+      break;
+    }                    
     default: {
       util::atomic::die("unknown graph type %d",which_generator.ty);
     }
@@ -713,7 +709,7 @@ void generate(size_t& _tgt_nb_edges, edgelist<Edge_bag>& graph) {
   static const edgeid_type max_nb_edges = 10000;
   tgt_nb_edges = std::min(tgt_nb_edges, max_nb_edges);
   size_t scale;
-  quickcheck::generate(70, scale);
+  quickcheck::generate(50, scale);
   tgt_nb_edges *= edgeid_type(scale);
   generator_type which_generator;
   generate(which_generator);

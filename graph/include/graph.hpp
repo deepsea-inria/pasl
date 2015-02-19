@@ -27,14 +27,14 @@ using edgeid_type = size_t;
 template <class Vertex_id>
 class graph_constants {
 public:
-    static constexpr Vertex_id unknown_vtxid = Vertex_id(-1);
+  static constexpr Vertex_id unknown_vtxid = Vertex_id(-1);
 };
     
 template <class Distance_type>
 class shortest_path_constants {
 public:
-    static constexpr Distance_type inf_dist = std::numeric_limits<Distance_type>::max() / 100;
-    static constexpr Distance_type minus_inf_dist = std::numeric_limits<Distance_type>::min() / 100;
+  static constexpr Distance_type inf_dist = std::numeric_limits<Distance_type>::max() / 100;
+  static constexpr Distance_type minus_inf_dist = std::numeric_limits<Distance_type>::min() / 100;
 };
     
 template <class Vertex_id>

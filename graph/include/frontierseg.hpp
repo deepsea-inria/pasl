@@ -44,13 +44,11 @@ public:
   
   class edgelist_type {
   public:
-    
-      
+          
     const_vtxid_pointer lo;
     const_vtxid_pointer hi;
-      vtxid_type v;
-      size_type size_init;
-      
+    vtxid_type v;
+    size_type size_init;      
     
     edgelist_type()
     : lo(nullptr), hi(nullptr) { }
@@ -58,13 +56,13 @@ public:
     edgelist_type(vtxid_type v, size_type nb, const_vtxid_pointer edges, size_type size_init)
     : v(v), lo(edges), hi(edges + nb), size_init(size_init) { }
     
-      size_type size() const {
-          return size_type(hi - lo);
-      }
-      
-      size_type init_size() const {
-          return size_init;
-      }
+    size_type size() const {
+      return size_type(hi - lo);
+    }
+    
+    size_type init_size() const {
+      return size_init;
+    }
 
     void clear() {
       hi = lo;
@@ -75,9 +73,9 @@ public:
       assert(nb >= 0);
       edgelist_type edges2 = edges;
       edges2.hi = edges2.lo + nb;
-        edges2.v = edges.v;
-        edges2.size_init = edges.size_init;
-        
+      edges2.v = edges.v;
+      edges2.size_init = edges.size_init;
+      
       assert(edges2.size() == nb);
       return edges2;
     }
@@ -87,19 +85,19 @@ public:
       assert(nb >= 0);
       edgelist_type edges2 = edges;
       edges2.lo = edges2.lo + nb;
-        edges2.v = edges.v;
-        edges2.size_init = edges.size_init;
-
+      edges2.v = edges.v;
+      edges2.size_init = edges.size_init;
+      
       assert(edges2.size() + nb == edges.size());
       return edges2;
     }
     
     void swap(edgelist_type& other) {
-        std::swap(lo, other.lo);
-        std::swap(hi, other.hi);
-        std::swap(v, other.v);
-        std::swap(size_init, other.size_init);
-
+      std::swap(lo, other.lo);
+      std::swap(hi, other.hi);
+      std::swap(v, other.v);
+      std::swap(size_init, other.size_init);
+      
     }
     
     template <class Body>
@@ -367,25 +365,23 @@ public:
 
   template <class Body>
   void for_each_edgelist(const Body& func) const {
-    // TODO : func(vertex, f)
     if (f.size() > 0)
       func(f);
     m.for_each([&] (vtxid_type v) { func(create_edgelist(v)); });
-    // TODO : func(vertex, f)
     if (b.size() > 0)
       func(b);
   }
 
   template <class Body>
   void for_each_edgelist_when_front_and_back_empty(const Body& func) const {
-    m.for_each([&] (vtxid_type v) { func(v, create_edgelist(v)); });
+    m.for_each([&] (vtxid_type v) { func(create_edgelist(v)); });
   }
   
   template <class Body>
   void for_each_outedge_when_front_and_back_empty(const Body& func) const {
-    for_each_edgelist_when_front_and_back_empty([&] (vtxid_type from, edgelist_type edges) {
+    for_each_edgelist_when_front_and_back_empty([&] (edgelist_type edges) {
       for (auto e = edges.lo; e < edges.hi; e++)
-        func(from, *e, *(e + edges.init_size()));
+        func(edges.v, *e, *(e + edges.init_size()));
     });
   }
 
@@ -489,7 +485,7 @@ using chunkedstack = data::chunkedseq::bootstrapped::stack<Vertex, chunk_capacit
 
 template <class Graph>
 using frontiersegbag = frontiersegbase::frontiersegbase<Graph, frontiersegbase::chunkedbag>;
-    
+
 template <class Graph>
 using frontiersegstack = frontiersegbase::frontiersegbase<Graph, frontiersegbase::chunkedstack>;
 

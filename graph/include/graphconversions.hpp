@@ -24,8 +24,6 @@ void adjlist_from_edgelist(const edgelist<Edge_bag>& edg, adjlist<Adjlist_seq>& 
   util::atomic::die("todo");
 }
 
-
-
 // serial algorithm
 template <class Edge_bag, class Vertex_id>
 void adjlist_from_edgelist(const edgelist<Edge_bag>& edg, adjlist<flat_adjlist_seq<Vertex_id>>& adj) {
@@ -39,71 +37,70 @@ void adjlist_from_edgelist(const edgelist<Edge_bag>& edg, adjlist<flat_adjlist_s
   vtxid_type nb_offsets = nb_vertices + 1;
   edgeid_type nb_edges = edg.get_nb_edges();
   edgeid_type contents_sz = nb_offsets + nb_edges * 2;
-    char* contents = (char*)data::mynew_array<vtxid_type>(contents_sz);
-    char* contents_in = (char*)data::mynew_array<vtxid_type>(contents_sz);
-    
+  char* contents = (char*)data::mynew_array<vtxid_type>(contents_sz);
+  char* contents_in = (char*)data::mynew_array<vtxid_type>(contents_sz);
+  
   adj.adjlists.init(contents, contents_in, nb_vertices, nb_edges);
-    vtxid_type* offsets = adj.adjlists.offsets;
-    vtxid_type* offsets_in = adj.adjlists.offsets_in;
-    
-    vtxid_type* edges = adj.adjlists.edges;
-    vtxid_type* edges_in = adj.adjlists.edges_in;
-    
-    data::array_seq<vtxid_type> degrees;
-    data::array_seq<vtxid_type> degrees_in;
-    data::array_seq<vtxid_type> degrees_help;
-    data::array_seq<vtxid_type> degrees_in_help;
-    
-    degrees.alloc(nb_vertices);
-    degrees_in.alloc(nb_vertices);
-    degrees_help.alloc(nb_vertices);
-    degrees_in_help.alloc(nb_vertices);
-    
-    for (vtxid_type i = 0; i < nb_vertices; i++) {
-        degrees[i] = 0;
-        degrees_in[i] = 0;
-    }
+  vtxid_type* offsets = adj.adjlists.offsets;
+  vtxid_type* offsets_in = adj.adjlists.offsets_in;
+  
+  vtxid_type* edges = adj.adjlists.edges;
+  vtxid_type* edges_in = adj.adjlists.edges_in;
+  
+  data::array_seq<vtxid_type> degrees;
+  data::array_seq<vtxid_type> degrees_in;
+  data::array_seq<vtxid_type> degrees_help;
+  data::array_seq<vtxid_type> degrees_in_help;
+  
+  degrees.alloc(nb_vertices);
+  degrees_in.alloc(nb_vertices);
+  degrees_help.alloc(nb_vertices);
+  degrees_in_help.alloc(nb_vertices);
+  
+  for (vtxid_type i = 0; i < nb_vertices; i++) {
+    degrees[i] = 0;
+    degrees_in[i] = 0;
+  }
   for (edgeid_type i = 0; i < edg.edges.size(); i++) {
     edge_type e = edg.edges[i];
     degrees[e.src]++;
-      degrees_in[e.dst]++;
+    degrees_in[e.dst]++;
   }
   offsets[0] = 0;
   for (vtxid_type i = 1; i < nb_offsets; i++)
     offsets[i] = offsets[i - 1] + 2 * degrees[i - 1];
+  
+  offsets_in[0] = 0;
+  for (vtxid_type i = 1; i < nb_offsets; i++)
+    offsets_in[i] = offsets_in[i - 1] + 2 * degrees_in[i - 1];
+  for (vtxid_type i = 0; i < nb_vertices; i++) {
+    degrees_help[i] =degrees[i];
+    degrees_in_help[i] = degrees_in[i];
+    degrees[i] = 0;
+    degrees_in[i] = 0;
     
-    offsets_in[0] = 0;
-    for (vtxid_type i = 1; i < nb_offsets; i++)
-        offsets_in[i] = offsets_in[i - 1] + 2 * degrees_in[i - 1];
-    for (vtxid_type i = 0; i < nb_vertices; i++) {
-        degrees_help[i] =degrees[i];
-        degrees_in_help[i] = degrees_in[i];
-        degrees[i] = 0;
-        degrees_in[i] = 0;
-        
-    }
-    
+  }
+  
   for (edgeid_type i = 0; i < edg.edges.size(); i++) {
     edge_type e = edg.edges[i];
-      vtxid_type cnt = degrees[e.src];
-      vtxid_type cnt_final = degrees_help[e.src];
-      edges[offsets[e.src] + cnt] = e.dst;
-      edges[offsets[e.src] + cnt + cnt_final] = e.w;
-      
-    degrees[e.src]++;
-
-      vtxid_type cnt_in = degrees_in[e.dst];
-      vtxid_type cnt_in_final = degrees_in_help[e.dst];
-
-      edges_in[offsets_in[e.dst] + cnt_in] = e.src;
-      edges_in[offsets_in[e.dst] + cnt_in + cnt_in_final] = e.w;
-      degrees_in[e.dst]++;
-  }
+    vtxid_type cnt = degrees[e.src];
+    vtxid_type cnt_final = degrees_help[e.src];
+    edges[offsets[e.src] + cnt] = e.dst;
+    edges[offsets[e.src] + cnt + cnt_final] = e.w;
     
+    degrees[e.src]++;
+    
+    vtxid_type cnt_in = degrees_in[e.dst];
+    vtxid_type cnt_in_final = degrees_in_help[e.dst];
+    
+    edges_in[offsets_in[e.dst] + cnt_in] = e.src;
+    edges_in[offsets_in[e.dst] + cnt_in + cnt_in_final] = e.w;
+    degrees_in[e.dst]++;
+  }
+  
   adj.nb_edges = nb_edges;
   adj.check();
 }
-
 
 template <class Adjlist_seq, class Edge_bag>
 void edgelist_from_adjlist(const adjlist<Adjlist_seq>& adj, edgelist<Edge_bag>& edg) {
