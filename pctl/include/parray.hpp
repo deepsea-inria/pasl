@@ -21,6 +21,12 @@ namespace parray {
 /***********************************************************************/
   
 /*---------------------------------------------------------------------*/
+/* Forward declarations */
+
+template <class Item, class Weight>
+parray<long> weights(const parray<Item>& xs, const Weight& weight);
+  
+/*---------------------------------------------------------------------*/
 /* Reduction level 4 */
 
 namespace level4 {
@@ -179,11 +185,18 @@ Result reducei(const parray<Item>& xs,
                Combine combine,
                Item_weight_idx item_weight_idx,
                Lift_idx lift_idx) {
+  parray<long> w = weights(xs, [&] (long pos) {
+    return item_weight_idx(pos, xs[pos]);
+  });
   auto item_rng_weight = [&] (long lo, long hi) {
-    
+    return w[lo] - w[hi];
   };
   auto seq_lift = [&] (long lo, long hi) {
-    
+    Result r = id;
+    for (long i = lo; i < hi; i++) {
+      r = combine(r, lift_idx(i, xs[i]));
+    }
+    return r;
   };
   return level2::reduce(xs, id, combine, item_rng_weight, lift_idx, seq_lift);
 }
@@ -235,6 +248,15 @@ Item reduce(const parray<Item>& xs,
     return x;
   };
   return level1::reduce(xs, id, combine, weight, lift);
+}
+  
+/*---------------------------------------------------------------------*/
+  
+template <class Item, class Weight>
+parray<long> weights(const parray<Item>& xs, const Weight& weight) {
+  assert(false);
+  parray<long> w(xs.size() + 1);
+  return w;
 }
   
 /***********************************************************************/

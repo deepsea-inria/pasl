@@ -114,7 +114,9 @@ Table: Parallel-array type definitions.
 
 Table: Parallel-array constructors and destructors.
 
-### Item type {#pa-item}
+### Template parameters
+
+#### Item type {#pa-item}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 class Item;
@@ -124,7 +126,7 @@ Type of the items to be stored in the container.
 
 Objects of type `Item` should be default constructable.
 
-### Allocator {#pa-alloc}
+#### Allocator {#pa-alloc}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 class Alloc;
@@ -132,7 +134,9 @@ class Alloc;
 
 Allocator class.
 
-### Empty container constructor {#pa-e-c-c}
+### Constructors and destructors
+
+#### Empty container constructor {#pa-e-c-c}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 parray();
@@ -142,7 +146,7 @@ parray();
 
 Constructs an empty container with no items;
 
-### Fill container {#pa-e-f-c}
+#### Fill container {#pa-e-f-c}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 parray(long n, const value_type& val);
@@ -153,7 +157,7 @@ Constructs a container with `n` copies of `val`.
 ***Complexity.*** Work and span are linear and logarithmic in the size
    of the resulting container, respectively.
 
-### Copy constructor {#pa-e-cp-c}
+#### Copy constructor {#pa-e-cp-c}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 parray(const parray& other);
@@ -165,7 +169,7 @@ the same order.
 ***Complexity.*** Work and span are linear and logarithmic in the size
    of the resulting container, respectively.
 
-### Initializer-list constructor {#pa-i-l-c}
+#### Initializer-list constructor {#pa-i-l-c}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 parray(initializer_list<value_type> il);
@@ -176,7 +180,7 @@ Constructs a container with the items in `il`.
 ***Complexity.*** Work and span are linear in the size of the resulting
    container.
 
-### Move constructor {#pa-m-c}
+#### Move constructor {#pa-m-c}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 parray(parray&& x);
@@ -186,7 +190,7 @@ Constructs a container that acquires the items of `other`.
 
 ***Complexity.*** Constant time.
 
-### Destructor {#pa-destr}
+#### Destructor {#pa-destr}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 ~parray();
@@ -196,6 +200,8 @@ Destructs the container.
 
 ***Complexity.*** Work and span are linear and logarithmic in the size
    of the container, respectively.
+
+### Operations
 
 +------------------------+--------------------------------------+
 | Operation              | Description                          |
@@ -212,7 +218,7 @@ Destructs the container.
 
 Table: Parallel-array member functions.
 
-### Indexing operator {#pa-i-o}
+#### Indexing operator {#pa-i-o}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 reference operator[](long i);
@@ -224,7 +230,7 @@ performed.
 
 ***Complexity.*** Constant time.
 
-### Size operator {#pa-si}
+#### Size operator {#pa-si}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 long size() const;
@@ -234,7 +240,7 @@ Returns the size of the container.
 
 ***Complexity.*** Constant time.
 
-### Resize {#pa-rsz}
+#### Resize {#pa-rsz}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 void resize(long n, const value_type& val);
@@ -253,7 +259,7 @@ copies of the item referenced by `val`.
    $n$ just after the resize operation. Then, the work and span are
    linear and logarithmic in $\max(m, n)$, respectively.
 
-### Exchange operation {#pa-sw}
+#### Exchange operation {#pa-sw}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 void swap(parray& other);
@@ -319,7 +325,7 @@ Table: Parallel-array slice fields.
 ### Pointer {#pa-sl-p}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-const PArray* pointer;
+const parray<Item>* pointer;
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Pointer to the parrallel-array structure (or null pointer, if range is
@@ -367,7 +373,7 @@ Construct an empty slice with no items.
 ### Full range {#pa-sl-pt}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-slice(const PArray* _pointer);
+slice(const parray<Item>* _pointer);
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Construct a slice with the full range of the items in the parallel
@@ -376,7 +382,7 @@ array pointed to by `_pointer`.
 ### Specified range {#pa-sl-ra}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-slice(long _lo, long _hi, const PArray* _pointer=nullptr);
+slice(long _lo, long _hi, const parray<Item>* _pointer=nullptr);
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Construct a slice with the right-open range `[lo, hi)` of the items in
@@ -909,11 +915,11 @@ parray<long> weights(const PArray& xs, Weight weight);
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 long max(const parray<parray<long>>& xss) {
-  parray<long> weights = weights(xss, [&] (const parray<long>& xs) {
+  parray<long> w = weights(xss, [&] (const parray<long>& xs) {
     return xs.size();
   });
   auto item_rng_weight = [&] (long lo, long hi) {
-    return weights[hi] - weights[lo];
+    return w[hi] - w[lo];
   };
   auto combine = [&] (long x, long y) {
     return std::max(x, y);
