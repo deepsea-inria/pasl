@@ -143,28 +143,34 @@ public:
 /*---------------------------------------------------------------------*/
 /* Slice */
 
-template <class PArray_pointer>
+template <class Item>
 class slice {
 public:
   
-  PArray_pointer pointer;
+  using value_type = Item;
+  using parray_type = parray<value_type>;
+  
+  const parray_type* pointer;
   long lo;
   long hi;
   
   slice()
   : pointer(nullptr), lo(0), hi(0) { }
   
-  slice(PArray_pointer _pointer)
+  slice(const parray_type* _pointer)
   : pointer(_pointer), lo(0), hi(_pointer->size()) { }
   
-  slice(long _lo, long _hi, PArray_pointer _pointer=nullptr) {
-    if (_pointer != nullptr)
-      pointer = _pointer;
-    assert(lo >= 0);
-    assert(hi <= pointer->size());
+  slice(long _lo, long _hi, const parray_type _pointer=nullptr) {
+    assert(_pointer==nullptr || _pointer->size() >= _hi-_lo);
+    assert(_pointer!=nullptr || _hi-_lo==0);
+    assert(hi-lo >= 0);
     lo = _lo;
     hi = _hi;
+    pointer = _pointer;
   }
+  
+  slice(const slice& other)
+  : lo(other.lo), hi(other.hi), pointer(other.pointer) { }
   
 };
 

@@ -27,9 +27,9 @@ Sequence containers
 -------------------
 
 Class name                           | Description
--------------------------------------|-------------------------
+-------------------------------------|---------------------------------
 [`array`](#parray)                   | Array class
-[`chunkedseq`](#chunkedseq)          | Chunked Sequence class
+[`pchunkedseq`](#pchunkedseq)        | Parallel chunked sequence class
 
 Table: Sequence containers that are provided by pctl.
 
@@ -49,6 +49,19 @@ Parallel array {#parray}
 Interface and cost model
 ------------------------
 
++-----------------------------------+-----------------------------------+
+| Template parameter                | Description                       |
++===================================+===================================+
+| [`Item`](#pa-item)                | Type of the objects to be stored  |
+|                                   |in the container                   |
++-----------------------------------+-----------------------------------+
+| [`Alloc`](#pa-alloc)              | Allocator to be used by the       |
+|                                   |container to construct and destruct|
+|                                   |objects of type `Item`             |
++-----------------------------------+-----------------------------------+
+
+Table: Template parameters for the `parray` class.
+                                                           
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 namespace pasl {
 namespace data {
@@ -100,6 +113,24 @@ Table: Parallel-array type definitions.
 +-----------------------------------+-----------------------------------+
 
 Table: Parallel-array constructors and destructors.
+
+### Item type {#pa-item}
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+class Item;
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Type of the items to be stored in the container.
+
+Objects of type `Item` should be default constructable.
+
+### Allocator {#pa-alloc}
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+class Alloc;
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Allocator class.
 
 ### Empty container constructor {#pa-e-c-c}
 
@@ -237,33 +268,34 @@ Slice
 -----
 
 The `slice` structure provides an abstraction of a subarray for
-parallel arrays. A `slice` value can be viewed as a triple `(a, lo,
-hi)`, where `a` is a pointer to the underlying parallel array, `lo` is
+parallel arrays. A `slice` value can be viewed as a triple `(p, lo,
+hi)`, where `p` is a pointer to the underlying parallel array, `lo` is
 the starting index, and `hi` is the index one past the end of the
 range. The `slice` container class maintains the following invariant:
 `0 <= lo` and `hi <= a->size()`.
 
-The `slice` class is a template class that takes a single parameter:
-the `PArray_pointer`. For correct behavior, this type must be that of
-a pointer to either a const or non-const pointer to an object of the
-`parray` class.
+The `slice` class is a template class that takes a single template
+parameter, namely `Item`.
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 namespace pasl {
 namespace pctl {
 namespace parray {
 
-template <class PArray_pointer>
+template <class Item>
 class slice {
 public:
 
-  PArray_pointer pointer;
+  using value_type = Item;
+  using parray_type = parray<value_type>;
+
+  const parray_type* pointer;
   long lo;
   long hi;
 
   slice();
-  slice(PArray_pointer _pointer);
-  slice(long _lo, long _hi, PArray_pointer _pointer=nullptr);
+  slice(const parray_type* _pointer);
+  slice(long _lo, long _hi, const parray_type _pointer=nullptr);
   
 };
 
@@ -287,7 +319,7 @@ Table: Parallel-array slice fields.
 ### Pointer {#pa-sl-p}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-PArray_pointer pointer;
+const PArray* pointer;
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Pointer to the parrallel-array structure (or null pointer, if range is
@@ -335,7 +367,7 @@ Construct an empty slice with no items.
 ### Full range {#pa-sl-pt}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-slice(PArray_pointer _pointer);
+slice(const PArray* _pointer);
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Construct a slice with the full range of the items in the parallel
@@ -344,7 +376,7 @@ array pointed to by `_pointer`.
 ### Specified range {#pa-sl-ra}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-slice(long _lo, long _hi, PArray_pointer _pointer=nullptr);
+slice(long _lo, long _hi, const PArray* _pointer=nullptr);
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Construct a slice with the right-open range `[lo, hi)` of the items in
@@ -357,8 +389,8 @@ parallel-array object.
 Behavior is undefined if the range does not fit in the size of the
 underlying parallel array.
 
-Chunked sequence {#chunkedseq}
-================
+Parallel chunked sequence {#pchunkedseq}
+=========================
 
 Data-parallel operations
 ========================
@@ -556,7 +588,7 @@ Under certain conditions, we can use the following lemma to deduce a
 more precise bound on the amount of work performed by the
 reduction.
 
-***(Lemma) Work efficiency.*** For any associative combining operator
+***Lemma (Work efficiency).*** For any associative combining operator
 $f$ and weight function $w$, if for any $x$, $y$,
 
 1. $w(f(x, y)) \leq w(x) + w(y)$, and
@@ -611,9 +643,7 @@ function a little, we can sidestep this issue.
 
 ### Level 1 {#red-l-1}
 
-> TODO: Introduce `reducei` function, which is a version of level-1
-> `reduce` that passes to `lift` (and to `item_weight`) the
-> corresponding position in the input sequence.
+***Index passing.*** TODO: explain
 
 +----------------------------------+-----------------------------------+
 | Template parameter               | Description                       |
@@ -632,6 +662,8 @@ function a little, we can sidestep this issue.
 +----------------------------------+-----------------------------------+
 | [`Item_weight_idx`](#r1-i-w-i)   | Index-passing lifting operator    |
 +----------------------------------+-----------------------------------+
+
+Table: Template parameters that are introduced in level 1.
                  
 #### Result {#r1-r}
 
@@ -730,6 +762,17 @@ template <
   class Item,
   class Result,
   class Combine,
+  class Lift
+>
+Result reduce(const parray<Item>& xs,
+              Result id,
+              Combine combine,
+              Lift lift);
+
+template <
+  class Item,
+  class Result,
+  class Combine,
   class Item_weight,
   class Lift
 >
@@ -767,6 +810,17 @@ template <
   class Item,
   class Result,
   class Combine,
+  class Lift_idx
+>
+Result reducei(const parray<Item>& xs,
+               Result id,
+               Combine combine,
+               Lift_idx lift_idx);
+
+template <
+  class Item,
+  class Result,
+  class Combine,
   class Item_weight_idx,
   class Lift_idx
 >
@@ -790,6 +844,8 @@ Result reducei(const parray<Item>& xs,
 | [`Item_rng_weight`](#r2-w)| Item weight by range.             |
 |                           |                                   |
 +---------------------------+-----------------------------------+
+
+Table: Template parameters that are introduced in level 2.
 
 #### Sequential alternative body for the lifting operator {#r2-l}
 
@@ -821,7 +877,7 @@ long operator()(long lo, long hi);
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 #### Parallel array
-               
+             
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 namespace pasl {
 namespace data {
@@ -846,11 +902,14 @@ Result reduce(const parray<Item>& xs,
 } } } }
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-> TODO: specify in the `parray` class the `compute_weights` function
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+template <class PArray, class Weight>
+parray<long> weights(const PArray& xs, Weight weight);
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 long max(const parray<parray<long>>& xss) {
-  parray<long> weights = compute_weights(xss, [&] (const parray<long>& xs) {
+  parray<long> weights = weights(xss, [&] (const parray<long>& xs) {
     return xs.size();
   });
   auto item_rng_weight = [&] (long lo, long hi) {
@@ -895,30 +954,44 @@ long max_seq(const parray<parray<xs>>& xss, long lo, long hi) {
 | [`Seq_lift_dst`](#r3-dpl-seq)    | Sequential lift function in    |
 |                                  |destination-passing style       |
 +----------------------------------+--------------------------------+
+
+Table: Template parameters that are introduced in level 3.
                                       
 #### Output {#r3-o}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-class Output
+class Output;
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Type of the object to receive the output of the reduction.
 
+
++-----------------------------+-------------------------------------+
+| Constructor                 | Description                         |
++==================================+================================+
+| [copy constructor](#ro-c-c) | Copy constructor                    |
+|                             |                                     |
++-----------------------------+-------------------------------------+
+
+Table: Constructors that are required for the `Output` class.
+
+Table: Required constructors for the `Output` class.
+
 +-------------------------+-------------------------------------+
-| Operation               | Description                         |
+| Public method           | Description                         |
 +=========================+=====================================+
-| [`init`](#ro-i)         | Initialize contents                 |
-+-------------------------+-------------------------------------+
 | [`merge`](#ro-m)        | Merge contents                      |
 +-------------------------+-------------------------------------+
 
-##### Initialize {#ro-i}
+Table: Public methods that are required for the `Output` class.
+
+##### Copy constructor {#ro-c-c}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-void init(Output& output);
+Output(const Output& other);
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Initialize the contents of the output.
+Copy constructor.
 
 ##### Merge {#ro-m}
 
@@ -935,6 +1008,7 @@ referenced by `dst`, leaving the result in `dst`.
 namespace pasl {
 namespace data {
 namespace datapar {
+namespace level3 {
 
 template <class Result, class Combine>
 class cell {
@@ -949,10 +1023,6 @@ public:
   cell(const cell& other)
   : combine(other.combine) { }
 
-  void init(cell& other) {
-
-  }
-
   void merge(cell& dst) {
     dst.result = combine(dst.result, result);
     Result empty;
@@ -961,7 +1031,7 @@ public:
 
 };
 
-} } }
+} } } }
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 #### Destination-passing-style lift {#r3-dpl}
@@ -983,9 +1053,6 @@ The value that is passed in for `pos` is the index in the input
 sequence of the item `x`. The object referenced by `out` is the object
 to receive the result of the lift function.
 
-The `init` method of `out` is called once, prior to the call to the
-lift function.
-
 #### Destination-passing-style sequential lift {#r3-dpl-seq}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
@@ -1006,9 +1073,6 @@ algorithm that is to be used to process ranges of items from the
 input. The range is specified by the right-open range `[lo, hi)`. The
 object referenced by `out` is the object to receive the result of the
 sequential lift function.
-
-The `init` method of `out` is called once, prior to the call to the
-lift function.
 
 #### Parallel array
 
@@ -1036,7 +1100,7 @@ void reduce(const parray<Item>& xs,
 ### Level 4 {#red-l-4}
 
 +-------------------------------+-----------------------------------+
-| Parameter                     | Description                       |
+| Template parameter            | Description                       |
 +===============================+===================================+
 | [`Input`](#r4-i)              | Type of input to the reduction    |
 +-------------------------------+-----------------------------------+
@@ -1050,6 +1114,8 @@ void reduce(const parray<Item>& xs,
 |                               |of the `Convert` function.         |
 +-------------------------------+-----------------------------------+
 
+Table: Template parameters that are introduced in level 4.
+
 #### Input {#r4-i}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
@@ -1057,24 +1123,31 @@ class Input;
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 +-----------------------------+-------------------------------------------+
-| Operation                   | Description                               |
+| Constructor                 | Description                               |
 +=============================+===========================================+
-| [`init`](#r4i-i)            | Initialize contents                       |
-|                             |                                           |
+| [copy constructor](#r4i-cc) | Copy constructor                          |
 +-----------------------------+-------------------------------------------+
+
+Table: Constructors that are required for the `Input` class.
+
++-----------------------------+-------------------------------------------+
+| Public method               | Description                               |
++=============================+===========================================+
 | [`can_split`](#r4i-c-s)     | Return value to indicate whether split is |
 |                             |possible                                   |
 +-----------------------------+-------------------------------------------+
 | [`split`](#r4i-sp)          | Divide the input into two pieces          |
 +-----------------------------+-------------------------------------------+
 
-##### Initialize {#r4i-i}
+Table: Public methods that are required for the `Input` class.
+
+##### Copy constructor {#r4i-cc}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-void init(Input& input);
+Input(const Input& other);
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Initialize the contents of the input.
+Copy constructor.
 
 ##### Can split {#r4i-c-s}
 
@@ -1098,7 +1171,38 @@ function would return `false`.
 
 ##### Example: parallel-array-slice input
 
-TODO
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+namespace pasl {
+namespace pctl {
+namespace parray {
+namespace level4 {
+
+template <class Item>
+class parray_slice_input {
+public:
+
+  using slice_type = slice<Item>;
+
+  slice_type slice;
+
+  parray_slice_input(const parray_slice_input& other)
+  : slice(slice) { }
+
+  bool can_split() const {
+    return slice.hi - slice.lo > 1;
+  }
+
+  void split(parray_slice_input& dst) {
+    dst.slice = slice;
+    long mid = (slice.lo + slice.hi) / 2;
+    slice.hi = mid;
+    dst.slice.lo = mid;
+  }
+
+};
+
+} } } }
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 #### Input weight {#r4-i-w}
 
