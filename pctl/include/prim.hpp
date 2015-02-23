@@ -30,7 +30,6 @@ namespace pctl {
 namespace par = sched::granularity;
 using controller_type = par::control_by_prediction;
 //using controller_type = par::control_by_force_parallel;
-using loop_controller_type = par::loop_by_eager_binary_splitting<controller_type>;
 
 template <class T>
 std::string string_of_template_arg() {

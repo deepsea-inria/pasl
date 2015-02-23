@@ -322,7 +322,9 @@ public:
 
 Table: Parallel-array slice fields.
 
-### Pointer {#pa-sl-p}
+### Member fields
+
+#### Pointer {#pa-sl-p}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 const parray<Item>* pointer;
@@ -331,7 +333,7 @@ const parray<Item>* pointer;
 Pointer to the parrallel-array structure (or null pointer, if range is
 empty).
 
-### Starting index {#pa-sl-lo}
+#### Starting index {#pa-sl-lo}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 long lo;
@@ -339,7 +341,7 @@ long lo;
 
 Starting index of the range.
 
-### One-past-end index {#pa-sl-hi}
+#### One-past-end index {#pa-sl-hi}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 long hi;
@@ -362,7 +364,9 @@ One position past the end of the range.
 
 Table: Parallel-array slice constructors.
 
-### Empty slice {#pa-sl-e-c}
+### Constructors
+
+#### Empty slice {#pa-sl-e-c}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 slice();
@@ -370,7 +374,7 @@ slice();
 
 Construct an empty slice with no items.
 
-### Full range {#pa-sl-pt}
+#### Full range {#pa-sl-pt}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 slice(const parray<Item>* _pointer);
@@ -379,7 +383,7 @@ slice(const parray<Item>* _pointer);
 Construct a slice with the full range of the items in the parallel
 array pointed to by `_pointer`.
 
-### Specified range {#pa-sl-ra}
+#### Specified range {#pa-sl-ra}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 slice(long _lo, long _hi, const parray<Item>* _pointer=nullptr);
@@ -398,11 +402,368 @@ underlying parallel array.
 Parallel chunked sequence {#pchunkedseq}
 =========================
 
+Interface and cost model
+------------------------
+
++-----------------------------------+-----------------------------------+
+| Template parameter                | Description                       |
++===================================+===================================+
+| [`Item`](#cs-item)                | Type of the objects to be stored  |
+|                                   |in the container                   |
++-----------------------------------+-----------------------------------+
+| [`Alloc`](#cs-alloc)              | Allocator to be used by the       |
+|                                   |container to construct and destruct|
+|                                   |objects of type `Item`             |
++-----------------------------------+-----------------------------------+
+
+Table: Template parameters for the `pchunkedseq` class.
+                                                           
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+namespace pasl {
+namespace data {
+namespace parray {
+
+template <class Item, class Alloc = std::allocator<Item>>
+class pchunkedseq;
+
+} } }
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
++-----------------------------------+-----------------------------------+
+| Type                              | Description                       |
++===================================+===================================+
+| `value_type`                      | Alias for template parameter      |
+|                                   |`Item`                             |
++-----------------------------------+-----------------------------------+
+| `reference`                       | Alias for `value_type&`           |
++-----------------------------------+-----------------------------------+
+| `const_reference`                 | Alias for `const value_type&`     |
++-----------------------------------+-----------------------------------+
+
+Table: Parallel chunked sequence type definitions.
+
++-----------------------------------+-----------------------------------+
+| Constructor                       | Description                       |
++===================================+===================================+
+| [empty container                  | constructs an empty container with|
+|constructor](#cs-e-c-c) (default   |no items                           |
+|constructor)                       |                                   |
++-----------------------------------+-----------------------------------+
+| [fill constructor](#cs-e-f-c)     | constructs a container with a     |
+|                                   |specified number of copies of a    |
+|                                   |given item                         |
++-----------------------------------+-----------------------------------+
+| [copy constructor](#cs-e-cp-c)    | constructs a container with a copy|
+|                                   |of each of the items in the given  |
+|                                   |container, in the same order       |
++-----------------------------------+-----------------------------------+
+| [initializer list](#cs-i-l-c)     | constructs a container with the   |
+|                                   |items specified in a given         |
+|                                   |initializer list                   |
++-----------------------------------+-----------------------------------+
+| [move constructor](#cs-m-c)       | constructs a container that       |
+|                                   |acquires the items of a given      |
+|                                   |parallel array                     |
++-----------------------------------+-----------------------------------+
+| [destructor](#cs-destr)           | destructs a container             |
++-----------------------------------+-----------------------------------+
+
+Table: Parallel chunked sequence constructors and destructors.
+
+### Template parameters
+
+#### Item type {#cs-item}
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+class Item;
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Type of the items to be stored in the container.
+
+Objects of type `Item` should be default constructable.
+
+#### Allocator {#cs-alloc}
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+class Alloc;
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Allocator class.
+
+### Constructors and destructors
+
+#### Empty container constructor {#cs-e-c-c}
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+pchunkedseq();
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+***Complexity.*** Constant time.
+
+Constructs an empty container with no items;
+
+#### Fill container {#cs-e-f-c}
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+pchunkedseq(long n, const value_type& val);
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Constructs a container with `n` copies of `val`.
+
+***Complexity.*** Work and span are linear and logarithmic in the size
+   of the resulting container, respectively.
+
+#### Copy constructor {#cs-e-cp-c}
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+pchunkedseq(const pchunkedseq& other);
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Constructs a container with a copy of each of the items in `other`, in
+the same order.
+
+***Complexity.*** Work and span are linear and logarithmic in the size
+   of the resulting container, respectively.
+
+#### Initializer-list constructor {#cs-i-l-c}
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+pchunkedseq(initializer_list<value_type> il);
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Constructs a container with the items in `il`.
+
+***Complexity.*** Work and span are linear in the size of the resulting
+   container.
+
+#### Move constructor {#cs-m-c}
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+pchunkedseq(pchunkedseq&& x);
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Constructs a container that acquires the items of `other`.
+
+***Complexity.*** Constant time.
+
+#### Destructor {#cs-destr}
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+~pchunkedseq();
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Destructs the container.
+
+***Complexity.*** Work and span are linear and logarithmic in the size
+   of the container, respectively.
+
+### Sequential operations
+
++-----------------------------+--------------------------------------+
+| Operation                   | Description                          |
++=============================+======================================+
+| [`seq.operator[]`](#cs-i-o) | Access member item                   |
++-----------------------------+--------------------------------------+
+| [`seq.size`](#cs-si)        | Return size                          |
++-----------------------------+--------------------------------------+
+| [`seq.resize`](#cs-rsz)     | Change size                          |
++-----------------------------+--------------------------------------+
+| [`seq.swap`](#cs-sw)        | Exchange contents                    |
++-----------------------------+--------------------------------------+
+
+Table: Sequential operations of the parallel chunked sequence.
+
+#### Indexing operator {#cs-i-o}
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+reference operator[](long i);
+const_reference operator[](long i) const;
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Returns a reference at the specified location `i`. No bounds check is
+performed.
+
+***Complexity.*** Constant time.
+
+#### Size operator {#cs-si}
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+long size() const;
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Returns the size of the container.
+
+***Complexity.*** Constant time.
+
+#### Exchange operation {#cs-sw}
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+void swap(pchunkedseq& other);
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Exchanges the contents of the container with those of `other`. Does
+not invoke any move, copy, or swap operations on individual items.
+
+***Complexity.*** Constant time.
+
+### Parallel operations
+
++------------------------+--------------------------------------+
+| Operation              | Description                          |
++------------------------+--------------------------------------+
+| [`resize`](#cs-rsz)    | Change size                          |
++------------------------+--------------------------------------+
+  
+Table: Parallel operations of the parallel chunked sequence.
+
+#### Resize {#cs-rsz}
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+void resize(long n, const value_type& val);
+void resize(long n) {
+  value_type val;
+  resize(n, val);
+}
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Resizes the container so that it contains `n` items.
+
+The contents of the current container are removed and replaced by `n`
+copies of the item referenced by `val`.
+
+***Complexity.*** Let $m$ be the size of the container just before and
+   $n$ just after the resize operation. Then, the work and span are
+   linear and logarithmic in $\max(m, n)$, respectively.
+
 Data-parallel operations
 ========================
 
-Tabulation
-----------
+Indexed-based for loop
+----------------------
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+pchunkedseq<long> xs(4);
+parallel_for(0, n, [&] (long i) {
+  xs[i] = i+1;
+});
+
+std::cout << "xs = " << xs << std::endl;
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+xs = { 1, 2, 3, 4 }
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+### Template parameters
+
+The following table describes the template parameters that are used by
+the different version of our parallel-for function.
+
++---------------------------------+-----------------------------------+
+| Template parameter              | Description                       |
++=================================+===================================+
+| [`Iter`](#lp-i)                 | Iterator function                 |
++---------------------------------+-----------------------------------+
+| [`Seq_iter_rng`](#lp-s-i)       | A function for performing a       |
+|                                 |specified range of iterations in a |
+|                                 |sequential fashion                 |
++---------------------------------+-----------------------------------+
+| [`Comp`](#lp-c)                 | Complexity function for a         |
+|                                 |specified iteration                |
++---------------------------------+-----------------------------------+
+| [`Comp_rng`](#lp-c-r)           | Complexity function for a         |
+|                                 |specified range of iterations      |
++---------------------------------+-----------------------------------+
+
+Table: All template parameters used by various instance of the
+parallel-for loop.
+
+#### Iterator function {#lp-i}
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+class Iter;
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+void operator()(long i);
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+#### Sequential range-based iterator function {#lp-s-i}
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+class Seq_iter_rng;
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+void operator()(long lo, long hi);
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+#### Complexity function {#lp-c}
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+class Comp;
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+long operator()(long i);
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+#### Range-based compelxity function {#lp-c-r}
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+class Comp_rng;
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+long operator()(long lo, long hi);
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+### Instances
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+namespace pasl {
+namespace pctl {
+
+template <class Iter>
+void parallel_for(long lo, long hi, Iter iter);
+
+template <
+  class Iter,
+  class Comp
+>
+void parallel_for(long lo, long hi, Comp comp, Iter iter);
+
+} }
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+namespace pasl {
+namespace pctl {
+namespace range {
+
+template <
+  class Iter,
+  class Comp_rng
+>
+void parallel_for(long lo, long hi, Comp_rng comp_rng, Iter iter);
+
+template <
+  class Iter,
+  class Comp_rng,
+  class Seq_iter_rng
+>
+void parallel_for(long lo,
+                  long hi,
+                  Comp_rng comp_rng,
+                  Iter iter,
+                  Seq_iter_rng seq_iter_rng);
+
+
+} } }
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
 
 Reduction
 ---------
@@ -909,8 +1270,8 @@ Result reduce(const parray<Item>& xs,
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-template <class PArray, class Weight>
-parray<long> weights(const PArray& xs, Weight weight);
+template <class Item, class Weight>
+parray<long> weights(const parray<Item>& xs, Weight weight);
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
@@ -1184,21 +1545,21 @@ namespace parray {
 namespace level4 {
 
 template <class Item>
-class parray_slice_input {
+class slice_input {
 public:
 
   using slice_type = slice<Item>;
 
   slice_type slice;
 
-  parray_slice_input(const parray_slice_input& other)
+  slice_input(const slice_input& other)
   : slice(slice) { }
 
   bool can_split() const {
     return slice.hi - slice.lo > 1;
   }
 
-  void split(parray_slice_input& dst) {
+  void split(slice_input& dst) {
     dst.slice = slice;
     long mid = (slice.lo + slice.hi) / 2;
     slice.hi = mid;
@@ -1263,6 +1624,7 @@ as the ordinary convert function given the same input.
 namespace pasl {
 namespace data {
 namespace datapar {
+namespace level4 {
 
 template <
   class Input,
@@ -1277,8 +1639,112 @@ void reduce(Input& in,
             Convert convert,
             Seq_convert seq_convert);
             
-} } }
+} } } }
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+### Level 5 {#red-l-5}
+
++--------------------------------+-----------------------------------+
+| Template parameter             | Description                       |
++================================+===================================+
+| [`Block_input`](#r5-i)         | Type of input to the reduction    |
++--------------------------------+-----------------------------------+
+| [`Block_input_weight`](#r5-i-w)| Function to return the weight of a|
+|                                |specified input                    |
++--------------------------------+-----------------------------------+
+| [`Convert`](#r4-c)             | Function to convert from an input |
+|                                |to an output                       |
++--------------------------------+-----------------------------------+
+| [`Seq_convert`](#r4-s-c)       | Alternative sequentialized version|
+|                                |of the `Convert` function.         |
++--------------------------------+-----------------------------------+
+
+#### Block input {#r5-i}
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+class Blocked_input;
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+#### Parallel array
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+namespace pasl {
+namespace data {
+namespace parray {
+namespace level5 {
+
+class block_input {
+public:
+
+  bool can_split() const {
+  }
+
+  long size() const {
+  }
+
+  long nb_blocks() const {
+  }
+
+  long block_size() const {
+  }
+
+};
+            
+} } } }
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+### Level 6 {#red-l-6}
+
+#### Block input {#r6-b-i}
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+class Block_input;
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+#### Block convert {#r6-b-c}
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+class Block_convert;
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+parray<Output> operator()(Block_input& ins);
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+#### Block output {#r6-b-c}
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+class Block_output;
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+parray<Output> merge(const parray<Output>& blocks);
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+#### Parallel array
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+namespace pasl {
+namespace data {
+namespace datapar {
+namespace level6 {
+
+template <
+  class Block_input,
+  class Block_output,
+  class Block_input_weight,
+  class Block_convert,
+  class Seq_convert
+>
+void reduce(Block_input& block_in,
+            Block_output& block_out,
+            Block_input_weight block_input_weight,
+            Block_convert convert,
+            Seq_convert seq_convert);
+            
+} } } }
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
 
 Scan
 ----

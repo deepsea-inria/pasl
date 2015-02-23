@@ -2,6 +2,8 @@
 #include "benchmark.hpp"
 #include "parray.hpp"
 
+#include <functional>
+
 namespace pa = pasl::pctl::parray;
 
 namespace pasl {
@@ -19,6 +21,7 @@ namespace pasl {
         out << " }";
         return out;
       }
+      
     }
   }
 }
@@ -28,6 +31,7 @@ long sum(pa::parray<long>& xs) {
     return x + y;
   });
 }
+
 
 int main(int argc, char **argv) {
   

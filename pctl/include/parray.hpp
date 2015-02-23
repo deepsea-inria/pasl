@@ -20,36 +20,75 @@ namespace parray {
   
 /***********************************************************************/
   
-/*---------------------------------------------------------------------*/
-/* Forward declarations */
-
-template <class Item, class Weight>
-parray<long> weights(const parray<Item>& xs, const Weight& weight);
-  
-/*---------------------------------------------------------------------*/
-/* Reduction level 4 */
-
-namespace level4 {
+namespace level5 {
 
 template <class Item>
-class parray_slice_input {
+class block_input {
 public:
   
   using slice_type = slice<Item>;
   
   slice_type slice;
   
-  parray_slice_input(const parray<Item>& array)
+  block_input(const slice_type slice)
+  : slice(slice) { }
+  
+  block_input(const parray<Item>& xs)
+  : slice(xs) { }
+  
+  bool can_split() const {
+    return size() > block_size();
+  }
+  
+  long size() const {
+    return slice.hi - slice.lo;
+  }
+  
+  long nb_blocks() const {
+    return (long)std::pow(size(), 0.5);
+  }
+  
+  long block_size() const {
+    return 1 + ((size() - 1) / nb_blocks());
+  }
+  
+};
+
+} // end namespace
+  
+/*---------------------------------------------------------------------*/
+
+template <class Item, class Weight>
+parray<long> weights(const parray<Item>& xs, const Weight& weight) {
+  assert(false);
+  parray<long> w(xs.size() + 1);
+  return w;
+}
+
+/*---------------------------------------------------------------------*/
+/* Reduction level 4 */
+
+namespace level4 {
+
+template <class Item>
+class slice_input {
+public:
+  
+  using slice_type = slice<Item>;
+  
+  slice_type slice;
+  
+  slice_input(const parray<Item>& array)
   : slice(&array) { }
   
-  parray_slice_input(const parray_slice_input& other)
+  slice_input(const slice_input& other)
   : slice(other.slice) { }
   
   bool can_split() const {
     return slice.hi - slice.lo > 1;
   }
   
-  void split(parray_slice_input& dst) {
+  void split(slice_input& dst) {
     dst.slice = slice;
     long mid = (slice.lo + slice.hi) / 2;
     slice.hi = mid;
@@ -77,7 +116,7 @@ void reduce(const parray<Item>& xs,
             Item_rng_weight item_rng_weight,
             Lift_idx_dst lift_idx_dst,
             Seq_lift_dst seq_lift_dst) {
-  using input_type = level4::parray_slice_input<Item>;
+  using input_type = level4::slice_input<Item>;
   input_type in(xs);
   auto input_weight = [&] (input_type& in) {
     return item_rng_weight(in.slice.lo, in.slice.hi);
@@ -248,15 +287,6 @@ Item reduce(const parray<Item>& xs,
     return x;
   };
   return level1::reduce(xs, id, combine, weight, lift);
-}
-  
-/*---------------------------------------------------------------------*/
-  
-template <class Item, class Weight>
-parray<long> weights(const parray<Item>& xs, const Weight& weight) {
-  assert(false);
-  parray<long> w(xs.size() + 1);
-  return w;
 }
   
 /***********************************************************************/

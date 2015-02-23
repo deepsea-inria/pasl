@@ -173,6 +173,9 @@ public:
   : lo(other.lo), hi(other.hi), pointer(other.pointer) { }
   
 };
+  
+template <class Item, class Weight>
+parray<long> weights(const parray<Item>& xs, const Weight& weight);
 
 /***********************************************************************/
 
