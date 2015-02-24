@@ -44,24 +44,24 @@ public:
   
   class edgelist_type {
   public:
-          
+
     const_vtxid_pointer lo;
     const_vtxid_pointer hi;
     vtxid_type v;
-    size_type size_init;      
+    size_type initial_size;      
     
     edgelist_type()
     : lo(nullptr), hi(nullptr) { }
     
-    edgelist_type(vtxid_type v, size_type nb, const_vtxid_pointer edges, size_type size_init)
-    : v(v), lo(edges), hi(edges + nb), size_init(size_init) { }
+    edgelist_type(vtxid_type v, size_type nb, const_vtxid_pointer edges, size_type initial_size)
+    : v(v), lo(edges), hi(edges + nb), initial_size(initial_size) { }
     
     size_type size() const {
       return size_type(hi - lo);
     }
     
     size_type init_size() const {
-      return size_init;
+      return initial_size;
     }
 
     void clear() {
@@ -74,7 +74,7 @@ public:
       edgelist_type edges2 = edges;
       edges2.hi = edges2.lo + nb;
       edges2.v = edges.v;
-      edges2.size_init = edges.size_init;
+      edges2.initial_size = edges.initial_size;
       
       assert(edges2.size() == nb);
       return edges2;
@@ -86,7 +86,7 @@ public:
       edgelist_type edges2 = edges;
       edges2.lo = edges2.lo + nb;
       edges2.v = edges.v;
-      edges2.size_init = edges.size_init;
+      edges2.initial_size = edges.initial_size;
       
       assert(edges2.size() + nb == edges.size());
       return edges2;
@@ -96,7 +96,7 @@ public:
       std::swap(lo, other.lo);
       std::swap(hi, other.hi);
       std::swap(v, other.v);
-      std::swap(size_init, other.size_init);
+      std::swap(initial_size, other.initial_size);
       
     }
     
@@ -485,7 +485,7 @@ using chunkedstack = data::chunkedseq::bootstrapped::stack<Vertex, chunk_capacit
 
 template <class Graph>
 using frontiersegbag = frontiersegbase::frontiersegbase<Graph, frontiersegbase::chunkedbag>;
-
+  
 template <class Graph>
 using frontiersegstack = frontiersegbase::frontiersegbase<Graph, frontiersegbase::chunkedstack>;
 

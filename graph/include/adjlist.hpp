@@ -95,7 +95,7 @@ public:
 /*---------------------------------------------------------------------*/
 /* Asymmetric vertex */
 
-template <class Vertex_id_bag>
+template <class Vertex_id_bag, bool weighted = true>
 class asymmetric_vertex {
 public:
   
@@ -113,16 +113,18 @@ public:
   vtxid_type get_in_neighbor(vtxid_type j) const {
     return in_neighbors[j];
   }
+  
   vtxid_type get_in_neighbor_weight(vtxid_type j) const {
+    assert(weighted);
     return in_neighbors[j + get_in_degree()];
   }
-  
   
   vtxid_type get_out_neighbor(vtxid_type j) const {
     return out_neighbors[j];
   }
   
   vtxid_type get_out_neighbor_weight(vtxid_type j) const {
+    assert(weighted);
     return out_neighbors[j + get_out_degree()];
   }
   
@@ -246,7 +248,7 @@ bool operator!=(const adjlist<Adjlist_seq>& g1,
 /*---------------------------------------------------------------------*/
 /* Flat adjacency-list format */
 
-template <class Vertex_id, bool Is_alias = false>
+template <class Vertex_id, bool Is_alias = false, class Vertex = asymmetric_vertex<data::pointer_seq<Vertex_id>>>
 class flat_adjlist_seq {
 public:
   
@@ -254,7 +256,7 @@ public:
   typedef Vertex_id vtxid_type;
   typedef size_t size_type;
   typedef data::pointer_seq<vtxid_type> vertex_seq_type;
-  typedef asymmetric_vertex<vertex_seq_type> value_type;
+  typedef Vertex value_type;
   typedef flat_adjlist_seq<vtxid_type, true> alias_type;
   
   char* underlying_array;
