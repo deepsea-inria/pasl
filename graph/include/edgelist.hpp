@@ -14,9 +14,6 @@
 
 #define FORCE_SEQUENTIAL_REMOVE_DUPLICATES 1 // until we debug parallel code
 
-#define MIN_EDGE_WEIGHT 5
-#define MAX_EDGE_WEIGHT 10000
-
 #if defined(SEQUENTIAL_ELISION) || defined(FORCE_SEQUENTIAL_REMOVE_DUPLICATES)
 #include <unordered_set>
 #endif
@@ -56,7 +53,11 @@ public:
   }
   
 };
-    
+
+  
+extern const int min_edge_weight;
+extern const int max_edge_weight;
+
 template <class Vertex_id>
 class wedge : public edge<Vertex_id>{
 public:
@@ -70,8 +71,8 @@ public:
   wedge(vtxid_type src, vtxid_type dst)
   : src(src), dst(dst) {
     unsigned int res;
-    quickcheck::generate(MAX_EDGE_WEIGHT - MIN_EDGE_WEIGHT, res);
-    w = MIN_EDGE_WEIGHT + ((int) res);}
+    quickcheck::generate(max_edge_weight - min_edge_weight, res);
+    w = min_edge_weight + ((int) res);}
   
   wedge()
   : src(vtxid_type(0)), dst(vtxid_type(0)), w(vtxid_type(0)) { }

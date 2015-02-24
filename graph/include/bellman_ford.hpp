@@ -5,49 +5,77 @@
 
 #ifndef _PASL_GRAPH_BELLMAN_FORD_H_
 #define _PASL_GRAPH_BELLMAN_FORD_H_
-
-#define PUSH_ZERO_ARITY_VERTICES 0
-
+	
 /***********************************************************************/
 
 namespace pasl {
   namespace graph {
     
-    void print_dists(int size, int * dist) {
-      for (int i = 0; i < size; i++) {
-        std::cout << dist[i] << " ";
+    namespace util {         
+      template <class Size, class Dist>
+      void print_dists(Size size, Dist * dist) {
+        for (int i = 0; i < size; i++) {
+          std::cout << dist[i] << " ";
+        }
+        std::cout << std::endl;
       }
-      std::cout << std::endl;
-    }
-    
-    /*---------------------------------------------------------------------*/
-    /*---------------------------------------------------------------------*/
-    /*---------------------------------------------------------------------*/
-    /* Normalize -inf; serial */
-    /*---------------------------------------------------------------------*/
-    template <class Adjlist_seq>
-    int* normalize(const adjlist<Adjlist_seq>& graph, int * dists) {
-      using vtxid_type = typename adjlist<Adjlist_seq>::vtxid_type;
-      vtxid_type nb_vertices = graph.get_nb_vertices();
-      //        print_dists(nb_vertices, dists);
       
-      for (size_t i = 0; i < nb_vertices; i++) {
-        vtxid_type degree = graph.adjlists[i].get_out_degree();
-        for (vtxid_type edge = 0; edge < degree; edge++) {
-          vtxid_type other = graph.adjlists[i].get_out_neighbor(edge);
-          vtxid_type w = graph.adjlists[i].get_out_neighbor_weight(edge);
-          
-          if (dists[other] > dists[i] + w) {
-            dists[other] = shortest_path_constants<int>::minus_inf_dist;
+      /*---------------------------------------------------------------------*/
+      /* Set dist[V] = -inf for all V reachable	*/ 
+      /* from the negative cycle vertices				*/
+      /*---------------------------------------------------------------------*/
+      template <class Adjlist_seq>
+      int* normalize(const adjlist<Adjlist_seq>& graph, int* dists) {
+        using vtxid_type = typename adjlist<Adjlist_seq>::vtxid_type;
+        vtxid_type nb_vertices = graph.get_nb_vertices();
+        std::queue<vtxid_type> queue;
+        
+        for (size_t i = 0; i < nb_vertices; i++) {
+          vtxid_type degree = graph.adjlists[i].get_out_degree();
+          for (vtxid_type edge = 0; edge < degree; edge++) {
+            vtxid_type other = graph.adjlists[i].get_out_neighbor(edge);
+            vtxid_type w = graph.adjlists[i].get_out_neighbor_weight(edge);
+            
+            if (dists[other] > dists[i] + w) {
+              queue.push(other);
+              dists[other] = shortest_path_constants<int>::minus_inf_dist;
+            }
           }
         }
-      }
-      //        print_dists(nb_vertices, dists);
-      
-      return dists;
-    }
+        while (!queue.empty()) {
+          vtxid_type from = queue.front();
+          queue.pop();
+          vtxid_type degree = graph.adjlists[from].get_out_degree();
+          for (vtxid_type edge = 0; edge < degree; edge++) {
+            vtxid_type other = graph.adjlists[from].get_out_neighbor(edge);			          
+            if (dists[other] != shortest_path_constants<int>::minus_inf_dist) {
+              queue.push(other);
+              dists[other] = shortest_path_constants<int>::minus_inf_dist;
+            }
+          }
+        }      
+        return dists;
+      }   
+    } // end namespace util
     
+    enum { 	
+      SERIAL_CLASSIC,
+      SERIAL_BFS,
+      PAR_NUM_VERTICES,
+      PAR_NUM_EDGES,
+      PAR_BFS,
+      PAR_COMBINED,
+      NB_BF_ALGO 
+    };      			
     
+    std::string const algo_names[] = {
+      "SerialClassic", 
+      "SerialBFS", 
+      "ParNumVertices", 
+      "ParNumEdges", 
+      "ParBFS", 
+      "ParCombined"};
+        
     /*---------------------------------------------------------------------*/
     /*---------------------------------------------------------------------*/
     /*---------------------------------------------------------------------*/
@@ -84,9 +112,8 @@ namespace pasl {
         }
         if (!changed) break;
       }
-      std::cout << "Rounds : " << steps << std::endl;
-      
-      return normalize(graph, dists);
+      std::cout << "Rounds : " << steps << std::endl;      
+      return util::normalize(graph, dists);
     }
     
     /*---------------------------------------------------------------------*/
@@ -101,12 +128,9 @@ namespace pasl {
       using vtxid_type = typename adjlist<Adjlist_seq>::vtxid_type;
       int inf_dist = shortest_path_constants<int>::inf_dist;
       vtxid_type nb_vertices = graph.get_nb_vertices();
-      int* dists = data::mynew_array<int>(nb_vertices);
-      
-      fill_array_seq(dists, nb_vertices, inf_dist);
-      
-      dists[source] = 0;
-      
+      int* dists = data::mynew_array<int>(nb_vertices);      
+      fill_array_seq(dists, nb_vertices, inf_dist);      
+      dists[source] = 0;      
       
       LOG_BASIC(ALGO_PHASE);
       std::queue<vtxid_type> queue;
@@ -114,6 +138,7 @@ namespace pasl {
       int steps = 0;
       while (!queue.empty()) {
         steps++;
+        if (steps > nb_vertices) break;
         vtxid_type from = queue.front();
         queue.pop();
         vtxid_type degree = graph.adjlists[from].get_out_degree();
@@ -128,16 +153,19 @@ namespace pasl {
         }
       }
       std::cout << "Rounds : " << steps << std::endl;
-      return normalize(graph, dists);
+      return util::normalize(graph, dists);
     }
     
     /*---------------------------------------------------------------------*/
     /*---------------------------------------------------------------------*/
     /*---------------------------------------------------------------------*/
-    /* Bellman-Ford; parallel 1 */
+    /* Bellman-Ford; parallel by number of vertices */
     /*---------------------------------------------------------------------*/
+    
+    extern const int bellman_ford_par_by_vertices_cutoff;
+    
     template <class Adjlist_seq>
-    int* bellman_ford_par1(const adjlist<Adjlist_seq>& graph,
+    int* bellman_ford_par_vertices(const adjlist<Adjlist_seq>& graph,
                            typename adjlist<Adjlist_seq>::vtxid_type source) {
       int inf_dist = shortest_path_constants<int>::inf_dist;
       long nb_vertices = graph.get_nb_vertices();
@@ -154,12 +182,11 @@ namespace pasl {
       for (int i = 0; i < nb_vertices; i++) {
         steps++;
         changed = false;
-        process_vertices_par1(graph, dists, 0, nb_vertices, changed);
+        process_par_by_vertices(graph, dists, 0, nb_vertices, changed);
         if (!changed) break;
       }
-      std::cout << "Rounds : " << steps << std::endl;
-      
-      return normalize(graph, dists);
+      std::cout << "Rounds : " << steps << std::endl;      
+      return util::normalize(graph, dists);
     }
     
     template <class Adjlist_seq>
@@ -185,16 +212,15 @@ namespace pasl {
     }
     
     template <class Adjlist_seq>
-    void process_vertices_par1(const adjlist<Adjlist_seq>& graph,
+    void process_par_by_vertices(const adjlist<Adjlist_seq>& graph,
                                int* dists, int start, int stop, bool& changed) {
       int nb = stop - start;
-      if (nb < 100000) {
+      if (nb < bellman_ford_par_by_vertices_cutoff) {
         process_vertices_seq(graph, dists, start, stop, changed);
       } else {
-        //            std::cout << "Fork" << std::endl;
         int mid = (start + stop) / 2;
-        sched::native::fork2([&] { process_vertices_par1(graph,  dists, start, mid, changed); },
-                             [&] { process_vertices_par1(graph,  dists, mid, stop, changed); });
+        sched::native::fork2([&] { process_par_by_vertices(graph,  dists, start, mid, changed); },
+                             [&] { process_par_by_vertices(graph,  dists, mid, stop, changed); });
         
       }
     }
@@ -202,10 +228,13 @@ namespace pasl {
     /*---------------------------------------------------------------------*/
     /*---------------------------------------------------------------------*/
     /*---------------------------------------------------------------------*/
-    /* Bellman-Ford; parallel 2 */
+    /* Bellman-Ford; parallel by number of edges */
     /*---------------------------------------------------------------------*/
+    
+    extern const int bellman_ford_par_by_edges_cutoff;
+
     template <class Adjlist_seq>
-    int* bellman_ford_par2(const adjlist<Adjlist_seq>& graph,
+    int* bellman_ford_par_edges(const adjlist<Adjlist_seq>& graph,
                            typename adjlist<Adjlist_seq>::vtxid_type source) {
       int inf_dist = shortest_path_constants<int>::inf_dist;
       long nb_vertices = graph.get_nb_vertices();
@@ -229,19 +258,19 @@ namespace pasl {
       for (int i = 0; i < nb_vertices; i++) {
         steps++;
         changed = false;
-        process_vertices_par2(graph, dists, 0, nb_vertices, pref_sum, changed);
+        process_par_by_edges(graph, dists, 0, nb_vertices, pref_sum, changed);
         if (!changed) break;
       }
       std::cout << "Rounds : " << steps << std::endl;
       
-      return normalize(graph, dists);
+      return util::normalize(graph, dists);
     }
     
     template <class Adjlist_seq>
-    void process_vertices_par2(const adjlist<Adjlist_seq>& graph,
+    void process_par_by_edges(const adjlist<Adjlist_seq>& graph,
                                int * dists, int start, int stop, int * pref_sum, bool & changed) {
       int nb_edges = pref_sum[stop] - pref_sum[start];
-      if (nb_edges < 1000000 || stop - start == 1) {
+      if (nb_edges < bellman_ford_par_by_edges_cutoff || stop - start == 1) {
         process_vertices_seq(graph, dists, start, stop, changed);
       } else {
         int mid_val = (pref_sum[start] + pref_sum[stop]) / 2;
@@ -255,92 +284,20 @@ namespace pasl {
           }
         }
         
-        sched::native::fork2([&] { process_vertices_par2(graph,  dists, start, left, pref_sum, changed); },
-                             [&] { process_vertices_par2(graph,  dists, left, stop, pref_sum, changed); });
+        sched::native::fork2([&] { process_par_by_edges(graph,  dists, start, left, pref_sum, changed); },
+                             [&] { process_par_by_edges(graph,  dists, left, stop, pref_sum, changed); });
         
       }
-    }
+    }  
     
     /*---------------------------------------------------------------------*/
     /*---------------------------------------------------------------------*/
     /*---------------------------------------------------------------------*/
-    /* Bellman-Ford; parallel 3 */
+    /* Bellman-Ford; parallel BFS-like */
     /*---------------------------------------------------------------------*/
-    template <class Adjlist_seq>
-    int* bellman_ford_par3(const adjlist<Adjlist_seq>& graph,
-                           typename adjlist<Adjlist_seq>::vtxid_type source) {
-      int inf_dist = shortest_path_constants<int>::inf_dist;
-      long nb_vertices = graph.get_nb_vertices();
-      int* dists = data::mynew_array<int>(nb_vertices);
-      
-      fill_array_seq(dists, nb_vertices, inf_dist);
-      
-      dists[source] = 0;
-      
-      LOG_BASIC(ALGO_PHASE);
-      int* pref_sum = data::mynew_array<int>(nb_vertices + 1);
-      pref_sum[0] = 0;
-      for (int i = 1; i < nb_vertices + 1; i++) {
-        pref_sum[i] = pref_sum[i - 1] + graph.adjlists[i - 1].get_in_degree();
-      }
-      
-      for (int i = 0; i < nb_vertices; i++) process_vertices_par3(graph, dists, 0, nb_vertices, pref_sum);
-      return dists;
-    }
-    
-    template <class Adjlist_seq>
-    void process_vertices_par3(const adjlist<Adjlist_seq>& graph,
-                               int * dists, int start, int stop, int * pref_sum) {
-      int nb_edges = pref_sum[stop] - pref_sum[start];
-      if (nb_edges < 1000000) {
-        if (start - stop == 1) {
-          int d;
-          process_vertex_par(graph, start, 0, graph.adjlists[start].get_in_degree(), &d);
-          dists[start] = d;
-        } else {
-          process_vertices_seq(graph, dists, start, stop);
-        }
-      } else {
-        int mid_val = (pref_sum[start] + pref_sum[stop]) / 2;
-        int left = start, right = stop;
-        while (right - left > 1) {
-          int m = (left + right) / 2;
-          if (pref_sum[m] <= mid_val) {
-            left = m;
-          } else {
-            right = m;
-          }
-        }
         
-        sched::native::fork2([&] { process_vertices_par3(graph,  dists, start, left, pref_sum); },
-                             [&] { process_vertices_par3(graph,  dists, left, stop, pref_sum); });
-        
-      }
-    }
-    
-    template <class Adjlist_seq>
-    void process_vertex_par(const adjlist<Adjlist_seq>& graph,
-                            int vertex, int start, int stop, int * d) {
-      int nb_edges = stop - start;
-      if (nb_edges < 1000) {
-        
-        
-        
-      } else {
-        
-      }
-    }
-    
-    /*---------------------------------------------------------------------*/
-    /*---------------------------------------------------------------------*/
-    /*---------------------------------------------------------------------*/
-    /* Bellman-Ford; parallel 4 */
-    /*---------------------------------------------------------------------*/
-    
-    
-    int bfs_bellman_ford_process_layer_cutoff = 1000;
-    int bfs_bellman_ford_process_next_vertices_cutoff = 1000;
-    
+    extern const int bellman_ford_bfs_process_layer_cutoff;
+    extern const int bellman_ford_bfs_process_next_vertices_cutoff;    
     
     template <class Adjlist_seq>
     class bfs_bellman_ford {
@@ -395,7 +352,7 @@ namespace pasl {
                                  int * dists,
                                  DistFromParent& dists_from_parent ) {
         auto cutoff = [] (Frontier& f) {
-          return f.nb_outedges() <= vtxid_type(bfs_bellman_ford_process_layer_cutoff);
+          return f.nb_outedges() <= vtxid_type(bellman_ford_bfs_process_layer_cutoff);
         };
         auto split = [] (Frontier& src, Frontier& dst) {
           assert(src.nb_outedges() > 1);
@@ -433,7 +390,7 @@ namespace pasl {
                              int * dists,
                              DistFromParent& dists_from_parent ) {
         using vtxid_type = typename Adjlist::vtxid_type;
-        if (next_vertices.get_cached() < bfs_bellman_ford_process_next_vertices_cutoff) {
+        if (next_vertices.get_cached() < bellman_ford_bfs_process_next_vertices_cutoff) {
           next_vertices.for_each([&] (vtxid_type vertex) {
             visited[vertex] = false;
             long degree = graph.adjlists[vertex].get_in_degree();
@@ -455,7 +412,7 @@ namespace pasl {
         }
       }
 
-      static edgeweight_type* bellman_ford_par4(const adjlist<Adjlist_seq>& graph,
+      static edgeweight_type* bellman_ford_par_bfs(const adjlist<Adjlist_seq>& graph,
                              typename adjlist<Adjlist_seq>::vtxid_type source) {
         auto inf_dist = shortest_path_constants<edgeweight_type>::inf_dist;
 
@@ -494,7 +451,8 @@ namespace pasl {
         while (! frontiers[cur].empty()) {
           next_vertices.clear();
           steps++;
-          if (frontiers[cur].nb_outedges() <= bfs_bellman_ford_process_layer_cutoff) {
+          if (steps > nb_vertices) break;
+          if (frontiers[cur].nb_outedges() <= bellman_ford_bfs_process_layer_cutoff) {
             frontiers[cur].for_each_outedge_when_front_and_back_empty([&] (vtxid_type from, vtxid_type to, vtxid_type weight) {
               if (dists[to] > dists[from] + weight) {
                 if ((*dists_from_parent[to])[from] > dists[from] + weight)
@@ -516,13 +474,13 @@ namespace pasl {
         
         
         std::cout << "Rounds : " << steps << std::endl;      
-        return normalize(graph, dists);
+        return util::normalize(graph, dists);
       }            
     };
     
         
-  } // end namespace
-} // end namespace
+  } // end namespace graph
+} // end namespace pasl
 
 /***********************************************************************/
 
