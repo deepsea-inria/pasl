@@ -107,19 +107,19 @@ namespace level3 {
 template <
   class Item,
   class Output,
-  class Item_rng_weight,
+  class Lift_comp_rng,
   class Lift_idx_dst,
   class Seq_lift_dst
 >
 void reduce(const parray<Item>& xs,
             Output& out,
-            Item_rng_weight item_rng_weight,
+            Lift_comp_rng lift_comp_rng,
             Lift_idx_dst lift_idx_dst,
             Seq_lift_dst seq_lift_dst) {
   using input_type = level4::slice_input<Item>;
   input_type in(xs);
-  auto input_weight = [&] (input_type& in) {
-    return item_rng_weight(in.slice.lo, in.slice.hi);
+  auto lift_comp = [&] (input_type& in) {
+    return lift_comp_rng(in.slice.lo, in.slice.hi);
   };
   auto convert = [&] (input_type& in, Output& out) {
     const parray<Item>& xs = *in.slice.pointer;
@@ -130,7 +130,7 @@ void reduce(const parray<Item>& xs,
   auto seq_convert = [&] (input_type& in, Output& out) {
     seq_lift_dst(in.slice.lo, in.slice.hi, out);
   };
-  datapar::level4::reduce(in, out, input_weight, convert, seq_convert);
+  datapar::level4::reduce(in, out, lift_comp, convert, seq_convert);
 }
 
 } // end namespace
@@ -144,14 +144,14 @@ template <
   class Item,
   class Result,
   class Combine,
-  class Item_rng_weight,
+  class Lift_comp_rng,
   class Lift_idx,
   class Seq_lift
 >
 Result reduce(const parray<Item>& xs,
               Result id,
               const Combine& combine,
-              const Item_rng_weight& item_rng_weight,
+              const Lift_comp_rng& lift_comp_rng,
               const Lift_idx& lift_idx,
               const Seq_lift& seq_lift) {
   using output_type = datapar::level3::cell<Result, Combine>;
@@ -162,7 +162,7 @@ Result reduce(const parray<Item>& xs,
   auto seq_lift_dst = [&] (long lo, long hi, output_type& out) {
     out.result = seq_lift(lo, hi);
   };
-  level3::reduce(xs, out, item_rng_weight, lift_idx_dst, seq_lift_dst);
+  level3::reduce(xs, out, lift_comp_rng, lift_idx_dst, seq_lift_dst);
   return out.result;
 }
   
@@ -183,7 +183,7 @@ Result reducei(const parray<Item>& xs,
                Result id,
                Combine combine,
                Lift_idx lift_idx) {
-  auto item_rng_weight = [&] (long lo, long hi) {
+  auto lift_comp_rng = [&] (long lo, long hi) {
     return hi - lo;
   };
   auto seq_lift = [&] (long lo, long hi) {
@@ -193,7 +193,7 @@ Result reducei(const parray<Item>& xs,
     }
     return r;
   };
-  return level2::reduce(xs, id, combine, item_rng_weight, lift_idx, seq_lift);
+  return level2::reduce(xs, id, combine, lift_comp_rng, lift_idx, seq_lift);
 }
   
 template <
@@ -216,19 +216,20 @@ template <
   class Item,
   class Result,
   class Combine,
-  class Item_weight_idx,
+  class Lift_comp_idx,
   class Lift_idx
 >
 Result reducei(const parray<Item>& xs,
                Result id,
                Combine combine,
-               Item_weight_idx item_weight_idx,
+               Lift_comp_idx lift_comp_idx,
                Lift_idx lift_idx) {
   parray<long> w = weights(xs, [&] (long pos) {
-    return item_weight_idx(pos, xs[pos]);
+    return lift_comp_idx(pos, xs[pos]);
   });
-  auto item_rng_weight = [&] (long lo, long hi) {
-    return w[lo] - w[hi];
+  auto lift_comp_rng = [&] (long lo, long hi) {
+    long wrng = w[lo] - w[hi];
+    return (long)(log(wrng) * wrng);
   };
   auto seq_lift = [&] (long lo, long hi) {
     Result r = id;
@@ -237,28 +238,28 @@ Result reducei(const parray<Item>& xs,
     }
     return r;
   };
-  return level2::reduce(xs, id, combine, item_rng_weight, lift_idx, seq_lift);
+  return level2::reduce(xs, id, combine, lift_comp_rng, lift_idx, seq_lift);
 }
 
 template <
   class Item,
   class Result,
   class Combine,
-  class Item_weight,
+  class Lift_comp,
   class Lift
 >
 Result reduce(const parray<Item>& xs,
               Result id,
               Combine combine,
-              Item_weight item_weight,
+              Lift_comp lift_comp,
               Lift lift) {
-  auto item_weight_idx = [&] (long pos, const Item& x) {
-    return item_weight(x);
+  auto lift_comp_idx = [&] (long pos, const Item& x) {
+    return lift_comp(x);
   };
   auto lift_idx = [&] (long pos, const Item& x) {
     return lift(x);
   };
-  return reducei(xs, id, combine, item_weight_idx, lift_idx);
+  return reducei(xs, id, combine, lift_comp_idx, lift_idx);
 }
   
 } // end namespace
@@ -286,7 +287,10 @@ Item reduce(const parray<Item>& xs,
   auto lift = [&] (const Item& x) {
     return x;
   };
-  return level1::reduce(xs, id, combine, weight, lift);
+  auto lift_comp = [&] (const Item& x) {
+    return weight(x);
+  };
+  return level1::reduce(xs, id, combine, lift_comp, lift);
 }
   
 /***********************************************************************/

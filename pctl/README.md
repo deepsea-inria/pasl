@@ -993,12 +993,13 @@ combining operator of the reduction over `xss` is constant-time or
 not. This combining operator is not because the combining operator
 calls the `max` function twice. The first call is applied to the array
 `xs` and the second to `ys`. The total work performed by these two
-calls is linear in `xs.size() + ys.size()`. Therefore, by applying the
-work-lemma shown above, we get that the total work performed by this
-reduction is $O(\log | \mathtt{xss} | \max_{\mathtt{xs} \in
-\mathtt{xss}} | xs ||)$. The span is simpler to analyze. By applying
-our span rule for reduce, we get that the span for the reduction is
-$O(\log |xss| \max_{\mathtt{xs} \in \mathtt{xss}} \log |xs|)$.
+calls is linear in $| \mathtt{xs} | + | \mathtt{ys} |$. Therefore, by
+applying the work-lemma shown above, we get that the total work
+performed by this reduction is $O(\log | \mathtt{xss} |
+\max_{\mathtt{xs} \in \mathtt{xss}} | xs ||)$. The span is simpler to
+analyze. By applying our span rule for reduce, we get that the span
+for the reduction is $O(\log |xss| \max_{\mathtt{xs} \in \mathtt{xss}}
+\log |xs|)$.
 
 When the `max` function returns, the result is just one number that is
 our maximum value. It is therefore unfortunate that our combining
@@ -1024,10 +1025,11 @@ function a little, we can sidestep this issue.
 +----------------------------------+-----------------------------------+
 | [`Combine`](#r1-comb)            | Associative combining operator    |
 +----------------------------------+-----------------------------------+
-| [`Item_weight`](#r1-i-w)         | Weight function for the `Item`    |
-|                                  |type                               |
+| [`Lift_comp`](#r1-l-c)           | Complexity function associated    |
+|                                  |with the lift funciton             |
 +----------------------------------+-----------------------------------+
-| [`Item_weight_idx`](#r1-i-w-i)   | Index-passing lifting operator    |
+| [`Lift_comp_idx`](#r1-l-c-i)     | Index-passing lift complexity     |
+|                                  |function                           |
 +----------------------------------+-----------------------------------+
 
 Table: Template parameters that are introduced in level 1.
@@ -1087,30 +1089,30 @@ and returned are values of type `Result`.
 Result operator()(const Result& x, const Result& y);
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-#### Item-weight function {#r1-i-w}
+#### Complexity function for lift {#r1-l-c}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-class Item_weight;
+class Lift_comp;
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The item-weight function is a C++ functor that takes a value of type
-`Item` and returns a non-negative number of type `long`. The
-`Item_weight` class should provide a call operator of the following
+The lift-complexity function is a C++ functor that takes a value of
+type `Item` and returns a non-negative number of type `long`. The
+`Lift_comp` class should provide a call operator of the following
 type.
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 long operator()(const Item& x);
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-#### Index-passing item-weight function {#r1-i-w-i}
+#### Index-passing lift-complexity function {#r1-l-c-i}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-class Item_weight_idx;
+class Lift_comp_idx;
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The item-weight function is a C++ functor that takes an index and a
-value of type `Item` and returns a non-negative number of type
-`long`. The `Item_weight_idx` class should provide a call operator of
+The lift-complexity function is a C++ functor that takes an index and
+a value of type `Item` and returns a non-negative number of type
+`long`. The `Lift_comp_idx` class should provide a call operator of
 the following type.
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
@@ -1140,13 +1142,13 @@ template <
   class Item,
   class Result,
   class Combine,
-  class Item_weight,
+  class Lift_comp,
   class Lift
 >
 Result reduce(const parray<Item>& xs,
               Result id,
               Combine combine,
-              Item_weight item_weight,
+              Lift_comp lift_comp,
               Lift lift);
 
 } } } }
@@ -1157,13 +1159,13 @@ long max(const parray<parray<long>>& xss) {
   auto combine = [&] (long x, long y) {
     return std::max(x, y);
   };
-  auto item_weight = [&] (const parray<long>& xs) {
+  auto lift_comp = [&] (const parray<long>& xs) {
     return xs.size();
   };
   auto lift = [&] (const parray<long>& xs) {
     return max(xs);
   };
-  return level1::reduce(xss, 0, combine, item_weight, lift);
+  return level1::reduce(xss, 0, combine, lift_comp, lift);
 }
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -1188,13 +1190,13 @@ template <
   class Item,
   class Result,
   class Combine,
-  class Item_weight_idx,
+  class Lift_comp_idx,
   class Lift_idx
 >
 Result reducei(const parray<Item>& xs,
                Result id,
                Combine combine,
-               Item_weight_idx item_weight_idx,
+               Lift_comp_idx lift_comp_idx,
                Lift_idx lift_idx);
 
 } } } }
@@ -1208,8 +1210,8 @@ Result reducei(const parray<Item>& xs,
 | [`Seq_lift`](#r2-l)       | Sequential alternative body for   |
 |                           |the lift function                  |
 +---------------------------+-----------------------------------+
-| [`Item_rng_weight`](#r2-w)| Item weight by range.             |
-|                           |                                   |
+| [`Lift_comp_rng`](#r2-w)  | Range-based lift complexity       |
+|                           |function                           |
 +---------------------------+-----------------------------------+
 
 Table: Template parameters that are introduced in level 2.
@@ -1228,16 +1230,17 @@ provide a call operator with the following type.
 Result operator()(long lo, long hi);
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-#### Range-based item weight {#r2-w}
+#### Range-based lift-complexity function {#r2-w}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-class Item_rng_weight;
+class Lift_comp_rng;
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The range-based item-weight function is a C++ functor that takes a
+The range-based lift-complexity function is a C++ functor that takes a
 pair of indices and returns a non-negative number. The value returned
-is to account for the combined weights of the items in the right-open
-range `[lo, hi)` of the input sequence.
+is a value to account for the amount of work to be performed to apply
+the lift function to the items in the right-open range `[lo, hi)` of
+the input sequence.
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 long operator()(long lo, long hi);
@@ -1255,14 +1258,14 @@ template <
   class Item,
   class Result,
   class Combine,
-  class Item_rng_weight,
+  class Lift_comp_rng,
   class Lift_idx,
   class Seq_lift
 >
 Result reduce(const parray<Item>& xs,
               Result id,
               Combine combine,
-              Item_rng_weight item_rng_weight,
+              Lift_comp_rng lift_comp_rng,
               Lift_idx lift_idx,
               Seq_lift seq_lift);
 
@@ -1279,7 +1282,7 @@ long max(const parray<parray<long>>& xss) {
   parray<long> w = weights(xss, [&] (const parray<long>& xs) {
     return xs.size();
   });
-  auto item_rng_weight = [&] (long lo, long hi) {
+  auto lift_comp_rng = [&] (long lo, long hi) {
     return w[hi] - w[lo];
   };
   auto combine = [&] (long x, long y) {
@@ -1291,7 +1294,7 @@ long max(const parray<parray<long>>& xss) {
   auto seq_lift = [&] (long lo, long hi) {
     return max_seq(xss, lo, hi);
   };
-  return level2::reduce(xss, 0, combine, item_rng_weight, lift, seq_lift);
+  return level2::reduce(xss, 0, combine, lift_comp_rng, lift, seq_lift);
 }
 
 long max_seq(const parray<parray<xs>>& xss, long lo, long hi) {
@@ -1451,13 +1454,13 @@ namespace level3 {
 template <
   class Item,
   class Output,
-  class Item_rng_weight,
+  class Lift_comp_rng,
   class Lift_idx_dst,
   class Seq_lift_dst
 >
 void reduce(const parray<Item>& xs,
             Output& out,
-            Item_rng_weight item_rng_weight,
+            Lift_comp_rng lift_comp_rng,
             Lift_idx_dst lift_idx_dst,
             Seq_lift_dst seq_lift_dst);
 
@@ -1471,11 +1474,11 @@ void reduce(const parray<Item>& xs,
 +===============================+===================================+
 | [`Input`](#r4-i)              | Type of input to the reduction    |
 +-------------------------------+-----------------------------------+
-| [`Input_weight`](#r4-i-w)     | Function to return the weight of a|
-|                               |specified input                    |
-+-------------------------------+-----------------------------------+
 | [`Convert`](#r4-c)            | Function to convert from an input |
 |                               |to an output                       |
++-------------------------------+-----------------------------------+
+| [`Convert_comp`](#r4-i-w)     |  Complexity function associated   |
+|                               |with the convert function          |
 +-------------------------------+-----------------------------------+
 | [`Seq_convert`](#r4-s-c)      | Alternative sequentialized version|
 |                               |of the `Convert` function.         |
@@ -1571,15 +1574,16 @@ public:
 } } } }
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-#### Input weight {#r4-i-w}
+#### Convert complexity function {#r4-i-w}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-class Input_weight;
+class Convert_comp;
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The input-weight function is a C++ functor which returns a positive
-number that associates a weight value to a given input object. The
-`Input_weight` class should provide the following call operator.
+The convert-complexity function is a C++ functor which returns a
+positive number that associates a weight value to a given input
+object. The `Convert_comp` class should provide the following call
+operator.
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 long operator()(const Input& in);
@@ -1629,122 +1633,18 @@ namespace level4 {
 template <
   class Input,
   class Output,
-  class Input_weight,
+  class Convert_comp,
   class Convert,
   class Seq_convert
 >
 void reduce(Input& in,
             Output& out,
-            Input_weight input_weight,
+            Convert_comp convert_comp,
             Convert convert,
             Seq_convert seq_convert);
             
 } } } }
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-### Level 5 {#red-l-5}
-
-+--------------------------------+-----------------------------------+
-| Template parameter             | Description                       |
-+================================+===================================+
-| [`Block_input`](#r5-i)         | Type of input to the reduction    |
-+--------------------------------+-----------------------------------+
-| [`Block_input_weight`](#r5-i-w)| Function to return the weight of a|
-|                                |specified input                    |
-+--------------------------------+-----------------------------------+
-| [`Convert`](#r4-c)             | Function to convert from an input |
-|                                |to an output                       |
-+--------------------------------+-----------------------------------+
-| [`Seq_convert`](#r4-s-c)       | Alternative sequentialized version|
-|                                |of the `Convert` function.         |
-+--------------------------------+-----------------------------------+
-
-#### Block input {#r5-i}
-
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-class Blocked_input;
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-#### Parallel array
-
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-namespace pasl {
-namespace data {
-namespace parray {
-namespace level5 {
-
-class block_input {
-public:
-
-  bool can_split() const {
-  }
-
-  long size() const {
-  }
-
-  long nb_blocks() const {
-  }
-
-  long block_size() const {
-  }
-
-};
-            
-} } } }
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-### Level 6 {#red-l-6}
-
-#### Block input {#r6-b-i}
-
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-class Block_input;
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-#### Block convert {#r6-b-c}
-
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-class Block_convert;
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-parray<Output> operator()(Block_input& ins);
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-#### Block output {#r6-b-c}
-
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-class Block_output;
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-parray<Output> merge(const parray<Output>& blocks);
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-#### Parallel array
-
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-namespace pasl {
-namespace data {
-namespace datapar {
-namespace level6 {
-
-template <
-  class Block_input,
-  class Block_output,
-  class Block_input_weight,
-  class Block_convert,
-  class Seq_convert
->
-void reduce(Block_input& block_in,
-            Block_output& block_out,
-            Block_input_weight block_input_weight,
-            Block_convert convert,
-            Seq_convert seq_convert);
-            
-} } } }
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
 
 Scan
 ----
