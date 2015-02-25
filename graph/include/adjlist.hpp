@@ -102,7 +102,7 @@ public:
   typedef Vertex_id_bag vtxid_bag_type;
   typedef typename vtxid_bag_type::value_type vtxid_type;
     
-  asymmetric_vertex(vtxid_bag_type out_neighbors, vtxid_bag_type in_neighbors)
+  asymmetric_vertex(vtxid_bag_type in_neighbors, vtxid_bag_type out_neighbors)
   : in_neighbors(in_neighbors), out_neighbors(out_neighbors) {
     
   }
@@ -264,8 +264,7 @@ public:
   vtxid_type* offsets_in;
   vtxid_type nb_offsets;
   vtxid_type* edges;
-  vtxid_type* edges_in;
-    
+  vtxid_type* edges_in;    
   
   flat_adjlist_seq()
   : underlying_array(NULL), offsets(NULL), offsets_in(NULL),
@@ -275,8 +274,7 @@ public:
     if (Is_alias) {
       underlying_array = other.underlying_array;
       offsets = other.offsets;
-      offsets_in = other.offsets_in;
-      
+      offsets_in = other.offsets_in;      
       nb_offsets = other.nb_offsets;
       edges = other.edges;
     } else {
@@ -325,20 +323,15 @@ public:
   vtxid_type degree_in(vtxid_type v) const {
     assert(v >= 0);
     assert(v < size());
-    auto off1 = offsets_in[v];
-    auto off2 = offsets_in[v + 1];
-    
     return offsets_in[v + 1] - offsets_in[v];
   }
   
   value_type operator[](vtxid_type ix) const {
     assert(ix >= 0);
     assert(ix < size());
-    auto a = vertex_seq_type(&edges[offsets[ix]], degree(ix));
-    auto degin = degree_in(ix);
-    auto b = vertex_seq_type(&edges_in[offsets_in[ix]], degin);
-    
-    return value_type(a, b);
+    auto in = vertex_seq_type(&edges_in[offsets_in[ix]], degree_in(ix));
+    auto out = vertex_seq_type(&edges[offsets[ix]], degree(ix));
+    return value_type(in, out);
   }
   
   vtxid_type size() const {
@@ -348,10 +341,10 @@ public:
   void swap(self_type& other) {
     std::swap(underlying_array, other.underlying_array);
     std::swap(offsets, other.offsets);
-    std::swap(offsets_in, other.offsets_in);
-    
+    std::swap(offsets_in, other.offsets_in);    
     std::swap(nb_offsets, other.nb_offsets);
     std::swap(edges, other.edges);
+    std::swap(edges_in, other.edges_in);    
   }
   
   void alloc(size_type) {
@@ -362,8 +355,7 @@ public:
     nb_offsets = nb_vertices + 1;
     underlying_array = bytes;
     offsets = (vtxid_type*)bytes;
-    offsets_in = (vtxid_type*)bytes_in;
-    
+    offsets_in = (vtxid_type*)bytes_in;    
     edges = &offsets[nb_offsets];
     edges_in = &offsets_in[nb_offsets];    
   }

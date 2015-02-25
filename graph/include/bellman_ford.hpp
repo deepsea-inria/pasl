@@ -130,27 +130,33 @@ namespace pasl {
       vtxid_type nb_vertices = graph.get_nb_vertices();
       int* dists = data::mynew_array<int>(nb_vertices);      
       fill_array_seq(dists, nb_vertices, inf_dist);      
-      dists[source] = 0;      
+      dists[source] = 0; 
       
       LOG_BASIC(ALGO_PHASE);
-      std::queue<vtxid_type> queue;
-      queue.push(source);
+      std::queue<vtxid_type> cur, next;
+      cur.push(source);
       int steps = 0;
-      while (!queue.empty()) {
+      
+      while (steps < nb_vertices) {
         steps++;
-        if (steps > nb_vertices) break;
-        vtxid_type from = queue.front();
-        queue.pop();
-        vtxid_type degree = graph.adjlists[from].get_out_degree();
-        for (vtxid_type edge = 0; edge < degree; edge++) {
-          vtxid_type other = graph.adjlists[from].get_out_neighbor(edge);
-          vtxid_type w = graph.adjlists[from].get_out_neighbor_weight(edge);
-          
-          if (dists[other] > dists[from] + w) {
-            queue.push(other);
-            dists[other] = dists[from] + w;
-          }
+        if (steps > nb_vertices) break; 
+        std::queue<vtxid_type> empty;
+        std::swap(next, empty);
+        while (!cur.empty()) {
+          vtxid_type from = cur.front();
+          cur.pop();
+          vtxid_type degree = graph.adjlists[from].get_out_degree();
+          for (vtxid_type edge = 0; edge < degree; edge++) {
+            vtxid_type other = graph.adjlists[from].get_out_neighbor(edge);
+            vtxid_type w = graph.adjlists[from].get_out_neighbor_weight(edge);
+            
+            if (dists[other] > dists[from] + w) {
+              next.push(other);
+              dists[other] = dists[from] + w;
+            }
+          }          
         }
+        std::swap(cur, next);
       }
       std::cout << "Rounds : " << steps << std::endl;
       return util::normalize(graph, dists);
@@ -395,7 +401,7 @@ namespace pasl {
             visited[vertex] = false;
             long degree = graph.adjlists[vertex].get_in_degree();
             for (int edge = 0; edge < degree; edge++) {
-              long from = graph.adjlists[vertex].get_in_neighbor(edge);
+              auto from = graph.adjlists[vertex].get_in_neighbor(edge);
               if (dists[vertex] > (*dists_from_parent[vertex])[from]) {
                 dists[vertex] = (*dists_from_parent[vertex])[from];
               }
@@ -403,7 +409,7 @@ namespace pasl {
           });
         } else {
           WeightedSeq other;
-          int nb = *(next_vertices.begin());
+          auto nb = *(next_vertices.begin());
           nb = next_vertices.get_cached() / 2;
           next_vertices.split([nb] (vtxid_type n) { return nb <= n; }, other);
           sched::native::fork2([&] { process_next_vert(graph, visited, next_vertices, dists, dists_from_parent); },
@@ -478,6 +484,37 @@ namespace pasl {
       }            
     };
     
+    /*---------------------------------------------------------------------*/
+    /*---------------------------------------------------------------------*/
+    /*---------------------------------------------------------------------*/
+    /* Bellman-Ford; combined version */
+    /*---------------------------------------------------------------------*/
+    extern const std::function<bool(double, double)> algo_chooser_pred;
+    
+    template <class Adjlist_seq>
+    int* bellman_ford_par_combined(const adjlist<Adjlist_seq>& graph,
+                                typename adjlist<Adjlist_seq>::vtxid_type source) {
+      using vtxid_type = typename adjlist<Adjlist_seq>::vtxid_type;
+      vtxid_type nb_vertices = graph.get_nb_vertices();
+      auto num_edges = graph.nb_edges;
+      auto num_less = 0;
+      for (size_t from = 0; from < nb_vertices; from++) {
+        vtxid_type degree = graph.adjlists[from].get_out_degree();
+        for (vtxid_type edge = 0; edge < degree; edge++) {
+          vtxid_type to = graph.adjlists[from].get_out_neighbor(edge);
+          if (from < to) num_less++;
+        }
+      }
+      auto f = (.0 + num_less) / num_edges;
+      auto d = (.0 + num_edges) / nb_vertices;
+      if (algo_chooser_pred(f, d)) {
+        std::cout << "choosed classic" << std::endl;
+        return bellman_ford_par_edges(graph, source);
+      } else {
+        std::cout << "choosed bfs" << std::endl;
+        return bfs_bellman_ford<Adjlist_seq>::bellman_ford_par_bfs(graph, source);        
+      }
+    }
         
   } // end namespace graph
 } // end namespace pasl

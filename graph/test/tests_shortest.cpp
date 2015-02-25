@@ -7,15 +7,27 @@
 #include "edgelist.hpp"
 #include "adjlist.hpp"
 #include <map>
+#include <thread>
 
 using namespace pasl::graph;
 using namespace pasl::data;
 
+unsigned int nthreads = std::thread::hardware_concurrency();
+
 // Algorithm's thresholds
-const int pasl::graph::bellman_ford_par_by_vertices_cutoff 	= 10000;
-const int pasl::graph::bellman_ford_par_by_edges_cutoff 		= 10000;
+const int pasl::graph::bellman_ford_par_by_vertices_cutoff 	= 100000;
+const int pasl::graph::bellman_ford_par_by_edges_cutoff 		= 100000000;
 const int pasl::graph::bellman_ford_bfs_process_layer_cutoff = 1000;
 const int pasl::graph::bellman_ford_bfs_process_next_vertices_cutoff = 1000;
+const std::function<bool(double, double)> pasl::graph::algo_chooser_pred = [] (double fraction, double avg_deg) -> bool {
+  if (avg_deg < 20) {
+    return false;
+  }
+  if (avg_deg > 200) {
+    return true;
+  }
+  return fraction > 0.75;
+}; 
 
 // Graph properties
 using vtxid_type = long;
@@ -23,15 +35,15 @@ using adjlist_seq_type = pasl::graph::flat_adjlist_seq<vtxid_type>;
 using adjlist_type = adjlist<adjlist_seq_type>;
 
 // Testing constants
-const int pasl::graph::min_edge_weight = 1000;
-const int pasl::graph::max_edge_weight = 1000;
+const int pasl::graph::min_edge_weight = 1;
+const int pasl::graph::max_edge_weight = 100;
 
 const std::set<int> enabled_algo {
   SERIAL_CLASSIC,
   SERIAL_BFS,
-  PAR_NUM_VERTICES,
-  PAR_NUM_EDGES,
-  PAR_BFS,
+//  PAR_NUM_VERTICES,
+//  PAR_NUM_EDGES,
+//  PAR_BFS,
   PAR_COMBINED  
 };
 const std::set<int> enabled_tests {
@@ -39,19 +51,19 @@ const std::set<int> enabled_tests {
   BALANCED_TREE,
   CHAIN,
   STAR,
-  SQUARE_GRID,
+  SQUARE_GRID, 
   RANDOM_SPARSE,
   RANDOM_DENSE,
-  RANDOM_CUSTOM
+//  RANDOM_CUSTOM
 };
 std::map<int, size_t> test_edges_number {
-  {COMPLETE, 			1000},
-  {BALANCED_TREE, 1000},
-  {CHAIN, 				1000},
-  {STAR, 					1000},
-  {SQUARE_GRID, 	1000},
-  {RANDOM_SPARSE, 1000},
-  {RANDOM_DENSE, 	1000},
+  {COMPLETE, 			4000000},
+  {BALANCED_TREE, 10000},
+  {CHAIN, 				10000},
+  {STAR, 					100000},
+  {SQUARE_GRID, 	100000},
+  {RANDOM_SPARSE, 10000},
+  {RANDOM_DENSE, 	100000},
   {RANDOM_CUSTOM, 1000}
 };
 const double custom_lex_order_edges_fraction = 0.5;
@@ -79,7 +91,6 @@ void print_graph_debug_info(const adjlist_type & graph) {
 }
 
 int main(int argc, char ** argv) {
-  
   auto init = [&] {
     for (int i = 0; i < NB_GENERATORS; ++i) {
       enabled_graph[i] = enabled_tests.count(i) != 0;
@@ -94,7 +105,7 @@ int main(int argc, char ** argv) {
       if (i == RANDOM_CUSTOM) {
         src_by_type[i] = generate(which_generator, test_edges_number[i], graph_by_type[i], custom_lex_order_edges_fraction, custom_avg_degree);
       } else {
-        src_by_type[i] = generate(which_generator, test_edges_number[i], graph_by_type[i]);
+        src_by_type[i] = generate(which_generator, test_edges_number[i], graph_by_type[i], -1, -1, true);
       }
       std::cout << "Done generating " << graph_types[i] << " with ";      
       print_graph_debug_info(graph_by_type[i]);      
@@ -207,3 +218,13 @@ TEST(ParBFS, Star)            {help_test(STAR,            bfs_bellman_ford<adjli
 TEST(ParBFS, RandomSparse)    {help_test(RANDOM_SPARSE,   bfs_bellman_ford<adjlist_seq_type>::bellman_ford_par_bfs);}
 TEST(ParBFS, RandomDense)     {help_test(RANDOM_DENSE,    bfs_bellman_ford<adjlist_seq_type>::bellman_ford_par_bfs);}
 TEST(ParBFS, RandomCustom)    {help_test(RANDOM_CUSTOM,   bfs_bellman_ford<adjlist_seq_type>::bellman_ford_par_bfs);}
+
+// ParCombined
+TEST(ParCombined, CompleteGraph)   {help_test(COMPLETE,        bellman_ford_par_combined<adjlist_seq_type>);}
+TEST(ParCombined, BalancedTree)    {help_test(BALANCED_TREE,   bellman_ford_par_combined<adjlist_seq_type>);}
+TEST(ParCombined, Chain)           {help_test(CHAIN,           bellman_ford_par_combined<adjlist_seq_type>);}
+TEST(ParCombined, SquareGrid)      {help_test(SQUARE_GRID,     bellman_ford_par_combined<adjlist_seq_type>);}
+TEST(ParCombined, Star)            {help_test(STAR,            bellman_ford_par_combined<adjlist_seq_type>);}
+TEST(ParCombined, RandomSparse)    {help_test(RANDOM_SPARSE,   bellman_ford_par_combined<adjlist_seq_type>);}
+TEST(ParCombined, RandomDense)     {help_test(RANDOM_DENSE,    bellman_ford_par_combined<adjlist_seq_type>);}
+TEST(ParCombined, RandomCustom)    {help_test(RANDOM_CUSTOM,   bellman_ford_par_combined<adjlist_seq_type>);}
