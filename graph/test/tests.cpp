@@ -94,7 +94,7 @@ int main(int argc, char ** argv) {
     should_check_correctness = pasl::util::cmdline::parse_or_default_bool("check", false, false);
     algo_num = pasl::util::cmdline::parse_or_default_int("algo_num", SERIAL_CLASSIC);
     test_num = pasl::util::cmdline::parse_or_default_int("test_num", COMPLETE);
-    vertices_num = pasl::util::cmdline::parse_or_default_int("vertcies", -1);
+    vertices_num = pasl::util::cmdline::parse_or_default_int("vertices", -1);
     cutoff = pasl::util::cmdline::parse_or_default_int("cutoff", -1);
     
     std::cout << "Testing " << algo_names[algo_num] << " with " << graph_types[test_num] << std::endl;  
