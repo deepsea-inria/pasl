@@ -9,7 +9,7 @@
 
 #include <cmath>
 
-#include "prim.hpp"
+#include "pmem.hpp"
 
 #ifndef _PARRAY_PCTL_PARRAY_BASE_H_
 #define _PARRAY_PCTL_PARRAY_BASE_H_
@@ -44,9 +44,14 @@ private:
   std::unique_ptr<value_type[], Deleter> ptr;
   long sz = -1l;
   
+  template <class T>
+  T* alloc_array(long n) {
+    return (T*)malloc(n*sizeof(T));
+  }
+  
   void alloc() {
     assert(sz >= 0);
-    value_type* p = prim::alloc_array<value_type>(sz);
+    value_type* p = alloc_array<value_type>(sz);
     assert(p != nullptr);
     ptr.reset(p);
   }
@@ -54,7 +59,7 @@ private:
   void destroy() {
     if (sz < 1)
       return;
-    prim::pdelete<Item, Alloc>(&operator[](0), &operator[](sz-1)+1);
+    pmem::pdelete<Item, Alloc>(&operator[](0), &operator[](sz-1)+1);
     sz = 0;
   }
   
@@ -64,7 +69,7 @@ private:
     alloc();
     if (sz < 1)
       return;
-    prim::fill(&operator[](0), &operator[](sz-1)+1, val);
+    pmem::fill(&operator[](0), &operator[](sz-1)+1, val);
   }
   
   void check(long i) const {
@@ -100,7 +105,7 @@ public:
   parray(const parray& other) {
     sz = other.size();
     alloc();
-    prim::copy(&other[0], &other[sz-1]+1, &ptr[0]);
+    pmem::copy(&other[0], &other[sz-1]+1, &ptr[0]);
   }
   
   parray& operator=(parray&& other) {
@@ -136,6 +141,16 @@ public:
   void resize(long n) {
     value_type val;
     resize(n, val);
+  }
+  
+  template <class F>
+  void rebuild(long n, const F& f) {
+    assert(false);
+  }
+  
+  template <class F, class F_comp>
+  void rebuild(long n, const F& f, const F_comp& f_comp) {
+    assert(false);
   }
   
 };

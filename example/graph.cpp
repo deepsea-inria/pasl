@@ -32,9 +32,8 @@ long sum(pa::parray<long>& xs) {
   });
 }
 
-
 int main(int argc, char **argv) {
-  
+ 
   auto init = [&] {
     
   };

@@ -165,80 +165,13 @@ public:
 /*---------------------------------------------------------------------*/
 /* Level 0 */
   
-namespace range {
-    
-  template <
-    class Iter,
-    class Comp_rng,
-    class Seq_iter_rng
-  >
-  class parallel_for_controller_type {
-  public:
-    static controller_type contr;
-  };
-    
-  template <
-    class Iter,
-    class Comp_rng,
-    class Seq_iter_rng
-  >
-  controller_type parallel_for_controller_type<Iter,Comp_rng,Seq_iter_rng>::contr(
-  "parallel_for"+sota<Iter>()+sota<Comp_rng>()+sota<Seq_iter_rng>());
-
-  template <
-    class Iter,
-    class Comp_rng,
-    class Seq_iter_rng
-  >
-  void parallel_for(long lo,
-                    long hi,
-                    Comp_rng comp_rng,
-                    Iter iter,
-                    Seq_iter_rng seq_iter_rng) {
-    using controller_type = parallel_for_controller_type<Iter, Comp_rng, Seq_iter_rng>;
-    par::cstmt(controller_type::contr, [&] { return comp_rng(lo, hi); }, [&] {
-      if (hi-lo <= 1) {
-        iter(lo);
-      } else {
-        long mid = (lo + hi) / 2;
-        par::fork2([&] {
-          parallel_for(lo, mid, comp_rng, iter, seq_iter_rng);
-        }, [&] {
-          parallel_for(mid, hi, comp_rng, iter, seq_iter_rng);
-        });
-      }
-    }, [&] {
-      seq_iter_rng(lo, hi);
-    });
-  }
-
-  template <class Iter, class Comp_rng>
-  void parallel_for(long lo, long hi, Comp_rng comp_rng, Iter iter) {
-    auto seq_iter_rng = [&] (long lo, long hi) {
-      for (long i = lo; i < hi; i++) {
-        iter(i);
-      }
-    };
-    parallel_for(lo, hi, comp_rng, iter, seq_iter_rng);
-  }
-
-} // end namespace
-  
-template <class Iter, class Comp>
-void parallel_for(long lo, long hi, Comp comp, Iter iter) {
+template <class Iter, class Body, class Comp>
+void parallel_for(Iter lo, Iter hi, const Comp& comp, const Body& body) {
   parray::parray<long> w = parray::weights(hi - lo, comp);
   auto comp_rng = [&] {
     return w[hi] - w[lo];
   };
-  range::parallel_for(lo, hi, comp_rng, iter);
-}
-
-template <class Iter>
-void parallel_for(long lo, long hi, Iter iter) {
-  auto comp_rng = [&] (long lo, long hi) {
-    return hi - lo;
-  };
-  range::parallel_for(lo, hi, comp_rng, iter);
+  range::parallel_for(lo, hi, comp_rng, body);
 }
   
 /***********************************************************************/

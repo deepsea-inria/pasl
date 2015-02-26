@@ -566,8 +566,6 @@ Destructs the container.
 +-----------------------------+--------------------------------------+
 | [`seq.size`](#cs-si)        | Return size                          |
 +-----------------------------+--------------------------------------+
-| [`seq.resize`](#cs-rsz)     | Change size                          |
-+-----------------------------+--------------------------------------+
 | [`seq.swap`](#cs-sw)        | Exchange contents                    |
 +-----------------------------+--------------------------------------+
 
@@ -611,10 +609,31 @@ not invoke any move, copy, or swap operations on individual items.
 +------------------------+--------------------------------------+
 | Operation              | Description                          |
 +------------------------+--------------------------------------+
+| [`rebuild`](#cs-rbld)  | Repopulate container changing size   |
++------------------------+--------------------------------------+
 | [`resize`](#cs-rsz)    | Change size                          |
 +------------------------+--------------------------------------+
-  
+
 Table: Parallel operations of the parallel chunked sequence.
+
+#### Rebuild {#cs-rbld}
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+template <class F>
+void rebuild(long n, F f);
+template <class F, class F_comp>
+void rebuild(long n, F_comp f_comp, F f);
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Resizes the container so that it contains `n` items.
+
+The contents of the current container are removed and replaced by the
+`n` items returned by the `n` calls, `f(0)`, `f(1)`, ..., `f(n-1)`, in
+that order.
+
+***Complexity.*** Let $m$ be the size of the container just before and
+   $n$ just after the resize operation. Then, the work and span are
+   linear and logarithmic in $\max(m, n)$, respectively.
 
 #### Resize {#cs-rsz}
 
@@ -642,8 +661,8 @@ Indexed-based for loop
 ----------------------
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-pchunkedseq<long> xs(4);
-parallel_for(0, n, [&] (long i) {
+parray<long> xs = { 0, 0, 0, 0 };
+parallel_for(0, xs.size(), [&] (long i) {
   xs[i] = i+1;
 });
 
@@ -663,11 +682,12 @@ the different version of our parallel-for function.
 +---------------------------------+-----------------------------------+
 | Template parameter              | Description                       |
 +=================================+===================================+
-| [`Iter`](#lp-i)                 | Iterator function                 |
+| [`Iter`](#lp-iter)              | Type of the iterator to be used by|
+|                                 |the loop                           |
 +---------------------------------+-----------------------------------+
-| [`Seq_iter_rng`](#lp-s-i)       | A function for performing a       |
-|                                 |specified range of iterations in a |
-|                                 |sequential fashion                 |
+| [`Body`](#lp-i)                 | Loop body                         |
++---------------------------------+-----------------------------------+
+| [`Seq_body_rng`](#lp-s-i)       | Sequentialized version of the body|
 +---------------------------------+-----------------------------------+
 | [`Comp`](#lp-c)                 | Complexity function for a         |
 |                                 |specified iteration                |
@@ -679,24 +699,33 @@ the different version of our parallel-for function.
 Table: All template parameters used by various instance of the
 parallel-for loop.
 
-#### Iterator function {#lp-i}
+#### Loop iterator {#lp-iter}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 class Iter;
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+The `Iter` class must be an instance of C++ [random-access
+iterator](http://en.cppreference.com/w/cpp/concept/RandomAccessIterator).
+
+#### Loop body {#lp-i}
+
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-void operator()(long i);
+class Body;
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-#### Sequential range-based iterator function {#lp-s-i}
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+void operator()(Iter i);
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+#### Sequentialized loop body {#lp-s-i}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-class Seq_iter_rng;
+class Seq_body_rng;
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-void operator()(long lo, long hi);
+void operator()(Iter lo, Iter hi);
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 #### Complexity function {#lp-c}
@@ -706,7 +735,7 @@ class Comp;
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-long operator()(long i);
+long operator()(Iter i);
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 
@@ -717,7 +746,7 @@ class Comp_rng;
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-long operator()(long lo, long hi);
+long operator()(Iter lo, Iter hi);
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 ### Instances
@@ -726,14 +755,11 @@ long operator()(long lo, long hi);
 namespace pasl {
 namespace pctl {
 
-template <class Iter>
-void parallel_for(long lo, long hi, Iter iter);
+template <class Iter, class Body>
+void parallel_for(Iter lo, Iter hi, Body body);
 
-template <
-  class Iter,
-  class Comp
->
-void parallel_for(long lo, long hi, Comp comp, Iter iter);
+template <class Iter, class Body, class Comp>
+void parallel_for(Iter lo, Iter hi, Comp comp, Body body);
 
 } }
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -745,21 +771,24 @@ namespace range {
 
 template <
   class Iter,
+  class Body,
   class Comp_rng
 >
-void parallel_for(long lo, long hi, Comp_rng comp_rng, Iter iter);
+void parallel_for(Iter lo,
+                  Iter hi, Comp_rng comp_rng,
+                  Body body);
 
 template <
   class Iter,
+  class Body,
   class Comp_rng,
-  class Seq_iter_rng
+  class Seq_body_rng
 >
-void parallel_for(long lo,
-                  long hi,
+void parallel_for(Iter lo,
+                  Iter hi,
                   Comp_rng comp_rng,
-                  Iter iter,
-                  Seq_iter_rng seq_iter_rng);
-
+                  Body body,
+                  Seq_body_rng seq_body_rng);
 
 } } }
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1298,7 +1327,7 @@ long max(const parray<parray<long>>& xss) {
 }
 
 long max_seq(const parray<parray<xs>>& xss, long lo, long hi) {
-  long m = LONG_MAX;
+  long m = LONG_MIN;
   for (long i = lo; i < hi; i++) {
     const parray<long>& xs = xss[i];
     long n = xs.size();
