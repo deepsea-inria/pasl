@@ -44,20 +44,16 @@ private:
   std::unique_ptr<value_type[], Deleter> ptr;
   long sz = -1l;
   
-  template <class T>
-  T* alloc_array(long n) {
-    return (T*)malloc(n*sizeof(T));
-  }
-  
-  void alloc() {
+  void alloc(long n) {
+    sz = n;
     assert(sz >= 0);
-    value_type* p = alloc_array<value_type>(sz);
+    value_type* p = (value_type*)malloc(sz * sizeof(value_type));
     assert(p != nullptr);
     ptr.reset(p);
   }
   
   void destroy() {
-    if (sz < 1)
+    if (sz <= 0)
       return;
     pmem::pdelete<Item, Alloc>(&operator[](0), &operator[](sz-1)+1);
     sz = 0;
@@ -65,9 +61,8 @@ private:
   
   void fill(long n, const value_type& val) {
     destroy();
-    sz = n;
-    alloc();
-    if (sz < 1)
+    alloc(n);
+    if (sz <= 0)
       return;
     pmem::fill(&operator[](0), &operator[](sz-1)+1, val);
   }
@@ -80,19 +75,22 @@ private:
   
 public:
   
-  parray(long sz = 0)
-  : sz(sz) {
-    resize(sz);
+  parray(long sz = 0) {
+    value_type val;
+    fill(sz, val);
   }
   
-  parray(long sz, const value_type& val)
-  : sz(sz) {
-    resize(sz, val);
+  parray(long sz, const value_type& val) {
+    fill(sz, val);
   }
   
-  parray(std::initializer_list<value_type> xs)
-  : sz(xs.size()) {
-    alloc();
+  parray(long sz, const std::function<value_type(long)>& body)
+  : sz(0) {
+    rebuild(sz, body);
+  }
+  
+  parray(std::initializer_list<value_type> xs) {
+    alloc(xs.size());
     long i = 0;
     for (auto it = xs.begin(); it != xs.end(); it++)
       ptr[i++] = *it;
@@ -103,8 +101,7 @@ public:
   }
   
   parray(const parray& other) {
-    sz = other.size();
-    alloc();
+    alloc(other.size());
     pmem::copy(&other[0], &other[sz-1]+1, &ptr[0]);
   }
   
@@ -143,14 +140,26 @@ public:
     resize(n, val);
   }
   
-  template <class F>
-  void rebuild(long n, const F& f) {
-    assert(false);
+  void clear() {
+    resize(0);
   }
   
-  template <class F, class F_comp>
-  void rebuild(long n, const F& f, const F_comp& f_comp) {
-    assert(false);
+  template <class Body>
+  void rebuild(long n, const Body& body) {
+    clear();
+    alloc(n);
+    parallel_for(0l, n, [&] (long i) {
+      ptr[i] = body(i);
+    });
+  }
+  
+  template <class Body, class Body_comp>
+  void rebuild(long n, const Body_comp& body_comp, const Body& body) {
+    clear();
+    alloc(n);
+    parallel_for(0l, n, body_comp, [&] (long i) {
+      ptr[i] = body(i);
+    });
   }
   
 };

@@ -41,6 +41,11 @@ int main(int argc, char **argv) {
     pa::parray<long> foo = { 1, -1, 1, 3 };
     std::cout << foo << std::endl;
     std::cout << sum(foo) << std::endl;
+    
+    pa::parray<long> foobar(14, [&] (long i) {
+      return i+1;
+    });
+    std::cout << foobar << std::endl;
   };
   auto output = [&] {
   };

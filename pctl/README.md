@@ -97,6 +97,10 @@ Table: Parallel-array type definitions.
 |                                   |specified number of copies of a    |
 |                                   |given item                         |
 +-----------------------------------+-----------------------------------+
+| [populate constructor](#pa-e-p-c) | constructs a container with a     |
+|                                   |specified number of values that are|
+|                                   |computed by a specified function   |
++-----------------------------------+-----------------------------------+
 | [copy constructor](#pa-e-cp-c)    | constructs a container with a copy|
 |                                   |of each of the items in the given  |
 |                                   |container, in the same order       |
@@ -156,6 +160,26 @@ Constructs a container with `n` copies of `val`.
 
 ***Complexity.*** Work and span are linear and logarithmic in the size
    of the resulting container, respectively.
+
+#### Populate constructor {#pa-e-p-c}
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+// (1) Constant-time body
+parray(long n, std::function<Item(long)> body);
+// (2) Non-constant-time body
+parray(long n,
+       std::function<long(long)> body_comp,
+       std::function<Item(long)> body);
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Constructs a container with `n` cells, populating those cells with
+values returned by the `n` calls, `body(0)`, `body(1)`, ...,
+`body(n-1)`, in that order.
+
+In the second version, the value returned by `body_comp(i)` is used by
+the constructor as the complexity estimate for the call `body(i)`.
+
+***Complexity.*** TODO
 
 #### Copy constructor {#pa-e-cp-c}
 
@@ -453,6 +477,10 @@ Table: Parallel chunked sequence type definitions.
 |                                   |specified number of copies of a    |
 |                                   |given item                         |
 +-----------------------------------+-----------------------------------+
+| [populate constructor](#cs-e-p-c) | constructs a container with a     |
+|                                   |specified number of values that are|
+|                                   |computed by a specified function   |
++-----------------------------------+-----------------------------------+
 | [copy constructor](#cs-e-cp-c)    | constructs a container with a copy|
 |                                   |of each of the items in the given  |
 |                                   |container, in the same order       |
@@ -512,6 +540,26 @@ Constructs a container with `n` copies of `val`.
 
 ***Complexity.*** Work and span are linear and logarithmic in the size
    of the resulting container, respectively.
+
+#### Populate constructor {#cs-e-p-c}
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+// (1) Constant-time body
+pchunkedseq(long n, std::function<Item(long)> body);
+// (2) Non-constant-time body
+pchunkedseq(long n,
+            std::function<long(long)> body_comp,
+            std::function<Item(long)> body);
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Constructs a container with `n` cells, populating those cells with
+values returned by the `n` calls, `body(0)`, `body(1)`, ...,
+`body(n-1)`, in that order.
+
+In the second version, the value returned by `body_comp(i)` is used by
+the constructor as the complexity estimate for the call `body(i)`.
+
+***Complexity.*** TODO
 
 #### Copy constructor {#cs-e-cp-c}
 
@@ -608,7 +656,7 @@ not invoke any move, copy, or swap operations on individual items.
 
 +------------------------+--------------------------------------+
 | Operation              | Description                          |
-+------------------------+--------------------------------------+
++========================+======================================+
 | [`rebuild`](#cs-rbld)  | Repopulate container changing size   |
 +------------------------+--------------------------------------+
 | [`resize`](#cs-rsz)    | Change size                          |
@@ -619,17 +667,17 @@ Table: Parallel operations of the parallel chunked sequence.
 #### Rebuild {#cs-rbld}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-template <class F>
-void rebuild(long n, F f);
-template <class F, class F_comp>
-void rebuild(long n, F_comp f_comp, F f);
+void rebuild(long n, std::function<value_type(long)> body);
+void rebuild(long n,
+             std::function<long(long)> body_comp,
+             std::function<value_type(long)> body);
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Resizes the container so that it contains `n` items.
 
 The contents of the current container are removed and replaced by the
-`n` items returned by the `n` calls, `f(0)`, `f(1)`, ..., `f(n-1)`, in
-that order.
+`n` items returned by the `n` calls, `body(0)`, `body(1)`, ...,
+`body(n-1)`, in that order.
 
 ***Complexity.*** Let $m$ be the size of the container just before and
    $n$ just after the resize operation. Then, the work and span are
@@ -705,8 +753,19 @@ parallel-for loop.
 class Iter;
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The `Iter` class must be an instance of C++ [random-access
+At a minimum, any value of type `Iter` must support the following
+operations. Let `a` and `b` denote values of type `Iter` and `n` a
+value of type `long`.  Then, we need the subtraction operation `a-b`,
+the comparison operation `a!=b`, the addition-by-a-number-operation
+`a+n`, and the increment operation `a++`.
+
+As such, the concept of the `Iter` class bears resemblance to the
+concept of the [random-access
 iterator](http://en.cppreference.com/w/cpp/concept/RandomAccessIterator).
+The main difference between the two is that, with the random-access
+iterator, an iterable value necessarily has the ability to
+dereference, whereas with our `Iter` class this feature is not used
+and therefore not required.
 
 #### Loop body {#lp-i}
 

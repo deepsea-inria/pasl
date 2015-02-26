@@ -74,7 +74,7 @@ void parallel_for(Iter lo,
     if (n <= 1) {
       body(lo);
     } else {
-      Iter mid = lo + n;
+      Iter mid = lo + (n / 2);
       par::fork2([&] {
         parallel_for(lo, mid, comp_rng, body, seq_body_rng);
       }, [&] {
