@@ -82,7 +82,9 @@ template <class Init, class Run, class Output, class Destroy>
 void launch(int argc, char** argv,
             const Init& init, const Run& run, const Output& output,
             const Destroy& destroy) {
-  util::cmdline::set(argc, argv);
+  // TODO : get rid of it; 
+  // it'll be like this while I'm using GTest
+  util::cmdline::set(1, argv);
   launch(init, run, output, destroy);
 }
 

@@ -24,8 +24,6 @@ void adjlist_from_edgelist(const edgelist<Edge_bag>& edg, adjlist<Adjlist_seq>& 
   util::atomic::die("todo");
 }
 
-#ifdef SEQUENTIAL_ELISION
-
 // serial algorithm
 template <class Edge_bag, class Vertex_id>
 void adjlist_from_edgelist(const edgelist<Edge_bag>& edg, adjlist<flat_adjlist_seq<Vertex_id>>& adj) {
@@ -38,71 +36,71 @@ void adjlist_from_edgelist(const edgelist<Edge_bag>& edg, adjlist<flat_adjlist_s
   vtxid_type nb_vertices = edg.nb_vertices;
   vtxid_type nb_offsets = nb_vertices + 1;
   edgeid_type nb_edges = edg.get_nb_edges();
-  edgeid_type contents_sz = nb_offsets + nb_edges;
+  edgeid_type contents_sz = nb_offsets + nb_edges * 2;
   char* contents = (char*)data::mynew_array<vtxid_type>(contents_sz);
-  adj.adjlists.init(contents, nb_vertices, nb_edges);
+  char* contents_in = (char*)data::mynew_array<vtxid_type>(contents_sz);
+  
+  adj.adjlists.init(contents, contents_in, nb_vertices, nb_edges);
   vtxid_type* offsets = adj.adjlists.offsets;
+  vtxid_type* offsets_in = adj.adjlists.offsets_in;
+  
   vtxid_type* edges = adj.adjlists.edges;
+  vtxid_type* edges_in = adj.adjlists.edges_in;
+  
   data::array_seq<vtxid_type> degrees;
+  data::array_seq<vtxid_type> degrees_in;
+  data::array_seq<vtxid_type> degrees_help;
+  data::array_seq<vtxid_type> degrees_in_help;
+  
   degrees.alloc(nb_vertices);
-  for (vtxid_type i = 0; i < nb_vertices; i++)
+  degrees_in.alloc(nb_vertices);
+  degrees_help.alloc(nb_vertices);
+  degrees_in_help.alloc(nb_vertices);
+  
+  for (vtxid_type i = 0; i < nb_vertices; i++) {
     degrees[i] = 0;
+    degrees_in[i] = 0;
+  }
   for (edgeid_type i = 0; i < edg.edges.size(); i++) {
     edge_type e = edg.edges[i];
     degrees[e.src]++;
+    degrees_in[e.dst]++;
   }
   offsets[0] = 0;
   for (vtxid_type i = 1; i < nb_offsets; i++)
-    offsets[i] = offsets[i - 1] + degrees[i - 1];
-  for (vtxid_type i = 0; i < nb_vertices; i++)
+    offsets[i] = offsets[i - 1] + 2 * degrees[i - 1];
+  
+  offsets_in[0] = 0;
+  for (vtxid_type i = 1; i < nb_offsets; i++)
+    offsets_in[i] = offsets_in[i - 1] + 2 * degrees_in[i - 1];
+  for (vtxid_type i = 0; i < nb_vertices; i++) {
+    degrees_help[i] =degrees[i];
+    degrees_in_help[i] = degrees_in[i];
     degrees[i] = 0;
+    degrees_in[i] = 0;
+    
+  }
+  
   for (edgeid_type i = 0; i < edg.edges.size(); i++) {
     edge_type e = edg.edges[i];
     vtxid_type cnt = degrees[e.src];
+    vtxid_type cnt_final = degrees_help[e.src];
     edges[offsets[e.src] + cnt] = e.dst;
+    edges[offsets[e.src] + cnt + cnt_final] = e.w;
+    
     degrees[e.src]++;
+    
+    vtxid_type cnt_in = degrees_in[e.dst];
+    vtxid_type cnt_in_final = degrees_in_help[e.dst];
+    
+    edges_in[offsets_in[e.dst] + cnt_in] = e.src;
+    edges_in[offsets_in[e.dst] + cnt_in + cnt_in_final] = e.w;
+    degrees_in[e.dst]++;
   }
+  
   adj.nb_edges = nb_edges;
   adj.check();
 }
-
-#else
-
-template <class Edge_bag, class Vertex_id>
-void adjlist_from_edgelist(const edgelist<Edge_bag>& edg, adjlist<flat_adjlist_seq<Vertex_id>>& adj) {
-  using vtxid_type = typename Edge_bag::value_type::vtxid_type;
-  using adjlist_type = adjlist<flat_adjlist_seq<Vertex_id>>;
-  using adjlist_list_type = typename adjlist_type::adjlist_seq_type::value_type;
-  using edge_type = typename Edge_bag::value_type;
-  if (sizeof(vtxid_type) > sizeof(typename adjlist_type::vtxid_type))
-    util::atomic::die("conversion failed due to incompatible types");
-  edg.check();
-  vtxid_type nb_vertices = edg.nb_vertices;
-  vtxid_type nb_offsets = nb_vertices + 1;
-  edgeid_type nb_edges = edg.get_nb_edges();
-  if (nb_edges != vtxid_type(nb_edges))
-    util::atomic::die("vtxid_type needs more bits to store this graph");
-  edge_type* edge_list = edg.data();
-  edgeid_type contents_sz = nb_offsets + nb_edges;
-  char* contents = (char*)data::mynew_array<vtxid_type>(contents_sz);
-  adj.adjlists.init(contents, nb_vertices, nb_edges);
-  vtxid_type* offsets = adj.adjlists.offsets;
-  auto get_src_vtx = [&] (edge_type e) { return edgeid_type(e.src); };
-  pbbs::intSort::iSort(edge_list, offsets, vtxid_type(nb_edges), nb_vertices, get_src_vtx);
-  offsets[nb_vertices] = vtxid_type(nb_edges);
-  sched::native::parallel_for(vtxid_type(0), nb_vertices, [&] (vtxid_type i) {
-    adjlist_list_type list_i = adj.adjlists[i];
-    vtxid_type out_degree = list_i.get_out_degree();
-    vtxid_type offset_i = offsets[i];
-    sched::native::parallel_for(vtxid_type(0), out_degree, [&] (vtxid_type j) {
-      list_i.set_out_neighbor(j, edge_list[offset_i + j].dst);
-    });
-  });
-  adj.nb_edges = nb_edges;
-  adj.check();
-}
-
-#endif
 
 template <class Adjlist_seq, class Edge_bag>
 void edgelist_from_adjlist(const adjlist<Adjlist_seq>& adj, edgelist<Edge_bag>& edg) {

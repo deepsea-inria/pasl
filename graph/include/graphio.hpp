@@ -67,7 +67,7 @@ std::ostream& output_directed_dot(std::ostream& out, const adjlist<Adjlist_seq>&
   out << "digraph {\n";
   for (vtxid_type i = 0; i < graph.get_nb_vertices(); ++i) {
     for (vtxid_type j = 0; j < graph.adjlists[i].get_out_degree(); j++) {
-      out << i << " -> " << graph.adjlists[i].get_out_neighbor(j) << ";\n";
+      out << i << " -> " << graph.adjlists[i].get_out_neighbor(j) << " Weight = " << graph.adjlists[i].get_out_neighbor_weight(j) << ";\n";
     }
   }
   return out << "}";
@@ -80,6 +80,11 @@ template <class Edge_bag>
 std::ostream& operator<<(std::ostream& out, const edgelist<Edge_bag>& edges) {
   return output_directed_dot(out, edges);
 }
+
+template <class Vertex_id>
+std::ostream& operator<<(std::ostream& out, const wedge<Vertex_id>& edge) {
+  return out << edge.src << " -> " << edge.dst << " Weight = " << edge.w;
+}    
 
 template<class Adjlist_seq>
 std::ostream& operator<<(std::ostream& out, const adjlist<Adjlist_seq>& graph) {

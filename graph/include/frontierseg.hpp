@@ -44,18 +44,24 @@ public:
   
   class edgelist_type {
   public:
-    
+
     const_vtxid_pointer lo;
     const_vtxid_pointer hi;
+    vtxid_type v;
+    size_type initial_size;      
     
     edgelist_type()
     : lo(nullptr), hi(nullptr) { }
     
-    edgelist_type(size_type nb, const_vtxid_pointer edges)
-    : lo(edges), hi(edges + nb) { }
+    edgelist_type(vtxid_type v, size_type nb, const_vtxid_pointer edges, size_type initial_size)
+    : v(v), lo(edges), hi(edges + nb), initial_size(initial_size) { }
     
     size_type size() const {
       return size_type(hi - lo);
+    }
+    
+    size_type init_size() const {
+      return initial_size;
     }
 
     void clear() {
@@ -67,6 +73,9 @@ public:
       assert(nb >= 0);
       edgelist_type edges2 = edges;
       edges2.hi = edges2.lo + nb;
+      edges2.v = edges.v;
+      edges2.initial_size = edges.initial_size;
+      
       assert(edges2.size() == nb);
       return edges2;
     }
@@ -76,6 +85,9 @@ public:
       assert(nb >= 0);
       edgelist_type edges2 = edges;
       edges2.lo = edges2.lo + nb;
+      edges2.v = edges.v;
+      edges2.initial_size = edges.initial_size;
+      
       assert(edges2.size() + nb == edges.size());
       return edges2;
     }
@@ -83,6 +95,9 @@ public:
     void swap(edgelist_type& other) {
       std::swap(lo, other.lo);
       std::swap(hi, other.hi);
+      std::swap(v, other.v);
+      std::swap(initial_size, other.initial_size);
+      
     }
     
     template <class Body>
@@ -108,7 +123,7 @@ private:
     graph_type g = get_graph();
     size_type degree = out_degree_of_vertex(g, v);
     vtxid_type* neighbors = neighbors_of_vertex(g, v);
-    return edgelist_type(vtxid_type(degree), neighbors);
+    return edgelist_type(v, vtxid_type(degree), neighbors, degree);
   }
   
   /*---------------------------------------------------------------------*/
@@ -366,7 +381,7 @@ public:
   void for_each_outedge_when_front_and_back_empty(const Body& func) const {
     for_each_edgelist_when_front_and_back_empty([&] (edgelist_type edges) {
       for (auto e = edges.lo; e < edges.hi; e++)
-        func(*e);
+        func(edges.v, *e, *(e + edges.init_size()));
     });
   }
 
@@ -374,7 +389,7 @@ public:
   void for_each_outedge(const Body& func) const {
     for_each_edgelist([&] (edgelist_type edges) {
       for (auto e = edges.lo; e < edges.hi; e++)
-        func(*e);
+        func(edges.v, *e, *(e + edges.init_size()));
     });
   }
 

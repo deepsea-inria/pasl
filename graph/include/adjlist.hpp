@@ -95,12 +95,17 @@ public:
 /*---------------------------------------------------------------------*/
 /* Asymmetric vertex */
 
-template <class Vertex_id_bag>
+template <class Vertex_id_bag, bool weighted = true>
 class asymmetric_vertex {
 public:
   
   typedef Vertex_id_bag vtxid_bag_type;
   typedef typename vtxid_bag_type::value_type vtxid_type;
+    
+  asymmetric_vertex(vtxid_bag_type in_neighbors, vtxid_bag_type out_neighbors)
+  : in_neighbors(in_neighbors), out_neighbors(out_neighbors) {
+    
+  }
   
   vtxid_bag_type in_neighbors;
   vtxid_bag_type out_neighbors;
@@ -109,8 +114,18 @@ public:
     return in_neighbors[j];
   }
   
+  vtxid_type get_in_neighbor_weight(vtxid_type j) const {
+    assert(weighted);
+    return in_neighbors[j + get_in_degree()];
+  }
+  
   vtxid_type get_out_neighbor(vtxid_type j) const {
     return out_neighbors[j];
+  }
+  
+  vtxid_type get_out_neighbor_weight(vtxid_type j) const {
+    assert(weighted);
+    return out_neighbors[j + get_out_degree()];
   }
   
   vtxid_type* get_in_neighbors() const {
@@ -130,33 +145,17 @@ public:
   }
   
   vtxid_type get_in_degree() const {
-    return vtxid_type(in_neighbors.size());
+    return vtxid_type(in_neighbors.size() / 2);
   }
   
   vtxid_type get_out_degree() const {
-    return vtxid_type(out_neighbors.size());
-  }
-  
-  void set_in_degree(vtxid_type j) {
-    in_neighbors.alloc(j);
-  }
-  
-  void set_out_degree(vtxid_type j) {
-    out_neighbors.alloc(j);
-  }
-  
-  void swap_in_neighbors(vtxid_bag_type& other) {
-    in_neighbors.swap(other);
-  }
-  
-  void swap_out_neighbors(vtxid_bag_type& other) {
-    out_neighbors.swap(other);
-  }
+    return vtxid_type(out_neighbors.size() / 2);
+  }  
   
   void check(vtxid_type nb_vertices) const {
-    for (vtxid_type i = 0; i < in_neighbors.size(); i++)
+    for (vtxid_type i = 0; i < get_in_degree(); i ++)
       check_vertex(in_neighbors[i], nb_vertices);
-    for (vtxid_type i = 0; i < out_neighbors.size(); i++)
+    for (vtxid_type i = 0; i < get_out_degree(); i ++)
       check_vertex(out_neighbors[i], nb_vertices);
   }
   
@@ -249,7 +248,7 @@ bool operator!=(const adjlist<Adjlist_seq>& g1,
 /*---------------------------------------------------------------------*/
 /* Flat adjacency-list format */
 
-template <class Vertex_id, bool Is_alias = false>
+template <class Vertex_id, bool Is_alias = false, class Vertex = asymmetric_vertex<data::pointer_seq<Vertex_id>>>
 class flat_adjlist_seq {
 public:
   
@@ -257,22 +256,25 @@ public:
   typedef Vertex_id vtxid_type;
   typedef size_t size_type;
   typedef data::pointer_seq<vtxid_type> vertex_seq_type;
-  typedef symmetric_vertex<vertex_seq_type> value_type;
+  typedef Vertex value_type;
   typedef flat_adjlist_seq<vtxid_type, true> alias_type;
   
   char* underlying_array;
   vtxid_type* offsets;
+  vtxid_type* offsets_in;
   vtxid_type nb_offsets;
   vtxid_type* edges;
+  vtxid_type* edges_in;    
   
   flat_adjlist_seq()
-  : underlying_array(NULL), offsets(NULL),
+  : underlying_array(NULL), offsets(NULL), offsets_in(NULL),
   nb_offsets(0), edges(NULL) { }
   
   flat_adjlist_seq(const flat_adjlist_seq& other) {
     if (Is_alias) {
       underlying_array = other.underlying_array;
       offsets = other.offsets;
+      offsets_in = other.offsets_in;      
       nb_offsets = other.nb_offsets;
       edges = other.edges;
     } else {
@@ -289,6 +291,7 @@ public:
   void get_alias(alias_type& alias) const {
     alias.underlying_array = NULL;
     alias.offsets = offsets;
+    alias.offsets_in = offsets_in;
     alias.nb_offsets = nb_offsets;
     alias.edges = edges;
   }
@@ -297,6 +300,7 @@ public:
     alias_type alias;
     alias.underlying_array = NULL;
     alias.offsets = offsets;
+    alias.offsets_in = offsets_in;
     alias.nb_offsets = nb_offsets;
     alias.edges = edges;
     return alias;
@@ -306,6 +310,7 @@ public:
     if (underlying_array != NULL)
       data::myfree(underlying_array);
     offsets = NULL;
+    offsets_in = NULL;
     edges = NULL;
   }
   
@@ -315,10 +320,18 @@ public:
     return offsets[v + 1] - offsets[v];
   }
   
+  vtxid_type degree_in(vtxid_type v) const {
+    assert(v >= 0);
+    assert(v < size());
+    return offsets_in[v + 1] - offsets_in[v];
+  }
+  
   value_type operator[](vtxid_type ix) const {
     assert(ix >= 0);
     assert(ix < size());
-    return value_type(vertex_seq_type(&edges[offsets[ix]], degree(ix)));
+    auto in = vertex_seq_type(&edges_in[offsets_in[ix]], degree_in(ix));
+    auto out = vertex_seq_type(&edges[offsets[ix]], degree(ix));
+    return value_type(in, out);
   }
   
   vtxid_type size() const {
@@ -328,19 +341,23 @@ public:
   void swap(self_type& other) {
     std::swap(underlying_array, other.underlying_array);
     std::swap(offsets, other.offsets);
+    std::swap(offsets_in, other.offsets_in);    
     std::swap(nb_offsets, other.nb_offsets);
     std::swap(edges, other.edges);
+    std::swap(edges_in, other.edges_in);    
   }
   
   void alloc(size_type) {
     util::atomic::die("unsupported");
   }
   
-  void init(char* bytes, vtxid_type nb_vertices, edgeid_type nb_edges) {
+  void init(char* bytes, char* bytes_in, vtxid_type nb_vertices, edgeid_type nb_edges) {
     nb_offsets = nb_vertices + 1;
     underlying_array = bytes;
     offsets = (vtxid_type*)bytes;
+    offsets_in = (vtxid_type*)bytes_in;    
     edges = &offsets[nb_offsets];
+    edges_in = &offsets_in[nb_offsets];    
   }
   
   value_type* data() {
