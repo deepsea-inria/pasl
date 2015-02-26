@@ -2,6 +2,7 @@
 #include "edgelist.hpp"
 #include "adjlist.hpp"
 #include "pcontainer.hpp"
+#include <thread>
 
 #ifndef _PASL_GRAPH_BELLMAN_FORD_H_
 #define _PASL_GRAPH_BELLMAN_FORD_H_
@@ -60,6 +61,7 @@ namespace pasl {
     
     enum { 	
       SERIAL_CLASSIC,
+      SERIAL_YEN,      
       SERIAL_BFS,
       PAR_NUM_VERTICES,
       PAR_NUM_EDGES,
@@ -70,6 +72,7 @@ namespace pasl {
     
     std::string const algo_names[] = {
       "SerialClassic", 
+      "SerialYen",       
       "SerialBFS", 
       "ParNumVertices", 
       "ParNumEdges", 
@@ -83,6 +86,46 @@ namespace pasl {
     /*---------------------------------------------------------------------*/
     template <class Adjlist_seq>
     int* bellman_ford_seq_classic(const adjlist<Adjlist_seq>& graph,
+                                  typename adjlist<Adjlist_seq>::vtxid_type source) {
+      using vtxid_type = typename adjlist<Adjlist_seq>::vtxid_type;
+      int inf_dist = shortest_path_constants<int>::inf_dist;
+      vtxid_type nb_vertices = graph.get_nb_vertices();
+      int* dists = data::mynew_array<int>(nb_vertices);
+      
+      fill_array_seq(dists, nb_vertices, inf_dist);
+      
+      dists[source] = 0;
+      
+      LOG_BASIC(ALGO_PHASE);
+      int steps = 0;
+      for (size_t step = 0; step < nb_vertices; step++) {
+        steps++;
+        bool changed = false;
+        for (size_t i = 0; i < nb_vertices; i++) {
+          vtxid_type degree = graph.adjlists[i].get_out_degree();
+          for (vtxid_type edge = 0; edge < degree; edge++) {
+            vtxid_type other = graph.adjlists[i].get_out_neighbor(edge);
+            vtxid_type w = graph.adjlists[i].get_out_neighbor_weight(edge);
+            
+            if (dists[other] > dists[i] + w) {
+              changed = true;
+              dists[other] = dists[i] + w;
+            }
+          }
+        }
+        if (!changed) break;
+      }
+      std::cout << "Rounds : " << steps << std::endl;      
+      return util::normalize(graph, dists);
+    }
+    
+    /*---------------------------------------------------------------------*/
+    /*---------------------------------------------------------------------*/
+    /*---------------------------------------------------------------------*/
+    /* Bellman-Ford; serial classic with Yen's optimization */
+    /*---------------------------------------------------------------------*/
+    template <class Adjlist_seq>
+    int* bellman_ford_seq_classic_opt(const adjlist<Adjlist_seq>& graph,
                                   typename adjlist<Adjlist_seq>::vtxid_type source) {
       using vtxid_type = typename adjlist<Adjlist_seq>::vtxid_type;
       int inf_dist = shortest_path_constants<int>::inf_dist;
@@ -136,12 +179,14 @@ namespace pasl {
       std::queue<vtxid_type> cur, next;
       cur.push(source);
       int steps = 0;
+      double total_size = 0.;
       
       while (steps < nb_vertices) {
         steps++;
         if (steps > nb_vertices) break; 
         std::queue<vtxid_type> empty;
         std::swap(next, empty);
+        total_size += cur.size();
         while (!cur.empty()) {
           vtxid_type from = cur.front();
           cur.pop();
@@ -158,7 +203,7 @@ namespace pasl {
         }
         std::swap(cur, next);
       }
-      std::cout << "Rounds : " << steps << std::endl;
+      std::cout << "Rounds : " << steps << "; Avg queue size : " << total_size / steps << std::endl;
       return util::normalize(graph, dists);
     }
     
@@ -277,8 +322,11 @@ namespace pasl {
                                int * dists, int start, int stop, int * pref_sum, bool & changed) {
       int nb_edges = pref_sum[stop] - pref_sum[start];
       if (nb_edges < bellman_ford_par_by_edges_cutoff || stop - start == 1) {
+        std::cout << "Do it in " << std::this_thread::get_id() << std::endl;
+
         process_vertices_seq(graph, dists, start, stop, changed);
       } else {
+        std::cout << "Fork" << std::endl;
         int mid_val = (pref_sum[start] + pref_sum[stop]) / 2;
         int left = start, right = stop;
         while (right - left > 1) {
@@ -361,6 +409,7 @@ namespace pasl {
           return f.nb_outedges() <= vtxid_type(bellman_ford_bfs_process_layer_cutoff);
         };
         auto split = [] (Frontier& src, Frontier& dst) {
+          std::cout << "Fork" << std::endl;
           assert(src.nb_outedges() > 1);
           src.split(src.nb_outedges() / 2, dst);
         };
@@ -372,7 +421,7 @@ namespace pasl {
         };
         sched::native::forkjoin(prev, next, cutoff, split, append, set_env, set_env,
                                 [&] (Frontier& prev, Frontier& next) {
-                                  
+                                  std::cout << "Do it in " << std::this_thread::get_id() << std::endl;
                                   prev.for_each_outedge([&] (vtxid_type from, vtxid_type to, vtxid_type weight) {
                                     if (dists[to] > dists[from] + weight) {
                                       if ((*dists_from_parent[to])[from] > dists[from] + weight) {

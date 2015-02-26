@@ -16,9 +16,9 @@ unsigned int nthreads = std::thread::hardware_concurrency();
 
 // Algorithm's thresholds
 const int pasl::graph::bellman_ford_par_by_vertices_cutoff 	= 100000;
-const int pasl::graph::bellman_ford_par_by_edges_cutoff 		= 100000000;
-const int pasl::graph::bellman_ford_bfs_process_layer_cutoff = 1000;
-const int pasl::graph::bellman_ford_bfs_process_next_vertices_cutoff = 1000;
+const int pasl::graph::bellman_ford_par_by_edges_cutoff 		= 1000000;
+const int pasl::graph::bellman_ford_bfs_process_layer_cutoff = 1000000;
+const int pasl::graph::bellman_ford_bfs_process_next_vertices_cutoff = 1000000;
 const std::function<bool(double, double)> pasl::graph::algo_chooser_pred = [] (double fraction, double avg_deg) -> bool {
   if (avg_deg < 20) {
     return false;
@@ -40,20 +40,21 @@ const int pasl::graph::max_edge_weight = 100;
 
 const std::set<int> enabled_algo {
   SERIAL_CLASSIC,
-  SERIAL_BFS,
+//  SERIAL_YEN,  
+//  SERIAL_BFS,
 //  PAR_NUM_VERTICES,
 //  PAR_NUM_EDGES,
-//  PAR_BFS,
-  PAR_COMBINED  
+  PAR_BFS,
+//  PAR_COMBINED  
 };
 const std::set<int> enabled_tests {
   COMPLETE,
-  BALANCED_TREE,
-  CHAIN,
-  STAR,
-  SQUARE_GRID, 
-  RANDOM_SPARSE,
-  RANDOM_DENSE,
+//  BALANCED_TREE,
+//  CHAIN,
+//  STAR,
+//  SQUARE_GRID, 
+//  RANDOM_SPARSE,
+//  RANDOM_DENSE,
 //  RANDOM_CUSTOM
 };
 std::map<int, size_t> test_edges_number {
@@ -178,6 +179,16 @@ TEST(SerialClassic, Star)            {help_test(STAR,            bellman_ford_se
 TEST(SerialClassic, RandomSparse)    {help_test(RANDOM_SPARSE,   bellman_ford_seq_classic<adjlist_seq_type>);}
 TEST(SerialClassic, RandomDense)     {help_test(RANDOM_DENSE,    bellman_ford_seq_classic<adjlist_seq_type>);}
 TEST(SerialClassic, RandomCustom)    {help_test(RANDOM_CUSTOM,   bellman_ford_seq_classic<adjlist_seq_type>);}
+
+// SerialYen
+TEST(SerialYen, CompleteGraph)   {help_test(COMPLETE,        bellman_ford_seq_classic_opt<adjlist_seq_type>);}
+TEST(SerialYen, BalancedTree)    {help_test(BALANCED_TREE,   bellman_ford_seq_classic_opt<adjlist_seq_type>);}
+TEST(SerialYen, Chain)           {help_test(CHAIN,           bellman_ford_seq_classic_opt<adjlist_seq_type>);}
+TEST(SerialYen, SquareGrid)      {help_test(SQUARE_GRID,     bellman_ford_seq_classic_opt<adjlist_seq_type>);}
+TEST(SerialYen, Star)            {help_test(STAR,            bellman_ford_seq_classic_opt<adjlist_seq_type>);}
+TEST(SerialYen, RandomSparse)    {help_test(RANDOM_SPARSE,   bellman_ford_seq_classic_opt<adjlist_seq_type>);}
+TEST(SerialYen, RandomDense)     {help_test(RANDOM_DENSE,    bellman_ford_seq_classic_opt<adjlist_seq_type>);}
+TEST(SerialYen, RandomCustom)    {help_test(RANDOM_CUSTOM,   bellman_ford_seq_classic_opt<adjlist_seq_type>);}
 
 // SerialBFS
 TEST(SerialBFS, CompleteGraph)   {help_test(COMPLETE,        bellman_ford_seq_bfs<adjlist_seq_type>);}
