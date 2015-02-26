@@ -12,10 +12,10 @@ using namespace pasl::graph;
 using namespace pasl::data;
 
 // Algorithm's thresholds
-const int pasl::graph::bellman_ford_par_by_vertices_cutoff 	= 100000;
-const int pasl::graph::bellman_ford_par_by_edges_cutoff 		= 1000000;
-const int pasl::graph::bellman_ford_bfs_process_layer_cutoff = 1000000;
-const int pasl::graph::bellman_ford_bfs_process_next_vertices_cutoff = 1000000;
+int pasl::graph::bellman_ford_par_by_vertices_cutoff 	= 100000;
+int pasl::graph::bellman_ford_par_by_edges_cutoff 		= 1000000;
+int pasl::graph::bellman_ford_bfs_process_layer_cutoff = 1000000;
+int pasl::graph::bellman_ford_bfs_process_next_vertices_cutoff = 1000000;
 const std::function<bool(double, double)> pasl::graph::algo_chooser_pred = [] (double fraction, double avg_deg) -> bool {
   if (avg_deg < 20) {
     return false;
@@ -85,6 +85,8 @@ bool same_arrays(int size, int * candidate, int * correct) {
 int algo_num;
 int test_num;
 bool should_check_correctness;
+int vertices_num;
+int cutoff;
 
 int main(int argc, char ** argv) {
   
@@ -92,6 +94,8 @@ int main(int argc, char ** argv) {
     should_check_correctness = pasl::util::cmdline::parse_or_default_bool("check", false, false);
     algo_num = pasl::util::cmdline::parse_or_default_int("algo_num", SERIAL_CLASSIC);
     test_num = pasl::util::cmdline::parse_or_default_int("test_num", COMPLETE);
+    vertices_num = pasl::util::cmdline::parse_or_default_int("vertcies", -1);
+    cutoff = pasl::util::cmdline::parse_or_default_int("cutoff", -1);
     
     std::cout << "Testing " << algo_names[algo_num] << " with " << graph_types[test_num] << std::endl;  
     std::cout << "Generating graph..." << std::endl;        
@@ -99,9 +103,9 @@ int main(int argc, char ** argv) {
     which_generator.ty = test_num;
     graph = adjlist_type();
     if (test_num == RANDOM_CUSTOM) {
-      source_vertex = generate(which_generator, test_edges_number[test_num], graph, custom_lex_order_edges_fraction, custom_avg_degree);
+      source_vertex = generate(which_generator, vertices_num != -1 ? vertices_num : test_edges_number[test_num], graph, custom_lex_order_edges_fraction, custom_avg_degree);
     } else {
-      source_vertex = generate(which_generator, test_edges_number[test_num], graph, -1, -1, true);
+      source_vertex = generate(which_generator, vertices_num != -1 ? vertices_num : test_edges_number[test_num], graph, -1, -1, true);
     }
     std::cout << "Done generating " << graph_types[test_num] << " with ";      
     print_graph_debug_info(graph);      
@@ -126,15 +130,28 @@ int main(int argc, char ** argv) {
         our_res = bellman_ford_seq_bfs<adjlist_seq_type>(graph, source_vertex);
         break;
       case PAR_NUM_VERTICES:
+        if (cutoff != -1) pasl::graph::bellman_ford_par_by_vertices_cutoff = cutoff;
         our_res = bellman_ford_par_vertices<adjlist_seq_type>(graph, source_vertex);
         break;
       case PAR_NUM_EDGES:
+        if (cutoff != -1) pasl::graph::bellman_ford_par_by_edges_cutoff = cutoff;
         our_res = bellman_ford_par_edges<adjlist_seq_type>(graph, source_vertex);
         break;
       case PAR_BFS:
+        if (cutoff != -1) {
+          pasl::graph::bellman_ford_bfs_process_layer_cutoff = cutoff;
+          pasl::graph::bellman_ford_bfs_process_next_vertices_cutoff = cutoff;
+        }
+        
         our_res = bfs_bellman_ford<adjlist_seq_type>::bellman_ford_par_bfs(graph, source_vertex);
         break;
       case PAR_COMBINED:
+        if (cutoff != -1) {
+          pasl::graph::bellman_ford_bfs_process_layer_cutoff = cutoff;
+          pasl::graph::bellman_ford_bfs_process_next_vertices_cutoff = cutoff;
+          pasl::graph::bellman_ford_par_by_edges_cutoff = cutoff;
+        }
+        
         our_res = bellman_ford_par_combined<adjlist_seq_type>(graph, source_vertex);
         break;                
     }

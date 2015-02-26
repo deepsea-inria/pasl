@@ -213,7 +213,7 @@ namespace pasl {
     /* Bellman-Ford; parallel by number of vertices */
     /*---------------------------------------------------------------------*/
     
-    extern const int bellman_ford_par_by_vertices_cutoff;
+    extern int bellman_ford_par_by_vertices_cutoff;
     
     template <class Adjlist_seq>
     int* bellman_ford_par_vertices(const adjlist<Adjlist_seq>& graph,
@@ -282,7 +282,7 @@ namespace pasl {
     /* Bellman-Ford; parallel by number of edges */
     /*---------------------------------------------------------------------*/
     
-    extern const int bellman_ford_par_by_edges_cutoff;
+    extern int bellman_ford_par_by_edges_cutoff;
 
     template <class Adjlist_seq>
     int* bellman_ford_par_edges(const adjlist<Adjlist_seq>& graph,
@@ -322,11 +322,8 @@ namespace pasl {
                                int * dists, int start, int stop, int * pref_sum, bool & changed) {
       int nb_edges = pref_sum[stop] - pref_sum[start];
       if (nb_edges < bellman_ford_par_by_edges_cutoff || stop - start == 1) {
-        std::cout << "Do it in " << std::this_thread::get_id() << std::endl;
-
         process_vertices_seq(graph, dists, start, stop, changed);
       } else {
-        std::cout << "Fork" << std::endl;
         int mid_val = (pref_sum[start] + pref_sum[stop]) / 2;
         int left = start, right = stop;
         while (right - left > 1) {
@@ -350,8 +347,8 @@ namespace pasl {
     /* Bellman-Ford; parallel BFS-like */
     /*---------------------------------------------------------------------*/
         
-    extern const int bellman_ford_bfs_process_layer_cutoff;
-    extern const int bellman_ford_bfs_process_next_vertices_cutoff;    
+    extern int bellman_ford_bfs_process_layer_cutoff;
+    extern int bellman_ford_bfs_process_next_vertices_cutoff;    
     
     template <class Adjlist_seq>
     class bfs_bellman_ford {
@@ -409,7 +406,6 @@ namespace pasl {
           return f.nb_outedges() <= vtxid_type(bellman_ford_bfs_process_layer_cutoff);
         };
         auto split = [] (Frontier& src, Frontier& dst) {
-          std::cout << "Fork" << std::endl;
           assert(src.nb_outedges() > 1);
           src.split(src.nb_outedges() / 2, dst);
         };
@@ -421,7 +417,6 @@ namespace pasl {
         };
         sched::native::forkjoin(prev, next, cutoff, split, append, set_env, set_env,
                                 [&] (Frontier& prev, Frontier& next) {
-                                  std::cout << "Do it in " << std::this_thread::get_id() << std::endl;
                                   prev.for_each_outedge([&] (vtxid_type from, vtxid_type to, vtxid_type weight) {
                                     if (dists[to] > dists[from] + weight) {
                                       if ((*dists_from_parent[to])[from] > dists[from] + weight) {
