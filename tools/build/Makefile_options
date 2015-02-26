@@ -125,7 +125,7 @@ endif
 # To select an alternative compiler, e.g., COMPILER=llvm, clang
 
 ifeq ($(COMPILER),)
-   COMPILER=g++
+   COMPILER=g++-4.9
 endif
 
 COMPILER+= -std=gnu++1y

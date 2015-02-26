@@ -82,15 +82,17 @@ bool same_arrays(int size, int * candidate, int * correct) {
   }
   return true;
 }
+int algo_num;
+int test_num;
+bool should_check_correctness;
 
 int main(int argc, char ** argv) {
-  int algo_num;
-	bool should_check_correctness;
   
-  auto init = [&algo_num, &should_check_correctness] {
+  auto init = [&] {
     should_check_correctness = pasl::util::cmdline::parse_or_default_bool("check", false, false);
     algo_num = pasl::util::cmdline::parse_or_default_int("algo_num", SERIAL_CLASSIC);
-    int test_num = pasl::util::cmdline::parse_or_default_int("test_num", COMPLETE);
+    test_num = pasl::util::cmdline::parse_or_default_int("test_num", COMPLETE);
+    
     std::cout << "Testing " << algo_names[algo_num] << " with " << graph_types[test_num] << std::endl;  
     std::cout << "Generating graph..." << std::endl;        
     generator_type which_generator;
@@ -110,7 +112,7 @@ int main(int argc, char ** argv) {
     res = bellman_ford_seq_classic(graph, source_vertex);
   };
   
-  auto run = [&should_check_correctness, algo_num] (bool sequential) {
+  auto run = [&] (bool sequential) {
     int* our_res;
     switch (algo_num) 
     {

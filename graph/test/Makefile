@@ -53,7 +53,7 @@ MODES=exe
 # Compilation options for each mode
 
 COMPILE_OPTIONS_COMMON=$(OPTIONS_ALL)
-COMPILE_OPTIONS_FOR_exe=$(OPTIONS_DEBUG) -DSTATS -DSEQUENTIAL_ELISION
+COMPILE_OPTIONS_FOR_exe=$(OPTIONS_DEBUG) -DSTATS
 
 # Folders where to find all the header files and main sources
 
