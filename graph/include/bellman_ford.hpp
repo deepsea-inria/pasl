@@ -181,7 +181,7 @@ namespace pasl {
       int steps = 0;
       double total_size = 0.;
       
-      while (steps < nb_vertices) {
+      while (steps < nb_vertices && !cur.empty()) {
         steps++;
         if (steps > nb_vertices) break; 
         std::queue<vtxid_type> empty;
