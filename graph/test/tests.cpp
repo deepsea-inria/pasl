@@ -129,6 +129,9 @@ int main(int argc, char ** argv) {
       case SERIAL_BFS:
         our_res = bellman_ford_seq_bfs<adjlist_seq_type>(graph, source_vertex);
         break;
+      case SERIAL_BFS_SLOW:
+        our_res = bellman_ford_seq_bfs_slow<adjlist_seq_type>(graph, source_vertex);
+        break;
       case PAR_NUM_VERTICES:
         if (cutoff != -1) pasl::graph::bellman_ford_par_by_vertices_cutoff = cutoff;
         our_res = bellman_ford_par_vertices<adjlist_seq_type>(graph, source_vertex);

@@ -3,6 +3,7 @@
 #include "adjlist.hpp"
 #include "pcontainer.hpp"
 #include <thread>
+#include <unordered_map>
 
 #ifndef _PASL_GRAPH_BELLMAN_FORD_H_
 #define _PASL_GRAPH_BELLMAN_FORD_H_
@@ -63,6 +64,7 @@ namespace pasl {
       SERIAL_CLASSIC,
       SERIAL_YEN,      
       SERIAL_BFS,
+      SERIAL_BFS_SLOW,      
       PAR_NUM_VERTICES,
       PAR_NUM_EDGES,
       PAR_BFS,
@@ -74,6 +76,7 @@ namespace pasl {
       "SerialClassic", 
       "SerialYen",       
       "SerialBFS", 
+      "SerialBFSSlow", 
       "ParNumVertices", 
       "ParNumEdges", 
       "ParBFS", 
@@ -206,6 +209,66 @@ namespace pasl {
       std::cout << "Rounds : " << steps << "; Avg queue size : " << total_size / steps << std::endl;
       return util::normalize(graph, dists);
     }
+    
+    /*---------------------------------------------------------------------*/
+    /*---------------------------------------------------------------------*/
+    /*---------------------------------------------------------------------*/
+    /* Bellman-Ford; serial bfs */
+    /*---------------------------------------------------------------------*/
+    template <class Adjlist_seq>
+    int* bellman_ford_seq_bfs_slow(const adjlist<Adjlist_seq>& graph,
+                              typename adjlist<Adjlist_seq>::vtxid_type source) {
+      
+      using vtxid_type = typename adjlist<Adjlist_seq>::vtxid_type;
+      int inf_dist = shortest_path_constants<int>::inf_dist;
+      vtxid_type nb_vertices = graph.get_nb_vertices();
+      int* dists = data::mynew_array<int>(nb_vertices);      
+      fill_array_seq(dists, nb_vertices, inf_dist);      
+      dists[source] = 0; 
+      
+      LOG_BASIC(ALGO_PHASE);
+      std::queue<vtxid_type> cur;
+      std::unordered_set<vtxid_type> next;
+      cur.push(source);
+      int steps = 0;
+      double total_size = 0.;
+      
+      while (steps < nb_vertices && !cur.empty()) {
+        steps++;
+        if (steps > nb_vertices) break; 
+        next.clear();
+        total_size += cur.size();
+        while (!cur.empty()) {
+          vtxid_type from = cur.front();
+          cur.pop();
+          vtxid_type degree = graph.adjlists[from].get_out_degree();
+          for (vtxid_type edge = 0; edge < degree; edge++) {
+            vtxid_type other = graph.adjlists[from].get_out_neighbor(edge);
+            vtxid_type w = graph.adjlists[from].get_out_neighbor_weight(edge);
+            
+            if (dists[other] > dists[from] + w) {
+              next.insert(other);
+            }
+          }               
+        }
+        for (const vtxid_type& vertex: next) {
+          cur.push(vertex);
+          long degree = graph.adjlists[vertex].get_in_degree();
+          for (int edge = 0; edge < degree; edge++) {
+            long other = graph.adjlists[vertex].get_in_neighbor(edge);
+            long w = graph.adjlists[vertex].get_in_neighbor_weight(edge);
+            if (dists[vertex] > dists[other] + w) {
+              dists[vertex] = dists[other] + w;
+            }
+          }
+
+        }
+        
+      }
+      std::cout << "Rounds : " << steps << "; Avg queue size : " << total_size / steps << std::endl;
+      return util::normalize(graph, dists);
+    }
+    
     
     /*---------------------------------------------------------------------*/
     /*---------------------------------------------------------------------*/
@@ -390,8 +453,7 @@ namespace pasl {
       
       static bool try_to_set_visited(vtxid_type target, std::atomic<bool>* visited) {
         bool unvisited = false;
-        if (! visited[target].compare_exchange_strong(unvisited, true)) return false;
-        return true;
+        return visited[target].compare_exchange_strong(unvisited, true);
       }
       
       template <class Adjlist_alias, class Frontier, class WeightedSeq, class DistFromParent>
@@ -453,8 +515,7 @@ namespace pasl {
           });
         } else {
           WeightedSeq other;
-          auto nb = *(next_vertices.begin());
-          nb = next_vertices.get_cached() / 2;
+          auto nb = next_vertices.get_cached() / 2;
           next_vertices.split([nb] (vtxid_type n) { return nb <= n; }, other);
           sched::native::fork2([&] { process_next_vert(graph, visited, next_vertices, dists, dists_from_parent); },
                                [&] { process_next_vert(graph, visited, other, dists, dists_from_parent); });
@@ -468,10 +529,10 @@ namespace pasl {
 
         vtxid_type nb_vertices = graph.get_nb_vertices();
         edgeweight_type* dists = data::mynew_array<edgeweight_type>(nb_vertices);
-        std::map<int, int>** dists_from_parent = data::mynew_array<std::map<int, int>*>(nb_vertices);
+        std::unordered_map<int, int>** dists_from_parent = data::mynew_array<std::unordered_map<int, int>*>(nb_vertices);
         for (int i = 0; i < nb_vertices; ++i) {
           auto cur_size = graph.adjlists[i].get_in_degree();
-          dists_from_parent[i] = new std::map<int, int>();
+          dists_from_parent[i] = new std::unordered_map<int, int>();
           for (int j = 0; j < cur_size; j++) {
             (*dists_from_parent[i])[graph.adjlists[i].get_in_neighbor(j)] = inf_dist;
           }
