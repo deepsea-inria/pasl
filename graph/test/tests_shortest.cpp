@@ -15,7 +15,7 @@ using namespace pasl::data;
 int pasl::graph::bellman_ford_par_by_vertices_cutoff 	= 100000;
 int pasl::graph::bellman_ford_par_by_edges_cutoff 		= 1000000;
 int pasl::graph::bellman_ford_bfs_process_layer_cutoff = 1000000;
-int pasl::graph::bellman_ford_bfs_process_next_vertices_cutoff = 1000000;
+int pasl::graph::bellman_ford_bfs_process_next_vertices_cutoff = 100;
 const std::function<bool(double, double)> pasl::graph::algo_chooser_pred = [] (double fraction, double avg_deg) -> bool {
   if (avg_deg < 20) {
     return false;

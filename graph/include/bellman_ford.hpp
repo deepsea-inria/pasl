@@ -213,7 +213,7 @@ namespace pasl {
     /*---------------------------------------------------------------------*/
     /*---------------------------------------------------------------------*/
     /*---------------------------------------------------------------------*/
-    /* Bellman-Ford; serial bfs */
+    /* Bellman-Ford; slow serial bfs */
     /*---------------------------------------------------------------------*/
     template <class Adjlist_seq>
     int* bellman_ford_seq_bfs_slow(const adjlist<Adjlist_seq>& graph,
@@ -456,14 +456,13 @@ namespace pasl {
         return visited[target].compare_exchange_strong(unvisited, true);
       }
       
-      template <class Adjlist_alias, class Frontier, class WeightedSeq, class DistFromParent>
+      template <class Adjlist_alias, class Frontier, class WeightedSeq>
       static void process_layer_par(Adjlist_alias graph_alias,
                                  std::atomic<bool>* visited,
                                  Frontier& prev,
                                  Frontier& next,
                                  WeightedSeq& next_vertices,
-                                 int * dists,
-                                 DistFromParent& dists_from_parent ) {
+                                 int * dists) {
         auto cutoff = [] (Frontier& f) {
           return f.nb_outedges() <= vtxid_type(bellman_ford_bfs_process_layer_cutoff);
         };
@@ -481,9 +480,6 @@ namespace pasl {
                                 [&] (Frontier& prev, Frontier& next) {
                                   prev.for_each_outedge([&] (vtxid_type from, vtxid_type to, vtxid_type weight) {
                                     if (dists[to] > dists[from] + weight) {
-                                      if ((*dists_from_parent[to])[from] > dists[from] + weight) {
-                                        (*dists_from_parent[to])[from] = dists[from] + weight;                                        
-                                      }
                                       if (try_to_set_visited(to, visited)) {
                                         next.push_vertex_back(to);
                                         next_vertices.push_back(to);
@@ -495,12 +491,11 @@ namespace pasl {
                                 });
       }
       
-      template <class Adjlist, class WeightedSeq, class DistFromParent>
+      template <class Adjlist, class WeightedSeq>
       static void process_next_vert(Adjlist&  graph,
                              std::atomic<bool>* visited,
                              WeightedSeq& next_vertices,
-                             int * dists,
-                             DistFromParent& dists_from_parent ) {
+                             int * dists) {
         using vtxid_type = typename Adjlist::vtxid_type;
         if (next_vertices.get_cached() < bellman_ford_bfs_process_next_vertices_cutoff) {
           next_vertices.for_each([&] (vtxid_type vertex) {
@@ -508,8 +503,9 @@ namespace pasl {
             long degree = graph.adjlists[vertex].get_in_degree();
             for (int edge = 0; edge < degree; edge++) {
               auto from = graph.adjlists[vertex].get_in_neighbor(edge);
-              if (dists[vertex] > (*dists_from_parent[vertex])[from]) {
-                dists[vertex] = (*dists_from_parent[vertex])[from];
+              auto w = graph.adjlists[vertex].get_in_neighbor_weight(edge);
+              if (dists[vertex] > dists[from] + w) {
+                dists[vertex] = dists[from] + w;
               }
             }
           });
@@ -517,8 +513,8 @@ namespace pasl {
           WeightedSeq other;
           auto nb = next_vertices.get_cached() / 2;
           next_vertices.split([nb] (vtxid_type n) { return nb <= n; }, other);
-          sched::native::fork2([&] { process_next_vert(graph, visited, next_vertices, dists, dists_from_parent); },
-                               [&] { process_next_vert(graph, visited, other, dists, dists_from_parent); });
+          sched::native::fork2([&] { process_next_vert(graph, visited, next_vertices, dists); },
+                               [&] { process_next_vert(graph, visited, other, dists); });
           
         }
       }
@@ -529,15 +525,9 @@ namespace pasl {
 
         vtxid_type nb_vertices = graph.get_nb_vertices();
         edgeweight_type* dists = data::mynew_array<edgeweight_type>(nb_vertices);
-        std::unordered_map<int, int>** dists_from_parent = data::mynew_array<std::unordered_map<int, int>*>(nb_vertices);
-        for (int i = 0; i < nb_vertices; ++i) {
-          auto cur_size = graph.adjlists[i].get_in_degree();
-          dists_from_parent[i] = new std::unordered_map<int, int>();
-          for (int j = 0; j < cur_size; j++) {
-            (*dists_from_parent[i])[graph.adjlists[i].get_in_neighbor(j)] = inf_dist;
-          }
-        }
+        std::atomic<bool>* visited = data::mynew_array<std::atomic<bool>>(nb_vertices);
         fill_array_seq(dists, nb_vertices, inf_dist);
+        fill_array_par(visited, nb_vertices, false);
         dists[source] = 0;
         
         LOG_BASIC(ALGO_PHASE);
@@ -556,8 +546,6 @@ namespace pasl {
         vtxid_type nxt = 1; // either 1 or 0, depending on parity of dist
         frontiers[0].push_vertex_back(source);
         
-        std::atomic<bool>* visited = data::mynew_array<std::atomic<bool>>(nb_vertices);
-        fill_array_par(visited, nb_vertices, false);
         int steps = 0;
         while (! frontiers[cur].empty()) {
           next_vertices.clear();
@@ -566,8 +554,6 @@ namespace pasl {
           if (frontiers[cur].nb_outedges() <= bellman_ford_bfs_process_layer_cutoff) {
             frontiers[cur].for_each_outedge_when_front_and_back_empty([&] (vtxid_type from, vtxid_type to, vtxid_type weight) {
               if (dists[to] > dists[from] + weight) {
-                if ((*dists_from_parent[to])[from] > dists[from] + weight)
-                (*dists_from_parent[to])[from] = dists[from] + weight;
                 if (try_to_set_visited(to, visited)) {
                   frontiers[nxt].push_vertex_back(to);
                   next_vertices.push_back(to);
@@ -575,10 +561,10 @@ namespace pasl {
               }
             });
             frontiers[cur].clear_when_front_and_back_empty();
-          } else {
-            self_type::process_layer_par(graph_alias, visited, frontiers[cur], frontiers[nxt], next_vertices, dists, dists_from_parent);
+          } else {            
+            self_type::process_layer_par(graph_alias, visited, frontiers[cur], frontiers[nxt], next_vertices, dists);
           }
-          self_type::process_next_vert(graph, visited, next_vertices, dists, dists_from_parent);
+          self_type::process_next_vert(graph, visited, next_vertices, dists);
           cur = 1 - cur;
           nxt = 1 - nxt;
         }
