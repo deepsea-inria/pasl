@@ -14,8 +14,8 @@ using namespace pasl::data;
 // Algorithm's thresholds
 int pasl::graph::bellman_ford_par_by_vertices_cutoff 	= 100000;
 int pasl::graph::bellman_ford_par_by_edges_cutoff 		= 1000000;
-int pasl::graph::bellman_ford_bfs_process_layer_cutoff = 1000000;
-int pasl::graph::bellman_ford_bfs_process_next_vertices_cutoff = 100;
+int pasl::graph::bellman_ford_bfs_process_layer_cutoff = 1000;
+int pasl::graph::bellman_ford_bfs_process_next_vertices_cutoff = 1000;
 const std::function<bool(double, double)> pasl::graph::algo_chooser_pred = [] (double fraction, double avg_deg) -> bool {
   if (avg_deg < 20) {
     return false;
@@ -86,7 +86,8 @@ int algo_num;
 int test_num;
 bool should_check_correctness;
 int vertices_num;
-int cutoff;
+int cutoff1;
+int cutoff2;
 
 int main(int argc, char ** argv) {
   
@@ -95,7 +96,8 @@ int main(int argc, char ** argv) {
     algo_num = pasl::util::cmdline::parse_or_default_int("algo_num", SERIAL_CLASSIC);
     test_num = pasl::util::cmdline::parse_or_default_int("test_num", COMPLETE);
     vertices_num = pasl::util::cmdline::parse_or_default_int("vertices", -1);
-    cutoff = pasl::util::cmdline::parse_or_default_int("cutoff", -1);
+    cutoff1 = pasl::util::cmdline::parse_or_default_int("cutoff1", -1);
+    cutoff2 = pasl::util::cmdline::parse_or_default_int("cutoff2", -1);
     
     std::cout << "Testing " << algo_names[algo_num] << " with " << graph_types[test_num] << std::endl;  
     std::cout << "Generating graph..." << std::endl;        
@@ -133,26 +135,30 @@ int main(int argc, char ** argv) {
         our_res = bellman_ford_seq_bfs_slow<adjlist_seq_type>(graph, source_vertex);
         break;
       case PAR_NUM_VERTICES:
-        if (cutoff != -1) pasl::graph::bellman_ford_par_by_vertices_cutoff = cutoff;
+        if (cutoff1 != -1) pasl::graph::bellman_ford_par_by_vertices_cutoff = cutoff1;
         our_res = bellman_ford_par_vertices<adjlist_seq_type>(graph, source_vertex);
         break;
       case PAR_NUM_EDGES:
-        if (cutoff != -1) pasl::graph::bellman_ford_par_by_edges_cutoff = cutoff;
+        if (cutoff1 != -1) pasl::graph::bellman_ford_par_by_edges_cutoff = cutoff1;
         our_res = bellman_ford_par_edges<adjlist_seq_type>(graph, source_vertex);
         break;
       case PAR_BFS:
-        if (cutoff != -1) {
-          pasl::graph::bellman_ford_bfs_process_layer_cutoff = cutoff;
-          pasl::graph::bellman_ford_bfs_process_next_vertices_cutoff = cutoff;
+        if (cutoff1 != -1) {
+          pasl::graph::bellman_ford_bfs_process_layer_cutoff = cutoff1;
+        }
+        if (cutoff2 != -1) {
+          pasl::graph::bellman_ford_bfs_process_next_vertices_cutoff = cutoff2;
         }
         
         our_res = bfs_bellman_ford<adjlist_seq_type>::bellman_ford_par_bfs(graph, source_vertex);
         break;
-      case PAR_COMBINED:
-        if (cutoff != -1) {
-          pasl::graph::bellman_ford_bfs_process_layer_cutoff = cutoff;
-          pasl::graph::bellman_ford_bfs_process_next_vertices_cutoff = cutoff;
-          pasl::graph::bellman_ford_par_by_edges_cutoff = cutoff;
+      case PAR_COMBINED:        
+        if (cutoff1 != -1) {
+          pasl::graph::bellman_ford_bfs_process_layer_cutoff = cutoff1;
+          pasl::graph::bellman_ford_par_by_edges_cutoff = cutoff1;
+        }
+        if (cutoff2 != -1) {
+          pasl::graph::bellman_ford_bfs_process_next_vertices_cutoff = cutoff2;
         }
         
         our_res = bellman_ford_par_combined<adjlist_seq_type>(graph, source_vertex);

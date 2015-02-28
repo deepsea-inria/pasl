@@ -449,7 +449,6 @@ namespace pasl {
       using cache_type = data::cachedmeasure::weight<vtxid_type, vtxid_type, size_type, graph_env_help>;
       using seq_type = data::chunkedseq::bootstrapped::bagopt<vtxid_type, 1024, cache_type>;
       
-
       
       static bool try_to_set_visited(vtxid_type target, std::atomic<bool>* visited) {
         bool unvisited = false;
@@ -462,13 +461,15 @@ namespace pasl {
                                  Frontier& prev,
                                  Frontier& next,
                                  WeightedSeq& next_vertices,
-                                 int * dists) {
+                                 int * dists,
+                                std::atomic<int> & forked_first_cnt) {
         auto cutoff = [] (Frontier& f) {
           return f.nb_outedges() <= vtxid_type(bellman_ford_bfs_process_layer_cutoff);
         };
-        auto split = [] (Frontier& src, Frontier& dst) {
+        auto split = [&forked_first_cnt] (Frontier& src, Frontier& dst) {
           assert(src.nb_outedges() > 1);
           src.split(src.nb_outedges() / 2, dst);
+          forked_first_cnt++;
         };
         auto append = [] (Frontier& src, Frontier& dst) {
           src.concat(dst);
@@ -495,7 +496,8 @@ namespace pasl {
       static void process_next_vert(Adjlist&  graph,
                              std::atomic<bool>* visited,
                              WeightedSeq& next_vertices,
-                             int * dists) {
+                             int * dists, 
+                             std::atomic<int> & forked_second_cnt) {
         using vtxid_type = typename Adjlist::vtxid_type;
         if (next_vertices.get_cached() < bellman_ford_bfs_process_next_vertices_cutoff) {
           next_vertices.for_each([&] (vtxid_type vertex) {
@@ -510,11 +512,12 @@ namespace pasl {
             }
           });
         } else {
+          forked_second_cnt++;
           WeightedSeq other;
           auto nb = next_vertices.get_cached() / 2;
           next_vertices.split([nb] (vtxid_type n) { return nb <= n; }, other);
-          sched::native::fork2([&] { process_next_vert(graph, visited, next_vertices, dists); },
-                               [&] { process_next_vert(graph, visited, other, dists); });
+          sched::native::fork2([&] { process_next_vert(graph, visited, next_vertices, dists, forked_second_cnt); },
+                               [&] { process_next_vert(graph, visited, other, dists, forked_second_cnt); });
           
         }
       }
@@ -547,6 +550,12 @@ namespace pasl {
         frontiers[0].push_vertex_back(source);
         
         int steps = 0;
+        std::atomic<int> forked_first_cnt;
+        std::atomic<int> forked_second_cnt;
+        
+        forked_first_cnt.store(0);
+        forked_second_cnt.store(0);
+        
         while (! frontiers[cur].empty()) {
           next_vertices.clear();
           steps++;
@@ -562,15 +571,15 @@ namespace pasl {
             });
             frontiers[cur].clear_when_front_and_back_empty();
           } else {            
-            self_type::process_layer_par(graph_alias, visited, frontiers[cur], frontiers[nxt], next_vertices, dists);
+            self_type::process_layer_par(graph_alias, visited, frontiers[cur], frontiers[nxt], next_vertices, dists, forked_first_cnt);
           }
-          self_type::process_next_vert(graph, visited, next_vertices, dists);
+          self_type::process_next_vert(graph, visited, next_vertices, dists, forked_second_cnt);
           cur = 1 - cur;
           nxt = 1 - nxt;
         }
         
         
-        std::cout << "Rounds : " << steps << std::endl;      
+        std::cout << "Rounds : " << steps << "; ForkedFirst = " << forked_first_cnt << "; ForkedSecond = " << forked_second_cnt <<std::endl;      
         return util::normalize(graph, dists);
       }            
     };
