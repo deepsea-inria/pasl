@@ -448,7 +448,8 @@ namespace pasl {
       using graph_env_help = graph_env<adjlist_alias_type, size_type, vtxid_type>;
       using cache_type = data::cachedmeasure::weight<vtxid_type, vtxid_type, size_type, graph_env_help>;
       using seq_type = data::chunkedseq::bootstrapped::bagopt<vtxid_type, 1024, cache_type>;
-      
+      using measure_type = typename cache_type::measure_type;
+
       
       static bool try_to_set_visited(vtxid_type target, std::atomic<bool>* visited) {
         bool unvisited = false;
@@ -463,33 +464,33 @@ namespace pasl {
                                  WeightedSeq& next_vertices,
                                  int * dists,
                                 std::atomic<int> & forked_first_cnt) {
-        auto cutoff = [] (Frontier& f) {
-          return f.nb_outedges() <= vtxid_type(bellman_ford_bfs_process_layer_cutoff);
-        };
-        auto split = [&forked_first_cnt] (Frontier& src, Frontier& dst) {
-          assert(src.nb_outedges() > 1);
-          src.split(src.nb_outedges() / 2, dst);
+        if (prev.nb_outedges() <= vtxid_type(bellman_ford_bfs_process_layer_cutoff)) {
+          prev.for_each_outedge([&] (vtxid_type from, vtxid_type to, vtxid_type weight) {
+            if (dists[to] > dists[from] + weight) {
+              if (try_to_set_visited(to, visited)) {
+                next.push_vertex_back(to);
+                next_vertices.push_back(to);
+              }
+            }
+          });          
+          prev.clear();
+        } else {
+          Frontier fr_in;
+          Frontier fr_out;
+          fr_in.set_graph(graph_alias);
+          fr_out.set_graph(graph_alias);
+          WeightedSeq ver_out;
+          graph_env_help env(graph_alias);
+          measure_type meas(env);
+          ver_out.set_measure(meas);
+
+          prev.split(prev.nb_outedges() / 2, fr_in);
           forked_first_cnt++;
-        };
-        auto append = [] (Frontier& src, Frontier& dst) {
-          src.concat(dst);
-        };
-        auto set_env = [graph_alias] (Frontier& f) {
-          f.set_graph(graph_alias);
-        };
-        sched::native::forkjoin(prev, next, cutoff, split, append, set_env, set_env,
-                                [&] (Frontier& prev, Frontier& next) {
-                                  prev.for_each_outedge([&] (vtxid_type from, vtxid_type to, vtxid_type weight) {
-                                    if (dists[to] > dists[from] + weight) {
-                                      if (try_to_set_visited(to, visited)) {
-                                        next.push_vertex_back(to);
-                                        next_vertices.push_back(to);
-                                      }
-                                    }
-                                  });
-                                  
-                                  prev.clear();
-                                });
+          sched::native::fork2([&] { process_layer_par(graph_alias, visited, prev, next, next_vertices, dists, forked_first_cnt); },
+                               [&] { process_layer_par(graph_alias, visited, fr_in, fr_out, ver_out, dists, forked_first_cnt); });
+          next.concat(fr_out);
+          next_vertices.concat(ver_out);
+        }
       }
       
       template <class Adjlist, class WeightedSeq>
@@ -538,7 +539,6 @@ namespace pasl {
         Frontier frontiers[2];
         seq_type next_vertices;
         
-        using measure_type = typename cache_type::measure_type;
         graph_env_help env(graph_alias);
         measure_type meas(env);
         next_vertices.set_measure(meas);
