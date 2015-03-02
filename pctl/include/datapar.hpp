@@ -24,37 +24,6 @@ namespace pctl {
 namespace datapar {
 
 /***********************************************************************/
- 
-/*---------------------------------------------------------------------*/
-/* Level 7 reduction */
-
-namespace level7 {
-
-template <
-  class Block,
-  class Block_weight,
-  class Block_convert,
-  class Seq_block_convert,
-  class Granularity_control
->
-void reduce(Block in,
-            Block out,
-            Block_weight block_weight,
-            Block_convert block_convert,
-            Seq_block_convert seq_block_convert,
-            Granularity_control contr) {
-  par::cstmt(contr.nary_rec, [&] { return block_weight(in); }, [&] {
-    if (! in.can_split()) {
-      block_convert(in, out);
-    } else {
-      Block tmp;
-      block_convert(in, tmp);
-      reduce(tmp, out, block_weight, block_convert, seq_block_convert, contr);
-    }
-  }, seq_block_convert);
-}
-
-} // end namespace
   
 /*---------------------------------------------------------------------*/
 /* Level 4 reduction */
@@ -131,6 +100,31 @@ void reduce(Input& in,
   using controller_type = reduce_controller_type<Input, Output, Convert_comp, Convert, Seq_convert>;
   reduce_rec(in, out, convert_comp, convert, seq_convert, controller_type::contr);
 }
+  
+template <class Iter>
+class random_access_iterator_input {
+public:
+  
+  Iter lo;
+  Iter hi;
+  
+  random_access_iterator_input(Iter lo, Iter hi)
+  : lo(lo), hi(hi) { }
+  
+  bool can_split() const {
+    return hi - lo >= 2;
+  }
+  
+  void split(random_access_iterator_input& dst) {
+    dst = *this;
+    long n = hi - lo;
+    assert(n >= 2);
+    Iter mid = lo + (n / 2);
+    hi = mid;
+    dst.lo = mid;
+  }
+  
+};
 
 } // end namespace
   

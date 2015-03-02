@@ -28,7 +28,7 @@ Sequence containers
 
 Class name                           | Description
 -------------------------------------|---------------------------------
-[`array`](#parray)                   | Array class
+[`parray`](#parray)                  | Array class
 [`pchunkedseq`](#pchunkedseq)        | Parallel chunked sequence class
 
 Table: Sequence containers that are provided by pctl.
@@ -45,9 +45,6 @@ Table: Associative containers that are provided by pctl.
 
 Parallel array {#parray}
 ==============
-
-Interface and cost model
-------------------------
 
 +-----------------------------------+-----------------------------------+
 | Template parameter                | Description                       |
@@ -82,6 +79,14 @@ class parray;
 | `reference`                       | Alias for `value_type&`           |
 +-----------------------------------+-----------------------------------+
 | `const_reference`                 | Alias for `const value_type&`     |
++-----------------------------------+-----------------------------------+
+| `pointer`                         | Alias for `value_type*`           |
++-----------------------------------+-----------------------------------+
+| `const_pointer`                   | Alias for `const value_type*`     |
++-----------------------------------+-----------------------------------+
+| [`iterator`](#pa-iter)            | Iterator                          |
++-----------------------------------+-----------------------------------+
+| [`const_iterator`](#pa-iter)      | Const iterator                    |
 +-----------------------------------+-----------------------------------+
 
 Table: Parallel-array type definitions.
@@ -118,9 +123,9 @@ Table: Parallel-array type definitions.
 
 Table: Parallel-array constructors and destructors.
 
-### Template parameters
+## Template parameters
 
-#### Item type {#pa-item}
+### Item type {#pa-item}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 class Item;
@@ -130,7 +135,7 @@ Type of the items to be stored in the container.
 
 Objects of type `Item` should be default constructable.
 
-#### Allocator {#pa-alloc}
+### Allocator {#pa-alloc}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 class Alloc;
@@ -138,9 +143,16 @@ class Alloc;
 
 Allocator class.
 
-### Constructors and destructors
+## Iterator {#pa-iter}
 
-#### Empty container constructor {#pa-e-c-c}
+The type `iterator` and `const_iterator` are instances of the
+[random-access
+iterator](http://en.cppreference.com/w/cpp/concept/RandomAccessIterator)
+concept.
+
+## Constructors and destructors
+
+### Empty container constructor {#pa-e-c-c}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 parray();
@@ -150,7 +162,7 @@ parray();
 
 Constructs an empty container with no items;
 
-#### Fill container {#pa-e-f-c}
+### Fill container {#pa-e-f-c}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 parray(long n, const value_type& val);
@@ -161,7 +173,7 @@ Constructs a container with `n` copies of `val`.
 ***Complexity.*** Work and span are linear and logarithmic in the size
    of the resulting container, respectively.
 
-#### Populate constructor {#pa-e-p-c}
+### Populate constructor {#pa-e-p-c}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 // (1) Constant-time body
@@ -181,7 +193,7 @@ the constructor as the complexity estimate for the call `body(i)`.
 
 ***Complexity.*** TODO
 
-#### Copy constructor {#pa-e-cp-c}
+### Copy constructor {#pa-e-cp-c}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 parray(const parray& other);
@@ -193,7 +205,7 @@ the same order.
 ***Complexity.*** Work and span are linear and logarithmic in the size
    of the resulting container, respectively.
 
-#### Initializer-list constructor {#pa-i-l-c}
+### Initializer-list constructor {#pa-i-l-c}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 parray(initializer_list<value_type> il);
@@ -204,7 +216,7 @@ Constructs a container with the items in `il`.
 ***Complexity.*** Work and span are linear in the size of the resulting
    container.
 
-#### Move constructor {#pa-m-c}
+### Move constructor {#pa-m-c}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 parray(parray&& x);
@@ -214,7 +226,7 @@ Constructs a container that acquires the items of `other`.
 
 ***Complexity.*** Constant time.
 
-#### Destructor {#pa-destr}
+### Destructor {#pa-destr}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 ~parray();
@@ -225,7 +237,7 @@ Destructs the container.
 ***Complexity.*** Work and span are linear and logarithmic in the size
    of the container, respectively.
 
-### Operations
+## Operations
 
 +------------------------+--------------------------------------+
 | Operation              | Description                          |
@@ -239,10 +251,16 @@ Destructs the container.
 +------------------------+--------------------------------------+
 | [`swap`](#pa-sw)       | Exchange contents                    |
 +------------------------+--------------------------------------+
+| [`begin`](#pa-beg)     | Returns an iterator to the beginning |
+| [`cbegin`](#pa-beg)    |                                      |
++------------------------+--------------------------------------+
+| [`end`](#pa-end)       | Returns an iterator to the end       |
+| [`cend`](#pa-end)      |                                      |
++------------------------+--------------------------------------+
 
 Table: Parallel-array member functions.
 
-#### Indexing operator {#pa-i-o}
+### Indexing operator {#pa-i-o}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 reference operator[](long i);
@@ -254,7 +272,7 @@ performed.
 
 ***Complexity.*** Constant time.
 
-#### Size operator {#pa-si}
+### Size operator {#pa-si}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 long size() const;
@@ -264,7 +282,7 @@ Returns the size of the container.
 
 ***Complexity.*** Constant time.
 
-#### Resize {#pa-rsz}
+### Resize {#pa-rsz}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 void resize(long n, const value_type& val);
@@ -283,7 +301,7 @@ copies of the item referenced by `val`.
    $n$ just after the resize operation. Then, the work and span are
    linear and logarithmic in $\max(m, n)$, respectively.
 
-#### Exchange operation {#pa-sw}
+### Exchange operation {#pa-sw}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 void swap(parray& other);
@@ -294,140 +312,37 @@ not invoke any move, copy, or swap operations on individual items.
 
 ***Complexity.*** Constant time.
 
-Slice
------
-
-The `slice` structure provides an abstraction of a subarray for
-parallel arrays. A `slice` value can be viewed as a triple `(p, lo,
-hi)`, where `p` is a pointer to the underlying parallel array, `lo` is
-the starting index, and `hi` is the index one past the end of the
-range. The `slice` container class maintains the following invariant:
-`0 <= lo` and `hi <= a->size()`.
-
-The `slice` class is a template class that takes a single template
-parameter, namely `Item`.
+### Iterator begin {#pa-beg}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-namespace pasl {
-namespace pctl {
-namespace parray {
-
-template <class Item>
-class slice {
-public:
-
-  using value_type = Item;
-  using parray_type = parray<value_type>;
-
-  const parray_type* pointer;
-  long lo;
-  long hi;
-
-  slice();
-  slice(const parray_type* _pointer);
-  slice(long _lo, long _hi, const parray_type _pointer=nullptr);
-  
-};
-
-} } }
+iterator begin() const;
+const_iterator cbegin() const;
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-+-----------------------------------+-----------------------------------+
-| Public field                      | Description                       |
-+===================================+===================================+
-| [`pointer`](#pa-sl-p)             | Pointer to a parallel-array       |
-|                                   |structure (or a null pointer)      |
-+-----------------------------------+-----------------------------------+
-| [`lo`](#pa-sl-lo)                 | Starting index                    |
-+-----------------------------------+-----------------------------------+
-| [`hi`](#pa-sl-hi)                 | Index that is one past the last   |
-|                                   |item in therange                   |
-+-----------------------------------+-----------------------------------+
+Returns an iterator to the first item of the container.
 
-Table: Parallel-array slice fields.
+If the container is empty, the returned iterator will be equal to
+end().
 
-### Member fields
+***Complexity.*** Constant time.
 
-#### Pointer {#pa-sl-p}
+### Iterator end {#pa-end}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-const parray<Item>* pointer;
+iterator end() const;
+const_iterator cend() const;
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Pointer to the parrallel-array structure (or null pointer, if range is
-empty).
+Returns an iterator to the element following the last item of the
+container.
 
-#### Starting index {#pa-sl-lo}
+This element acts as a placeholder; attempting to access it results in
+undefined behavior.
 
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-long lo;
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Starting index of the range.
-
-#### One-past-end index {#pa-sl-hi}
-
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-long hi;
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-One position past the end of the range.
-
-+-----------------------------------+-----------------------------------+
-| Constructor                       | Description                       |
-+===================================+===================================+
-| [empty slice](#pa-sl-e-c) (default| Construct an empty slice with no  |
-|constructor)                       |items                              |
-+-----------------------------------+-----------------------------------+
-| [full range](#pa-sl-pt)           | Construct a slice for a full range|
-|                                   |                                   |
-+-----------------------------------+-----------------------------------+
-| [specified range](#pa-sl-ra)      | Construct a slice for a specified |
-|                                   |range                              |
-+-----------------------------------+-----------------------------------+
-
-Table: Parallel-array slice constructors.
-
-### Constructors
-
-#### Empty slice {#pa-sl-e-c}
-
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-slice();
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Construct an empty slice with no items.
-
-#### Full range {#pa-sl-pt}
-
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-slice(const parray<Item>* _pointer);
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Construct a slice with the full range of the items in the parallel
-array pointed to by `_pointer`.
-
-#### Specified range {#pa-sl-ra}
-
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-slice(long _lo, long _hi, const parray<Item>* _pointer=nullptr);
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Construct a slice with the right-open range `[lo, hi)` of the items in
-the parallel array pointed to by `_pointer`.
-
-If the range is empty, then `_pointer` may be the null pointer
-value. Otherwise, `_pointer` must be a valid pointer to a
-parallel-array object.
-
-Behavior is undefined if the range does not fit in the size of the
-underlying parallel array.
+***Complexity.*** Constant time.
 
 Parallel chunked sequence {#pchunkedseq}
 =========================
-
-Interface and cost model
-------------------------
 
 +-----------------------------------+-----------------------------------+
 | Template parameter                | Description                       |
@@ -498,9 +413,9 @@ Table: Parallel chunked sequence type definitions.
 
 Table: Parallel chunked sequence constructors and destructors.
 
-### Template parameters
+## Template parameters
 
-#### Item type {#cs-item}
+### Item type {#cs-item}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 class Item;
@@ -510,7 +425,7 @@ Type of the items to be stored in the container.
 
 Objects of type `Item` should be default constructable.
 
-#### Allocator {#cs-alloc}
+### Allocator {#cs-alloc}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 class Alloc;
@@ -518,9 +433,9 @@ class Alloc;
 
 Allocator class.
 
-### Constructors and destructors
+## Constructors and destructors
 
-#### Empty container constructor {#cs-e-c-c}
+### Empty container constructor {#cs-e-c-c}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 pchunkedseq();
@@ -530,7 +445,7 @@ pchunkedseq();
 
 Constructs an empty container with no items;
 
-#### Fill container {#cs-e-f-c}
+### Fill container {#cs-e-f-c}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 pchunkedseq(long n, const value_type& val);
@@ -541,7 +456,7 @@ Constructs a container with `n` copies of `val`.
 ***Complexity.*** Work and span are linear and logarithmic in the size
    of the resulting container, respectively.
 
-#### Populate constructor {#cs-e-p-c}
+### Populate constructor {#cs-e-p-c}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 // (1) Constant-time body
@@ -561,7 +476,7 @@ the constructor as the complexity estimate for the call `body(i)`.
 
 ***Complexity.*** TODO
 
-#### Copy constructor {#cs-e-cp-c}
+### Copy constructor {#cs-e-cp-c}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 pchunkedseq(const pchunkedseq& other);
@@ -573,7 +488,7 @@ the same order.
 ***Complexity.*** Work and span are linear and logarithmic in the size
    of the resulting container, respectively.
 
-#### Initializer-list constructor {#cs-i-l-c}
+### Initializer-list constructor {#cs-i-l-c}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 pchunkedseq(initializer_list<value_type> il);
@@ -584,7 +499,7 @@ Constructs a container with the items in `il`.
 ***Complexity.*** Work and span are linear in the size of the resulting
    container.
 
-#### Move constructor {#cs-m-c}
+### Move constructor {#cs-m-c}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 pchunkedseq(pchunkedseq&& x);
@@ -594,7 +509,7 @@ Constructs a container that acquires the items of `other`.
 
 ***Complexity.*** Constant time.
 
-#### Destructor {#cs-destr}
+### Destructor {#cs-destr}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 ~pchunkedseq();
@@ -605,7 +520,7 @@ Destructs the container.
 ***Complexity.*** Work and span are linear and logarithmic in the size
    of the container, respectively.
 
-### Sequential operations
+## Sequential operations
 
 +-----------------------------+--------------------------------------+
 | Operation                   | Description                          |
@@ -619,7 +534,7 @@ Destructs the container.
 
 Table: Sequential operations of the parallel chunked sequence.
 
-#### Indexing operator {#cs-i-o}
+### Indexing operator {#cs-i-o}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 reference operator[](long i);
@@ -631,7 +546,7 @@ performed.
 
 ***Complexity.*** Constant time.
 
-#### Size operator {#cs-si}
+### Size operator {#cs-si}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 long size() const;
@@ -641,7 +556,7 @@ Returns the size of the container.
 
 ***Complexity.*** Constant time.
 
-#### Exchange operation {#cs-sw}
+### Exchange operation {#cs-sw}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 void swap(pchunkedseq& other);
@@ -652,7 +567,7 @@ not invoke any move, copy, or swap operations on individual items.
 
 ***Complexity.*** Constant time.
 
-### Parallel operations
+## Parallel operations
 
 +------------------------+--------------------------------------+
 | Operation              | Description                          |
@@ -664,7 +579,7 @@ not invoke any move, copy, or swap operations on individual items.
 
 Table: Parallel operations of the parallel chunked sequence.
 
-#### Rebuild {#cs-rbld}
+### Rebuild {#cs-rbld}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 void rebuild(long n, std::function<value_type(long)> body);
@@ -683,7 +598,7 @@ The contents of the current container are removed and replaced by the
    $n$ just after the resize operation. Then, the work and span are
    linear and logarithmic in $\max(m, n)$, respectively.
 
-#### Resize {#cs-rsz}
+### Resize {#cs-rsz}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 void resize(long n, const value_type& val);
@@ -890,8 +805,11 @@ Table: Abstraction layers used by pctl for reduction operators.
 +---------------------------------+-----------------------------------+
 | Template parameter              | Description                       |
 +=================================+===================================+
+| [`Iter`](#r0-iter)              | Type of the iterator to be used to|
+|                                 |access items in the input container|
++---------------------------------+-----------------------------------+
 | [`Item`](#r0-i)                 | Type of the items in the input    |
-|                                 |sequence                           |
+|                                 | container                         |
 +---------------------------------+-----------------------------------+
 | [`Combine`](#r0-a)              | Associative combining operator    |
 +---------------------------------+-----------------------------------+
@@ -899,6 +817,16 @@ Table: Abstraction layers used by pctl for reduction operators.
 +---------------------------------+-----------------------------------+
 
 Table: Shared template parameters for all level-0 reduce operations.
+
+#### Iter {#r0-iter}
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+class Iter;
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+An instance of this class must be an implementation of the
+[random-access
+iterator](http://en.cppreference.com/w/cpp/concept/RandomAccessIterator).
 
 #### Item {#r0-i}
 
@@ -971,7 +899,7 @@ public:
 };
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-#### Parallel array {#r0-parray}
+#### Examples {#r0-parray}
 
 At this level, we have two types of reduction for parallel arrays. The
 first one assumes that the combining operator takes constant time and
@@ -986,11 +914,13 @@ template <class Item, class Combine>
 Item reduce(const parray<Item>& xs, Item id, Combine combine);
 
 template <
+  class Iter,
   class Item,
   class Weight,
   class Combine
 >
-Item reduce(const parray<Item>& xs,
+Item reduce(Iter lo,
+            Iter hi,
             Item id,
             Weight weight,
             Combine combine);
@@ -1004,7 +934,7 @@ functor.
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 long max(const parray<long>& xs) {
-  return reduce(xs, LONG_MIN, Max_combine());
+  return reduce(xs.cbegin(), xs.cend(), LONG_MIN, Max_combine());
 }
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -1013,7 +943,7 @@ same algorithm.
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 long max(const parray<long>& xs) {
-  return reduce(xs, LONG_MIN, [&] (long x, long y) {
+  return reduce(xs.cbegin(), xs.cend(), LONG_MIN, [&] (long x, long y) {
     return std::max(x, y);
   });
 }
@@ -1021,23 +951,23 @@ long max(const parray<long>& xs) {
 
 #### Complexity {#r0-complexity}
 
-There are two cases to consider for any reduction $\mathtt{reduce}(xs,
-id, f)$: (1) the associative combining operator $f$ takes constant
+There are two cases to consider for any reduction $\mathtt{reduce}(lo,
+hi, id, f)$: (1) the associative combining operator $f$ takes constant
 time and (2) $f$ does not.
 
 ***(1) Constant-time associative combining operator.*** The amount of
-work performed by the reduction is $O(| xs |)$ and the span is $O(\log
-| xs |)$.
+work performed by the reduction is $O(hi-lo)$ and the span is $O(\log
+hi-lo)$.
 
 ***(2) Non-constant-time associative combining operator.*** We define
 $\mathcal{R}$ to be the set of all function applications $f(x, y)$
 that are performed in the reduction tree. Then,
 
 - The work performed by the reduction is $O(n + \sum_{f(x, y) \in
-\mathcal{R}(f, id, xs)} W(f(x, y)))$.
+\mathcal{R}(f, id, lo, hi)} W(f(x, y)))$.
 
 - The span of the reduction is $O(\log n \max_{f(x, y) \in
-\mathcal{R}(f i xs)} S(f(x, y)))$.
+\mathcal{R}(f i lo, hi)} S(f(x, y)))$.
 
 Under certain conditions, we can use the following lemma to deduce a
 more precise bound on the amount of work performed by the
@@ -1050,8 +980,8 @@ $f$ and weight function $w$, if for any $x$, $y$,
 2. $W \leq c (w(x) + w(y))$, for some constant $c$,
 
 where $W$ denotes the amount of work performed by the call $f(x, y)$,
-then the amount of work performed by the reduction is $O(\log | xs |
-\sum_{x \in xs} (1 + w(x)))$.
+then the amount of work performed by the reduction is $O(\log hi-lo
+\sum_{it \in lo, \ldots, hi} (1 + w(*it)))$.
 
 ***Example: using a non-constant time combining operator.*** Now, let
 us consider a case where the associative combining operator takes
@@ -1069,8 +999,9 @@ long max(const parray<parray<long>>& xss) {
                       const parray<long>& xs2) {
     parray<long> r = { std::max(max(xs1), max(xs2)) };
     return r;
-  };  
-  parray<long> a = reduce(xss, id, weight, combine);
+  };
+  parray<long> a =
+    reduce(xss.cbegin(), xcc.cend(), id, weight, combine);
   return a[0];
 }
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1138,12 +1069,12 @@ This class must provide a default (i.e., zero-arity) constructor.
 class Lift;
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The lift operator is a C++ functor that takes a value of type `Item`
-and returns a value of type `Result`. The call operator for the `Lift`
-class should have the following type.
+The lift operator is a C++ functor that takes an iterator and returns
+a value of type `Result`. The call operator for the `Lift` class
+should have the following type.
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-Result operator()(const Item& x);
+Result operator()(Iter it);
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 #### Index-passing lift {#r1-li}
@@ -1152,16 +1083,16 @@ Result operator()(const Item& x);
 class Lift_idx;
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The lift operator is a C++ functor that takes an index and a value of
-type `Item` and returns a value of type `Result`. The call operator
-for the `Lift` class should have the following type.
+The lift operator is a C++ functor that takes an index and a
+corresponding iterator and returns a value of type `Result`. The call
+operator for the `Lift` class should have the following type.
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-Result operator()(long pos, const Item& x);
+Result operator()(long pos, Iter it);
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The value passed in the `pos` parameter is the index in the source
-array of item `x`.
+The value passed in the `pos` parameter is the index corresponding to
+the position of iterator `it`.
 
 #### Associative combining operator {#r1-comb}
 
@@ -1183,13 +1114,12 @@ Result operator()(const Result& x, const Result& y);
 class Lift_comp;
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The lift-complexity function is a C++ functor that takes a value of
-type `Item` and returns a non-negative number of type `long`. The
-`Lift_comp` class should provide a call operator of the following
-type.
+The lift-complexity function is a C++ functor that takes an iterator
+and returns a non-negative number of type `long`. The `Lift_comp`
+class should provide a call operator of the following type.
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-long operator()(const Item& x);
+long operator()(Iter it);
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 #### Index-passing lift-complexity function {#r1-l-c-i}
@@ -1199,15 +1129,15 @@ class Lift_comp_idx;
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The lift-complexity function is a C++ functor that takes an index and
-a value of type `Item` and returns a non-negative number of type
-`long`. The `Lift_comp_idx` class should provide a call operator of
-the following type.
+an iterator and returns a non-negative number of type `long`. The
+`Lift_comp_idx` class should provide a call operator of the following
+type.
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-long operator()(long pos, const Item& x);
+long operator()(long pos, Iter it);
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-#### Parallel array
+#### Examples
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 namespace pasl {
@@ -1216,24 +1146,26 @@ namespace parray {
 namespace level1 {
 
 template <
-  class Item,
+  class Iter,
   class Result,
   class Combine,
   class Lift
 >
-Result reduce(const parray<Item>& xs,
+Result reduce(Iter lo,
+              Iter hi,
               Result id,
               Combine combine,
               Lift lift);
 
 template <
-  class Item,
+  class Iter,
   class Result,
   class Combine,
   class Lift_comp,
   class Lift
 >
-Result reduce(const parray<Item>& xs,
+Result reduce(Iter lo,
+              Iter hi,
               Result id,
               Combine combine,
               Lift_comp lift_comp,
@@ -1244,16 +1176,19 @@ Result reduce(const parray<Item>& xs,
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 long max(const parray<parray<long>>& xss) {
+  using iterator = typename parray<parray<long>>::const_iterator;
   auto combine = [&] (long x, long y) {
     return std::max(x, y);
   };
-  auto lift_comp = [&] (const parray<long>& xs) {
-    return xs.size();
+  auto lift_comp = [&] (iterator it) {
+    return it->size();
   };
-  auto lift = [&] (const parray<long>& xs) {
-    return max(xs);
+  auto lift = [&] (iterator it) {
+    return max(*it);
   };
-  return level1::reduce(xss, 0, combine, lift_comp, lift);
+  auto lo = xss.cbegin();
+  auto hi = xss.cend();
+  return level1::reduce(lo, hi, 0, combine, lift_comp, lift);
 }
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -1264,24 +1199,26 @@ namespace parray {
 namespace level1 {
 
 template <
-  class Item,
+  class Iter,
   class Result,
   class Combine,
   class Lift_idx
 >
-Result reducei(const parray<Item>& xs,
+Result reducei(Iter lo,
+               Iter hi,
                Result id,
                Combine combine,
                Lift_idx lift_idx);
 
 template <
-  class Item,
+  class Iter,
   class Result,
   class Combine,
   class Lift_comp_idx,
   class Lift_idx
 >
-Result reducei(const parray<Item>& xs,
+Result reducei(Iter lo,
+               Iter hi,
                Result id,
                Combine combine,
                Lift_comp_idx lift_comp_idx,
@@ -1311,11 +1248,11 @@ class Seq_lift;
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The sequential-lift function is a C++ functor that takes a pair of
-indices and returns a result value. The `Seq_lift` class should
+iterators and returns a result value. The `Seq_lift` class should
 provide a call operator with the following type.
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-Result operator()(long lo, long hi);
+Result operator()(Iter lo, Iter hi);
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 #### Range-based lift-complexity function {#r2-w}
@@ -1325,16 +1262,16 @@ class Lift_comp_rng;
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The range-based lift-complexity function is a C++ functor that takes a
-pair of indices and returns a non-negative number. The value returned
-is a value to account for the amount of work to be performed to apply
-the lift function to the items in the right-open range `[lo, hi)` of
-the input sequence.
+pair of iterators and returns a non-negative number. The value
+returned is a value to account for the amount of work to be performed
+to apply the lift function to the items in the right-open range `[lo,
+hi)` of the input sequence.
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-long operator()(long lo, long hi);
+long operator()(Iter lo, Iter hi);
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-#### Parallel array
+#### Examples
              
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 namespace pasl {
@@ -1343,14 +1280,15 @@ namespace parray {
 namespace level2 {
 
 template <
-  class Item,
+  class Iter,
   class Result,
   class Combine,
   class Lift_comp_rng,
   class Lift_idx,
   class Seq_lift
 >
-Result reduce(const parray<Item>& xs,
+Result reduce(Iter lo,
+              Iter hi,
               Result id,
               Combine combine,
               Lift_comp_rng lift_comp_rng,
@@ -1360,38 +1298,69 @@ Result reduce(const parray<Item>& xs,
 } } } }
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+The following function is useful for building a table that is to
+summarize the cost of processing any given range in a specified
+sequence of items. The function takes as input a length value `n` and
+a weight function `weight` and returns the corresponding weight table.
+
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-template <class Item, class Weight>
-parray<long> weights(const parray<Item>& xs, Weight weight);
+template <class Weight>
+parray<long> weights(long n, Weight weight);
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The weight table that is returned is the following sequence `[0, w(0),
+w(0)+w(1), w(0)+w(1)+w(2), ..., w(0)+...+w(n-1)]`. Notice that the
+size of the value returned by the `weights` function is always
+`n+1`. As an example, let us consider an application of the `weights`
+function where the given weight function is one that returns the value
+of its current position.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+parray<long> w = weights(4, [&] (long i) {
+  return i;
+});
+std::cout << "w = " << w << std::endl;
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The input is then the following.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+w = { 0, 0, 1, 3, 6 }
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 long max(const parray<parray<long>>& xss) {
-  parray<long> w = weights(xss, [&] (const parray<long>& xs) {
+  using iterator = typename parray<parray<long>>::const_iterator;
+  parray<long> w = weights(xss.size(), [&] (const parray<long>& xs) {
     return xs.size();
   });
-  auto lift_comp_rng = [&] (long lo, long hi) {
-    return w[hi] - w[lo];
+  auto lift_comp_rng = [&] (iterator lo, iterator hi) {
+    long l = lo - xss.cbegin();
+    long h = hi - xss.cbegin();
+    return w[h] - w[l];
   };
   auto combine = [&] (long x, long y) {
     return std::max(x, y);
   };
-  auto lift = [&] (const parray<long>& xs) {
-    return max(xs);
+  auto lift = [&] (iterator it) {
+    return max(*it);
   };
-  auto seq_lift = [&] (long lo, long hi) {
-    return max_seq(xss, lo, hi);
+  auto seq_lift = [&] (iterator lo, iterator hi) {
+    return max_seq(lo, hi);
   };
-  return level2::reduce(xss, 0, combine, lift_comp_rng, lift, seq_lift);
+  iterator lo = xss.cbegin();
+  iterator hi = xss.cend();
+  return level2::reduce(lo, hi, 0, combine, lift_comp_rng, lift, seq_lift);
 }
 
-long max_seq(const parray<parray<xs>>& xss, long lo, long hi) {
+template <class Iter>
+long max_seq(Iter lo, Iter hi) {
   long m = LONG_MIN;
-  for (long i = lo; i < hi; i++) {
-    const parray<long>& xs = xss[i];
-    long n = xs.size();
-    for (long j = 0; j < n; j++) {
-      m = std::max(m, xs[j]);
+  for (Iter it = lo; it != hi; it++) {
+    const parray<long>& xs = *it;
+    for (auto it2 = xs.cbegin(); it2 != xs.cend() it2++) {
+      m = std::max(m, *it2);
     }
   }
   return m;
@@ -1499,12 +1468,12 @@ class Lift_idx_dst;
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The destination-passing-style lift function is a C++ functor that
-takes an index, a reference on an item, and a reference on an output
-object. The call operator for the `Lift_idx_dst` class should have the
-following type.
+takes an index, an iterator, and a reference on an output object. The
+call operator for the `Lift_idx_dst` class should have the following
+type.
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-void operator()(long pos, const Item& x, Output& out);
+void operator()(long pos, Iter it, Output& out);
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The value that is passed in for `pos` is the index in the input
@@ -1518,12 +1487,12 @@ class Seq_lift_dst;
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The destination-passing-style sequential lift function is a C++
-functor that takes a pair of indices and a reference on an output
+functor that takes a pair of iterators and a reference on an output
 object. The call operator for the `Seq_lift_dst` class should have the
 following type.
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-void operator()(long lo, long hi, Output& out);
+void operator()(Iter lo, Iter hi, Output& out);
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The purpose of this function is provide an alternative sequential
@@ -1532,7 +1501,7 @@ input. The range is specified by the right-open range `[lo, hi)`. The
 object referenced by `out` is the object to receive the result of the
 sequential lift function.
 
-#### Parallel array
+#### Examples
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 namespace pasl {
@@ -1540,13 +1509,14 @@ namespace pctl {
 namespace level3 {
 
 template <
-  class Item,
+  class Iter,
   class Output,
   class Lift_comp_rng,
   class Lift_idx_dst,
   class Seq_lift_dst
 >
-void reduce(const parray<Item>& xs,
+void reduce(Iter lo,
+            Iter hi,
             Output& out,
             Lift_comp_rng lift_comp_rng,
             Lift_idx_dst lift_idx_dst,
@@ -1627,7 +1597,7 @@ input object referenced by `dst`.
 The behavior of this method may be undefined when the `can_split`
 function would return `false`.
 
-##### Example: parallel-array-slice input
+##### Example: random-access iterator input
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 namespace pasl {
@@ -1635,28 +1605,29 @@ namespace pctl {
 namespace parray {
 namespace level4 {
 
-template <class Item>
-class slice_input {
+template <class Iter>
+class random_access_iterator_input {
 public:
-
-  using slice_type = slice<Item>;
-
-  slice_type slice;
-
-  slice_input(const slice_input& other)
-  : slice(slice) { }
-
+  
+  Iter lo;
+  Iter hi;
+  
+  random_access_iterator_input(Iter lo, Iter hi)
+  : lo(lo), hi(hi) { }
+  
   bool can_split() const {
-    return slice.hi - slice.lo > 1;
+    return hi - lo >= 2;
   }
-
-  void split(slice_input& dst) {
-    dst.slice = slice;
-    long mid = (slice.lo + slice.hi) / 2;
-    slice.hi = mid;
-    dst.slice.lo = mid;
+  
+  void split(random_access_iterator_input& dst) {
+    dst = *this;
+    long n = hi - lo;
+    assert(n >= 2);
+    Iter mid = lo + (n / 2);
+    hi = mid;
+    dst.lo = mid;
   }
-
+  
 };
 
 } } } }
@@ -1710,7 +1681,7 @@ void operator()(Input& in, Output& out);
 The sequential convert function should always compute the same result
 as the ordinary convert function given the same input. 
 
-#### Generic reduce function
+#### Examples
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 namespace pasl {

@@ -31,7 +31,7 @@ namespace pasl {
 }
 
 long sum(pa::parray<long>& xs) {
-  return pa::reduce(xs, 0l, [&] (long x, long y) {
+  return pa::reduce(xs.begin(), xs.end(), 0l, [&] (long x, long y) {
     return x + y;
   });
 }
@@ -42,17 +42,19 @@ int main(int argc, char **argv) {
     
   };
   auto run = [&] (bool) {
-    /*
+
     pa::parray<long> foo = { 1, -1, 1, 3 };
     std::cout << foo << std::endl;
     std::cout << sum(foo) << std::endl;
-    
+
+    /*
     pa::parray<long> foobar(14, [&] (long i) {
       return i+1;
     });
     std::cout << foobar << std::endl;
-     */
+*/
     
+    /*
     pa::parray<long> xs = pasl::pctl::weights(15, [&] (long x) { return 1; });
     std::cout << "weights(15) = " << xs << std::endl;
     pasl::pctl::parallel_for(0l, xs.size(), [&] (long x) { return 1; }, [&] (long i) {
@@ -60,6 +62,7 @@ int main(int argc, char **argv) {
     });
     
     std::cout << "xs=" <<  xs << std::endl;
+     */
   };
   auto output = [&] {
   };
