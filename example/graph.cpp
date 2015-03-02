@@ -22,7 +22,11 @@ namespace pasl {
         return out;
       }
       
+      
+      
     }
+    
+
   }
 }
 
@@ -38,6 +42,7 @@ int main(int argc, char **argv) {
     
   };
   auto run = [&] (bool) {
+    /*
     pa::parray<long> foo = { 1, -1, 1, 3 };
     std::cout << foo << std::endl;
     std::cout << sum(foo) << std::endl;
@@ -46,6 +51,15 @@ int main(int argc, char **argv) {
       return i+1;
     });
     std::cout << foobar << std::endl;
+     */
+    
+    pa::parray<long> xs = pasl::pctl::weights(15, [&] (long x) { return 1; });
+    std::cout << "weights(15) = " << xs << std::endl;
+    pasl::pctl::parallel_for(0l, xs.size(), [&] (long x) { return 1; }, [&] (long i) {
+      xs[i]++;
+    });
+    
+    std::cout << "xs=" <<  xs << std::endl;
   };
   auto output = [&] {
   };

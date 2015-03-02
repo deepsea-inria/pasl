@@ -28,9 +28,15 @@ class parray {
 public:
   
   using value_type = Item;
+  using allocator_type = Alloc;
+  using size_type = std::size_t;
+  using ptr_diff = std::ptrdiff_t;
   using reference = value_type&;
   using const_reference = const value_type&;
-  using allocator_type = Alloc;
+  using pointer = value_type*;
+  using const_pointer = const value_type*;
+  using iterator = pointer;
+  using const_iterator = const_pointer;
   
 private:
   
@@ -162,6 +168,22 @@ public:
     });
   }
   
+  iterator begin() const {
+    return &ptr[0];
+  }
+  
+  const_iterator cbegin() const {
+    return &ptr[0];
+  }
+  
+  iterator end() const {
+    return &ptr[size() - 1] + 1;
+  }
+  
+  const_iterator cend() const {
+    return &ptr[size() - 1] + 1;
+  }
+  
 };
 
 /*---------------------------------------------------------------------*/
@@ -197,9 +219,6 @@ public:
   : lo(other.lo), hi(other.hi), pointer(other.pointer) { }
   
 };
-  
-template <class Item, class Weight>
-parray<long> weights(const parray<Item>& xs, const Weight& weight);
 
 /***********************************************************************/
 

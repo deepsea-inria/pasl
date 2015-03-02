@@ -1004,7 +1004,7 @@ functor.
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 long max(const parray<long>& xs) {
-  return reduce(xs, 0, Max_combine());
+  return reduce(xs, LONG_MIN, Max_combine());
 }
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

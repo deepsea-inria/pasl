@@ -14,7 +14,7 @@
 #include <malloc.h>
 #endif
 
-#include "parraybase.hpp"
+#include "weights.hpp"
 
 #ifndef _PARRAY_PCTL_DATAPAR_H_
 #define _PARRAY_PCTL_DATAPAR_H_
@@ -161,18 +161,6 @@ public:
 };
   
 } // end namespace
-  
-/*---------------------------------------------------------------------*/
-/* Level 0 */
-  
-template <class Iter, class Body, class Comp>
-void parallel_for(Iter lo, Iter hi, const Comp& comp, const Body& body) {
-  parray::parray<long> w = parray::weights(hi - lo, comp);
-  auto comp_rng = [&] {
-    return w[hi] - w[lo];
-  };
-  range::parallel_for(lo, hi, comp_rng, body);
-}
   
 /***********************************************************************/
 

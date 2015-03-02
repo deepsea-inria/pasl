@@ -38,7 +38,7 @@ void fill(Iter lo, Iter hi, const Item& val) {
   });
 }
   
-template <class Iter, class Output_iterator, class Item>
+template <class Iter, class Output_iterator>
 void copy(Iter lo, Iter hi, Output_iterator dst) {
   range::parallel_for(lo, hi, [&] (Iter lo, Iter hi) { return hi - lo; }, [&] (Iter i) {
     std::copy(i, i + 1, dst + (i - lo));

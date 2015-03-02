@@ -57,15 +57,6 @@ public:
 } // end namespace
   
 /*---------------------------------------------------------------------*/
-
-template <class Item, class Weight>
-parray<long> weights(const parray<Item>& xs, const Weight& weight) {
-  assert(false);
-  parray<long> w(xs.size() + 1);
-  return w;
-}
-
-/*---------------------------------------------------------------------*/
 /* Reduction level 4 */
 
 namespace level4 {
