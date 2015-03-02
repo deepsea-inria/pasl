@@ -967,7 +967,7 @@ that are performed in the reduction tree. Then,
 \mathcal{R}(f, id, lo, hi)} W(f(x, y)))$.
 
 - The span of the reduction is $O(\log n \max_{f(x, y) \in
-\mathcal{R}(f i lo, hi)} S(f(x, y)))$.
+\mathcal{R}(f, id, lo, hi)} S(f(x, y)))$.
 
 Under certain conditions, we can use the following lemma to deduce a
 more precise bound on the amount of work performed by the
@@ -981,7 +981,7 @@ $f$ and weight function $w$, if for any $x$, $y$,
 
 where $W$ denotes the amount of work performed by the call $f(x, y)$,
 then the amount of work performed by the reduction is $O(\log hi-lo
-\sum_{it \in lo, \ldots, hi} (1 + w(*it)))$.
+\sum_{lo \leq it < hi} (1 + w(*it)))$.
 
 ***Example: using a non-constant time combining operator.*** Now, let
 us consider a case where the associative combining operator takes
@@ -1308,9 +1308,9 @@ template <class Weight>
 parray<long> weights(long n, Weight weight);
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The weight table that is returned is the following sequence `[0, w(0),
-w(0)+w(1), w(0)+w(1)+w(2), ..., w(0)+...+w(n-1)]`. Notice that the
-size of the value returned by the `weights` function is always
+The result returned by the call `weights(n, w)` is the sequence `[0,
+w(0), w(0)+w(1), w(0)+w(1)+w(2), ..., w(0)+...+w(n-1)]`. Notice that
+the size of the value returned by the `weights` function is always
 `n+1`. As an example, let us consider an application of the `weights`
 function where the given weight function is one that returns the value
 of its current position.
