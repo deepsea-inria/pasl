@@ -489,7 +489,7 @@ namespace pasl {
           sched::native::fork2([&] { process_layer_par(graph_alias, visited, prev, next, next_vertices, dists, forked_first_cnt); },
                                [&] { process_layer_par(graph_alias, visited, fr_in, fr_out, ver_out, dists, forked_first_cnt); });
           next.concat(fr_out);
-          next_vertices.concat(ver_out);
+next_vertices.concat(ver_out);
         }
       }
       
@@ -530,9 +530,11 @@ namespace pasl {
         vtxid_type nb_vertices = graph.get_nb_vertices();
         edgeweight_type* dists = data::mynew_array<edgeweight_type>(nb_vertices);
         std::atomic<bool>* visited = data::mynew_array<std::atomic<bool>>(nb_vertices);
+        edgeweight_type* layer = data::mynew_array<edgeweight_type>(nb_vertices);
         fill_array_seq(dists, nb_vertices, inf_dist);
         fill_array_par(visited, nb_vertices, false);
         dists[source] = 0;
+        layer[source] = 0;
         
         LOG_BASIC(ALGO_PHASE);
         auto graph_alias = get_alias_of_adjlist(graph);
@@ -563,17 +565,20 @@ namespace pasl {
           if (frontiers[cur].nb_outedges() <= bellman_ford_bfs_process_layer_cutoff) {
             frontiers[cur].for_each_outedge_when_front_and_back_empty([&] (vtxid_type from, vtxid_type to, vtxid_type weight) {
               if (dists[to] > dists[from] + weight) {
-                if (try_to_set_visited(to, visited)) {
-                  frontiers[nxt].push_vertex_back(to);
-                  next_vertices.push_back(to);
+                dists[to] = dists[from] + weight;
+                if (layer[to] != steps) {
+                  layer[to] = steps;
+                  frontiers[nxt].push_vertex_back(to);                  
                 }
               }
             });
             frontiers[cur].clear_when_front_and_back_empty();
           } else {            
             self_type::process_layer_par(graph_alias, visited, frontiers[cur], frontiers[nxt], next_vertices, dists, forked_first_cnt);
+            self_type::process_next_vert(graph, visited, next_vertices, dists, forked_second_cnt);
           }
-          self_type::process_next_vert(graph, visited, next_vertices, dists, forked_second_cnt);
+          // TODO: optimize for "if (frontiers[cur].nb_outedges() <= bellman_ford_bfs_process_layer_cutoff) {
+
           cur = 1 - cur;
           nxt = 1 - nxt;
         }
