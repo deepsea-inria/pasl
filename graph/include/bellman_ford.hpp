@@ -451,23 +451,27 @@ namespace pasl {
       using measure_type = typename cache_type::measure_type;
 
       
-      static bool try_to_set_visited(vtxid_type target, std::atomic<bool>* visited) {
-        bool unvisited = false;
-        return visited[target].compare_exchange_strong(unvisited, true);
+      static bool try_to_set_visited(vtxid_type & target, int & layer, std::atomic<int>* visited) {
+        int cur_d = visited[target].load(std::memory_order_relaxed);
+        if (cur_d == layer)
+          return false;
+        return visited[target].compare_exchange_strong(cur_d, layer);
       }
       
       template <class Adjlist_alias, class Frontier, class WeightedSeq>
-      static void process_layer_par(Adjlist_alias graph_alias,
-                                 std::atomic<bool>* visited,
+      static void process_layer_par(const Adjlist_alias & graph_alias,
+                                 std::atomic<int>* visited,
                                  Frontier& prev,
                                  Frontier& next,
                                  WeightedSeq& next_vertices,
                                  int * dists,
+                                 int & layer, 
+                                 measure_type & meas,   
                                 std::atomic<int> & forked_first_cnt) {
         if (prev.nb_outedges() <= vtxid_type(bellman_ford_bfs_process_layer_cutoff)) {
           prev.for_each_outedge([&] (vtxid_type from, vtxid_type to, vtxid_type weight) {
             if (dists[to] > dists[from] + weight) {
-              if (try_to_set_visited(to, visited)) {
+              if (try_to_set_visited(to, layer, visited)) {
                 next.push_vertex_back(to);
                 next_vertices.push_back(to);
               }
@@ -480,29 +484,24 @@ namespace pasl {
           fr_in.set_graph(graph_alias);
           fr_out.set_graph(graph_alias);
           WeightedSeq ver_out;
-          graph_env_help env(graph_alias);
-          measure_type meas(env);
           ver_out.set_measure(meas);
-
           prev.split(prev.nb_outedges() / 2, fr_in);
           forked_first_cnt++;
-          sched::native::fork2([&] { process_layer_par(graph_alias, visited, prev, next, next_vertices, dists, forked_first_cnt); },
-                               [&] { process_layer_par(graph_alias, visited, fr_in, fr_out, ver_out, dists, forked_first_cnt); });
+          sched::native::fork2([&] { process_layer_par(graph_alias, visited, prev, next, next_vertices, dists, layer, meas, forked_first_cnt); },
+                               [&] { process_layer_par(graph_alias, visited, fr_in, fr_out, ver_out, dists, layer, meas, forked_first_cnt); });
           next.concat(fr_out);
-next_vertices.concat(ver_out);
+					next_vertices.concat(ver_out);
         }
       }
       
       template <class Adjlist, class WeightedSeq>
       static void process_next_vert(Adjlist&  graph,
-                             std::atomic<bool>* visited,
                              WeightedSeq& next_vertices,
                              int * dists, 
                              std::atomic<int> & forked_second_cnt) {
         using vtxid_type = typename Adjlist::vtxid_type;
         if (next_vertices.get_cached() < bellman_ford_bfs_process_next_vertices_cutoff) {
           next_vertices.for_each([&] (vtxid_type vertex) {
-            visited[vertex] = false;
             long degree = graph.adjlists[vertex].get_in_degree();
             for (int edge = 0; edge < degree; edge++) {
               auto from = graph.adjlists[vertex].get_in_neighbor(edge);
@@ -517,8 +516,8 @@ next_vertices.concat(ver_out);
           WeightedSeq other;
           auto nb = next_vertices.get_cached() / 2;
           next_vertices.split([nb] (vtxid_type n) { return nb <= n; }, other);
-          sched::native::fork2([&] { process_next_vert(graph, visited, next_vertices, dists, forked_second_cnt); },
-                               [&] { process_next_vert(graph, visited, other, dists, forked_second_cnt); });
+          sched::native::fork2([&] { process_next_vert(graph, next_vertices, dists, forked_second_cnt); },
+                               [&] { process_next_vert(graph, other, dists, forked_second_cnt); });
           
         }
       }
@@ -529,12 +528,13 @@ next_vertices.concat(ver_out);
 
         vtxid_type nb_vertices = graph.get_nb_vertices();
         edgeweight_type* dists = data::mynew_array<edgeweight_type>(nb_vertices);
-        std::atomic<bool>* visited = data::mynew_array<std::atomic<bool>>(nb_vertices);
-        edgeweight_type* layer = data::mynew_array<edgeweight_type>(nb_vertices);
+        std::atomic<int>* visited = data::mynew_array<std::atomic<int>>(nb_vertices);
+        int unknown = 0;
+        fill_array_par(visited, nb_vertices, unknown);
+
         fill_array_seq(dists, nb_vertices, inf_dist);
-        fill_array_par(visited, nb_vertices, false);
         dists[source] = 0;
-        layer[source] = 0;
+
         
         LOG_BASIC(ALGO_PHASE);
         auto graph_alias = get_alias_of_adjlist(graph);
@@ -566,16 +566,16 @@ next_vertices.concat(ver_out);
             frontiers[cur].for_each_outedge_when_front_and_back_empty([&] (vtxid_type from, vtxid_type to, vtxid_type weight) {
               if (dists[to] > dists[from] + weight) {
                 dists[to] = dists[from] + weight;
-                if (layer[to] != steps) {
-                  layer[to] = steps;
+                if (visited[to] != steps) {
+                  visited[to] = steps;
                   frontiers[nxt].push_vertex_back(to);                  
                 }
               }
             });
             frontiers[cur].clear_when_front_and_back_empty();
           } else {            
-            self_type::process_layer_par(graph_alias, visited, frontiers[cur], frontiers[nxt], next_vertices, dists, forked_first_cnt);
-            self_type::process_next_vert(graph, visited, next_vertices, dists, forked_second_cnt);
+            self_type::process_layer_par(graph_alias, visited, frontiers[cur], frontiers[nxt], next_vertices, dists, steps, meas, forked_first_cnt);
+            self_type::process_next_vert(graph, next_vertices, dists, forked_second_cnt);
           }
           // TODO: optimize for "if (frontiers[cur].nb_outedges() <= bellman_ford_bfs_process_layer_cutoff) {
 
@@ -586,7 +586,6 @@ next_vertices.concat(ver_out);
         
         std::cout << "Rounds : " << steps << "; ForkedFirst = " << forked_first_cnt << "; ForkedSecond = " << forked_second_cnt <<std::endl;
         delete(visited);
-        delete(layer);
         return util::normalize(graph, dists);
       }            
     };

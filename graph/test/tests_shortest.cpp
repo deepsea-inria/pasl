@@ -14,8 +14,8 @@ using namespace pasl::data;
 // Algorithm's thresholds
 int pasl::graph::bellman_ford_par_by_vertices_cutoff 	= 100000;
 int pasl::graph::bellman_ford_par_by_edges_cutoff 		= 1000000;
-int pasl::graph::bellman_ford_bfs_process_layer_cutoff = 1000;
-int pasl::graph::bellman_ford_bfs_process_next_vertices_cutoff = 1000;
+int pasl::graph::bellman_ford_bfs_process_layer_cutoff = 1000000;
+int pasl::graph::bellman_ford_bfs_process_next_vertices_cutoff = 10000;
 const std::function<bool(double, double)> pasl::graph::algo_chooser_pred = [] (double fraction, double avg_deg) -> bool {
   if (avg_deg < 20) {
     return false;
@@ -99,7 +99,7 @@ int main(int argc, char ** argv) {
     cutoff1 = pasl::util::cmdline::parse_or_default_int("cutoff1", -1);
     cutoff2 = pasl::util::cmdline::parse_or_default_int("cutoff2", -1);
     pasl::graph::min_edge_weight = pasl::util::cmdline::parse_or_default_int("min", 1);
-    pasl::graph::max_edge_weight = pasl::util::cmdline::parse_or_default_int("max", 100);
+    pasl::graph::max_edge_weight = pasl::util::cmdline::parse_or_default_int("max", 1000);
     
     std::cout << "Testing " << algo_names[algo_num] << " with " << graph_types[test_num] << std::endl;  
     std::cout << "Generating graph..." << std::endl;        
