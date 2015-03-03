@@ -55,8 +55,8 @@ public:
 };
 
   
-extern const int min_edge_weight;
-extern const int max_edge_weight;
+extern int min_edge_weight;
+extern int max_edge_weight;
 
 template <class Vertex_id>
 class wedge : public edge<Vertex_id>{

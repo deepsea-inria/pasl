@@ -584,7 +584,9 @@ next_vertices.concat(ver_out);
         }
         
         
-        std::cout << "Rounds : " << steps << "; ForkedFirst = " << forked_first_cnt << "; ForkedSecond = " << forked_second_cnt <<std::endl;      
+        std::cout << "Rounds : " << steps << "; ForkedFirst = " << forked_first_cnt << "; ForkedSecond = " << forked_second_cnt <<std::endl;
+        delete(visited);
+        delete(layer);
         return util::normalize(graph, dists);
       }            
     };

@@ -32,8 +32,8 @@ using adjlist_seq_type = pasl::graph::flat_adjlist_seq<vtxid_type>;
 using adjlist_type = adjlist<adjlist_seq_type>;
 
 // Testing constants
-const int pasl::graph::min_edge_weight = 1;
-const int pasl::graph::max_edge_weight = 100;
+int pasl::graph::min_edge_weight;
+int pasl::graph::max_edge_weight;
 
 std::map<int, size_t> test_edges_number {
   {COMPLETE, 			4000000},
@@ -98,6 +98,8 @@ int main(int argc, char ** argv) {
     vertices_num = pasl::util::cmdline::parse_or_default_int("vertices", -1);
     cutoff1 = pasl::util::cmdline::parse_or_default_int("cutoff1", -1);
     cutoff2 = pasl::util::cmdline::parse_or_default_int("cutoff2", -1);
+    pasl::graph::min_edge_weight = pasl::util::cmdline::parse_or_default_int("min", 1);
+    pasl::graph::max_edge_weight = pasl::util::cmdline::parse_or_default_int("max", 100);
     
     std::cout << "Testing " << algo_names[algo_num] << " with " << graph_types[test_num] << std::endl;  
     std::cout << "Generating graph..." << std::endl;        
