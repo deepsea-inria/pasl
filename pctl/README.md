@@ -182,6 +182,10 @@ parray(long n, std::function<Item(long)> body);
 parray(long n,
        std::function<long(long)> body_comp,
        std::function<Item(long)> body);
+// (3) Non-constant-time body along with range-based complexity function
+parray(long n,
+       std::function<long(long,long)> body_comp_rng,
+       std::function<Item(long)> body);
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Constructs a container with `n` cells, populating those cells with
@@ -190,6 +194,10 @@ values returned by the `n` calls, `body(0)`, `body(1)`, ...,
 
 In the second version, the value returned by `body_comp(i)` is used by
 the constructor as the complexity estimate for the call `body(i)`.
+
+In the third version, the value returned by `body_comp(lo, hi)` is
+used by the constructor as the complexity estimate for the calls
+`body(lo)`, `body(lo+1)`, ... `body(hi-1)`.
 
 ***Complexity.*** TODO
 
@@ -433,6 +441,10 @@ class Alloc;
 
 Allocator class.
 
+## Iterator
+
+TODO
+
 ## Constructors and destructors
 
 ### Empty container constructor {#cs-e-c-c}
@@ -465,6 +477,10 @@ pchunkedseq(long n, std::function<Item(long)> body);
 pchunkedseq(long n,
             std::function<long(long)> body_comp,
             std::function<Item(long)> body);
+// (3) Non-constant-time body along with range-based complexity function
+pchunkedseq(long n,
+            std::function<long(long,long)> body_comp_rng,
+            std::function<Item(long)> body);            
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Constructs a container with `n` cells, populating those cells with
@@ -473,6 +489,10 @@ values returned by the `n` calls, `body(0)`, `body(1)`, ...,
 
 In the second version, the value returned by `body_comp(i)` is used by
 the constructor as the complexity estimate for the call `body(i)`.
+
+In the third version, the value returned by `body_comp(lo, hi)` is
+used by the constructor as the complexity estimate for the calls
+`body(lo)`, `body(lo+1)`, ... `body(hi-1)`.
 
 ***Complexity.*** TODO
 
@@ -679,8 +699,8 @@ concept of the [random-access
 iterator](http://en.cppreference.com/w/cpp/concept/RandomAccessIterator).
 The main difference between the two is that, with the random-access
 iterator, an iterable value necessarily has the ability to
-dereference, whereas with our `Iter` class this feature is not used
-and therefore not required.
+dereference, whereas with our `Iter` class this feature is not used by
+the parallel-for loop and therefore not required.
 
 #### Loop body {#lp-i}
 
@@ -1180,11 +1200,11 @@ long max(const parray<parray<long>>& xss) {
   auto combine = [&] (long x, long y) {
     return std::max(x, y);
   };
-  auto lift_comp = [&] (iterator it) {
-    return it->size();
+  auto lift_comp = [&] (iterator it_xs) {
+    return it_xs->size();
   };
-  auto lift = [&] (iterator it) {
-    return max(*it);
+  auto lift = [&] (iterator it_xs) {
+    return max(*it_xs);
   };
   auto lo = xss.cbegin();
   auto hi = xss.cend();
@@ -1322,7 +1342,7 @@ parray<long> w = weights(4, [&] (long i) {
 std::cout << "w = " << w << std::endl;
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The input is then the following.
+The output is the following.
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 w = { 0, 0, 1, 3, 6 }
@@ -1335,32 +1355,32 @@ long max(const parray<parray<long>>& xss) {
   parray<long> w = weights(xss.size(), [&] (const parray<long>& xs) {
     return xs.size();
   });
-  auto lift_comp_rng = [&] (iterator lo, iterator hi) {
-    long l = lo - xss.cbegin();
-    long h = hi - xss.cbegin();
-    return w[h] - w[l];
+  auto lift_comp_rng = [&] (iterator lo_xs, iterator hi_xs) {
+    long lo = lo_xs - xss.cbegin();
+    long hi = hi_xs - xss.cbegin();
+    return w[hi] - w[lo];
   };
   auto combine = [&] (long x, long y) {
     return std::max(x, y);
   };
-  auto lift = [&] (iterator it) {
-    return max(*it);
+  auto lift = [&] (iterator it_xs) {
+    return max(*it_xs);
   };
-  auto seq_lift = [&] (iterator lo, iterator hi) {
-    return max_seq(lo, hi);
+  auto seq_lift = [&] (iterator lo_xs, iterator hi_xs) {
+    return max_seq(lo_xs, hi_xs);
   };
-  iterator lo = xss.cbegin();
-  iterator hi = xss.cend();
-  return level2::reduce(lo, hi, 0, combine, lift_comp_rng, lift, seq_lift);
+  iterator lo_xs = xss.cbegin();
+  iterator hi_xs = xss.cend();
+  return level2::reduce(lo_xs, hi_xs, 0, combine, lift_comp_rng, lift, seq_lift);
 }
 
 template <class Iter>
-long max_seq(Iter lo, Iter hi) {
+long max_seq(Iter lo_xs, Iter hi_xs) {
   long m = LONG_MIN;
-  for (Iter it = lo; it != hi; it++) {
-    const parray<long>& xs = *it;
-    for (auto it2 = xs.cbegin(); it2 != xs.cend() it2++) {
-      m = std::max(m, *it2);
+  for (Iter it_xs = lo_xs; it_xs != hi_xs; it_xs++) {
+    const parray<long>& xs = *it_xs;
+    for (auto it_x = xs.cbegin(); it_x != xs.cend(); it_x++) {
+      m = std::max(m, *it_x);
     }
   }
   return m;
