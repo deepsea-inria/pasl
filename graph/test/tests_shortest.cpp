@@ -85,6 +85,7 @@ bool same_arrays(int size, int * candidate, int * correct) {
 int algo_num;
 int test_num;
 bool should_check_correctness;
+bool print_graph;
 int vertices_num;
 int cutoff1;
 int cutoff2;
@@ -93,6 +94,8 @@ int main(int argc, char ** argv) {
   
   auto init = [&] {
     should_check_correctness = pasl::util::cmdline::parse_or_default_bool("check", false, false);
+    print_graph = pasl::util::cmdline::parse_or_default_bool("graph", false, false);
+    
     algo_num = pasl::util::cmdline::parse_or_default_int("algo_num", SERIAL_CLASSIC);
     test_num = pasl::util::cmdline::parse_or_default_int("test_num", COMPLETE);
     vertices_num = pasl::util::cmdline::parse_or_default_int("vertices", -1);
@@ -113,10 +116,16 @@ int main(int argc, char ** argv) {
     }
     std::cout << "Done generating " << graph_types[test_num] << " with ";      
     print_graph_debug_info(graph);      
+    if (print_graph) {
+      std::cout << std::endl << "Source : " << source_vertex << std::endl;
+      std::cout << graph << std::endl;
+    }
+    
     if (!should_check_correctness) {
       std::cout << std::endl << "WARNING! Check only performance" << std::endl;
       return;
     }
+
     res = bellman_ford_seq_classic(graph, source_vertex);
   };
   

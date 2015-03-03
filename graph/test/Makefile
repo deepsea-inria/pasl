@@ -69,13 +69,13 @@ FOLDERS=$(INCLUDES)
 
 all: progs
 
-progs: tests.exe
+progs: tests_shortest.exe
 
 test: progs
-	./tests.exe
+	./tests_shortest.exe
 
-check_graph: tests.exe
-	valgrind --leak-check=full ./tests.exe
+check_graph: tests_shortest.exe
+	valgrind --leak-check=full ./tests_shortest.exe
 
 
 ####################################################################
