@@ -9,7 +9,7 @@
 
 #include <cmath>
 
-#include "prim.hpp"
+#include "pmem.hpp"
 
 #ifndef _PARRAY_PCTL_PARRAY_BASE_H_
 #define _PARRAY_PCTL_PARRAY_BASE_H_
@@ -28,9 +28,15 @@ class parray {
 public:
   
   using value_type = Item;
+  using allocator_type = Alloc;
+  using size_type = std::size_t;
+  using ptr_diff = std::ptrdiff_t;
   using reference = value_type&;
   using const_reference = const value_type&;
-  using allocator_type = Alloc;
+  using pointer = value_type*;
+  using const_pointer = const value_type*;
+  using iterator = pointer;
+  using const_iterator = const_pointer;
   
 private:
   
@@ -44,27 +50,27 @@ private:
   std::unique_ptr<value_type[], Deleter> ptr;
   long sz = -1l;
   
-  void alloc() {
+  void alloc(long n) {
+    sz = n;
     assert(sz >= 0);
-    value_type* p = prim::alloc_array<value_type>(sz);
+    value_type* p = (value_type*)malloc(sz * sizeof(value_type));
     assert(p != nullptr);
     ptr.reset(p);
   }
   
   void destroy() {
-    if (sz < 1)
+    if (sz <= 0)
       return;
-    prim::pdelete<Item, Alloc>(&operator[](0), &operator[](sz-1)+1);
+    pmem::pdelete<Item, Alloc>(&operator[](0), &operator[](sz-1)+1);
     sz = 0;
   }
   
   void fill(long n, const value_type& val) {
     destroy();
-    sz = n;
-    alloc();
-    if (sz < 1)
+    alloc(n);
+    if (sz <= 0)
       return;
-    prim::fill(&operator[](0), &operator[](sz-1)+1, val);
+    pmem::fill(&operator[](0), &operator[](sz-1)+1, val);
   }
   
   void check(long i) const {
@@ -75,19 +81,22 @@ private:
   
 public:
   
-  parray(long sz = 0)
-  : sz(sz) {
-    resize(sz);
+  parray(long sz = 0) {
+    value_type val;
+    fill(sz, val);
   }
   
-  parray(long sz, const value_type& val)
-  : sz(sz) {
-    resize(sz, val);
+  parray(long sz, const value_type& val) {
+    fill(sz, val);
   }
   
-  parray(std::initializer_list<value_type> xs)
-  : sz(xs.size()) {
-    alloc();
+  parray(long sz, const std::function<value_type(long)>& body)
+  : sz(0) {
+    rebuild(sz, body);
+  }
+  
+  parray(std::initializer_list<value_type> xs) {
+    alloc(xs.size());
     long i = 0;
     for (auto it = xs.begin(); it != xs.end(); it++)
       ptr[i++] = *it;
@@ -98,9 +107,8 @@ public:
   }
   
   parray(const parray& other) {
-    sz = other.size();
-    alloc();
-    prim::copy(&other[0], &other[sz-1]+1, &ptr[0]);
+    alloc(other.size());
+    pmem::copy(&other[0], &other[sz-1]+1, &ptr[0]);
   }
   
   parray& operator=(parray&& other) {
@@ -138,39 +146,43 @@ public:
     resize(n, val);
   }
   
-};
-
-/*---------------------------------------------------------------------*/
-/* Slice */
-
-template <class Item>
-class slice {
-public:
-  
-  using value_type = Item;
-  using parray_type = parray<value_type>;
-  
-  const parray_type* pointer;
-  long lo;
-  long hi;
-  
-  slice()
-  : pointer(nullptr), lo(0), hi(0) { }
-  
-  slice(const parray_type* _pointer)
-  : pointer(_pointer), lo(0), hi(_pointer->size()) { }
-  
-  slice(long _lo, long _hi, const parray_type _pointer=nullptr) {
-    assert(_pointer==nullptr || _pointer->size() >= _hi-_lo);
-    assert(_pointer!=nullptr || _hi-_lo==0);
-    assert(hi-lo >= 0);
-    lo = _lo;
-    hi = _hi;
-    pointer = _pointer;
+  void clear() {
+    resize(0);
   }
   
-  slice(const slice& other)
-  : lo(other.lo), hi(other.hi), pointer(other.pointer) { }
+  template <class Body>
+  void rebuild(long n, const Body& body) {
+    clear();
+    alloc(n);
+    parallel_for(0l, n, [&] (long i) {
+      ptr[i] = body(i);
+    });
+  }
+  
+  template <class Body, class Body_comp>
+  void rebuild(long n, const Body_comp& body_comp, const Body& body) {
+    clear();
+    alloc(n);
+    parallel_for(0l, n, body_comp, [&] (long i) {
+      ptr[i] = body(i);
+    });
+  }
+  
+  iterator begin() const {
+    return &ptr[0];
+  }
+  
+  const_iterator cbegin() const {
+    return &ptr[0];
+  }
+  
+  iterator end() const {
+    return &ptr[size() - 1] + 1;
+  }
+  
+  const_iterator cend() const {
+    return &ptr[size() - 1] + 1;
+  }
   
 };
 
