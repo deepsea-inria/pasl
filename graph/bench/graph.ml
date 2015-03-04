@@ -281,8 +281,8 @@ let load = function
 
 let timeout_for_size = function
    | Small -> 1
-   | Medium -> 10
-   | Large -> 1000
+   | Medium -> 1000
+   | Large -> 1000000
 
 let bits_for_size = function
    | Small -> 32
