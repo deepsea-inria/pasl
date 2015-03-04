@@ -462,12 +462,12 @@ public:
   
   //! \brief Increments the value in the cell of the calling worker thread by one
   number_type operator++(int) {
-    return decr(util::worker::get_my_id(), 1l);
+    return incr(util::worker::get_my_id(), 1l);
   }
   
   //! \brief Decrements the value in the cell of the calling worker thread by one
   number_type operator--(int) {
-    return incr(util::worker::get_my_id(), 1l);
+    return decr(util::worker::get_my_id(), 1l);
   }
   
   //! \brief Returns the sum of all the values in the array
