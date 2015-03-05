@@ -3,7 +3,7 @@
  * All rights reserved.
  *
  * \file weights.hpp
- * \brief
+ * \brief The weights function
  *
  */
 
@@ -15,19 +15,21 @@
 #endif
 #include <algorithm>
 
-#include "parraybase.hpp"
+#include "parray.hpp"
 
-#ifndef _PARRAY_PCTL_WEIGHTS_H_
-#define _PARRAY_PCTL_WEIGHTS_H_
+#ifndef _PCTL_WEIGHTS_H_
+#define _PCTL_WEIGHTS_H_
 
 namespace pasl {
 namespace pctl {
 
 /***********************************************************************/
   
-controller_type long_scan_contr("long_scan");
+namespace partial_sums {
+  
+controller_type contr("partial_sums");
 
-long long_scan_seq(const long* lo, const long* hi, long id, long* dst) {
+long seq(const long* lo, const long* hi, long id, long* dst) {
   long x = id;
   for (const long* i = lo; i != hi; i++) {
     *dst = x;
@@ -37,14 +39,14 @@ long long_scan_seq(const long* lo, const long* hi, long id, long* dst) {
   return x;
 }
 
-parray::parray<long> long_scan_rec(const parray::parray<long>& xs) {
+parray::parray<long> rec(const parray::parray<long>& xs) {
   const long k = 1024;
   long n = xs.size();
   long m = 1 + ((n - 1) / k);
   parray::parray<long> rs(n);
-  par::cstmt(long_scan_contr, [&] { return n; }, [&] {
+  par::cstmt(contr, [&] { return n; }, [&] {
     if (n <= k) {
-      long_scan_seq(xs.cbegin(), xs.cend(), 0, rs.begin());
+      seq(xs.cbegin(), xs.cend(), 0, rs.begin());
     } else {
       parray::parray<long> sums(m);
       parallel_for(0l, m, [&] (long i) {
@@ -55,21 +57,23 @@ parray::parray<long> long_scan_rec(const parray::parray<long>& xs) {
           sums[i] += xs[j];
         }
       });
-      parray::parray<long> scans = long_scan_rec(sums);
+      parray::parray<long> scans = rec(sums);
       parallel_for(0l, m, [&] (long i) {
         long lo = i * k;
         long hi = std::min(lo + k, n);
-        long_scan_seq(xs.cbegin()+lo, xs.cbegin()+hi, scans[i], rs.begin()+lo);
+        seq(xs.cbegin()+lo, xs.cbegin()+hi, scans[i], rs.begin()+lo);
       });
     }
   }, [&] {
-    long_scan_seq(xs.cbegin(), xs.cend(), 0, rs.begin());
+    seq(xs.cbegin(), xs.cend(), 0, rs.begin());
   });
   return rs;
 }
-
+  
+} // end namespace
+  
 template <class Weight>
-long long_scan_seq(const Weight& weight, long lo, long hi, long id, long* dst) {
+long weights_seq(const Weight& weight, long lo, long hi, long id, long* dst) {
   long x = id;
   for (long i = lo; i != hi; i++) {
     *dst = x;
@@ -78,8 +82,10 @@ long long_scan_seq(const Weight& weight, long lo, long hi, long id, long* dst) {
   }
   return x;
 }
-  
-controller_type weights_contr("weights");
+
+namespace contr {
+controller_type weights("weights");
+}
 
 template <class Weight>
 parray::parray<long> weights(long n, const Weight& weight) {
@@ -87,9 +93,9 @@ parray::parray<long> weights(long n, const Weight& weight) {
   long m = 1 + ((n - 1) / k);
   long tot;
   parray::parray<long> rs(n + 1);
-  par::cstmt(weights_contr, [&] { return n; }, [&] {
+  par::cstmt(contr::weights, [&] { return n; }, [&] {
     if (n <= k) {
-      tot = long_scan_seq(weight, 0, n, 0, rs.begin());
+      tot = weights_seq(weight, 0, n, 0, rs.begin());
     } else {
       parray::parray<long> sums(m);
       parallel_for(0l, m, [&] (long i) {
@@ -100,16 +106,16 @@ parray::parray<long> weights(long n, const Weight& weight) {
           sums[i] += weight(j);
         }
       });
-      parray::parray<long> scans = long_scan_rec(sums);
+      parray::parray<long> scans = partial_sums::rec(sums);
       parallel_for(0l, m, [&] (long i) {
         long lo = i * k;
         long hi = std::min(lo + k, n);
-        long_scan_seq(weight, lo, hi, scans[i], rs.begin()+lo);
+        weights_seq(weight, lo, hi, scans[i], rs.begin()+lo);
       });
       tot = rs[n-1] + weight(n-1);
     }
   }, [&] {
-    tot = long_scan_seq(weight, 0, n, 0, rs.begin());
+    tot = weights_seq(weight, 0, n, 0, rs.begin());
   });
   rs[n] = tot;
   return rs;
@@ -130,4 +136,4 @@ void parallel_for(Iter lo, Iter hi, const Comp& comp, const Body& body) {
 } // end namespace
 
 
-#endif /*! _PARRAY_PCTL_WEIGHTS_H_ */
+#endif /*! _PCTL_WEIGHTS_H_ */

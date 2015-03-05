@@ -76,9 +76,9 @@ protected:
 
   using const_self_pointer_type = const chunkedseqbase<Configuration>*;
 
-  static constexpr int chunk_capacity = Configuration::chunk_capacity;
-
 public:
+  
+  static constexpr int chunk_capacity = Configuration::chunk_capacity;
 
   /*---------------------------------------------------------------------*/
   /** @name Container-configuration types

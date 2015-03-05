@@ -838,6 +838,32 @@ Table: Abstraction layers used by pctl for reduction operators.
 
 Table: Shared template parameters for all level-0 reduce operations.
 
+At this level, we have two types of reduction for parallel arrays. The
+first one assumes that the combining operator takes constant time and
+the second does not.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+namespace pasl {
+namespace pctl {
+
+template <class Iter, class Item, class Combine>
+Item reduce(Iter lo, Iter hi, Item id, Combine combine);
+
+template <
+  class Iter,
+  class Item,
+  class Weight,
+  class Combine
+>
+Item reduce(Iter lo,
+            Iter hi,
+            Item id,
+            Weight weight,
+            Combine combine);
+
+} }
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
 #### Iter {#r0-iter}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
@@ -920,33 +946,6 @@ public:
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 #### Examples {#r0-parray}
-
-At this level, we have two types of reduction for parallel arrays. The
-first one assumes that the combining operator takes constant time and
-the second does not.
-
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-namespace pasl {
-namespace data {
-namespace parray {
-
-template <class Item, class Combine>
-Item reduce(const parray<Item>& xs, Item id, Combine combine);
-
-template <
-  class Iter,
-  class Item,
-  class Weight,
-  class Combine
->
-Item reduce(Iter lo,
-            Iter hi,
-            Item id,
-            Weight weight,
-            Combine combine);
-
-} } }
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 ***Example: taking the maximum value of an array of numbers.*** The
 following code takes the maximum value of `xs` using our `Max_combine`
@@ -1072,6 +1071,74 @@ function a little, we can sidestep this issue.
 +----------------------------------+-----------------------------------+
 
 Table: Template parameters that are introduced in level 1.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+namespace pasl {
+namespace pctl {
+namespace level1 {
+
+template <
+  class Iter,
+  class Result,
+  class Combine,
+  class Lift
+>
+Result reduce(Iter lo,
+              Iter hi,
+              Result id,
+              Combine combine,
+              Lift lift);
+
+template <
+  class Iter,
+  class Result,
+  class Combine,
+  class Lift_comp,
+  class Lift
+>
+Result reduce(Iter lo,
+              Iter hi,
+              Result id,
+              Combine combine,
+              Lift_comp lift_comp,
+              Lift lift);
+
+} } }
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+namespace pasl {
+namespace data {
+namespace level1 {
+
+template <
+  class Iter,
+  class Result,
+  class Combine,
+  class Lift_idx
+>
+Result reducei(Iter lo,
+               Iter hi,
+               Result id,
+               Combine combine,
+               Lift_idx lift_idx);
+
+template <
+  class Iter,
+  class Result,
+  class Combine,
+  class Lift_comp_idx,
+  class Lift_idx
+>
+Result reducei(Iter lo,
+               Iter hi,
+               Result id,
+               Combine combine,
+               Lift_comp_idx lift_comp_idx,
+               Lift_idx lift_idx);
+
+} } }
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
                  
 #### Result {#r1-r}
 
@@ -1160,41 +1227,6 @@ long operator()(long pos, Iter it);
 #### Examples
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-namespace pasl {
-namespace data {
-namespace parray {
-namespace level1 {
-
-template <
-  class Iter,
-  class Result,
-  class Combine,
-  class Lift
->
-Result reduce(Iter lo,
-              Iter hi,
-              Result id,
-              Combine combine,
-              Lift lift);
-
-template <
-  class Iter,
-  class Result,
-  class Combine,
-  class Lift_comp,
-  class Lift
->
-Result reduce(Iter lo,
-              Iter hi,
-              Result id,
-              Combine combine,
-              Lift_comp lift_comp,
-              Lift lift);
-
-} } } }
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 long max(const parray<parray<long>>& xss) {
   using iterator = typename parray<parray<long>>::const_iterator;
   auto combine = [&] (long x, long y) {
@@ -1212,40 +1244,6 @@ long max(const parray<parray<long>>& xss) {
 }
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-namespace pasl {
-namespace data {
-namespace parray {
-namespace level1 {
-
-template <
-  class Iter,
-  class Result,
-  class Combine,
-  class Lift_idx
->
-Result reducei(Iter lo,
-               Iter hi,
-               Result id,
-               Combine combine,
-               Lift_idx lift_idx);
-
-template <
-  class Iter,
-  class Result,
-  class Combine,
-  class Lift_comp_idx,
-  class Lift_idx
->
-Result reducei(Iter lo,
-               Iter hi,
-               Result id,
-               Combine combine,
-               Lift_comp_idx lift_comp_idx,
-               Lift_idx lift_idx);
-
-} } } }
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 ### Level 2 {#red-l-2}
 
@@ -1260,6 +1258,30 @@ Result reducei(Iter lo,
 +---------------------------+-----------------------------------+
 
 Table: Template parameters that are introduced in level 2.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+namespace pasl {
+namespace pctl {
+namespace level2 {
+
+template <
+  class Iter,
+  class Result,
+  class Combine,
+  class Lift_comp_rng,
+  class Lift_idx,
+  class Seq_lift
+>
+Result reduce(Iter lo,
+              Iter hi,
+              Result id,
+              Combine combine,
+              Lift_comp_rng lift_comp_rng,
+              Lift_idx lift_idx,
+              Seq_lift seq_lift);
+
+} } }
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 #### Sequential alternative body for the lifting operator {#r2-l}
 
@@ -1291,32 +1313,7 @@ hi)` of the input sequence.
 long operator()(Iter lo, Iter hi);
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-#### Examples
-             
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-namespace pasl {
-namespace data {
-namespace parray {
-namespace level2 {
-
-template <
-  class Iter,
-  class Result,
-  class Combine,
-  class Lift_comp_rng,
-  class Lift_idx,
-  class Seq_lift
->
-Result reduce(Iter lo,
-              Iter hi,
-              Result id,
-              Combine combine,
-              Lift_comp_rng lift_comp_rng,
-              Lift_idx lift_idx,
-              Seq_lift seq_lift);
-
-} } } }
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#### Examples            
 
 The following function is useful for building a table that is to
 summarize the cost of processing any given range in a specified
@@ -1403,6 +1400,28 @@ long max_seq(Iter lo_xs, Iter hi_xs) {
 +----------------------------------+--------------------------------+
 
 Table: Template parameters that are introduced in level 3.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+namespace pasl {
+namespace pctl {
+namespace level3 {
+
+template <
+  class Iter,
+  class Output,
+  class Lift_comp_rng,
+  class Lift_idx_dst,
+  class Seq_lift_dst
+>
+void reduce(Iter lo,
+            Iter hi,
+            Output& out,
+            Lift_comp_rng lift_comp_rng,
+            Lift_idx_dst lift_idx_dst,
+            Seq_lift_dst seq_lift_dst);
+
+} } }
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
                                       
 #### Output {#r3-o}
 
@@ -1453,24 +1472,23 @@ referenced by `dst`, leaving the result in `dst`.
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 namespace pasl {
-namespace data {
-namespace datapar {
+namespace pctl {
 namespace level3 {
 
 template <class Result, class Combine>
-class cell {
+class cell_output {
 public:
 
   Result result;
   Combine combine;
 
-  cell(Result result, Combine combine)
+  cell_output(Result result, Combine combine)
   : result(result), combine(combine) { }
 
-  cell(const cell& other)
+  cell_output(const cell_output& other)
   : combine(other.combine) { }
 
-  void merge(cell& dst) {
+  void merge(cell_output& dst) {
     dst.result = combine(dst.result, result);
     Result empty;
     result = empty;
@@ -1478,7 +1496,7 @@ public:
 
 };
 
-} } } }
+} } }
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 #### Destination-passing-style lift {#r3-dpl}
@@ -1523,27 +1541,7 @@ sequential lift function.
 
 #### Examples
 
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-namespace pasl {
-namespace pctl {
-namespace level3 {
-
-template <
-  class Iter,
-  class Output,
-  class Lift_comp_rng,
-  class Lift_idx_dst,
-  class Seq_lift_dst
->
-void reduce(Iter lo,
-            Iter hi,
-            Output& out,
-            Lift_comp_rng lift_comp_rng,
-            Lift_idx_dst lift_idx_dst,
-            Seq_lift_dst seq_lift_dst);
-
-} } }
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+TODO
 
 ### Level 4 {#red-l-4}
 
@@ -1563,6 +1561,27 @@ void reduce(Iter lo,
 +-------------------------------+-----------------------------------+
 
 Table: Template parameters that are introduced in level 4.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+namespace pasl {
+namespace pctl {
+namespace level4 {
+
+template <
+  class Input,
+  class Output,
+  class Convert_comp,
+  class Convert,
+  class Seq_convert
+>
+void reduce(Input& in,
+            Output& out,
+            Convert_comp convert_comp,
+            Convert convert,
+            Seq_convert seq_convert);
+            
+} } }
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 #### Input {#r4-i}
 
@@ -1703,27 +1722,7 @@ as the ordinary convert function given the same input.
 
 #### Examples
 
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-namespace pasl {
-namespace data {
-namespace datapar {
-namespace level4 {
-
-template <
-  class Input,
-  class Output,
-  class Convert_comp,
-  class Convert,
-  class Seq_convert
->
-void reduce(Input& in,
-            Output& out,
-            Convert_comp convert_comp,
-            Convert convert,
-            Seq_convert seq_convert);
-            
-} } } }
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+TODO
 
 Scan
 ----

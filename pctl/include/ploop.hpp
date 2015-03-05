@@ -9,8 +9,8 @@
 
 #include "granularity.hpp"
 
-#ifndef _PARRAY_PCTL_PLOOP_H_
-#define _PARRAY_PCTL_PLOOP_H_
+#ifndef _PCTL_PLOOP_H_
+#define _PCTL_PLOOP_H_
 
 namespace pasl {
 namespace pctl {
@@ -38,13 +38,15 @@ std::string sota() {
 
 namespace range {
   
+namespace contr {
+  
 template <
   class Iter,
   class Body,
   class Comp_rng,
   class Seq_body_rng
 >
-class parallel_for_controller_type {
+class parallel_for {
 public:
   static controller_type contr;
 };
@@ -55,7 +57,9 @@ template <
   class Comp_rng,
   class Seq_body_rng
 >
-controller_type parallel_for_controller_type<Iter,Body,Comp_rng,Seq_body_rng>::contr(                                                                                       "parallel_for"+sota<Iter>()+sota<Body>()+sota<Comp_rng>()+sota<Seq_body_rng>());
+controller_type parallel_for<Iter,Body,Comp_rng,Seq_body_rng>::contr(                                                                                       "parallel_for"+sota<Iter>()+sota<Body>()+sota<Comp_rng>()+sota<Seq_body_rng>());
+    
+} // end namespace
 
 template <
   class Iter,
@@ -68,7 +72,7 @@ void parallel_for(Iter lo,
                   const Comp_rng& comp_rng,
                   const Body& body,
                   const Seq_body_rng& seq_body_rng) {
-  using controller_type = parallel_for_controller_type<Iter, Body, Comp_rng, Seq_body_rng>;
+  using controller_type = contr::parallel_for<Iter, Body, Comp_rng, Seq_body_rng>;
   par::cstmt(controller_type::contr, [&] { return comp_rng(lo, hi); }, [&] {
     long n = hi - lo;
     if (n <= 1) {
@@ -114,4 +118,4 @@ void parallel_for(Iter lo, Iter hi, const Body& body) {
 } // end namespace
 } // end namespace
 
-#endif /*! _PARRAY_PCTL_PLOOP_H_ */
+#endif /*! _PCTL_PLOOP_H_ */

@@ -17,8 +17,8 @@
 
 #include "ploop.hpp"
 
-#ifndef _PARRAY_PCTL_PRIM_H_
-#define _PARRAY_PCTL_PRIM_H_
+#ifndef _PCTL_PRIM_H_
+#define _PCTL_PRIM_H_
 
 /***********************************************************************/
 
@@ -62,4 +62,4 @@ void pdelete(Item* lo, Item* hi) {
 } // end namespace
 
 
-#endif /*! _PARRAY_PCTL_PRIM_H_ */
+#endif /*! _PCTL_PRIM_H_ */
