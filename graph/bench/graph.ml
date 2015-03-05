@@ -705,7 +705,7 @@ let mk_graph_outputs_all_manual : Params.t =
    Params.eval (
       mk_manual "friendster" Large 64 123
    ++ mk_manual "twitter" Large 64 12
-   ++ mk_manual "twitter_direct" Large 64 12
+   ++ mk_manual "twitter_directed" Large 64 12
    ++ mk_manual "livejournal1" size_medium 32 0
    ++ mk_manual "wikipedia-20070206" size_medium 32 0
    (*   ++ mk_manual "cage14" size_medium 32 0 *)
