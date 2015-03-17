@@ -124,7 +124,7 @@ int main(int argc, char ** argv) {
       std::ofstream graph_file(graph_types[test_num] + ".dot");
       if (graph_file.is_open())
       {
-        auto edge_num = vertices_num != -1 ? vertices_num : test_edges_number[test_num]; 
+        auto edge_num = graph.nb_edges; 
         auto nb_vertices = graph.get_nb_vertices(); 
         graph_file << "WeightedAdjacencyGraph\n";
         graph_file << nb_vertices << "\n" << edge_num << "\n";
