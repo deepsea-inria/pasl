@@ -7,6 +7,8 @@
 #include "adjlist.hpp"
 #include <map>
 #include <thread>
+#include <iostream>
+#include <fstream>
 
 using namespace pasl::graph;
 using namespace pasl::data;
@@ -85,6 +87,8 @@ bool same_arrays(int size, int * candidate, int * correct) {
 int algo_num;
 int test_num;
 bool should_check_correctness;
+bool generate_graph_file;
+
 bool print_graph;
 int vertices_num;
 int cutoff1;
@@ -94,6 +98,7 @@ int main(int argc, char ** argv) {
   
   auto init = [&] {
     should_check_correctness = pasl::util::cmdline::parse_or_default_bool("check", false, false);
+    generate_graph_file = pasl::util::cmdline::parse_or_default_bool("gen_file", false, false);
     print_graph = pasl::util::cmdline::parse_or_default_bool("graph", false, false);
     
     algo_num = pasl::util::cmdline::parse_or_default_int("algo_num", SERIAL_CLASSIC);
@@ -114,6 +119,40 @@ int main(int argc, char ** argv) {
     } else {
       source_vertex = generate(which_generator, vertices_num != -1 ? vertices_num : test_edges_number[test_num], graph, -1, -1, true);
     }
+    if (generate_graph_file) {
+      std::cout << "Writing graph to file" << std::endl;
+      std::ofstream graph_file(graph_types[test_num] + ".dot");
+      if (graph_file.is_open())
+      {
+        auto edge_num = vertices_num != -1 ? vertices_num : test_edges_number[test_num]; 
+        auto nb_vertices = graph.get_nb_vertices(); 
+        graph_file << "WeightedAdjacencyGraph\n";
+        graph_file << nb_vertices << "\n" << edge_num << "\n";
+        auto cur = 0;
+        for (size_t i = 0; i < nb_vertices; i++) {
+          vtxid_type degree = graph.adjlists[i].get_out_degree();
+          graph_file << cur << "\n";
+          cur += degree;
+        }
+        for (size_t i = 0; i < nb_vertices; i++) {
+          vtxid_type degree = graph.adjlists[i].get_out_degree();
+          for (vtxid_type edge = 0; edge < degree; edge++) {
+            vtxid_type other = graph.adjlists[i].get_out_neighbor(edge);
+            graph_file << other << "\n";
+          }
+        }
+        for (size_t i = 0; i < nb_vertices; i++) {
+          vtxid_type degree = graph.adjlists[i].get_out_degree();
+          for (vtxid_type edge = 0; edge < degree; edge++) {
+            vtxid_type w = graph.adjlists[i].get_out_neighbor_weight(edge);
+            graph_file << w << "\n";
+          }
+        }
+
+        graph_file.close();
+      }
+    }
+
     std::cout << "Done generating " << graph_types[test_num] << " with ";      
     print_graph_debug_info(graph);      
     if (print_graph) {
