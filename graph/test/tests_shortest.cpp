@@ -119,6 +119,7 @@ int main(int argc, char ** argv) {
     } else {
       source_vertex = generate(which_generator, vertices_num != -1 ? vertices_num : test_edges_number[test_num], graph, -1, -1, true);
     }
+    std::cout << "Source vertex " << source_vertex << std::endl;        
     if (generate_graph_file) {
       std::cout << "Writing graph to file" << std::endl;
       std::ofstream graph_file(graph_types[test_num] + ".dot");
