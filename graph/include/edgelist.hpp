@@ -73,6 +73,9 @@ public:
     unsigned int res;
     quickcheck::generate(max_edge_weight - min_edge_weight, res);
     w = min_edge_weight + ((int) res);}
+
+  wedge(vtxid_type src, vtxid_type dst, vtxid_type w)
+  : src(src), dst(dst), w(w) { }
   
   wedge()
   : src(vtxid_type(0)), dst(vtxid_type(0)), w(vtxid_type(0)) { }

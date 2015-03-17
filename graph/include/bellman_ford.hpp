@@ -131,8 +131,48 @@ namespace pasl {
     int* bellman_ford_seq_classic_opt(const adjlist<Adjlist_seq>& graph,
                                   typename adjlist<Adjlist_seq>::vtxid_type source) {
       using vtxid_type = typename adjlist<Adjlist_seq>::vtxid_type;
+      using edge_type = wedge<vtxid_type>;
+      using edgelist_bag_type = pasl::data::array_seq<edge_type>;
+      using edgelist_type = edgelist<edgelist_bag_type>;
       int inf_dist = shortest_path_constants<int>::inf_dist;
       vtxid_type nb_vertices = graph.get_nb_vertices();
+
+      edgelist_type edg_plus;
+      edgelist_type edg_minus;
+      auto num_edges = graph.nb_edges;
+      auto num_less = 0;
+      for (size_t from = 0; from < nb_vertices; from++) {
+        vtxid_type degree = graph.adjlists[from].get_out_degree();
+        for (vtxid_type edge = 0; edge < degree; edge++) {
+          vtxid_type to = graph.adjlists[from].get_out_neighbor(edge);
+          if (from < to) num_less++;
+        }
+      }
+      
+      edg_plus.edges.alloc(num_less);
+      edg_minus.edges.alloc(num_edges - num_less);
+      auto num_plus = 0;
+      auto num_minus = 0;
+      
+      
+//      for (size_t from = 0; from < nb_vertices; from++) {
+//        vtxid_type degree = graph.adjlists[from].get_out_degree();
+//        for (vtxid_type edge = 0; edge < degree; edge++) {
+//          vtxid_type to = graph.adjlists[from].get_out_neighbor(edge);
+//          if (from < to) {
+//            edg_plus.edges[num_plus] = edge_type(from, to, graph.adjlists[from].get_out_neighbor_weight(edge));
+//
+//          	num_less++;  
+//          }
+//        }
+//      }
+//      sched::native::parallel_for(edgeid_type(0), num_edges, [&] (edgeid_type i) {
+//        dst.edges[i] = edge_type(0, vtxid_type(i + 1));
+//      });
+//      dst.nb_vertices = vtxid_type(nb_edges + 1);
+//      dst.check();
+      
+
       int* dists = data::mynew_array<int>(nb_vertices);
       
       fill_array_seq(dists, nb_vertices, inf_dist);
@@ -174,8 +214,11 @@ namespace pasl {
       using vtxid_type = typename adjlist<Adjlist_seq>::vtxid_type;
       int inf_dist = shortest_path_constants<int>::inf_dist;
       vtxid_type nb_vertices = graph.get_nb_vertices();
-      int* dists = data::mynew_array<int>(nb_vertices);      
+      int* dists = data::mynew_array<int>(nb_vertices);   
+      int* visited = data::mynew_array<int>(nb_vertices);   
+      
       fill_array_seq(dists, nb_vertices, inf_dist);      
+      fill_array_seq(visited, nb_vertices, -1);      
       dists[source] = 0; 
       
       LOG_BASIC(ALGO_PHASE);
@@ -185,6 +228,7 @@ namespace pasl {
       double total_size = 0.;
       
       while (steps < nb_vertices && !cur.empty()) {
+        std::cout << steps << std::endl;
         steps++;
         if (steps > nb_vertices) break; 
         std::queue<vtxid_type> empty;
@@ -199,7 +243,10 @@ namespace pasl {
             vtxid_type w = graph.adjlists[from].get_out_neighbor_weight(edge);
             
             if (dists[other] > dists[from] + w) {
-              next.push(other);
+              if (visited[other] != steps) {
+                next.push(other);
+                visited[other] = steps;                
+              }
               dists[other] = dists[from] + w;
             }
           }          
@@ -207,6 +254,7 @@ namespace pasl {
         std::swap(cur, next);
       }
       std::cout << "Rounds : " << steps << "; Avg queue size : " << total_size / steps << std::endl;
+      free(visited);
       return util::normalize(graph, dists);
     }
     
