@@ -103,7 +103,7 @@ public:
     template <class Body>
     void for_each(const Body& func) const {
       for (auto e = lo; e < hi; e++)
-        func(*e);
+        func(v, *e, *(e + init_size()));
     }
   };
   

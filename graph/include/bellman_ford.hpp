@@ -645,7 +645,8 @@ namespace pasl {
     /*---------------------------------------------------------------------*/
     
     extern int bellman_ford_bfs_process_layer_cutoff;
-    
+    const int communicate_cutoff = 256;
+
     template <class Adjlist_seq>
     class bfs_bellman_ford2 {
     public:
@@ -665,8 +666,30 @@ namespace pasl {
       using edgelist_type = typename Frontier::edgelist_type;
       using graph_type = adjlist_type;
       
+      static bool should_call_communicate() {
+#ifndef USE_CILK_RUNTIME
+        return sched::threaddag::my_sched()->should_call_communicate();
+#else
+        return sched::native::my_deque_size() == 0;
+#endif
+      }
       
-      static bool try_to_set_visited(vtxid_type & target, int & layer, std::atomic<int>* visited) {
+      static void reject() {
+#ifndef USE_CILK_RUNTIME
+        sched::threaddag::my_sched()->reject();
+#else
+#endif
+      }
+      
+      static void unblock() {
+#ifndef USE_CILK_RUNTIME
+        sched::threaddag::my_sched()->unblock();
+#else
+#endif
+      }
+
+      
+      static inline bool try_to_set_visited(vtxid_type & target, int & layer, std::atomic<int>* visited) {
         int cur_d = visited[target].load(std::memory_order_relaxed);
         if (cur_d == layer)
           return false;
@@ -697,7 +720,7 @@ namespace pasl {
         return r;
       }
       
-      static bool try_to_update_dist(vtxid_type & target, int & candidate, int* dists) {
+      static inline bool try_to_update_dist(vtxid_type & target, int & candidate, int* dists) {
         return writeMin(&dists[target], candidate);
       }
       
@@ -709,27 +732,47 @@ namespace pasl {
                                     int * dists,
                                     int & layer, 
                                     std::atomic<int> & forked_first_cnt) {
-        if (prev.nb_outedges() <= vtxid_type(bellman_ford_bfs_process_layer_cutoff)) {
-          prev.for_each_outedge([&] (vtxid_type from, vtxid_type to, vtxid_type weight) {
+        
+        vtxid_type unknown = graph_constants<vtxid_type>::unknown_vtxid;
+        size_t nb_outedges = prev.nb_outedges();
+        bool blocked = false;
+        while (nb_outedges > 0) {
+          if (nb_outedges <= bellman_ford_bfs_process_layer_cutoff) {
+            blocked = true;
+            reject();
+          }
+          if (should_call_communicate()) {
+            if (nb_outedges > bellman_ford_bfs_process_layer_cutoff) {
+              Frontier fr_in(graph_alias);
+              Frontier fr_out(graph_alias);
+              prev.split(prev.nb_outedges() / 2, fr_in);
+              forked_first_cnt++;
+              sched::native::fork2([&] { process_layer_par(graph_alias, visited, prev, next, dists, layer, forked_first_cnt); },
+                                   [&] { process_layer_par(graph_alias, visited, fr_in, fr_out, dists, layer, forked_first_cnt); });
+              next.concat(fr_out);
+
+              if (blocked) // should always be false due to the order of the conditionals; yet, keep it for safety
+                unblock(); 
+              return;
+            }
+            else
+            {
+              blocked = true;
+              reject();
+            }
+          }
+          prev.for_at_most_nb_outedges(communicate_cutoff, [&] (vtxid_type from, vtxid_type to, vtxid_type weight) {
             int candidate = dists[from] + weight;
             if (try_to_update_dist(to, candidate, dists)) {
               if (try_to_set_visited(to, layer, visited)) {
                 next.push_vertex_back(to);
               }
             }
-          });          
-          prev.clear();
-        } else {
-          Frontier fr_in;
-          Frontier fr_out;
-          fr_in.set_graph(graph_alias);
-          fr_out.set_graph(graph_alias);
-          prev.split(prev.nb_outedges() / 2, fr_in);
-          forked_first_cnt++;
-          sched::native::fork2([&] { process_layer_par(graph_alias, visited, prev, next, dists, layer, forked_first_cnt); },
-                               [&] { process_layer_par(graph_alias, visited, fr_in, fr_out, dists, layer, forked_first_cnt); });
-          next.concat(fr_out);
+          });
+          nb_outedges = prev.nb_outedges();
         }
+        if (blocked)
+          unblock();
       }
 
       
