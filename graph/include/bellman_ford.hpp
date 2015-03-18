@@ -28,34 +28,34 @@ namespace pasl {
       /*---------------------------------------------------------------------*/
       template <class Adjlist_seq>
       int* normalize(const adjlist<Adjlist_seq>& graph, int* dists) {
-        using vtxid_type = typename adjlist<Adjlist_seq>::vtxid_type;
-        vtxid_type nb_vertices = graph.get_nb_vertices();
-        std::queue<vtxid_type> queue;
-        
-        for (size_t i = 0; i < nb_vertices; i++) {
-          vtxid_type degree = graph.adjlists[i].get_out_degree();
-          for (vtxid_type edge = 0; edge < degree; edge++) {
-            vtxid_type other = graph.adjlists[i].get_out_neighbor(edge);
-            vtxid_type w = graph.adjlists[i].get_out_neighbor_weight(edge);
-            
-            if (dists[other] > dists[i] + w) {
-              queue.push(other);
-              dists[other] = shortest_path_constants<int>::minus_inf_dist;
-            }
-          }
-        }
-        while (!queue.empty()) {
-          vtxid_type from = queue.front();
-          queue.pop();
-          vtxid_type degree = graph.adjlists[from].get_out_degree();
-          for (vtxid_type edge = 0; edge < degree; edge++) {
-            vtxid_type other = graph.adjlists[from].get_out_neighbor(edge);			          
-            if (dists[other] != shortest_path_constants<int>::minus_inf_dist) {
-              queue.push(other);
-              dists[other] = shortest_path_constants<int>::minus_inf_dist;
-            }
-          }
-        }      
+//        using vtxid_type = typename adjlist<Adjlist_seq>::vtxid_type;
+//        vtxid_type nb_vertices = graph.get_nb_vertices();
+//        std::queue<vtxid_type> queue;
+//        
+//        for (size_t i = 0; i < nb_vertices; i++) {
+//          vtxid_type degree = graph.adjlists[i].get_out_degree();
+//          for (vtxid_type edge = 0; edge < degree; edge++) {
+//            vtxid_type other = graph.adjlists[i].get_out_neighbor(edge);
+//            vtxid_type w = graph.adjlists[i].get_out_neighbor_weight(edge);
+//            
+//            if (dists[other] > dists[i] + w) {
+//              queue.push(other);
+//              dists[other] = shortest_path_constants<int>::minus_inf_dist;
+//            }
+//          }
+//        }
+//        while (!queue.empty()) {
+//          vtxid_type from = queue.front();
+//          queue.pop();
+//          vtxid_type degree = graph.adjlists[from].get_out_degree();
+//          for (vtxid_type edge = 0; edge < degree; edge++) {
+//            vtxid_type other = graph.adjlists[from].get_out_neighbor(edge);			          
+//            if (dists[other] != shortest_path_constants<int>::minus_inf_dist) {
+//              queue.push(other);
+//              dists[other] = shortest_path_constants<int>::minus_inf_dist;
+//            }
+//          }
+//        }      
         return dists;
       }   
     } // end namespace util
@@ -68,6 +68,7 @@ namespace pasl {
       PAR_NUM_VERTICES,
       PAR_NUM_EDGES,
       PAR_BFS,
+      PAR_BFS2,
       PAR_COMBINED,
       NB_BF_ALGO 
     };      			
@@ -80,6 +81,7 @@ namespace pasl {
       "ParNumVertices", 
       "ParNumEdges", 
       "ParBFS", 
+      "ParBFS2", 
       "ParCombined"};
         
     /*---------------------------------------------------------------------*/
@@ -635,6 +637,162 @@ namespace pasl {
         return util::normalize(graph, dists);
       }            
     };
+    
+    /*---------------------------------------------------------------------*/
+    /*---------------------------------------------------------------------*/
+    /*---------------------------------------------------------------------*/
+    /* Bellman-Ford; parallel BFS-like SECOND VERSION */
+    /*---------------------------------------------------------------------*/
+    
+    extern int bellman_ford_bfs_process_layer_cutoff;
+    
+    template <class Adjlist_seq>
+    class bfs_bellman_ford2 {
+    public:
+
+      
+      using self_type = bfs_bellman_ford2;
+      using vtxid_type = typename adjlist<Adjlist_seq>::vtxid_type;
+      // TODO : replace with another type
+      using edgeweight_type = int;
+      
+      using adjlist_type = adjlist<Adjlist_seq>;
+      using adjlist_alias_type = typename adjlist_type::alias_type;
+      using size_type = size_t;
+      
+      using Frontier = pasl::graph::frontiersegbag<adjlist_alias_type>;
+      
+      using edgelist_type = typename Frontier::edgelist_type;
+      using graph_type = adjlist_type;
+      
+      
+      static bool try_to_set_visited(vtxid_type & target, int & layer, std::atomic<int>* visited) {
+        int cur_d = visited[target].load(std::memory_order_relaxed);
+        if (cur_d == layer)
+          return false;
+        return visited[target].compare_exchange_strong(cur_d, layer);
+      }
+      
+      template <class ET>
+      static inline bool CAS(ET *ptr, ET oldv, ET newv) {
+        if (sizeof(ET) == 8) {
+          long* o = (long*) &oldv;
+          long* n = (long*) &newv;
+          return __sync_bool_compare_and_swap((long*)ptr, *o, *n);
+        } else if (sizeof(ET) == 4) {
+          int* o = (int*) &oldv;
+          int* n = (int*) &newv;
+          return __sync_bool_compare_and_swap((int*)ptr, *o, *n);
+        } else {
+          std::cout << "CAS bad length" << std::endl;
+          abort();
+        }
+      }
+      
+      template <class ET>
+      static inline bool writeMin(ET *a, ET b) {
+        ET c; bool r=0;
+        do c = *a; 
+        while (c > b && !(r=CAS(a,c,b)));
+        return r;
+      }
+      
+      static bool try_to_update_dist(vtxid_type & target, int & candidate, int* dists) {
+        return writeMin(&dists[target], candidate);
+      }
+      
+      template <class Adjlist_alias, class Frontier>
+      static void process_layer_par(const Adjlist_alias & graph_alias,
+                                    std::atomic<int>* visited,
+                                    Frontier& prev,
+                                    Frontier& next,
+                                    int * dists,
+                                    int & layer, 
+                                    std::atomic<int> & forked_first_cnt) {
+        if (prev.nb_outedges() <= vtxid_type(bellman_ford_bfs_process_layer_cutoff)) {
+          prev.for_each_outedge([&] (vtxid_type from, vtxid_type to, vtxid_type weight) {
+            int candidate = dists[from] + weight;
+            if (try_to_update_dist(to, candidate, dists)) {
+              if (try_to_set_visited(to, layer, visited)) {
+                next.push_vertex_back(to);
+              }
+            }
+          });          
+          prev.clear();
+        } else {
+          Frontier fr_in;
+          Frontier fr_out;
+          fr_in.set_graph(graph_alias);
+          fr_out.set_graph(graph_alias);
+          prev.split(prev.nb_outedges() / 2, fr_in);
+          forked_first_cnt++;
+          sched::native::fork2([&] { process_layer_par(graph_alias, visited, prev, next, dists, layer, forked_first_cnt); },
+                               [&] { process_layer_par(graph_alias, visited, fr_in, fr_out, dists, layer, forked_first_cnt); });
+          next.concat(fr_out);
+        }
+      }
+
+      
+      static edgeweight_type* bellman_ford_par_bfs(const adjlist<Adjlist_seq>& graph,
+                                                   typename adjlist<Adjlist_seq>::vtxid_type source) {
+        auto inf_dist = shortest_path_constants<edgeweight_type>::inf_dist;
+        
+        vtxid_type nb_vertices = graph.get_nb_vertices();
+        edgeweight_type* dists = data::mynew_array<edgeweight_type>(nb_vertices);
+        std::atomic<int>* visited = data::mynew_array<std::atomic<int>>(nb_vertices);
+        int unknown = 0;
+        fill_array_par(visited, nb_vertices, unknown);
+        
+        fill_array_seq(dists, nb_vertices, inf_dist);
+        dists[source] = 0;
+        
+        
+        LOG_BASIC(ALGO_PHASE);
+        auto graph_alias = get_alias_of_adjlist(graph);
+        Frontier frontiers[2];
+                
+        frontiers[0].set_graph(graph_alias);
+        frontiers[1].set_graph(graph_alias);
+        vtxid_type cur = 0; // either 0 or 1, depending on parity of dist
+        vtxid_type nxt = 1; // either 1 or 0, depending on parity of dist
+        frontiers[0].push_vertex_back(source);
+        
+        int steps = 0;
+        std::atomic<int> forked_first_cnt;
+        std::atomic<int> forked_second_cnt;
+        
+        forked_first_cnt.store(0);
+        forked_second_cnt.store(0);
+        
+        while (! frontiers[cur].empty()) {
+          steps++;
+          if (steps > nb_vertices) break;
+          if (frontiers[cur].nb_outedges() <= bellman_ford_bfs_process_layer_cutoff) {
+            frontiers[cur].for_each_outedge_when_front_and_back_empty([&] (vtxid_type from, vtxid_type to, vtxid_type weight) {
+              if (dists[to] > dists[from] + weight) {
+                dists[to] = dists[from] + weight;
+                if (visited[to] != steps) {
+                  visited[to] = steps;
+                  frontiers[nxt].push_vertex_back(to);                  
+                }
+              }
+            });
+            frontiers[cur].clear_when_front_and_back_empty();
+          } else {            
+            self_type::process_layer_par(graph_alias, visited, frontiers[cur], frontiers[nxt], dists, steps, forked_first_cnt);
+          }
+          
+          cur = 1 - cur;
+          nxt = 1 - nxt;
+        }
+        
+        
+        std::cout << "Rounds : " << steps << "; ForkedFirst = " << forked_first_cnt << "; ForkedSecond = " << forked_second_cnt <<std::endl;
+        delete(visited);
+        return util::normalize(graph, dists);
+      }            
+    };
+
     
     /*---------------------------------------------------------------------*/
     /*---------------------------------------------------------------------*/

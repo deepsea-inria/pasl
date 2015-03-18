@@ -203,6 +203,12 @@ int main(int argc, char ** argv) {
         
         our_res = bfs_bellman_ford<adjlist_seq_type>::bellman_ford_par_bfs(graph, source_vertex);
         break;
+      case PAR_BFS2:
+        if (cutoff1 != -1) {
+          pasl::graph::bellman_ford_bfs_process_layer_cutoff = cutoff1;
+        }
+        our_res = bfs_bellman_ford2<adjlist_seq_type>::bellman_ford_par_bfs(graph, source_vertex);
+        break;
       case PAR_COMBINED:        
         if (cutoff1 != -1) {
           pasl::graph::bellman_ford_bfs_process_layer_cutoff = cutoff1;
