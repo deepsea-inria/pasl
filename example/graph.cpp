@@ -49,10 +49,17 @@ int main(int argc, char **argv) {
     
   };
   auto run = [&] (bool) {
+  
 
-    pa::parray<long> foo = { 1, -1, 1, 3 };
+    pa::parray<int> foo = { 1, 2, 3, 4, 5 };
     std::cout << foo << std::endl;
-    std::cout << sum(foo) << std::endl;
+    
+    pa::parray<int> foo23 = pasl::pctl::scan(foo.cbegin(), foo.cend(), 0, [&] (int x, int y) {
+      return x +y;
+    }, pasl::pctl::exclusive_scan);
+    
+    std::cout << "foo=" << foo23 << std::endl;
+
     /*
     pasl::pctl::pchunkedseq::pchunkedseq<long> pc;
     pc.seq.push_back(3);

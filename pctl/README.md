@@ -820,6 +820,16 @@ Reduction
 
 Table: Abstraction layers used by pctl for reduction operators.
 
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+namespace pasl {
+namespace pctl {
+
+using scan_type = enum { inclusive_scan, exclusive_scan };
+
+} }
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
 ### Level 0 {#red-l-0}
 
 +---------------------------------+-----------------------------------+
@@ -860,6 +870,37 @@ Item reduce(Iter lo,
             Item id,
             Weight weight,
             Combine combine);
+
+} }
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+namespace pasl {
+namespace pctl {
+
+template <
+  class Iter,
+  class Item,
+  class Combine
+>
+parray::parray<Item> scan(Iter lo,
+                          Iter hi,
+                          Item id,
+                          Combine combine,
+                          scan_type st);
+
+template <
+  class Iter,
+  class Item,
+  class Weight,
+  class Combine
+>
+parray::parray<Item> scan(Iter lo,
+                          Iter hi,
+                          Item id,
+                          Weight weight,
+                          Combine combine,
+                          scan_type st)
 
 } }
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1108,6 +1149,42 @@ Result reduce(Iter lo,
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 namespace pasl {
+namespace pctl {
+namespace level1 {
+
+template <
+  class Iter,
+  class Result,
+  class Combine,
+  class Lift
+>
+parray::parray<Result> scan(Iter lo,
+                            Iter hi,
+                            Result id,
+                            Combine combine,
+                            Lift lift,
+                            scan_type st);
+
+
+template <
+  class Iter,
+  class Result,
+  class Combine,
+  class Lift_idx
+>
+parray::parray<Result> scani(Iter lo,
+                             Iter hi,
+                             Result id,
+                             Combine combine,
+                             Lift_idx lift_idx,
+                             scan_type st);
+
+} } }
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+namespace pasl {
 namespace data {
 namespace level1 {
 
@@ -1136,6 +1213,44 @@ Result reducei(Iter lo,
                Combine combine,
                Lift_comp_idx lift_comp_idx,
                Lift_idx lift_idx);
+
+} } }
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+namespace pasl {
+namespace data {
+namespace level1 {
+
+template <
+  class Iter,
+  class Result,
+  class Combine,
+  class Lift_comp,
+  class Lift
+>
+parray::parray<Result> scan(Iter lo,
+                            Iter hi,
+                            Result id,
+                            Combine combine,
+                            Lift_comp lift_comp,
+                            Lift lift,
+                            scan_type st);
+
+template <
+  class Iter,
+  class Result,
+  class Combine,
+  class Lift_comp_idx,
+  class Lift_idx
+>
+parray::parray<Result> scani(Iter lo,
+                             Iter hi,
+                             Result id,
+                             Combine combine,
+                             Lift_comp_idx lift_comp_idx,
+                             Lift_idx lift_idx,
+                             scan_type st);
 
 } } }
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1283,6 +1398,31 @@ Result reduce(Iter lo,
 } } }
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+namespace pasl {
+namespace pctl {
+namespace level2 {
+
+template <
+  class Iter,
+  class Result,
+  class Combine,
+  class Lift_comp_rng,
+  class Lift_idx,
+  class Seq_lift
+>
+parray::parray<Result> scan(Iter lo,
+                            Iter hi,
+                            Result id,
+                            Combine combine,
+                            Lift_comp_rng lift_comp_rng,
+                            Lift_idx lift_idx,
+                            Seq_lift seq_lift,
+                            scan_type st);
+
+} } }
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
 #### Sequential alternative body for the lifting operator {#r2-l}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
@@ -1389,7 +1529,7 @@ long max_seq(Iter lo_xs, Iter hi_xs) {
 +----------------------------------+--------------------------------+
 | Template parameter               | Description                    |
 +==================================+================================+
-| [`Output`](#r3-o)                | Type of the object to receive  |
+| [`Output`](#r3-o)                | Type of the object to manage   |
 |                                  |the output of the reduction     |
 +----------------------------------+--------------------------------+
 | [`Lift_idx_dst`](#r3-dpl)        | Lift function in               |
@@ -1409,16 +1549,45 @@ namespace level3 {
 template <
   class Iter,
   class Output,
+  class Result,
   class Lift_comp_rng,
   class Lift_idx_dst,
   class Seq_lift_dst
 >
 void reduce(Iter lo,
             Iter hi,
-            Output& out,
+            Output out,
+            Result id,
+            Result& dst,
             Lift_comp_rng lift_comp_rng,
             Lift_idx_dst lift_idx_dst,
             Seq_lift_dst seq_lift_dst);
+
+} } }
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+namespace pasl {
+namespace pctl {
+namespace level3 {
+
+template <
+  class Iter,
+  class Output,
+  class Result,
+  class Lift_comp_rng,
+  class Lift_idx_dst,
+  class Seq_lift_dst
+>
+void scan(Iter lo,
+          Iter hi,
+          const Output& out,
+          Result& id,
+          typename parray::parray<Result>::iterator outs_lo,
+          Lift_comp_rng lift_comp_rng,
+          Lift_idx_dst lift_idx_dst,
+          Seq_lift_dst seq_lift_dst,
+          scan_type st)
 
 } } }
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1434,9 +1603,8 @@ Type of the object to receive the output of the reduction.
 
 +-----------------------------+-------------------------------------+
 | Constructor                 | Description                         |
-+==================================+================================+
++=============================+=====================================+
 | [copy constructor](#ro-c-c) | Copy constructor                    |
-|                             |                                     |
 +-----------------------------+-------------------------------------+
 
 Table: Constructors that are required for the `Output` class.
@@ -1446,7 +1614,12 @@ Table: Required constructors for the `Output` class.
 +-------------------------+-------------------------------------+
 | Public method           | Description                         |
 +=========================+=====================================+
-| [`merge`](#ro-m)        | Merge contents                      |
+| [`init`](#ro-i)         | Initialize given result object      |
++-------------------------+-------------------------------------+
+| [`copy`](#ro-cop)       | Copy the contents of a specified    |
+|                         |object to a specified cell           |
++-------------------------+-------------------------------------+
+| [`merge`](#ro-m)        | Merge result objects                |
 +-------------------------+-------------------------------------+
 
 Table: Public methods that are required for the `Output` class.
@@ -1459,14 +1632,36 @@ Output(const Output& other);
 
 Copy constructor.
 
+#### Result initializer {#ro-i}
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+void init(Result& dst) const;
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Initialize the contents of the result object referenced by `dst`.
+
+##### Copy {#ro-cop}
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+void copy(const Result& src, Result& dst) const;
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Copy the contents of `src` to `dst`.
+
 ##### Merge {#ro-m}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-void merge(Output& dst);
+void merge(Result& src, Result& dst) const;       // (1)
+void merge(typename parray<Result>::iterator lo,  // (2)
+           typename parray<Result>::iterator hi,
+           Result& dst);
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Merge the contents of the current output with those of the output
-referenced by `dst`, leaving the result in `dst`.
+(1) Merge the contents of `src` and `dst`, leaving the result in
+`dst`.
+
+(2) Merge the contents of the cells in the right-open range `[lo,
+hi)`, leaving the result in `dst`.
 
 ##### Example: cell output {#ro-co}
 
@@ -1478,22 +1673,39 @@ namespace level3 {
 template <class Result, class Combine>
 class cell_output {
 public:
-
-  Result result;
+  
+  using result_type = Result;
+  using array_type = parray::parray<result_type>;
+  using const_iterator = typename array_type::const_iterator;
+  
+  result_type id;
   Combine combine;
-
-  cell_output(Result result, Combine combine)
-  : result(result), combine(combine) { }
-
+  
+  cell_output(result_type id, Combine combine)
+  : id(id), combine(combine) { }
+  
   cell_output(const cell_output& other)
-  : combine(other.combine) { }
-
-  void merge(cell_output& dst) {
-    dst.result = combine(dst.result, result);
-    Result empty;
-    result = empty;
+  : id(other.id), combine(other.combine) { }
+  
+  void init(result_type& dst) const {
+    dst = id;
   }
-
+  
+  void copy(const result_type& src, result_type& dst) const {
+    dst = src;
+  }
+  
+  void merge(const result_type& src, result_type& dst) const {
+    dst = combine(dst, src);
+  }
+  
+  void merge(const_iterator lo, const_iterator hi, result_type& dst) const {
+    dst = id;
+    for (const_iterator it = lo; it != hi; it++) {
+      dst = combine(*it, dst);
+    }
+  }
+  
 };
 
 } } }
@@ -1506,16 +1718,16 @@ class Lift_idx_dst;
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The destination-passing-style lift function is a C++ functor that
-takes an index, an iterator, and a reference on an output object. The
+takes an index, an iterator, and a reference on result object. The
 call operator for the `Lift_idx_dst` class should have the following
 type.
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-void operator()(long pos, Iter it, Output& out);
+void operator()(long pos, Iter it, Result& dst);
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The value that is passed in for `pos` is the index in the input
-sequence of the item `x`. The object referenced by `out` is the object
+sequence of the item `x`. The object referenced by `dst` is the object
 to receive the result of the lift function.
 
 #### Destination-passing-style sequential lift {#r3-dpl-seq}
@@ -1530,13 +1742,13 @@ object. The call operator for the `Seq_lift_dst` class should have the
 following type.
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-void operator()(Iter lo, Iter hi, Output& out);
+void operator()(Iter lo, Iter hi, Result& dst);
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The purpose of this function is provide an alternative sequential
 algorithm that is to be used to process ranges of items from the
 input. The range is specified by the right-open range `[lo, hi)`. The
-object referenced by `out` is the object to receive the result of the
+object referenced by `dst` is the object to receive the result of the
 sequential lift function.
 
 #### Examples
@@ -1545,20 +1757,32 @@ TODO
 
 ### Level 4 {#red-l-4}
 
-+-------------------------------+-----------------------------------+
-| Template parameter            | Description                       |
-+===============================+===================================+
-| [`Input`](#r4-i)              | Type of input to the reduction    |
-+-------------------------------+-----------------------------------+
-| [`Convert`](#r4-c)            | Function to convert from an input |
-|                               |to an output                       |
-+-------------------------------+-----------------------------------+
-| [`Convert_comp`](#r4-i-w)     |  Complexity function associated   |
-|                               |with the convert function          |
-+-------------------------------+-----------------------------------+
-| [`Seq_convert`](#r4-s-c)      | Alternative sequentialized version|
-|                               |of the `Convert` function.         |
-+-------------------------------+-----------------------------------+
++---------------------------------+-----------------------------------+
+| Template parameter              | Description                       |
++=================================+===================================+
+| [`Input`](#r4-i)                | Type of input to the reduction    |
++---------------------------------+-----------------------------------+
+| [`Convert_reduce`](#r4-c)       | Function to convert the items of a|
+|                                 |given input and then produce a     |
+|                                 |specified reduction on the         |
+|                                 |converted items                    |
++---------------------------------+-----------------------------------+
+| [`Convert_scan`](#r4-sca)       | Function to convert the items of a|
+|                                 |given input and then produce a     |
+|                                 |specified scan on the converted    |
+|                                 |items                              |
++---------------------------------+-----------------------------------+
+| [`Seq_convert_scan`](#r4-ssca)  | Alternative sequentialized version|
+|                                 |of the `Convert_scan` function     |
+|                                 |                                   |
++---------------------------------+-----------------------------------+
+| [`Convert_reduce_comp`](#r4-i-w)|  Complexity function associated   |
+|                                 |with a convert function            |
+|                                 |                                   |
++---------------------------------+-----------------------------------+
+| [`Seq_convert_reduce`](#r4-s-c) | Alternative sequentialized version|
+|                                 |of the `Convert_reduce` function   |
++---------------------------------+-----------------------------------+
 
 Table: Template parameters that are introduced in level 4.
 
@@ -1570,16 +1794,48 @@ namespace level4 {
 template <
   class Input,
   class Output,
-  class Convert_comp,
-  class Convert,
-  class Seq_convert
+  class Result,
+  class Convert_reduce_comp,
+  class Convert_reduce,
+  class Seq_convert_reduce
 >
 void reduce(Input& in,
-            Output& out,
-            Convert_comp convert_comp,
-            Convert convert,
-            Seq_convert seq_convert);
+            Output out,
+            Result id,
+            Result& dst,
+            Convert_reduce_comp convert_comp,
+            Convert_reduce convert,
+            Seq_convert_reduce seq_convert);
             
+} } }
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+namespace pasl {
+namespace pctl {
+namespace level4 {
+
+template <
+  class Input,
+  class Output,
+  class Result,
+  class Merge_comp,
+  class Convert_reduce_comp,
+  class Convert_reduce,
+  class Convert_scan,
+  class Seq_convert_scan
+>
+void scan(Input& in,
+          Output out,
+          Result& id,
+          typename parray::parray<Result>::iterator outs_lo,
+          Merge_comp merge_comp,
+          Convert_reduce_comp convert_reduce_comp,
+          Convert_reduce convert_reduce,
+          Convert_scan convert_scan,
+          Seq_convert_scan seq_convert_scan,
+          scan_type st);
+
 } } }
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -1603,6 +1859,10 @@ Table: Constructors that are required for the `Input` class.
 | [`can_split`](#r4i-c-s)     | Return value to indicate whether split is |
 |                             |possible                                   |
 +-----------------------------+-------------------------------------------+
+| [`size`](#r4i-sz)           | Return the size of the input              |
++-----------------------------+-------------------------------------------+
+| [`slice`](#r4i-slc)         | Return a specified slice of the input     |
++-----------------------------+-------------------------------------------+
 | [`split`](#r4i-sp)          | Divide the input into two pieces          |
 +-----------------------------+-------------------------------------------+
 
@@ -1624,17 +1884,39 @@ bool can_split() const;
 
 Return a boolean value to indicate whether a split is possible.
 
+##### Size {#r4i-sz}
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+long size() const;
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Returns the size of the input.
+
+##### Slice {#r4i-slc}
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+Input slice(parray<Input>& ins, long lo, long hi);
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Returns a slice of the input that occurs logically in the right-open
+range `[lo, hi)`, optionally using `ins`, the results of a precomputed
+application of the `split` function.
+
 ##### Split {#r4i-sp}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-void split(Input& dst);
+void split(Input& dst);          // (1)
+parray<Input> split(long n));    // (2)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Transfer a fraction of the contents of the current input object to the
-input object referenced by `dst`.
+(1) Transfer a fraction of the contents of the current input object to
+the input object referenced by `dst`.
 
 The behavior of this method may be undefined when the `can_split`
 function would return `false`.
+
+(2) Divide the contents of the current input object into at most `n`
+pieces, returning an array which stores the new pieces.
 
 ##### Example: random-access iterator input
 
@@ -1648,73 +1930,125 @@ template <class Iter>
 class random_access_iterator_input {
 public:
   
+  using self_type = random_access_iterator_input;
+  using array_type = parray::parray<self_type>;
+  
   Iter lo;
   Iter hi;
+  
+  random_access_iterator_input() { }
   
   random_access_iterator_input(Iter lo, Iter hi)
   : lo(lo), hi(hi) { }
   
   bool can_split() const {
-    return hi - lo >= 2;
+    return size() >= 2;
+  }
+
+  long size() const {
+    return hi - lo;
   }
   
   void split(random_access_iterator_input& dst) {
     dst = *this;
-    long n = hi - lo;
+    long n = size();
     assert(n >= 2);
     Iter mid = lo + (n / 2);
     hi = mid;
     dst.lo = mid;
   }
   
+  array_type split(long) {
+    array_type tmp;
+    return tmp;
+  }
+  
+  self_type slice(const array_type&, long _lo, long _hi) {
+    self_type tmp(lo + _lo, lo + _hi);
+    return tmp;
+  }
+    
 };
 
 } } } }
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-#### Convert complexity function {#r4-i-w}
+#### Convert-reduce complexity function {#r4-i-w}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-class Convert_comp;
+class Convert_reduce_comp;
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The convert-complexity function is a C++ functor which returns a
 positive number that associates a weight value to a given input
-object. The `Convert_comp` class should provide the following call
-operator.
+object. The `Convert_reduce_comp` class should provide the following
+call operator.
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 long operator()(const Input& in);
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-#### Convert {#r4-c}
+#### Convert-reduce {#r4-c}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-class Convert;
+class Convert_reduce;
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The convert function is a C++ functor which takes a reference on an
 input value and computes a result value, leaving the result value in
-an output cell. The `Convert` class should provide a call operator
-with the following type.
+an output cell. The `Convert_reduce` class should provide a call
+operator with the following type.
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-void operator()(Input& in, Output& out);
+void operator()(Input& in, Result& dst);
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-#### Sequential convert {#r4-s-c}
+#### Sequential convert-reduce {#r4-s-c}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-class Seq_convert;
+class Seq_convert_reduce;
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The sequential convert function is a C++ functor whose purpose is to
 substitute for the ordinary convert function when input size is small
-enough to sequentialize. The `Seq_convert` class should provide a call
+enough to sequentialize. The `Seq_convert_reduce` class should provide
+a call operator with the following type.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+void operator()(Input& in, Result& dst);
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The sequential convert function should always compute the same result
+as the ordinary convert function given the same input. 
+
+#### Convert-scan {#r4-sca}
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+class Convert_scan;
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The convert function is a C++ functor which takes a reference on an
+input value and computes a result value, leaving the result value in
+an output cell. The `Convert_scan` class should provide a call
 operator with the following type.
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-void operator()(Input& in, Output& out);
+void operator()(Input& in, typename parray<Result>::iterator outs_lo);
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+#### Sequential convert-scan {#r4-ssca}
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+class Seq_convert_scan;
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The sequential convert function is a C++ functor whose purpose is to
+substitute for the ordinary convert function when input size is small
+enough to sequentialize. The `Seq_convert_scan` class should provide
+a call operator with the following type.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+void operator()(Input& in, typename parray<Result>::iterator outs_lo);
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The sequential convert function should always compute the same result
@@ -1723,9 +2057,6 @@ as the ordinary convert function given the same input.
 #### Examples
 
 TODO
-
-Scan
-----
 
 Derived operations
 ------------------

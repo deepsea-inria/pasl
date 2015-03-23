@@ -38,7 +38,7 @@ long seq(const long* lo, const long* hi, long id, long* dst) {
   }
   return x;
 }
-
+  
 parray::parray<long> rec(const parray::parray<long>& xs) {
   const long k = 1024;
   long n = xs.size();

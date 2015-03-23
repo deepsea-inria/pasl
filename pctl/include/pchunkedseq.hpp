@@ -51,13 +51,14 @@ private:
     using output_type = level3::chunkedseq_output<seq_type>;
     input_type in(0, n, body_idx_dst);
     output_type out;
+    seq_type id;
     auto convert_comp = [&] (input_type& in) {
       return body_comp_rng(in.lo, in.hi);
     };
-    long chunk_capacity = out.seq.chunk_capacity;
+    long chunk_capacity = dst.chunk_capacity;
     parray::parray<value_type> tmp(chunk_capacity);
-    auto convert = [&] (input_type& in, output_type& out) {
-      out.seq.stream_pushn_back([&] (long i, long n) {
+    auto convert = [&] (input_type& in, seq_type dst) {
+      dst.stream_pushn_back([&] (long i, long n) {
         for (long k = 0; k < n; k++) {
           body_idx_dst(k + in.lo, tmp[k]);
         }
@@ -66,8 +67,7 @@ private:
         return std::make_pair(lo, hi);
       }, in.hi - in.lo);
     };
-    level4::reduce(in, out, convert_comp, convert, convert);
-    dst.swap(out.seq);
+    level4::reduce(in, out, id, dst, convert_comp, convert, convert);
   }
   
   template <class Body_comp, class Body_idx_dst>
@@ -97,8 +97,7 @@ private:
   static void copy(iterator lo, iterator hi, seq_type& dst) {
     using output_type = level3::chunkedseq_output<seq_type>;
     output_type out;
-
-    dst.swap(out.seq);
+    assert(false);
   }
   
 public:
@@ -143,16 +142,17 @@ public:
   
   void clear() {
     using input_type = level4::chunked_sequence_input<seq_type>;
-    using output_type = level3::trivial_output;
+    using output_type = level3::trivial_output<int>;
     input_type in(seq);
     output_type out;
     auto convert_comp = [&] (const input_type& in) {
       return in.seq.size();
     };
-    auto convert =  [&] (input_type& in, output_type& out) {
+    auto convert =  [&] (input_type& in, int&) {
       in.seq.clear();
     };
-    level4::reduce(in, out, convert_comp, convert, convert);
+    int dummy;
+    level4::reduce(in, out, dummy, dummy, convert_comp, convert, convert);
   }
   
   iterator begin() const {
