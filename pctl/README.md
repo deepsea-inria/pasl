@@ -905,7 +905,7 @@ parray::parray<Item> scan(Iter lo,
 } }
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-#### Iter {#r0-iter}
+#### Item iterator {#r0-iter}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 class Iter;
@@ -914,6 +914,9 @@ class Iter;
 An instance of this class must be an implementation of the
 [random-access
 iterator](http://en.cppreference.com/w/cpp/concept/RandomAccessIterator).
+
+An iterator value of this type points to a value from the input stream
+(i.e., a value of type `Item`).
 
 #### Item {#r0-i}
 
@@ -1040,7 +1043,7 @@ $f$ and weight function $w$, if for any $x$, $y$,
 2. $W \leq c (w(x) + w(y))$, for some constant $c$,
 
 where $W$ denotes the amount of work performed by the call $f(x, y)$,
-then the amount of work performed by the reduction is $O(\log hi-lo
+then the amount of work performed by the reduction is $O(\log (hi-lo)
 \sum_{lo \leq it < hi} (1 + w(*it)))$.
 
 ***Example: using a non-constant time combining operator.*** Now, let
@@ -1529,6 +1532,12 @@ long max_seq(Iter lo_xs, Iter hi_xs) {
 +----------------------------------+--------------------------------+
 | Template parameter               | Description                    |
 +==================================+================================+
+| [`Input_iter`](#r3-iit)          | Type of an iterator for input  |
+|                                  |values                          |
++----------------------------------+--------------------------------+
+| [`Output_iter`](#r3(oit)         | Type of an iterator for output |
+|                                  |values                          |
++----------------------------------+--------------------------------+
 | [`Output`](#r3-o)                | Type of the object to manage   |
 |                                  |the output of the reduction     |
 +----------------------------------+--------------------------------+
@@ -1547,15 +1556,15 @@ namespace pctl {
 namespace level3 {
 
 template <
-  class Iter,
+  class Input_iter,
   class Output,
   class Result,
   class Lift_comp_rng,
   class Lift_idx_dst,
   class Seq_lift_dst
 >
-void reduce(Iter lo,
-            Iter hi,
+void reduce(Input_iter lo,
+            Input_iter hi,
             Output out,
             Result id,
             Result& dst,
@@ -1572,18 +1581,19 @@ namespace pctl {
 namespace level3 {
 
 template <
-  class Iter,
+  class Input_iter,
   class Output,
   class Result,
+  class Output_iter,
   class Lift_comp_rng,
   class Lift_idx_dst,
   class Seq_lift_dst
 >
-void scan(Iter lo,
-          Iter hi,
-          const Output& out,
+void scan(Input_iter lo,
+          Input_iter hi,
+          Output out,
           Result& id,
-          typename parray::parray<Result>::iterator outs_lo,
+          Output_iter outs_lo,
           Lift_comp_rng lift_comp_rng,
           Lift_idx_dst lift_idx_dst,
           Seq_lift_dst seq_lift_dst,
@@ -1591,6 +1601,32 @@ void scan(Iter lo,
 
 } } }
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+#### Input iterator {#r3-iit}
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+class Input_iter;
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+An instance of this class must be an implementation of the
+[random-access
+iterator](http://en.cppreference.com/w/cpp/concept/RandomAccessIterator).
+
+An iterator value of this type points to a value from the input
+stream.
+
+#### Output iterator {#r3-iit}
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+class Output_iter;
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+An instance of this class must be an implementation of the
+[random-access
+iterator](http://en.cppreference.com/w/cpp/concept/RandomAccessIterator).
+
+An iterator value of this type points to a value from the output
+stream.
                                       
 #### Output {#r3-o}
 
@@ -1723,7 +1759,7 @@ call operator for the `Lift_idx_dst` class should have the following
 type.
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-void operator()(long pos, Iter it, Result& dst);
+void operator()(long pos, Input_iter it, Result& dst);
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The value that is passed in for `pos` is the index in the input
@@ -1742,7 +1778,7 @@ object. The call operator for the `Seq_lift_dst` class should have the
 following type.
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-void operator()(Iter lo, Iter hi, Result& dst);
+void operator()(Input_iter lo, Input_iter hi, Result& dst);
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The purpose of this function is provide an alternative sequential
@@ -1926,19 +1962,19 @@ namespace pctl {
 namespace parray {
 namespace level4 {
 
-template <class Iter>
+template <class Input_iter>
 class random_access_iterator_input {
 public:
   
   using self_type = random_access_iterator_input;
   using array_type = parray::parray<self_type>;
   
-  Iter lo;
-  Iter hi;
+  Input_iter lo;
+  Input_iter hi;
   
   random_access_iterator_input() { }
   
-  random_access_iterator_input(Iter lo, Iter hi)
+  random_access_iterator_input(Input_iter lo, Input_iter hi)
   : lo(lo), hi(hi) { }
   
   bool can_split() const {
@@ -1953,7 +1989,7 @@ public:
     dst = *this;
     long n = size();
     assert(n >= 2);
-    Iter mid = lo + (n / 2);
+    Input_iter mid = lo + (n / 2);
     hi = mid;
     dst.lo = mid;
   }
