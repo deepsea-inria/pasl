@@ -281,8 +281,8 @@ let load = function
 
 let timeout_for_size = function
    | Small -> 1
-   | Medium -> 10
-   | Large -> 1000
+   | Medium -> 1000
+   | Large -> 1000000
 
 let bits_for_size = function
    | Small -> 32
@@ -705,6 +705,7 @@ let mk_graph_outputs_all_manual : Params.t =
    Params.eval (
       mk_manual "friendster" Large 64 123
    ++ mk_manual "twitter" Large 64 12
+   ++ mk_manual "twitter_directed" Large 64 12
    ++ mk_manual "livejournal1" size_medium 32 0
    ++ mk_manual "wikipedia-20070206" size_medium 32 0
    (*   ++ mk_manual "cage14" size_medium 32 0 *)
@@ -752,6 +753,7 @@ let arg_kinds =
    | ["all"] -> kinds_all
    | ["generated"] -> kinds_generated
    | ["manual"] -> kinds_manual
+   | ["twitter_directed"] -> ["twitter_directed"]
    | ["selected"] -> ["chain";"circular_next_50";"paths_8_phases_1";"tree_depth_2";"random_arity_3";"phased_200_full"]
    | _ -> arg_kinds
 
@@ -1952,6 +1954,12 @@ let mk_ligra = (* todo: add to mk_parallel_bfs (?) *)
   & mk_algo "ligra" 
    & mk int "proc" arg_proc
 
+let mk_ligra_old = (* will be deprecated *)
+    mk_prog "./search.virtual" 
+  & mk_algo "ligra_old" 
+   & mk int "proc" arg_proc
+
+
 let run () =
    Mk_runs.(call (run_modes @ [
       Output (file_results name);
@@ -1990,16 +1998,16 @@ let plot () =
        (* add (Env.get_as_string env "size");
        add Latex.new_line; *)
        let nb_infos = 3 in
-       let nb_bfs = 3 in
+       let nb_bfs = 4 in
        let nb_dfs = 3 in
-       add (Latex.tabular_begin (String.concat "" (["|l|"] @ XList.init nb_infos (fun i -> "@{\\,\\,}c@{\\,\\,}|") @ ["|"] @ XList.init nb_dfs (fun i -> "c|") @ ["r||"] @ XList.init nb_bfs (fun i -> "c|")  @ ["r|r||r|"] )));
+       add (Latex.tabular_begin (String.concat "" (["|l|"] @ XList.init nb_infos (fun i -> "@{\\,\\,}c@{\\,\\,}|") @ ["|"] @ XList.init nb_dfs (fun i -> "c|") @ ["c||"] @ XList.init nb_bfs (fun i -> "c|")  @ ["c|c||c|"] )));
        add (Latex.tabular_multicol 4 "|c||" (Latex.bold "Input graph")); add " & ";
        add (Latex.tabular_multicol 4 "|c||" (Latex.bold "DFS")); add " & ";
-       add (Latex.tabular_multicol 5 "|c||" (Latex.bold "BFS")); add " & ";
+       add (Latex.tabular_multicol 6 "|c||" (Latex.bold "BFS")); add " & ";
        add Latex.tabular_newline;
-       add "graph & verti. & edges & max & seq & our & Cong. & \\bf{Cong.} & seq & our & LS & \\bf{LS vs} & Ligra & our PBFS ";
+       add "graph & verti. & edges & max & seq & our & Cong. & \\bf{Ours vs.} & seq & our & LS & \\bf{Ours } & Ours vs & Ours vs & our PDFS ";
        add Latex.new_line;
-       add " &  (m) & (m) & dist & DFS & PDFS & PDFS & \\bf{vs ours} & BFS & PBFS & PBFS & \\bf{ ours} & vs ours & vs PDFS";
+       add " &  (m) & (m) & dist & DFS & PDFS & PDFS & \\bf{Cong} & BFS & PBFS & PBFS & \\bf{  vs LS } & Ligra & Ligra[old] & vs PBFS";
        add Latex.tabular_newline;
        ~~ List.iter envs_rows (fun env_rows ->
          let results = Results.filter env_rows results in
@@ -2022,12 +2030,13 @@ let plot () =
          let v_bfs_seq = exectime_for results_baseline ExpBaselines.mk_bfs in
          let v_bfs_ls = exectime_for results mk_ls_bfs in
          let v_bfs_ligra = exectime_for results mk_ligra in
+         let v_bfs_ligra_old = exectime_for results mk_ligra_old in
          let v_bfs_our = exectime_for results mk_our_lazy_parallel_bfs in
          let v_dfs_seq = exectime_for results_baseline ExpBaselines.mk_dfs in
          let v_dfs_cong = exectime_for results mk_cong_parallel_dfs in
          let v_dfs_our = exectime_for results mk_our_parallel_dfs in
 
-         Mk_table.cell add (graph_renamer kind);
+         Mk_table.cell add (graph_renamer kind); 
          Mk_table.cell add (string_of_millions nb_vertices);
          Mk_table.cell add (string_of_millions nb_edges);
          Mk_table.cell add (string_of_exp_range (int_of_float max_dist));
@@ -2036,14 +2045,19 @@ let plot () =
          Mk_table.cell add (string_of_exectime ~prec:1 v_dfs_seq);
          Mk_table.cell add (string_of_speedup (v_dfs_seq /. v_dfs_our));
          Mk_table.cell add (string_of_speedup (v_dfs_seq /. v_dfs_cong));
-         Mk_table.cell add (Latex.bold (string_of_percentage_change v_dfs_our v_dfs_cong));
+         (* Mk_table.cell add (Latex.bold (string_of_percentage_change v_dfs_our v_dfs_cong)); *)
+         Mk_table.cell add (Latex.bold (string_of_speedup (v_dfs_cong /. v_dfs_our)));
          (*Mk_table.cell add (sprintf "%.1f" (v_dfs_cong /. v_dfs_our));*)
 
          Mk_table.cell add (string_of_exectime ~prec:1 v_bfs_seq);
          Mk_table.cell add (string_of_speedup (v_bfs_seq /. v_bfs_our));
          Mk_table.cell add (string_of_speedup (v_bfs_seq /. v_bfs_ls));
-         Mk_table.cell add (Latex.bold (string_of_percentage_change v_bfs_our v_bfs_ls));
-         Mk_table.cell add (string_of_percentage_change v_bfs_our v_bfs_ligra);
+         (* Mk_table.cell add (Latex.bold (string_of_percentage_change v_bfs_our v_bfs_ls));*)
+          Mk_table.cell add (Latex.bold (string_of_speedup (v_bfs_ls /. v_bfs_our)));
+         (* Mk_table.cell add (string_of_percentage_change v_bfs_our v_bfs_ligra);
+            Mk_table.cell add (string_of_percentage_change v_bfs_our v_bfs_ligra_old);*)
+          Mk_table.cell add (string_of_speedup (v_bfs_ligra /. v_bfs_our));
+          (**) Mk_table.cell add (string_of_speedup (v_bfs_ligra_old /. v_bfs_our)); 
 
 (*
          Mk_table.cell add (sprintf "%.1f" (v_bfs_ls /. v_bfs_our));
@@ -2052,7 +2066,8 @@ let plot () =
          (* Mk_table.cell add (string_of_speedup (v_bfs_seq /. v_bfs_ligra)); *)
          (* Mk_table.cell add (string_of_percentage_change_bounded 0.1 v_bfs_ls v_bfs_our); *)
 
-         Mk_table.cell ~last:true add (string_of_percentage_change v_dfs_our v_bfs_our ); 
+         (* Mk_table.cell ~last:true add (string_of_percentage_change v_dfs_our v_bfs_our ); *)
+         Mk_table.cell ~last:true add (string_of_speedup (v_bfs_our /. v_dfs_our)); 
          (*  Mk_table.cell ~last:true add (sprintf "%.1f" (v_bfs_our /. v_dfs_our)); *)
          add Latex.tabular_newline;
          );
