@@ -1020,7 +1020,7 @@ time and (2) $f$ does not.
 
 ***(1) Constant-time associative combining operator.*** The amount of
 work performed by the reduction is $O(hi-lo)$ and the span is $O(\log
-hi-lo)$.
+(hi-lo))$.
 
 ***(2) Non-constant-time associative combining operator.*** We define
 $\mathcal{R}$ to be the set of all function applications $f(x, y)$
@@ -1535,7 +1535,7 @@ long max_seq(Iter lo_xs, Iter hi_xs) {
 | [`Input_iter`](#r3-iit)          | Type of an iterator for input  |
 |                                  |values                          |
 +----------------------------------+--------------------------------+
-| [`Output_iter`](#r3(oit)         | Type of an iterator for output |
+| [`Output_iter`](#r3-oit)         | Type of an iterator for output |
 |                                  |values                          |
 +----------------------------------+--------------------------------+
 | [`Output`](#r3-o)                | Type of the object to manage   |
@@ -1615,7 +1615,7 @@ iterator](http://en.cppreference.com/w/cpp/concept/RandomAccessIterator).
 An iterator value of this type points to a value from the input
 stream.
 
-#### Output iterator {#r3-iit}
+#### Output iterator {#r3-oit}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 class Output_iter;
@@ -1687,10 +1687,8 @@ Copy the contents of `src` to `dst`.
 ##### Merge {#ro-m}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-void merge(Result& src, Result& dst) const;       // (1)
-void merge(typename parray<Result>::iterator lo,  // (2)
-           typename parray<Result>::iterator hi,
-           Result& dst);
+void merge(Result& src, Result& dst) const;                    // (1)
+void merge(Output_iter lo, Output_iter hi, Result& dst) const; // (2)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 (1) Merge the contents of `src` and `dst`, leaving the result in
@@ -1855,6 +1853,7 @@ template <
   class Input,
   class Output,
   class Result,
+  class Output_iter,
   class Merge_comp,
   class Convert_reduce_comp,
   class Convert_reduce,
@@ -1864,7 +1863,7 @@ template <
 void scan(Input& in,
           Output out,
           Result& id,
-          typename parray::parray<Result>::iterator outs_lo,
+          Output_iter outs_lo,
           Merge_comp merge_comp,
           Convert_reduce_comp convert_reduce_comp,
           Convert_reduce convert_reduce,
@@ -2069,7 +2068,7 @@ an output cell. The `Convert_scan` class should provide a call
 operator with the following type.
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-void operator()(Input& in, typename parray<Result>::iterator outs_lo);
+void operator()(Input& in, Output_iter outs_lo);
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 #### Sequential convert-scan {#r4-ssca}
@@ -2084,7 +2083,7 @@ enough to sequentialize. The `Seq_convert_scan` class should provide
 a call operator with the following type.
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-void operator()(Input& in, typename parray<Result>::iterator outs_lo);
+void operator()(Input& in, Output_iter outs_lo);
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The sequential convert function should always compute the same result
