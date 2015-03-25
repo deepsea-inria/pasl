@@ -538,7 +538,17 @@ public:
     for (auto it = l.begin(); it != l.end(); it++)
       push_back(*it);
   }
-
+  
+  chunkedseqbase(chunkedseqbase&& other)
+  : middle_meas(std::move(middle_meas)), chunk_meas(std::move(other.chunk_meas)) {
+    init();
+    front_outer.swap(other.front_outer);
+    front_inner.swap(other.front_inner);
+    middle.swap(other.middle);
+    back_inner.swap(other.back_inner);
+    back_outer.swap(other.back_outer);
+  }
+  
   /*---------------------------------------------------------------------*/
   /** @name Capacity
    */

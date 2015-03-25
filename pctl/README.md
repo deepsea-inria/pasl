@@ -795,27 +795,31 @@ Reduction
 | Abstraction layer                 | Description                       |
 +===================================+===================================+
 | [Level 0](#red-l-0)               | Apply a specified monoid to       |
-|                                   |combine the items of a specified   |
-|                                   |sequence container                 |
+|                                   |combine the items of a range in    |
+|                                   |memory that is specified by a pair |
+|                                   |of iterator pointer values         |
 +-----------------------------------+-----------------------------------+
-| [Level 1](#red-l-1)               | Introduces a lift operator that   |
-|                                   |allows the client to combine the   |
-|                                   |reduction with a specified         |
-|                                   |tabulation, such that the          |
+| [Level 1](#red-l-1)               | Introduces to the above a lift    |
+|                                   |operator that allows the client to |
+|                                   |perform along with a reduction a   |
+|                                   |specified tabulation, where the    |
 |                                   |tabulation is injected into the    |
 |                                   |leaves of the reduction tree       |
 +-----------------------------------+-----------------------------------+
-| [Level 2](#red-l-2)               | Introduces an operator that       |
-|                                   |provides a sequentialized          |
-|                                   |alternative for the lift operator  |
+| [Level 2](#red-l-2)               | Introduces to the above an        |
+|                                   |operator that provides a           |
+|                                   |sequentialized alternative for the |
+|                                   |lift operator                      |
 +-----------------------------------+-----------------------------------+
-| [Level 3](#red-l-3)               | Introduces a "mergeable output"   |
-|                                   |type that enables                  |
-|                                   |destination-passing style reduction|
+| [Level 3](#red-l-3)               | Introduces to the above a         |
+|                                   |"mergeable output" type that       |
+|                                   |enables destination-passing style  |
+|                                   |reduction                          |
 +-----------------------------------+-----------------------------------+
-| [Level 4](#red-l-4)               | Introduces a "splittlable input"  |
-|                                   |type that abstracts from the type  |
-|                                   |of the input container             |
+| [Level 4](#red-l-4)               | Introduces to the above a         |
+|                                   |"splittlable input" type that      |
+|                                   |replaces the iterator pointer      |
+|                                   |values                             |
 +-----------------------------------+-----------------------------------+
 
 Table: Abstraction layers used by pctl for reduction operators.

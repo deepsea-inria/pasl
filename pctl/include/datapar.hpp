@@ -414,9 +414,7 @@ public:
     _seq.swap(seq);
   }
   
-  chunked_sequence_input(const chunked_sequence_input& other) {
-    
-  }
+  chunked_sequence_input(const chunked_sequence_input& other) { }
   
   bool can_split() const {
     return seq.size() >= 2;

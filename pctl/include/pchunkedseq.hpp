@@ -132,11 +132,14 @@ public:
   }
   
   pchunkedseq(const pchunkedseq& other) {
-
+    assert(false);
   }
   
+  pchunkedseq(pchunkedseq&& other)
+  : seq(std::move(other.seq)) { }
+
   pchunkedseq& operator=(pchunkedseq&& other) {
-    seq = std::move(other.seq);
+    new (&seq) seq_type(std::move(other.seq));
     return *this;
   }
   

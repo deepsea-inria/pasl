@@ -2,6 +2,7 @@
 #include "benchmark.hpp"
 #include "parray.hpp"
 #include "pchunkedseq.hpp"
+#include "psort.hpp"
 
 #include <functional>
 
@@ -49,8 +50,16 @@ int main(int argc, char **argv) {
     
   };
   auto run = [&] (bool) {
-  
-
+    using pcs = pasl::pctl::pchunkedseq::pchunkedseq<int>;
+    pcs xs11 = { 1 ,3, 7, 10};
+    pcs ys11 = { 2, 3, 3, 11, 12 };
+    
+    std::cout << pasl::pctl::sort::csmerge(xs11, ys11) << std::endl;
+    
+    pcs foobar = { 3, 253, -1, 4, 1, 1, 2, 1, 3 };
+    
+    std::cout << pasl::pctl::sort::mergesort(foobar) << std::endl;
+    return;
     pa::parray<int> foo = { 1, 2, 3, 4, 5 };
     std::cout << foo << std::endl;
     
