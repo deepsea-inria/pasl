@@ -60,14 +60,14 @@ template <class Item>
 controller_type merge_contr<Item>::contr("merge"+sota<Item>());
 
 template <class Item>
-pchunkedseq<Item> csmerge(pchunkedseq<Item>& xs, pchunkedseq<Item>& ys) {
+pchunkedseq<Item> merge(pchunkedseq<Item>& xs, pchunkedseq<Item>& ys) {
   using controller_type = merge_contr<Item>;
   long n = xs.seq.size();
   long m = ys.seq.size();
   pchunkedseq<Item> result;
   par::cstmt(merge_contr<Item>::contr, [&] { return n + m; }, [&] {
     if (n < m) {
-      result = csmerge(ys, xs);
+      result = merge(ys, xs);
     } else if (n == 1) {
       if (m == 0) {
         result.seq.push_back(xs.seq.back());
@@ -84,9 +84,9 @@ pchunkedseq<Item> csmerge(pchunkedseq<Item>& xs, pchunkedseq<Item>& ys) {
       ys.seq.split(pivot, ys2.seq);
       pchunkedseq<Item> result2;
       par::fork2([&] {
-        result = csmerge(xs, ys);
+        result = merge(xs, ys);
       }, [&] {
-        result2 = csmerge(xs2, ys2);
+        result2 = merge(xs2, ys2);
       });
       result.seq.concat(result2.seq);
     }
@@ -94,18 +94,22 @@ pchunkedseq<Item> csmerge(pchunkedseq<Item>& xs, pchunkedseq<Item>& ys) {
   return result;
 }
 
-template <class PChunkedseq>
-class merge_output {
+template <class Combine, class PChunkedseq>
+class merge_container_output {
 public:
   
   using result_type = PChunkedseq;
+  Combine combine;
+  
+  merge_container_output(const Combine& combine)
+  : combine(combine) { }
   
   void init(PChunkedseq&) const {
     
   }
   
   void merge(PChunkedseq& src, PChunkedseq& dst) const {
-    dst = csmerge(src, dst);
+    dst = combine(src, dst);
   }
   
 };
@@ -115,9 +119,12 @@ pchunkedseq<Item> mergesort(pchunkedseq<Item>& xs) {
   using pchunkedseq_type = pchunkedseq<Item>;
   using chunkedseq_type = typename pchunkedseq_type::seq_type;
   using input_type = level4::chunked_sequence_input<chunkedseq_type>;
-  using output_type = merge_output<pchunkedseq_type>;
+  auto combine = [&] (pchunkedseq_type& xs, pchunkedseq_type& ys) {
+    return merge(xs, ys);
+  };
+  using output_type = merge_container_output<typeof(combine), pchunkedseq_type>;
   input_type in(xs.seq);
-  output_type out;
+  output_type out(combine);
   pchunkedseq_type id;
   pchunkedseq_type result;
   auto convert_reduce_comp = [&] (input_type& in) {
@@ -127,10 +134,7 @@ pchunkedseq<Item> mergesort(pchunkedseq<Item>& xs) {
     in.seq.swap(dst.seq); // later: use more efficient sequential sort?
     std::sort(dst.seq.begin(), dst.seq.end());
   };
-  auto seq_convert_reduce = [&] (input_type& in, pchunkedseq_type& dst) {
-    in.seq.swap(dst.seq); // later: use more efficient sequential sort?
-    std::sort(dst.seq.begin(), dst.seq.end());
-  };
+  auto seq_convert_reduce = convert_reduce;
   level4::reduce(in, out, id, result, convert_reduce_comp, convert_reduce, seq_convert_reduce);
   return result;
 }

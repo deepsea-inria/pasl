@@ -54,7 +54,7 @@ int main(int argc, char **argv) {
     pcs xs11 = { 1 ,3, 7, 10};
     pcs ys11 = { 2, 3, 3, 11, 12 };
     
-    std::cout << pasl::pctl::sort::csmerge(xs11, ys11) << std::endl;
+    std::cout << pasl::pctl::sort::merge(xs11, ys11) << std::endl;
     
     pcs foobar = { 3, 253, -1, 4, 1, 1, 2, 1, 3 };
     
