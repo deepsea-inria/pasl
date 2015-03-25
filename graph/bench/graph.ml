@@ -575,23 +575,47 @@ let mk_graph_outputs_all_generated : Params.t =
           & mk int "depth_of_branches" depth_of_branches
           & mk int "trunk_first" trunk_first)
       in
-   let _mk_rmat =
+      let mk_rmat =
+        (*** rmat graph parameters used in Ligra paper: **
+
+          rmat24:
+            1.68x10^7 vertices; 9.9x10^7 edges
+            a=0.5;b=c=0.1;d=0.3
+          rmat27:
+            1.34x10^8 vertices; 2.12x10^9 edges
+            a=0.57;b=c=0.19;d=0.05
+
+         *)
         mk_common "rmat"
-        & (mk_file_by_size ~bits:32 "rmat_basic" (fun size ->
-          (* load needs to be limited cause only 32 bits *)
+        & ( (mk_file_by_size ~bits:64 "rmat24" (fun size ->
           let real_load = (if size = Large then 2 else 10) * load size in
           let nb_vertices = real_load / 15 / 100 in
           let nb_edges = 80 * nb_vertices in
           let seed = 3234230.0 in
           let a = 0.5 in
           let b = 0.1 in
-          let c = 0.3 in
+          let c = 0.1 in
               mk int "tgt_nb_vertices" nb_vertices
             & mk int "nb_edges" nb_edges
             & mk float "rmat_seed" seed
             & mk float "a" a
             & mk float "b" b
             & mk float "c" c))
+            ++
+              (mk_file_by_size ~bits:64 "rmat27" (fun size ->
+          let real_load = (if size = Large then 2 else 10) * load size in
+          let nb_vertices = real_load / 15 / 100 in
+          let nb_edges = 80 * nb_vertices in
+          let seed = 3234230.0 in
+          let a = 0.57 in
+          let b = 0.19 in 
+          let c = 0.19 in
+              mk int "tgt_nb_vertices" nb_vertices
+            & mk int "nb_edges" nb_edges
+            & mk float "rmat_seed" seed
+            & mk float "a" a
+            & mk float "b" b
+            & mk float "c" c)))
       in
    let mk_random =
       let build file params =
@@ -631,7 +655,7 @@ let mk_graph_outputs_all_generated : Params.t =
     ++ (if arg_faster then (fun _ -> []) else mk_grid2 ++ mk_grid3 ++ mk_circular_knext ++ mk_parallel_paths (* ++ mk_unbalanced_tree *))
     ++ mk_phased
     ++ mk_tree
-(*    ++ mk_rmat *)
+    ++ mk_rmat 
     )
 
 
@@ -705,7 +729,6 @@ let mk_graph_outputs_all_manual : Params.t =
    Params.eval (
       mk_manual "friendster" Large 64 123
    ++ mk_manual "twitter" Large 64 12
-   ++ mk_manual "twitter_directed" Large 64 12
    ++ mk_manual "livejournal1" size_medium 32 0
    ++ mk_manual "wikipedia-20070206" size_medium 32 0
    (*   ++ mk_manual "cage14" size_medium 32 0 *)
@@ -753,7 +776,6 @@ let arg_kinds =
    | ["all"] -> kinds_all
    | ["generated"] -> kinds_generated
    | ["manual"] -> kinds_manual
-   | ["twitter_directed"] -> ["twitter_directed"]
    | ["selected"] -> ["chain";"circular_next_50";"paths_8_phases_1";"tree_depth_2";"random_arity_3";"phased_200_full"]
    | _ -> arg_kinds
 
@@ -1915,28 +1937,15 @@ module ExpOverview = struct
 
 let name = "overview"
 
-let mk_ligra_bfs =
-  mk_algo "ligra"
-
-
 let mk_parallel_bfs =
       mk_ls_bfs
       ++ mk_our_lazy_parallel_bfs
-(*      ++ mk_ligra_bfs*)
 
 let mk_parallel_bfs =
    Params.eval (Params.filter env_in_arg_algos mk_parallel_bfs)
 
-(*
-let mk_parallel_dfs =
-     mk_our_parallel_dfs
-  ++ mk_cong_parallel_dfs
-
-let mk_parallel_dfs =
-   Params.eval (Params.filter env_in_arg_algos mk_parallel_dfs)
-*)
-
 let prog_parallel_here = (*"./search.sta"*)  (*"./search.opt2" *) "./search.virtual"
+let prog_ls_pbfs_cilk = "ls-pbfs.cilk_32"
 let prog_ligra = "ligra.cilk"
 let prog_ligra_here = "./" ^ prog_ligra
 
@@ -1947,18 +1956,24 @@ let mk_parallel_prog_maxproc_here =
 
 let make () = (
   build [prog_parallel_here];
-  build_in "../../../ligra/" [prog_ligra])
+  build [prog_parallel];
+  build_in "../../../ligra/" [prog_ligra];
+  build_in "../../../ls-pbfs/" [prog_ls_pbfs_cilk])
 
 let mk_ligra = (* todo: add to mk_parallel_bfs (?) *)
     mk_prog "./search.virtual" 
-  & mk_algo "ligra" 
+   & mk_algo "ligra" 
    & mk int "proc" arg_proc
 
-let mk_ligra_old = (* will be deprecated *)
-    mk_prog "./search.virtual" 
-  & mk_algo "ligra_old" 
-   & mk int "proc" arg_proc
+let mk_ls_pbfs_cilk =
+  mk_prog "./search.virtual"
+  & mk_algo "ls_pbfs_cilk"
+  & mk int "proc" arg_proc
 
+let mk_pbbs_pbfs_cilk =
+  mk_prog "./search.virtual"
+  & mk_algo "pbbs_pbfs_cilk"
+  & mk int "proc" arg_proc
 
 let run () =
    Mk_runs.(call (run_modes @ [
@@ -1969,6 +1984,8 @@ let run () =
           & (   (mk_parallel_prog_maxproc_here & mk_traversal_bfs & mk_parallel_bfs)
              ++ (mk_parallel_prog_maxproc_here & mk_traversal_dfs & mk_parallel_dfs)
              ++ (mk_ligra & mk_traversal_bfs)
+             ++ (mk_ls_pbfs_cilk & mk_traversal_bfs)
+             ++ (mk_pbbs_pbfs_cilk & mk_traversal_bfs)
              ))
       ]))
 
@@ -1998,16 +2015,16 @@ let plot () =
        (* add (Env.get_as_string env "size");
        add Latex.new_line; *)
        let nb_infos = 3 in
-       let nb_bfs = 4 in
+       let nb_bfs = 5 in
        let nb_dfs = 3 in
        add (Latex.tabular_begin (String.concat "" (["|l|"] @ XList.init nb_infos (fun i -> "@{\\,\\,}c@{\\,\\,}|") @ ["|"] @ XList.init nb_dfs (fun i -> "c|") @ ["c||"] @ XList.init nb_bfs (fun i -> "c|")  @ ["c|c||c|"] )));
        add (Latex.tabular_multicol 4 "|c||" (Latex.bold "Input graph")); add " & ";
        add (Latex.tabular_multicol 4 "|c||" (Latex.bold "DFS")); add " & ";
-       add (Latex.tabular_multicol 6 "|c||" (Latex.bold "BFS")); add " & ";
+       add (Latex.tabular_multicol 7 "|c||" (Latex.bold "BFS")); add " & ";
        add Latex.tabular_newline;
-       add "graph & verti. & edges & max & seq & our & Cong. & \\bf{Ours vs.} & seq & our & LS & \\bf{Ours } & Ours vs & Ours vs & our PDFS ";
+       add "graph & verti. & edges & max & seq & our & Cong. & \\bf{Ours vs.} & seq & our & LS & \\bf{Ours } & Ours vs & Ours vs & Ours vs & our PDFS ";
        add Latex.new_line;
-       add " &  (m) & (m) & dist & DFS & PDFS & PDFS & \\bf{Cong} & BFS & PBFS & PBFS & \\bf{  vs LS } & Ligra & Ligra[old] & vs PBFS";
+       add " &  (m) & (m) & dist & DFS & PDFS & PDFS & \\bf{Cong} & BFS & PBFS & PBFS & \\bf{  vs LS } & Ligra & LS (Cilk) & PBBS (Cilk) & vs PBFS";
        add Latex.tabular_newline;
        ~~ List.iter envs_rows (fun env_rows ->
          let results = Results.filter env_rows results in
@@ -2030,7 +2047,8 @@ let plot () =
          let v_bfs_seq = exectime_for results_baseline ExpBaselines.mk_bfs in
          let v_bfs_ls = exectime_for results mk_ls_bfs in
          let v_bfs_ligra = exectime_for results mk_ligra in
-         let v_bfs_ligra_old = exectime_for results mk_ligra_old in
+         let v_bfs_ls_cilk = exectime_for results mk_ls_pbfs_cilk in
+         let v_bfs_pbbs_cilk = exectime_for results mk_pbbs_pbfs_cilk in
          let v_bfs_our = exectime_for results mk_our_lazy_parallel_bfs in
          let v_dfs_seq = exectime_for results_baseline ExpBaselines.mk_dfs in
          let v_dfs_cong = exectime_for results mk_cong_parallel_dfs in
@@ -2054,10 +2072,9 @@ let plot () =
          Mk_table.cell add (string_of_speedup (v_bfs_seq /. v_bfs_ls));
          (* Mk_table.cell add (Latex.bold (string_of_percentage_change v_bfs_our v_bfs_ls));*)
           Mk_table.cell add (Latex.bold (string_of_speedup (v_bfs_ls /. v_bfs_our)));
-         (* Mk_table.cell add (string_of_percentage_change v_bfs_our v_bfs_ligra);
-            Mk_table.cell add (string_of_percentage_change v_bfs_our v_bfs_ligra_old);*)
           Mk_table.cell add (string_of_speedup (v_bfs_ligra /. v_bfs_our));
-          (**) Mk_table.cell add (string_of_speedup (v_bfs_ligra_old /. v_bfs_our)); 
+          Mk_table.cell add (string_of_speedup (v_bfs_ls_cilk /. v_bfs_our));
+          Mk_table.cell add (string_of_speedup (v_bfs_pbbs_cilk /. v_bfs_our));
 
 (*
          Mk_table.cell add (sprintf "%.1f" (v_bfs_ls /. v_bfs_our));

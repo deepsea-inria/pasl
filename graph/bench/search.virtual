@@ -2,16 +2,31 @@
 
 incmd=$@
 
-if [[ $incmd == *"-algo ligra"* ]]
+if [[ $incmd == *"-algo ligra"* ]] || [[ $incmd == *"-algo pbbs_pbfs_cilk"* ]]
 then
     if [[ $incmd == *"-bits 32"* ]]
     then
         outcmd="../../../ligra/ligra.cilk_32 $@"
     else
         outcmd="../../../ligra/ligra.cilk_64 $@"
+    fi    
+elif [[ $incmd == *"-algo ls_pbfs_cilk"* ]]
+then
+    if [[ $incmd == *"-bits 32"* ]]
+    then
+        outcmd="../../../ls-pbfs/ls-pbfs.cilk_32 $@"
+    else
+        outcmd="../../../ls-pbfs/ls-pbfs.cilk_64 $@"
     fi
 else
     outcmd="./search.opt2 $@"
+fi
+
+# use numactl to force interleaved allocation of pages, if
+# numactl is accessible via the command line
+if hash numactl 2>/dev/null;
+then
+    outcmd="numactl --interleave=all $outcmd"
 fi
 
 $outcmd
