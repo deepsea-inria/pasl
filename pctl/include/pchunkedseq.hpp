@@ -57,13 +57,13 @@ private:
     };
     long chunk_capacity = dst.chunk_capacity;
     parray::parray<value_type> tmp(chunk_capacity);
-    auto convert = [&] (input_type& in, seq_type dst) {
+    auto convert = [&] (input_type& in, seq_type& dst) {
       dst.stream_pushn_back([&] (long i, long n) {
         for (long k = 0; k < n; k++) {
           body_idx_dst(k + in.lo, tmp[k]);
         }
         const value_type* lo = &tmp[0];
-        const value_type* hi = &tmp[n];
+        const value_type* hi = &tmp[n-1]+1;
         return std::make_pair(lo, hi);
       }, in.hi - in.lo);
     };
