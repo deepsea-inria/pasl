@@ -147,6 +147,8 @@ void search_benchmark_sequential_select_algo() {
 #ifndef SKIP_FAST
   m.add("bfs_by_dual_arrays", [&] (const adjlist_type& graph, vtxid_type source) {
     dists = bfs_by_dual_arrays<adjlist_seq_type>(graph, source); });
+  m.add("bfs_from_pbbs", [&] (const adjlist_type& graph, vtxid_type source) {
+    dists = bfs_from_pbbs<adjlist_seq_type>(graph, source); });  
   m.add("bfs_by_frontier_segment", [&] (const adjlist_type& graph, vtxid_type source) {
     dists = bfs_by_frontier_segment<adjlist_type, frontiersegbag<adjlist_alias_type>>(graph, source); });
 #endif

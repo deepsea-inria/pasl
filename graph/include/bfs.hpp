@@ -91,6 +91,43 @@ bfs_by_array(const adjlist<Adjlist_seq>& graph,
   return dists;
 }
 
+
+/*---------------------------------------------------------------------*/
+// BFS, similar to above, ported from PBBS 
+// Does not compute distances, but only write 1 to mark reachable nodes
+  
+template <class Adjlist_seq>
+typename adjlist<Adjlist_seq>::vtxid_type*
+bfs_from_pbbs(const adjlist<Adjlist_seq>& graph,
+              typename adjlist<Adjlist_seq>::vtxid_type source) {
+  using vtxid_type = typename adjlist<Adjlist_seq>::vtxid_type;  
+  vtxid_type nb_vertices = graph.get_nb_vertices();
+  vtxid_type* queue = data::mynew_array<vtxid_type>(2 * nb_vertices);
+  vtxid_type* dists = data::mynew_array<vtxid_type>(nb_vertices); // dists is like visited
+  vtxid_type unknown = graph_constants<vtxid_type>::unknown_vtxid;  
+  fill_array_seq(dists, nb_vertices, unknown);
+  vtxid_type bot = 0;
+  vtxid_type top = 1;
+  queue[0] = source;
+  dists[source] = 1;
+  while (top > bot) {
+    vtxid_type vertex = queue[bot++];
+    vtxid_type k = 0;
+    vtxid_type degree = graph.adjlists[vertex].get_out_degree();
+    vtxid_type* neighbors = graph.adjlists[vertex].get_out_neighbors();
+    for (vtxid_type edge = 0; edge < degree; edge++) {
+      vtxid_type other = neighbors[edge];
+      if (dists[other] == 0) {
+        queue[top++] = other;
+        dists[other] = 1;
+      }
+    }
+  }
+  free(queue); 
+  return dists;
+}
+
+
 /*---------------------------------------------------------------------*/
 // BFS, same as above, except that the queue is no longer
 // a flat array but instead an abstract FIFO data structure.
