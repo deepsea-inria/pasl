@@ -589,8 +589,8 @@ let mk_graph_outputs_all_generated : Params.t =
         mk_common "rmat"
         & ( (mk_file_by_size ~bits:64 "rmat24" (fun size ->
           let real_load = (if size = Large then 2 else 10) * load size in
-          let nb_vertices = real_load / 15 / 100 in
-          let nb_edges = 80 * nb_vertices in
+          let nb_vertices = real_load / 15  in
+          let nb_edges = 9 * nb_vertices in
           let seed = 3234230.0 in
           let a = 0.5 in
           let b = 0.1 in
@@ -604,8 +604,8 @@ let mk_graph_outputs_all_generated : Params.t =
             ++
               (mk_file_by_size ~bits:64 "rmat27" (fun size ->
           let real_load = (if size = Large then 2 else 10) * load size in
-          let nb_vertices = real_load / 15 / 100 in
-          let nb_edges = 80 * nb_vertices in
+          let nb_vertices = real_load / 15  in
+          let nb_edges = 9 * nb_vertices in
           let seed = 3234230.0 in
           let a = 0.57 in
           let b = 0.19 in 
@@ -1182,7 +1182,7 @@ let make()  =
 let run () =
    Mk_runs.(call (run_modes @ [
       Output (file_results name);
-      Timeout 400;
+      Timeout 100000;
       Args (
            mk_prog prog
          & mk int "loop_cutoff" 1000
