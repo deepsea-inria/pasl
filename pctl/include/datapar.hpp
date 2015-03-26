@@ -585,7 +585,35 @@ public:
     dst.concat(src);
   }
   
+};  
+  
+template <class Combine, class Container>
+class mergeable_output {
+public:
+  
+  using result_type = Container;
+  Combine combine;
+  
+  mergeable_output(const Combine& combine)
+  : combine(combine) { }
+  
+  void init(Container&) const {
+    
+  }
+  
+  void merge(Container& src, Container& dst) const {
+    dst = combine(src, dst);
+  }
+  
 };
+
+
+template <class Combine, class Container>
+mergeable_output<Combine, Container> create_mergeable_output(const Container& id,
+                                                             const Combine& combine) {
+  mergeable_output<Combine, Container> out(combine);
+  return out;
+}
 
 } // end namespace
   
