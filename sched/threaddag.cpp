@@ -8,6 +8,10 @@
 
 #include <deque>
 
+#ifdef USE_MALLOC_COUNT
+#include "malloc_count.h"
+#endif
+
 #include "cmdline.hpp"
 #include "callback.hpp"
 #include "threaddag.hpp"
@@ -241,6 +245,9 @@ void destroy() {
 #endif
   destroy_scheduler();
   destroy_basic();
+#ifdef USE_MALLOC_COUNT
+  malloc_pasl_report();
+#endif
 }
 
 /*---------------------------------------------------------------------*/
