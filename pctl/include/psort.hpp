@@ -90,6 +90,8 @@ pchunkedseq<Item> merge(pchunkedseq<Item>& xs, pchunkedseq<Item>& ys) {
       });
       result.seq.concat(result2.seq);
     }
+  }, [&] {
+    result = merge_seq(xs, ys);
   });
   return result;
 }

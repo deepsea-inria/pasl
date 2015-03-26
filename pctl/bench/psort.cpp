@@ -48,9 +48,10 @@ using pchunkedseq = pasl::pctl::pchunkedseq::pchunkedseq<Item>;
 int main(int argc, char** argv) {
   pchunkedseq<int>* xsp;
   
+  long n;
   auto init = [&] {
-    long n = pasl::util::cmdline::parse_or_default_long("n", 100);
-    long m = pasl::util::cmdline::parse_or_default_long("m", 100);
+    n = pasl::util::cmdline::parse_or_default_long("n", 100000);
+    long m = pasl::util::cmdline::parse_or_default_long("m", 200*n);
     xsp = new pchunkedseq<int>();
     *xsp = pasl::pctl::random_pchunkedseq((int)0, (int)n, (int)m);
   };
@@ -59,6 +60,7 @@ int main(int argc, char** argv) {
   };
   auto output = [&] {
     std::cout << "result\t" << xsp->seq[0] << std::endl;
+    assert(xsp->seq.size() == n);
   };
   auto destroy = [&] {
     ;
