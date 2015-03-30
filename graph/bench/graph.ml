@@ -733,6 +733,7 @@ let mk_graph_outputs_all_manual : Params.t =
    ++ mk_manual "wikipedia-20070206" size_medium 32 0
    (*   ++ mk_manual "cage14" size_medium 32 0 *)
    ++ mk_manual "cage15" size_medium 32 0
+   ++ mk_manual "usa" Large 32 1
    (* ++ mk_manual "kkt_power" Small 32 0 *)
    (*   ++ mk_manual "Freescale1" size_medium 32 0*)
    )

@@ -400,6 +400,66 @@ void read_snap_graph(std::string fname, adjlist<flat_adjlist_seq<Vertex_id>>& gr
   read_snap_graph(fname, edges);
   adjlist_from_edgelist(edges, graph);
 }
+
+  // note: this routine does not yet support comment lines that come after a "p sp" line
+template <class Edge_bag>
+void read_dimacs9_graph(std::string fname, edgelist<Edge_bag>& dst) {
+  using vtxid_type = typename edgelist<Edge_bag>::vtxid_type;
+  using edge_type = typename edgelist<Edge_bag>::edge_type;
+  using size_type = typename data::array_seq<int>::size_type;
+  std::ifstream in(fname);
+  vtxid_type nb_vertices;
+  edgeid_type nb_edges;
+  while (true) {
+    std::string data;
+    std::getline(in, data);
+    if (data[0] != 'p')
+      continue;
+    data::pcontainer::stack<char*> words;
+    size_t n = data.size();
+    char* bytes = data::mynew_array<char>(n+1);
+    std::copy(data.cbegin(), data.cend()+1, bytes);
+    tokenize_string([&] (char c) { return is_space(c); }, bytes, n, words);
+    str_to_vtxidtype(words[2], nb_vertices);
+    str_to_vtxidtype(words[3], nb_edges);
+    free(bytes);
+    break;
+  }
+  long beg = in.tellg();
+  in.seekg (0, in.end);
+  long n = in.tellg();
+  in.seekg (beg, in.beg);
+  char* bytes = data::mynew_array<char>(n+1);
+  in.read (bytes,n);
+  data::pcontainer::stack<char*> words;
+  tokenize_string([] (char c) { return is_space(c); }, bytes, vtxid_type(n), words);
+  if (edgeid_type(words.size()) != nb_edges * 4)
+    util::atomic::die("inconsistent edge counts (suggested nb_edges=%d, but words.size()= %d)", nb_edges, words.size());
+  data::array_seq<char*> words_array;
+  data::pcontainer::transfer_contents_to_array_seq(words, words_array);
+  dst.edges.alloc(nb_edges);
+  sched::native::parallel_for(edgeid_type(0), nb_edges, [&] (size_type i) {
+    vtxid_type v_src;
+    vtxid_type v_dst;
+    str_to_vtxidtype(words_array[i*4 + 1], v_src);
+    str_to_vtxidtype(words_array[i*4 + 2], v_dst);
+    dst.edges[i] = edge_type(v_src, v_dst);
+  });
+  data::myfree(bytes);
+  in.close();
+  compute_nb_vertices(dst); 
+}
+
+template <class Vertex_id>
+void read_dimacs9_graph(std::string fname, adjlist<flat_adjlist_seq<Vertex_id>>& graph) {
+  using vtxid_type = Vertex_id;
+  using edge_type = edge<vtxid_type>;
+  using edgelist_bag_type = data::array_seq<edge_type>;
+  using edgelist_type = edgelist<edgelist_bag_type>;
+  edgelist_type edges;
+  read_dimacs9_graph(fname, edges);
+  adjlist_from_edgelist(edges, graph);
+}
   
 } // end namespace
 } // end namespace

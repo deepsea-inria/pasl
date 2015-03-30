@@ -178,6 +178,8 @@ void load_graph_from_file(Adjlist& graph) {
     read_twitter_graph(infile, graph);
   else if (extension == "mmarket")
     read_matrix_market(infile, graph);
+  else if (extension == "gr")
+    read_dimacs9_graph(infile, graph);
   else
     util::atomic::die("unknown file format %s", extension.c_str());
 }
