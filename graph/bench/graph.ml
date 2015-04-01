@@ -731,11 +731,14 @@ let mk_graph_outputs_all_manual : Params.t =
    ++ mk_manual "twitter" Large 64 12
    ++ mk_manual "livejournal1" size_medium 32 0
    ++ mk_manual "wikipedia-20070206" size_medium 32 0
-   (*   ++ mk_manual "cage14" size_medium 32 0 *)
    ++ mk_manual "cage15" size_medium 32 0
-   ++ mk_manual "usa" Large 32 1
-   (* ++ mk_manual "kkt_power" Small 32 0 *)
-   (*   ++ mk_manual "Freescale1" size_medium 32 0*)
+   ++ mk_manual "usa" Large 32 1  (* http://www.dis.uniroma1.it/challenge9/download.shtml full USA *)
+   ++ mk_manual "europe" size_medium 32 0      (* http://www.cc.gatech.edu/dimacs10/archive/streets.shtml *)             
+   ++ mk_manual "orkut" Large 32 1
+   ++ mk_manual "kkt_power" Small 32 0
+   ++ mk_manual "Freescale1" size_medium 32 0
+   ++ mk_manual "delaunay" size_medium 32 0  (* http://www.cc.gatech.edu/dimacs10/archive/delaunay.shtml n=24 *)
+   ++ mk_manual "rgg" size_medium 32 0  (* http://www.cc.gatech.edu/dimacs10/archive/random.shtml n=23*)
    )
 
 let mk_graph_outputs_all =
