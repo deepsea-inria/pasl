@@ -180,6 +180,10 @@ void load_graph_from_file(Adjlist& graph) {
     read_matrix_market(infile, graph);
   else if (extension == "gr")
     read_dimacs9_graph(infile, graph);
+  else if (extension == "dimacs10")
+    read_dimacs10_graph(infile, graph);
+  else if (extension == "yahoo")
+    read_yahoo_graph(infile, graph);
   else
     util::atomic::die("unknown file format %s", extension.c_str());
 }

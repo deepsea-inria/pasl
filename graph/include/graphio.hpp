@@ -177,6 +177,15 @@ void write_adjlist_to_dotfile(std::string fname, const Adjlist& graph) {
 /*---------------------------------------------------------------------*/
 /* Foreign file IO */
 
+inline bool is_newline(char c) {
+  switch (c)  {
+    case '\r':
+    case '\n':
+    case 0: return true;
+    default : return false;
+  }
+}
+
 inline bool is_space(char c) {
   switch (c)  {
     case '\r':
@@ -460,7 +469,118 @@ void read_dimacs9_graph(std::string fname, adjlist<flat_adjlist_seq<Vertex_id>>&
   read_dimacs9_graph(fname, edges);
   adjlist_from_edgelist(edges, graph);
 }
+
+template <class Vertex_id>
+void read_yahoo_graph(std::string fname, adjlist<flat_adjlist_seq<Vertex_id>>& graph) {
+  using vtxid_type = Vertex_id;
+  uint64_t graph_type;
+  int nbbits;
+  vtxid_type nb_vertices;
+  edgeid_type nb_edges;
+  nbbits = int(64);
+  nb_vertices = vtxid_type(1413511390);
+  nb_edges = edgeid_type(6636600779);
+  vtxid_type nb_offsets = nb_vertices + 1;
+  if (nbbits != sizeof(vtxid_type) * 8)
+    util::atomic::die("bogus 1");
+  //  if(nbbits == sizeof(edgeid_type) * 8)
+  //      util::atomic::die("bogus 2");
+  std::string idxfile = fname + ".idx";
+  std::ifstream inidx(idxfile, std::ifstream::binary);
+  vtxid_type offsets_szb = sizeof(vtxid_type) * nb_offsets;
+  vtxid_type edges_szb = sizeof(vtxid_type) * nb_edges;
+  long contents_szb = offsets_szb + edges_szb;
+  char* bytes;
+  inidx.seekg (0, inidx.end);
+  if (inidx.tellg() != offsets_szb)
+    util::atomic::die("bogus 3 %lld %lld",offsets_szb,inidx.tellg());
+  inidx.seekg (0, inidx.beg);
+  bytes = data::mynew_array<char>(contents_szb);
+  if (bytes == nullptr)
+    util::atomic::die("failed to allocate space for graph");
+  inidx.read (bytes, offsets_szb);
+  inidx.close();
+  std::string adjfile = fname + ".adj";
+  std::ifstream inadj(adjfile, std::ifstream::binary);
+  inadj.seekg(0, inadj.end);
+  vtxid_type file_edges_szb = nb_edges * sizeof(int);
+  if (inadj.tellg() != file_edges_szb)
+    util::atomic::die("bogus 4");
+  char* tmpedges = data::mynew_array<char>(file_edges_szb);
+  if (tmpedges == nullptr)
+    util::atomic::die("bogus 5");
+  inadj.seekg (0, inadj.beg);
+  inadj.read(tmpedges, file_edges_szb);
+  vtxid_type* edges = (vtxid_type*)(bytes+offsets_szb);
+  int* srcedges = (int*)tmpedges;
+  for (long i = 0; i < nb_edges; i++)
+    edges[i] = (vtxid_type)srcedges[i];
+  graph.adjlists.init(bytes, nb_vertices, nb_edges);
+  graph.nb_edges = nb_edges;
+  free(tmpedges);
+}
+
+    template <class Edge_bag>
+void read_dimacs10_graph(std::string fname, edgelist<Edge_bag>& dst) {
+  using vtxid_type = typename edgelist<Edge_bag>::vtxid_type;
+  using edge_type = typename edgelist<Edge_bag>::edge_type;
+  using size_type = typename data::array_seq<int>::size_type;
+  std::ifstream in(fname);
+  edgeid_type nb_edges = 0;
   
+  in.seekg (0, in.end);
+  long n = in.tellg();
+  in.seekg (0, in.beg);
+
+  std::string data;
+  std::getline(in, data); // skip first line
+  
+  char* bytes = data::mynew_array<char>(n+1);
+  in.read (bytes,n);
+  in.close();
+
+  data::pcontainer::stack<char*> lines;
+  tokenize_string([] (char c) { return is_newline(c); }, bytes, vtxid_type(n), lines);
+
+  data::pcontainer::stack<edge_type> edges;
+
+  for (long i = 0; i < lines.size(); i++) {
+    char* bytes = lines[i];
+    long n = strlen(bytes);
+    data::pcontainer::stack<char*> edgelist;
+    tokenize_string([] (char c) { return is_space(c); }, bytes, vtxid_type(n), edgelist);
+    long deg = edgelist.size();
+    nb_edges += deg;
+    for (long j = 0; j < deg; j++) {
+      vtxid_type v_src = (vtxid_type)i;
+      vtxid_type v_dst;
+      str_to_vtxidtype(edgelist[j], v_dst);
+      v_dst--; // because vertex ids in dimacs10 start at 1
+      edges.push_back(edge_type(v_src, v_dst));
+    }
+  }
+
+  dst.edges.alloc(nb_edges);
+  long i = 0;
+  while (! edges.empty()) {
+    dst.edges[i++] = edges.pop_back();
+  }
+
+  compute_nb_vertices(dst); 
+}
+
+template <class Vertex_id>
+void read_dimacs10_graph(std::string fname, adjlist<flat_adjlist_seq<Vertex_id>>& graph) {
+  using vtxid_type = Vertex_id;
+  using edge_type = edge<vtxid_type>;
+  using edgelist_bag_type = data::array_seq<edge_type>;
+  using edgelist_type = edgelist<edgelist_bag_type>;
+  edgelist_type edges;
+  read_dimacs10_graph(fname, edges);
+  adjlist_from_edgelist(edges, graph);
+}
+
+
 } // end namespace
 } // end namespace
 
