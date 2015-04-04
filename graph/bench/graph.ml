@@ -409,13 +409,13 @@ let mk_graph_outputs_all_generated : Params.t =
              let nb_phases = 50 in
              let nb_per_phase = XInt.sqrt (real_load / nb_phases) in
              (nb_phases, nb_per_phase, nb_per_phase, 0))
-        ++*) build "phased_low_50" (fun size ->
+        ++ build "phased_low_50" (fun size ->
              let real_load = (if size = Large then 2 else 1) * load size in
              let nb_phases = 50 in
              let arity = 5 in
              let nb_per_phase = real_load / nb_phases / arity in
              (nb_phases, nb_per_phase, 0, arity))
-        ++ build "phased_mix_10" (fun size ->
+        ++ *) build "phased_mix_10" (fun size ->
              let nb_phases = 10 in
              let arity = 2 in
              let nb_per_phase = (load size) / nb_phases / (1+arity) in
@@ -464,7 +464,7 @@ let mk_graph_outputs_all_generated : Params.t =
             & mk int "nb_paths_per_phase" nb_paths_per_phase
             & mk int "nb_edges_per_path" nb_edges_per_path
             )in
-         (build "paths_8_phases_1" (fun size ->
+         ( (* build "paths_8_phases_1" (fun size ->
              let real_load = load size / 2 in
              let paths = 8 in
              let nb_phases = 1 in
@@ -475,19 +475,19 @@ let mk_graph_outputs_all_generated : Params.t =
              let paths = 20 in
              let nb_phases = 1 in
              let edges = real_load / paths / nb_phases  in
-             (nb_phases, paths, edges))
-        ++ build "paths_100_phases_1" (fun size ->
+             (nb_phases, paths, edges)) 
+        ++ *) build "paths_100_phases_1" (fun size ->
              let real_load = load size / 2 in
              let paths = 100 in
              let nb_phases = 1 in
              let edges = real_load / paths / nb_phases in
              (nb_phases, paths, edges))
-        ++ build "paths_524288_phases_1" (fun size ->
+        (*++ build "paths_524288_phases_1" (fun size ->
              let real_load = load size / 2 in
              let paths = 524288 in
              let nb_phases = 1 in
              let edges = real_load / paths / nb_phases in
-             (nb_phases, paths, edges))
+             (nb_phases, paths, edges)) *)
         (* ++ build "paths_100_phases_200" (fun size ->
              let real_load = load size / 2 in
              let paths = 100 in
@@ -508,13 +508,14 @@ let mk_graph_outputs_all_generated : Params.t =
              (nb_phases, paths, edges))*)
         )
       in
-    let mk_tree =
+    let mk_tree_binary =
          mk_file_by_size "tree_binary" (fun size ->
             let height = XInt.log2 (load size) in
               mk_common "tree_binary"
             & mk int "branching_factor" 2
             & mk int "height" height)
-          ++   
+    in
+    let mk_tree_depth_2 =
             mk_file_by_size "tree_depth_2" (fun size ->
           let real_load = (if size = Large then (* 10 *) 1 else 5) * load size in
           let branching_factor = XInt.sqrt real_load in
@@ -541,7 +542,7 @@ let mk_graph_outputs_all_generated : Params.t =
           & mk int "branching_factor_1" branching_factor_1
           & mk int "branching_factor_2" branching_factor_2
           & mk int "nb_phases" nb_phases)
-       *)
+       
       ++ mk_file_by_size "tree_2_512_512" (fun size ->
           let real_load = (if size = Large then  1 else 5) * load size in
           let branching_factor_1 = 512 in
@@ -559,7 +560,7 @@ let mk_graph_outputs_all_generated : Params.t =
             mk_common "tree_2"
           & mk int "branching_factor_1" branching_factor_1
           & mk int "branching_factor_2" branching_factor_2
-          & mk int "nb_phases" nb_phases)
+          & mk int "nb_phases" nb_phases) *)
          in
     let _mk_unbalanced_tree =
        mk_file_by_size "unbalanced_tree" (fun size ->
@@ -575,7 +576,7 @@ let mk_graph_outputs_all_generated : Params.t =
           & mk int "depth_of_branches" depth_of_branches
           & mk int "trunk_first" trunk_first)
       in
-      let mk_rmat =
+      let mk_rmat27 =
         (*** rmat graph parameters used in Ligra paper: **
 
           rmat24:
@@ -587,22 +588,8 @@ let mk_graph_outputs_all_generated : Params.t =
 
          *)
         mk_common "rmat"
-        & ( (mk_file_by_size ~bits:64 "rmat24" (fun size ->
-          let real_load = (if size = Large then 2 else 10) * load size in
-          let nb_vertices = real_load / 15  in
-          let nb_edges = 9 * nb_vertices in
-          let seed = 3234230.0 in
-          let a = 0.5 in
-          let b = 0.1 in
-          let c = 0.1 in
-              mk int "tgt_nb_vertices" nb_vertices
-            & mk int "nb_edges" nb_edges
-            & mk float "rmat_seed" seed
-            & mk float "a" a
-            & mk float "b" b
-            & mk float "c" c))
-            ++
-              (mk_file_by_size ~bits:64 "rmat27" (fun size ->
+        & (
+          (mk_file_by_size ~bits:64 "rmat27" (fun size ->
           let real_load = (if size = Large then 2 else 10) * load size in
           let nb_vertices = real_load / 15  in
           let nb_edges = 9 * nb_vertices in
@@ -616,6 +603,26 @@ let mk_graph_outputs_all_generated : Params.t =
             & mk float "a" a
             & mk float "b" b
             & mk float "c" c)))
+          in
+
+       let mk_rmat24 =
+         mk_common "rmat"
+         & (
+          (mk_file_by_size ~bits:64 "rmat24" (fun size ->
+          let real_load = (if size = Large then 2 else 10) * load size in
+          let nb_vertices = real_load / 15  in
+          let nb_edges = 9 * nb_vertices in
+          let seed = 3234230.0 in
+          let a = 0.5 in
+          let b = 0.1 in
+          let c = 0.1 in
+              mk int "tgt_nb_vertices" nb_vertices
+            & mk int "nb_edges" nb_edges
+            & mk float "rmat_seed" seed
+            & mk float "a" a
+            & mk float "b" b
+            & mk float "c" c)))
+
       in
    let mk_random =
       let build file params =
@@ -627,17 +634,17 @@ let mk_graph_outputs_all_generated : Params.t =
             & mk int "degree" degree
             & mk int "num_rows" num_rows)
             in
-         (build "random_arity_3" (fun size ->
+         ( (* build "random_arity_3" (fun size ->
              let dim = 10 in
              let degree = 3 in
              let num_rows = load size / degree in
-             (dim, degree, num_rows))
-       ++ build "random_arity_8" (fun size ->
+             (dim, degree, num_rows)) *)
+      (* ++ build "random_arity_8" (fun size ->
              let dim = 10 in
              let degree = 8 in
              let num_rows = load size / degree in
-             (dim, degree, num_rows))
-       ++ build "random_arity_100" (fun size ->
+             (dim, degree, num_rows)) 
+       ++ *) build "random_arity_100" (fun size ->
              let dim = 10 in
              let degree = 100 in
              let num_rows = load size / degree in
@@ -650,12 +657,17 @@ let mk_graph_outputs_all_generated : Params.t =
              (dim, degree, num_rows)) *)
          )
       in
-   Params.eval (
-       mk_random
-    ++ (if arg_faster then (fun _ -> []) else mk_grid2 ++ mk_grid3 ++ mk_circular_knext ++ mk_parallel_paths (* ++ mk_unbalanced_tree *))
-    ++ mk_phased
-    ++ mk_tree
-    ++ mk_rmat 
+      Params.eval (
+          mk_tree_depth_2          
+       ++ mk_random
+       ++ mk_rmat27
+       ++ mk_phased
+       ++ mk_rmat24
+       ++ mk_tree_binary               
+       ++ mk_grid3
+       ++ mk_grid2               
+       ++ mk_parallel_paths            
+       ++ mk_circular_knext            
     )
 
 
@@ -727,18 +739,19 @@ let mk_graph_outputs_all_manual : Params.t =
       in
    let size_medium = if arg_sizes = ["medium"] then Medium else Large in
    Params.eval (
-      mk_manual "friendster" Large 64 123
-   ++ mk_manual "twitter" Large 64 12
-   ++ mk_manual "livejournal1" size_medium 32 0
-   ++ mk_manual "wikipedia-20070206" size_medium 32 0
+      mk_manual "orkut" Large 32 1
+   ++ mk_manual "livejournal1" size_medium 32 0                 
+   ++ mk_manual "twitter" Large 64 12                 
+   ++ mk_manual "friendster" Large 64 123
    ++ mk_manual "cage15" size_medium 32 0
+   ++ mk_manual "Freescale1" size_medium 32 0                   
+   ++ mk_manual "wikipedia-20070206" size_medium 32 0
+   ++ mk_manual "kkt_power" Small 32 0
+   ++ mk_manual "rgg" size_medium 32 0  (* http://www.cc.gatech.edu/dimacs10/archive/random.shtml n=23*)                   
+   ++ mk_manual "delaunay" size_medium 32 0  (* http://www.cc.gatech.edu/dimacs10/archive/delaunay.shtml n=24 *)
    ++ mk_manual "usa" Large 32 1  (* http://www.dis.uniroma1.it/challenge9/download.shtml full USA *)
    ++ mk_manual "europe" size_medium 32 0      (* http://www.cc.gatech.edu/dimacs10/archive/streets.shtml *)             
-   ++ mk_manual "orkut" Large 32 1
-   ++ mk_manual "kkt_power" Small 32 0
-   ++ mk_manual "Freescale1" size_medium 32 0
-   ++ mk_manual "delaunay" size_medium 32 0  (* http://www.cc.gatech.edu/dimacs10/archive/delaunay.shtml n=24 *)
-   ++ mk_manual "rgg" size_medium 32 0  (* http://www.cc.gatech.edu/dimacs10/archive/random.shtml n=23*)
+                   
    )
 
 let mk_graph_outputs_all =
@@ -939,8 +952,8 @@ let eval_normalized_wrt_algo baseline = fun env all_results results ->
 let eval_speedup mk_seq = fun env all_results results ->
    let baseline_results =  ~~ Results.filter_by_params all_results (
        from_env (Env.filter_keys ["kind"; "size"] env)
-     & mk_seq
-     ) in
+     & mk_seq )
+      in
    if baseline_results = [] then Pbench.warning ("no results for baseline: " ^ Env.to_string env);
    let tp = Results.get_mean_of "exectime" results in
    let t1 = Results.get_mean_of "exectime" baseline_results in
@@ -1076,8 +1089,8 @@ let graph_renamer kind =
   with Not_found -> kind
 
 let my_formatter_settings = Env.(
-      format_values  [ "algo"; "size"; "!size"; "kind"; "!kind"; "!traversal" ]
-    @ format_hiddens [ "bits"; "source"; "load"; "frontier" ]
+      format_values  [ "algo"; "size"; "!size"; (*"kind"; "!kind";*) "!traversal" ]
+    @ format_hiddens [ "bits"; "source"; "load"; "frontier"; ]
     @ (List.map (fun k -> (k, Format_custom (fun s -> "cutoff=" ^ s)))
         [ "ls_pbfs_cutoff"; "our_pbfs_cutoff"; "our_pbfs_cutoff";
           "cong_pseudodfs_cutoff"; "our_pseudodfs_cutoff" ])
@@ -1087,7 +1100,8 @@ let my_formatter_settings = Env.(
          let c = String.length s in
          let g = String.sub s a (c - a - b) in
          graph_renamer g)
-         ]
+      ]
+     @ ["kind", Format_custom (fun s -> graph_renamer s)]
      @ ["proc", Format_custom (fun s ->
          sprintf "cores=%s" s)]
      @ ["!exp_name", Format_custom (fun s ->
@@ -2007,6 +2021,105 @@ let plot () =
    let results_accessible = Results.from_file (file_results ExpAccessible.name) in
    let tex_file = file_tables_src name in
    let pdf_file = file_tables name in
+           
+   let my_eval_speedup = fun env all_results results ->
+     let tp = Results.get_mean_of "exectime" results in
+     let env = ExpBaselines.mk_dfs & from_env (Env.filter_keys ["kind"; "size"] env) in
+     let results_baseline = Results.filter_by_params env results_baseline in
+     let t1 = Results.get_mean_of "exectime" results_baseline in
+     t1 /. tp
+   in
+
+   let barplot_formatter =
+     ["kind", Env.Format_custom (fun s -> graph_renamer s)]
+     @ Env.format_hiddens [ "bits"; "source"; "load"; "frontier";
+                            "prog"; "proc"; "our_pseudodfs_cutoff"; "size";
+                            "ls_pbfs_cutoff"; "ls_pbfs_loop_cutoff";
+                          ]
+     @ ["algo", Env.Format_custom (fun s ->
+                                   match s with
+                                   | "cong_pseudodfs" -> "Cong PDFS"
+                                   | "ls_pbfs_cilk" -> "LS PBFS"
+                                   | "our_pseudodfs" -> "Our PDFS"
+                                   | "pbbs_pbfs_cilk" -> "PBBS PBFS"
+                                   | "ligra" -> "Ligra"
+                                   | "ls_pbfs" -> "LS PBFS"
+                                   | _ -> "<bogus>" )]
+   in
+
+   Mk_bar_plot.(call ([
+     Bar_plot_opt Bar_plot.([
+        Chart_opt Chart.([Dimensions (10.,7.) ]);
+        X_titles_dir Vertical;
+        Y_axis [Axis.Lower (Some 0.) ] ]);
+     Formatter (Env.format barplot_formatter);
+     Charts (mk_sizes);
+     Series (mk_our_parallel_dfs ++ mk_cong_parallel_dfs ++ mk_ls_pbfs_cilk ++ mk_pbbs_pbfs_cilk);
+     X mk_kind_for_size;
+     Input (file_results name);
+     Output (file_plots name);
+     Y_label "Speedup vs. serial DFS";
+     Y my_eval_speedup;
+                     ]));
+
+    Mk_bar_plot.(call ([
+     Bar_plot_opt Bar_plot.([
+        Chart_opt Chart.([Dimensions (10.,7.) ]);
+        X_titles_dir Vertical;
+        Y_axis [Axis.Lower (Some 0.) ] ]);
+     Formatter (Env.format barplot_formatter);
+     Charts (mk_sizes);
+     Series (mk_our_parallel_dfs ++ mk_cong_parallel_dfs ++ mk_ls_bfs);
+     X mk_kind_for_size;
+     Input (file_results name);
+     Output (file_plots (name^"_pasl"));
+     Y_label "Speedup vs. serial DFS";
+     Y my_eval_speedup;
+                      ]));
+    
+    let my_eval_utilization = fun env all_results results ->
+      Results.get_mean_of "utilization" results 
+    in
+
+
+    Mk_bar_plot.(call ([
+     Bar_plot_opt Bar_plot.([
+        Chart_opt Chart.([Dimensions (10.,7.) ]);
+        X_titles_dir Vertical;
+        Y_axis [Axis.Lower (Some 0.) ] ]);
+     Formatter (Env.format barplot_formatter);
+     Charts (mk_sizes);
+     Series (mk_our_parallel_dfs ++ mk_cong_parallel_dfs ++ mk_ls_bfs);
+     X mk_kind_for_size;
+     Input (file_results name);
+     Output (file_plots (name^"_utilization"));
+     Y_label "Utilization";
+     Y my_eval_utilization;
+                     ]));
+
+    let my_eval_ligra = fun env all_results results ->
+      let tlig = Results.get_mean_of "exectime" results in
+      let env = mk_our_parallel_dfs & from_env (Env.filter_keys ["kind"; "size"] env) in
+      let results_baseline = Results.filter_by_params env all_results in
+      let tours = Results.get_mean_of "exectime" results_baseline in
+      (tours /. tlig)
+    in
+   
+     Mk_bar_plot.(call ([
+     Bar_plot_opt Bar_plot.([
+        Chart_opt Chart.([Dimensions (10.,7.) ]);
+        X_titles_dir Vertical;
+        Y_axis [Axis.Lower (Some 0.) ] ]);
+     Formatter (Env.format barplot_formatter);
+     Charts (mk_sizes);
+     Series (mk_ligra);
+     X mk_kind_for_size;
+     Input (file_results name);
+     Output (file_plots (name^"_ligra"));
+     Y_label "Our PDFS / Ligra";
+     Y my_eval_ligra;
+                     ]));
+
    Mk_table.build_table tex_file pdf_file (fun add ->
     let env = Env.empty in
     let envs_tables = (mk_sizes) env in
@@ -2016,8 +2129,6 @@ let plot () =
        let results_accessible = Results.filter env_tables results_accessible in
        let env = Env.append env env_tables in
        let envs_rows = mk_kind_for_size env in
-       (* add (Env.get_as_string env "size");
-       add Latex.new_line; *)
        let nb_infos = 3 in
        let nb_bfs = 5 in
        let nb_dfs = 3 in
@@ -2062,34 +2173,18 @@ let plot () =
          Mk_table.cell add (string_of_millions nb_vertices);
          Mk_table.cell add (string_of_millions nb_edges);
          Mk_table.cell add (string_of_exp_range (int_of_float max_dist));
-         (* Mk_table.cell add (string_of_millions nb_visited_edges); * *)
-
          Mk_table.cell add (string_of_exectime ~prec:1 v_dfs_seq);
          Mk_table.cell add (string_of_speedup (v_dfs_seq /. v_dfs_our));
          Mk_table.cell add (string_of_speedup (v_dfs_seq /. v_dfs_cong));
-         (* Mk_table.cell add (Latex.bold (string_of_percentage_change v_dfs_our v_dfs_cong)); *)
          Mk_table.cell add (Latex.bold (string_of_speedup (v_dfs_cong /. v_dfs_our)));
-         (*Mk_table.cell add (sprintf "%.1f" (v_dfs_cong /. v_dfs_our));*)
-
          Mk_table.cell add (string_of_exectime ~prec:1 v_bfs_seq);
          Mk_table.cell add (string_of_speedup (v_bfs_seq /. v_bfs_our));
          Mk_table.cell add (string_of_speedup (v_bfs_seq /. v_bfs_ls));
-         (* Mk_table.cell add (Latex.bold (string_of_percentage_change v_bfs_our v_bfs_ls));*)
-          Mk_table.cell add (Latex.bold (string_of_speedup (v_bfs_ls /. v_bfs_our)));
-          Mk_table.cell add (string_of_speedup (v_bfs_ligra /. v_bfs_our));
-          Mk_table.cell add (string_of_speedup (v_bfs_ls_cilk /. v_bfs_our));
-          Mk_table.cell add (string_of_speedup (v_bfs_pbbs_cilk /. v_bfs_our));
-
-(*
-         Mk_table.cell add (sprintf "%.1f" (v_bfs_ls /. v_bfs_our));
-         Mk_table.cell add (sprintf "%.1f" (v_bfs_ligra /. v_bfs_our));
-*)
-         (* Mk_table.cell add (string_of_speedup (v_bfs_seq /. v_bfs_ligra)); *)
-         (* Mk_table.cell add (string_of_percentage_change_bounded 0.1 v_bfs_ls v_bfs_our); *)
-
-         (* Mk_table.cell ~last:true add (string_of_percentage_change v_dfs_our v_bfs_our ); *)
+         Mk_table.cell add (Latex.bold (string_of_speedup (v_bfs_ls /. v_bfs_our)));
+         Mk_table.cell add (string_of_speedup (v_bfs_ligra /. v_bfs_our));
+         Mk_table.cell add (string_of_speedup (v_bfs_ls_cilk /. v_bfs_our));
+         Mk_table.cell add (string_of_speedup (v_bfs_pbbs_cilk /. v_bfs_our));
          Mk_table.cell ~last:true add (string_of_speedup (v_bfs_our /. v_dfs_our)); 
-         (*  Mk_table.cell ~last:true add (sprintf "%.1f" (v_bfs_our /. v_dfs_our)); *)
          add Latex.tabular_newline;
          );
        add Latex.tabular_end;
