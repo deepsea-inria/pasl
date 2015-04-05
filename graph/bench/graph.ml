@@ -2040,7 +2040,7 @@ let plot () =
                                    match s with
                                    | "cong_pseudodfs" -> "Cong PDFS"
                                    | "ls_pbfs_cilk" -> "LS PBFS"
-                                   | "our_pseudodfs" -> "Our PDFS"
+                                   | "our_pseudodfs" -> "Unordered PDFS"
                                    | "pbbs_pbfs_cilk" -> "PBBS PBFS"
                                    | "ligra" -> "Ligra"
                                    | "ls_pbfs" -> "LS PBFS"
@@ -2061,7 +2061,7 @@ let plot () =
      Y_label "Speedup vs. serial DFS";
      Y my_eval_speedup;
                      ]));
-
+(*
     Mk_bar_plot.(call ([
      Bar_plot_opt Bar_plot.([
         Chart_opt Chart.([Dimensions (10.,7.) ]);
@@ -2097,6 +2097,8 @@ let plot () =
      Y my_eval_utilization;
                      ]));
 
+ *)
+
     let my_eval_ligra = fun env all_results results ->
       let tlig = Results.get_mean_of "exectime" results in
       let env = mk_our_parallel_dfs & from_env (Env.filter_keys ["kind"; "size"] env) in
@@ -2119,6 +2121,54 @@ let plot () =
      Y_label "Our PDFS / Ligra";
      Y my_eval_ligra;
                      ]));
+
+
+   Mk_table.build_table "table_graphs.tex" "table_graphs.pdf" (fun add ->
+    let env = Env.empty in
+    let envs_tables = (mk_sizes) env in
+    ~~ List.iter envs_tables (fun env_tables ->
+       let results = Results.filter env_tables results in
+       let results_baseline = Results.filter env_tables results_baseline in
+       let results_accessible = Results.filter env_tables results_accessible in
+       let env = Env.append env env_tables in
+       let envs_rows = mk_kind_for_size env in
+       let nb_infos = 4 in
+       add (Latex.tabular_begin (String.concat "" (["|l|c|c|c|c|"])));
+       (*       add Latex.tabular_newline;*)
+       add "graph & verti. & edges & max & seq ";
+       add Latex.new_line;
+       add " &  (m) & (m) & dist & DFS ";
+       add Latex.tabular_newline;
+       ~~ List.iter envs_rows (fun env_rows ->
+         let results = Results.filter env_rows results in
+         let results_baseline = Results.filter env_rows results_baseline in
+         let results_accessible = Results.filter env_rows results_accessible in
+         let results_baseline_bfs = Results.filter_by_params mk_traversal_bfs results_baseline in
+         let env = Env.append env env_rows in
+         let kind = Env.get_as_string env "kind" in
+         let nb_vertices = Results.get_unique_of "nb_vertices" results_accessible in
+         let _nb_visited_vertices = Results.get_unique_of "nb_visited" results_accessible in
+         let nb_edges = Results.get_unique_of "nb_edges" results_accessible in
+         let _nb_visited_edges = Results.get_unique_of "nb_edges_processed" results_accessible in
+         let max_dist = Results.get_unique_of "max_dist" results_baseline_bfs in
+         let exectime_for rs mk_base =
+            let rs = Results.filter_by_params mk_base rs in
+            Results.check_consistent_inputs [] rs;
+            let v = Results.get_mean_of "exectime" rs in
+            v
+            in
+         let v_dfs_seq = exectime_for results_baseline ExpBaselines.mk_dfs in
+
+         Mk_table.cell add (graph_renamer kind); 
+         Mk_table.cell add (string_of_millions nb_vertices);
+         Mk_table.cell add (string_of_millions nb_edges);
+         Mk_table.cell add (string_of_exp_range (int_of_float max_dist));
+         Mk_table.cell ~last:true add (string_of_exectime ~prec:1 v_dfs_seq);
+         add Latex.tabular_newline;
+         );
+       add Latex.tabular_end;
+       add Latex.new_page;
+      ));
 
    Mk_table.build_table tex_file pdf_file (fun add ->
     let env = Env.empty in
