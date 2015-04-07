@@ -47,8 +47,8 @@ std::map<int, size_t> test_edges_number {
   {RANDOM_DENSE, 	100000},
   {RANDOM_CUSTOM, 1000}
 };
-const double custom_lex_order_edges_fraction = 0.5;
-const double custom_avg_degree = 20;
+double custom_lex_order_edges_fraction = 0.9;
+double custom_avg_degree = 600;
 
 int* res;
 adjlist_type graph;
@@ -85,39 +85,116 @@ bool same_arrays(int size, int * candidate, int * correct) {
   return true;
 }
 int algo_num;
+
 int test_num;
 bool should_check_correctness;
 bool generate_graph_file;
 
 bool print_graph;
-int vertices_num;
+bool need_shuffle;
+int edges_num;
 int cutoff1;
 int cutoff2;
+
+static inline void parse_fname(std::string fname, std::string& base, std::string& extension) {
+  if (fname == "")
+    pasl::util::atomic::die("bogus filename");
+  std::stringstream ss(fname);
+  std::getline(ss, base, '.');
+  std::getline(ss, extension);
+}
+
+template <class Adjlist>
+bool load_graph_from_file(Adjlist& graph) {
+  std::string infile = pasl::util::cmdline::parse_or_default_string("infile", "");
+  if (infile == "") return false;
+  std::string base;
+  std::string extension;
+  parse_fname(infile, base, extension);
+  if (extension == "dot") {
+    std::cout << "Reading dot graph from file ..." << std::endl;   
+    using vtxid_type = typename Adjlist::vtxid_type;
+    using edge_type = wedge<vtxid_type>;
+    using edgelist_bag_type = pasl::data::array_seq<edge_type>;
+    using edgelist_type = edgelist<edgelist_bag_type>;
+    edgelist_type edg;
+    
+    std::ifstream dot_file(infile);
+    std::string name;
+    getline(dot_file, name);
+    int vertices, edges;
+    dot_file >> vertices >> edges;
+    int* offsets = mynew_array<int>(vertices);
+    int prev;
+    dot_file >> prev;
+    for (int i = 0; i < vertices - 1; ++i) {
+      int cur_off;      
+      dot_file >> cur_off;
+      offsets[i] = cur_off - prev;
+      prev = cur_off;
+    }
+    offsets[vertices - 1] = edges - prev;
+
+    edg.edges.alloc(edges);
+    int cur = 0;
+    for (int i = 0; i < vertices; ++i) {
+      for (int j = 0; j < offsets[i]; ++j) {
+        int to;
+        dot_file >> to;
+        edg.edges[cur++] = edge_type(i, to);                
+      }
+    }
+    cur = 0;
+    for (int i = 0; i < vertices; ++i) {
+      for (int j = 0; j < offsets[i]; ++j) {
+        int w;
+        dot_file >> w;
+        edg.edges[cur++].w = w;
+      }
+    }
+    
+    edg.nb_vertices = vertices;
+    edg.check();
+    adjlist_from_edgelist(edg, graph);
+    dot_file.close();
+    return true;    
+  }
+  else 
+    return false;
+}
 
 int main(int argc, char ** argv) {
   
   auto init = [&] {
     should_check_correctness = pasl::util::cmdline::parse_or_default_bool("check", false, false);
+    need_shuffle = pasl::util::cmdline::parse_or_default_bool("shuffle", false, false);
+    
     generate_graph_file = pasl::util::cmdline::parse_or_default_bool("gen_file", false, false);
     print_graph = pasl::util::cmdline::parse_or_default_bool("graph", false, false);
     
     algo_num = pasl::util::cmdline::parse_or_default_int("algo_num", SERIAL_CLASSIC);
+    custom_avg_degree = pasl::util::cmdline::parse_or_default_int("custom_deg", custom_avg_degree);
+    custom_lex_order_edges_fraction = pasl::util::cmdline::parse_or_default_int("custom_fraction", custom_lex_order_edges_fraction);
     test_num = pasl::util::cmdline::parse_or_default_int("test_num", COMPLETE);
-    vertices_num = pasl::util::cmdline::parse_or_default_int("vertices", -1);
+    edges_num = pasl::util::cmdline::parse_or_default_int("edges", test_edges_number[test_num]);
     cutoff1 = pasl::util::cmdline::parse_or_default_int("cutoff1", -1);
     cutoff2 = pasl::util::cmdline::parse_or_default_int("cutoff2", -1);
     pasl::graph::min_edge_weight = pasl::util::cmdline::parse_or_default_int("min", 1);
     pasl::graph::max_edge_weight = pasl::util::cmdline::parse_or_default_int("max", 1000);
     
     std::cout << "Testing " << algo_names[algo_num] << " with " << graph_types[test_num] << std::endl;  
-    std::cout << "Generating graph..." << std::endl;        
-    generator_type which_generator;
-    which_generator.ty = test_num;
     graph = adjlist_type();
-    if (test_num == RANDOM_CUSTOM) {
-      source_vertex = generate(which_generator, vertices_num != -1 ? vertices_num : test_edges_number[test_num], graph, custom_lex_order_edges_fraction, custom_avg_degree);
-    } else {
-      source_vertex = generate(which_generator, vertices_num != -1 ? vertices_num : test_edges_number[test_num], graph, -1, -1, true);
+    source_vertex = 0;
+    if (!load_graph_from_file(graph)) {
+      std::cout << "Generating graph..." << std::endl;        
+      generator_type which_generator;
+      which_generator.ty = test_num;
+		
+      if (test_num == RANDOM_CUSTOM) {
+        source_vertex = generate(which_generator, edges_num, graph, custom_lex_order_edges_fraction, custom_avg_degree);
+      } else {
+        source_vertex = generate(which_generator, edges_num, graph, -1, -1, need_shuffle);
+      }      
     }
     std::cout << "Source vertex " << source_vertex << std::endl;        
     if (generate_graph_file) {
@@ -154,7 +231,7 @@ int main(int argc, char ** argv) {
       }
     }
 
-    std::cout << "Done generating " << graph_types[test_num] << " with ";      
+    std::cout << "Done generating " << graph_types[test_num] << " with " << edges_num << " edges and " << graph.get_nb_vertices() << " vertices";      
     print_graph_debug_info(graph);      
     if (print_graph) {
       std::cout << std::endl << "Source : " << source_vertex << std::endl;

@@ -394,6 +394,26 @@ namespace pasl {
     /*---------------------------------------------------------------------*/
     
     extern int bellman_ford_par_by_edges_cutoff;
+    
+    void build_plan(std::unordered_map<long long, int> & mid_map, int start, int stop, int * pref_sum, long & vertex_num, int & forked_cnt) {
+      int nb_edges = pref_sum[stop] - pref_sum[start];
+      if (nb_edges >= bellman_ford_par_by_edges_cutoff && stop - start > 2) {
+        int mid_val = (pref_sum[start] + pref_sum[stop]) / 2;
+        int left = start, right = stop;
+        while (right - left > 1) {
+          int m = (left + right) / 2;
+          if (pref_sum[m] <= mid_val) {
+            left = m;
+          } else {
+            right = m;
+          }
+        }
+        mid_map[start * vertex_num + stop] = left;
+        forked_cnt++;
+        build_plan(mid_map, start, left, pref_sum, vertex_num, forked_cnt);
+        build_plan(mid_map, left, stop, pref_sum, vertex_num, forked_cnt);        
+      }
+    }  
 
     template <class Adjlist_seq>
     int* bellman_ford_par_edges(const adjlist<Adjlist_seq>& graph,
@@ -413,6 +433,9 @@ namespace pasl {
       for (int i = 1; i < nb_vertices + 1; i++) {
         pref_sum[i] = pref_sum[i - 1] + graph.adjlists[i - 1].get_in_degree();
       }
+      std::unordered_map<long long, int> mid_map;
+      int forked_cnt = 0;
+      build_plan(mid_map, 0, nb_vertices, pref_sum, nb_vertices, forked_cnt);
       
       bool changed = false;
       int steps = 0;
@@ -420,35 +443,26 @@ namespace pasl {
       for (int i = 0; i < nb_vertices; i++) {
         steps++;
         changed = false;
-        process_par_by_edges(graph, dists, 0, nb_vertices, pref_sum, changed);
+        process_par_by_edges(graph, dists, 0, nb_vertices, pref_sum, mid_map, changed, nb_vertices);
         if (!changed) break;
       }
       std::cout << "Rounds : " << steps << std::endl;
+      std::cout << "Forked per round : " << forked_cnt << std::endl;
+
       
       return util::normalize(graph, dists);
     }
     
     template <class Adjlist_seq>
     void process_par_by_edges(const adjlist<Adjlist_seq>& graph,
-                               int * dists, int start, int stop, int * pref_sum, bool & changed) {
+                               int * dists, int start, int stop, int * pref_sum, std::unordered_map<long long, int> & mid_map,  bool & changed, long & vertex_num) {
       int nb_edges = pref_sum[stop] - pref_sum[start];
-      if (nb_edges < bellman_ford_par_by_edges_cutoff || stop - start == 1) {
+      if (nb_edges < bellman_ford_par_by_edges_cutoff || stop - start <= 2) {
         process_vertices_seq(graph, dists, start, stop, changed);
       } else {
-        int mid_val = (pref_sum[start] + pref_sum[stop]) / 2;
-        int left = start, right = stop;
-        while (right - left > 1) {
-          int m = (left + right) / 2;
-          if (pref_sum[m] <= mid_val) {
-            left = m;
-          } else {
-            right = m;
-          }
-        }
-        
-        sched::native::fork2([&] { process_par_by_edges(graph,  dists, start, left, pref_sum, changed); },
-                             [&] { process_par_by_edges(graph,  dists, left, stop, pref_sum, changed); });
-        
+        int mid = mid_map[start * vertex_num + stop];
+        sched::native::fork2([&] { process_par_by_edges(graph,  dists, start, mid, pref_sum, mid_map, changed, vertex_num); },
+                             [&] { process_par_by_edges(graph,  dists, mid, stop, pref_sum, mid_map, changed, vertex_num); });        
       }
     }  
     
