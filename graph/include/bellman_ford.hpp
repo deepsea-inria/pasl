@@ -659,7 +659,7 @@ namespace pasl {
     /*---------------------------------------------------------------------*/
     
     extern int bellman_ford_bfs_process_layer_cutoff;
-    const int communicate_cutoff = 256;
+    const int communicate_cutoff = 1024;
 
     template <class Adjlist_seq>
     class bfs_bellman_ford2 {
@@ -739,7 +739,7 @@ namespace pasl {
       }
       
       template <class Adjlist_alias, class Frontier>
-      static void process_layer_par(const Adjlist_alias & graph_alias,
+      static void process_layer_par_lazy(const Adjlist_alias & graph_alias,
                                     std::atomic<int>* visited,
                                     Frontier& prev,
                                     Frontier& next,
@@ -788,7 +788,37 @@ namespace pasl {
         if (blocked)
           unblock();
       }
-
+      
+      
+      template <class Adjlist_alias, class Frontier>
+      static void process_layer_par(const Adjlist_alias & graph_alias,
+                                    std::atomic<int>* visited,
+                                    Frontier& prev,
+                                    Frontier& next,
+                                    int * dists,
+                                    int & layer, 
+                                    std::atomic<int> & forked_first_cnt) {
+        if (prev.nb_outedges() <= bellman_ford_bfs_process_layer_cutoff) {
+          prev.for_each_outedge([&] (vtxid_type from, vtxid_type to, vtxid_type weight) {
+            int candidate = dists[from] + weight;
+            if (try_to_update_dist(to, candidate, dists)) {
+              if (try_to_set_visited(to, layer, visited)) {
+                next.push_vertex_back(to);
+              }
+            }
+          });          
+          prev.clear();
+        } else {
+          Frontier fr_in(graph_alias);
+          Frontier fr_out(graph_alias);
+          prev.split(prev.nb_outedges() / 2, fr_in);
+          forked_first_cnt++;
+          sched::native::fork2([&] { process_layer_par(graph_alias, visited, prev, next, dists, layer, forked_first_cnt); },
+                               [&] { process_layer_par(graph_alias, visited, fr_in, fr_out, dists, layer, forked_first_cnt); });
+//          forked_first_cnt += fr_out.size();
+          next.concat(fr_out);
+        }
+      }
       
       static edgeweight_type* bellman_ford_par_bfs(const adjlist<Adjlist_seq>& graph,
                                                    typename adjlist<Adjlist_seq>::vtxid_type source) {
