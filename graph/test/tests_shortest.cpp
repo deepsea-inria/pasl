@@ -29,7 +29,7 @@ const std::function<bool(double, double)> pasl::graph::algo_chooser_pred = [] (d
 }; 
 
 // Graph properties
-using vtxid_type = long;
+using vtxid_type = int;
 using adjlist_seq_type = pasl::graph::flat_adjlist_seq<vtxid_type>;
 using adjlist_type = adjlist<adjlist_seq_type>;
 
@@ -231,7 +231,7 @@ int main(int argc, char ** argv) {
       }
     }
 
-    std::cout << "Done generating " << graph_types[test_num] << " with " << edges_num << " edges and " << graph.get_nb_vertices() << " vertices";      
+    std::cout << "Done generating " << graph_types[test_num] << " with " << graph.nb_edges << " edges and " << graph.get_nb_vertices() << " vertices";      
     print_graph_debug_info(graph);      
     if (print_graph) {
       std::cout << std::endl << "Source : " << source_vertex << std::endl;

@@ -109,7 +109,7 @@ void generate_cube_grid(typename Edge_bag::value_type::vtxid_type nb_on_side,
   vtxid_type dn = nb_on_side;
   edgeid_type nn = dn*dn*dn;
   edgeid_type nb_edges = 3*nn;
-  dst.edges.alloc(nb_edges);
+  dst.edges.alloc(2 * nb_edges);
   auto loc3d = [&](vtxid_type i1, vtxid_type i2, vtxid_type i3) { // todo: x,y,z
     return ((i1 + dn) % dn)*dn*dn + ((i2 + dn) % dn)*dn + (i3 + dn) % dn;
   };
@@ -120,6 +120,17 @@ void generate_cube_grid(typename Edge_bag::value_type::vtxid_type nb_on_side,
         dst.edges[3*l] =   edge_type(l,loc3d(i+1,j,k));
         dst.edges[3*l+1] = edge_type(l,loc3d(i,j+1,k));
         dst.edges[3*l+2] = edge_type(l,loc3d(i,j,k+1));
+        // double dec = k / (nb_on_side + 1) / (2 * nb_on_side);
+        // add_to_layout(..., l, i / (nb_on_side+1) + dec, (nb_on_side-1-j) / (nb_on_side+1) - dec);
+      }
+  });
+  sched::native::parallel_for ((vtxid_type)0, dn, [&] (vtxid_type i) {
+    for (vtxid_type j = 0; j < dn; j++)
+      for (vtxid_type k = 0; k < dn; k++) {
+        vtxid_type l = loc3d(i,j,k);
+        dst.edges[nb_edges + 3*l] =   edge_type(loc3d(i+1,j,k), l);
+        dst.edges[nb_edges + 3*l+1] = edge_type(loc3d(i,j+1,k), l);
+        dst.edges[nb_edges + 3*l+2] = edge_type(loc3d(i,j,k+1), l);
         // double dec = k / (nb_on_side + 1) / (2 * nb_on_side);
         // add_to_layout(..., l, i / (nb_on_side+1) + dec, (nb_on_side-1-j) / (nb_on_side+1) - dec);
       }
@@ -346,7 +357,7 @@ template <class Edge_bag>
 void generate_rmat_by_nb_edges(edgeid_type tgt_nb_edges, edgelist<Edge_bag>& dst) {
   using vtxid_type = typename Edge_bag::value_type::vtxid_type;
   vtxid_type tgt_nb_vertices = vtxid_type(0.2 * double(tgt_nb_edges));
-  generate_rmat(tgt_nb_vertices, tgt_nb_edges, 12334, 0.5, 0.1, 0.1, dst);
+  generate_rmat(tgt_nb_vertices, tgt_nb_edges, 12334, 0.5, 0.1, 0.3, dst);
 }
 
 template <class Edge_bag>
@@ -360,12 +371,12 @@ void generate_randlocal(typename Edge_bag::value_type::vtxid_type dim,
   using edge_type = typename edgelist_type::edge_type;
   using intT = vtxid_type;
   intT nonZeros = num_rows*degree;
-  dst.edges.alloc(nonZeros);
+  dst.edges.alloc(2 * nonZeros);
   sched::native::parallel_for(intT(0), nonZeros, [&] (intT k) {
     intT i = k / degree;
     intT j;
     if (dim==0) {
-      intT h = k;
+      int h = k;
       do {
         j = ((h = pbbs::dataGen::hash<intT>(h)) % num_rows);
       } while (j == i);
@@ -377,7 +388,8 @@ void generate_randlocal(typename Edge_bag::value_type::vtxid_type dim,
         j = (i + ((h = pbbs::dataGen::hash<intT>(h)) % (((long) 1) << pow))) % num_rows;
       } while (j == i);
     }
-    dst.edges[k].src = i;  dst.edges[k].dst = j;
+    dst.edges[k] = edge_type(i, j);
+    dst.edges[nonZeros + k] = edge_type(j, i);    
   });
   dst.nb_vertices = num_rows;
   dst.check();
@@ -438,6 +450,14 @@ void generate_randlocal_by_nb_edges(edgeid_type tgt_nb_edges, edgelist<Edge_bag>
   });
   dst.nb_vertices = nb_vertices;
   dst.check();
+}
+
+template <class Edge_bag>
+void generate_randlocal_by_nb_edges(edgeid_type tgt_nb_edges, edgelist<Edge_bag>& dst) {
+  using vtxid_type = typename Edge_bag::value_type::vtxid_type;
+  edgeid_type degree = 5;
+//  tgt_nb_edges = std::min(degree, tgt_nb_edges);
+  generate_randlocal(10, degree, tgt_nb_edges, dst);
 }
   
 template <class Edge_bag>
@@ -610,12 +630,12 @@ void generate_unbalanced_tree(typename edgelist<Edge_bag>::vtxid_type depth_of_t
 
 enum { BALANCED_TREE,
        COMPLETE, PHASED, PARALLEL_PATHS, RMAT, 
-	 SQUARE_GRID, CUBE_GRID, CHAIN, STAR,
+	 SQUARE_GRID, CUBE_GRID, CHAIN, STAR, RAND_LOCAL,
        RANDOM_SPARSE, RANDOM_DENSE, RANDOM_CUSTOM,
   NB_GENERATORS };
     
 std::string const graph_types[] = {"BalancedTree", "Complete", "Phased", "ParallelPaths", "RMAT", "SquareGrid",
-    "CubeGrid", "Chain", "Star", "RandomSparse", "RandomDense", "RandomCustom"};
+    "CubeGrid", "Chain", "Star", "RandLocal", "RandomSparse", "RandomDense", "RandomCustom"};
 
 class generator_type {
 public:
@@ -692,6 +712,10 @@ void generate(edgeid_type& tgt_nb_edges,
     }
     case STAR: {
       generate_star(tgt_nb_edges, graph);
+      break;
+    }    
+    case RAND_LOCAL: {
+      generate_randlocal_by_nb_edges(tgt_nb_edges, graph);
       break;
     }
     case BALANCED_TREE: {
