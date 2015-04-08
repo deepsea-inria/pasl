@@ -122,6 +122,28 @@ pchunkedseq<Item> merge(pchunkedseq<Item>& xs, pchunkedseq<Item>& ys) {
 }
   
 template <class Item>
+void sort_seq(Item* xs, long lo, long hi) {
+  long n = hi-lo;
+  if (n <= 1)
+    return;
+  std::sort(&xs[lo], &xs[hi-1]+1);
+}
+  
+template <class Item>
+pchunkedseq<Item> sort_seq(pchunkedseq<Item>& xs) {
+  pchunkedseq<Item> result;
+  long n = xs.seq.size();
+  if (n <= 1)
+    return result;
+  parray::parray<Item> tmp(n);
+  xs.seq.backn(&tmp[0], n);
+  xs.seq.clear();
+  sort_seq(&tmp[0], 0, n);
+  result.seq.pushn_back(&tmp[0], n);
+  return result;
+}
+  
+template <class Item>
 pchunkedseq<Item> mergesort(pchunkedseq<Item>& xs) {
   using pchunkedseq_type = pchunkedseq<Item>;
   using chunkedseq_type = typename pchunkedseq_type::seq_type;
@@ -136,8 +158,13 @@ pchunkedseq<Item> mergesort(pchunkedseq<Item>& xs) {
     return in.seq.size(); // later: use correct value
   };
   auto convert_reduce = [&] (input_type& in, pchunkedseq_type& dst) {
-    in.seq.swap(dst.seq); // later: use more efficient sequential sort?
+    /*
+    in.seq.swap(dst.seq);
     std::sort(dst.seq.begin(), dst.seq.end());
+     */
+    pchunkedseq_type tmp;
+    tmp.seq.swap(in.seq);
+    dst = sort_seq(tmp);
   };
   auto seq_convert_reduce = convert_reduce;
   level4::reduce(in, out, id, result, convert_reduce_comp, convert_reduce, seq_convert_reduce);
@@ -223,21 +250,13 @@ long nlogn(long n) {
   return pasl::data::estimator::annotation::nlgn(n);
 }
   
-template <class Item>
-void in_place_sort(Item* xs, long lo, long hi) {
-  long n = hi-lo;
-  if (n < 2)
-    return;
-  std::sort(&xs[lo], &xs[hi-1]+1);
-}
- 
 // later: encode this function as an application of the reduce function
 template <class Item>
 void mergesort_rec(Item* xs, Item* tmp, long lo, long hi) {
   using controller_type = contr::mergesort_parray<Item>;
   long n = hi - lo;
   auto seq = [&] {
-    in_place_sort(xs, lo, hi);
+    sort_seq(xs, lo, hi);
   };
   par::cstmt(controller_type::contr, [&] { return nlogn(n); }, [&] {
     if (n <= 2) {

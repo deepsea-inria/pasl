@@ -26,6 +26,8 @@ template <class Item, class Alloc = std::allocator<Item>>
 class pchunkedseq {
 public:
   
+  using seq_type = data::chunkedseq::bootstrapped::deque<Item>;
+  
   using value_type = Item;
   using allocator_type = Alloc;
   using size_type = std::size_t;
@@ -34,9 +36,8 @@ public:
   using const_reference = const value_type&;
   using pointer = value_type*;
   using const_pointer = const value_type*;
-  using iterator = pointer;
+  using iterator = typename seq_type::iterator;
   using const_iterator = const_pointer;
-  using seq_type = data::chunkedseq::bootstrapped::deque<Item>;
   
   seq_type seq;
   
