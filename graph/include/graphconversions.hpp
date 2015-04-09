@@ -128,7 +128,7 @@ flat_adjlist_alias<Vertex_id> get_alias_of_adjlist(const flat_adjlist<Vertex_id>
 }
   
 /*---------------------------------------------------------------------*/
-/* Random permutation of vertex ids of an edgelist */
+/* Random permutation of vertex ids of a graph given in edgelist format */
 
 template <class Vertex_id>
 Vertex_id* create_random_vertex_permutation_table(Vertex_id nb_vertices) {

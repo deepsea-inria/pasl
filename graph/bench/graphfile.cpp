@@ -25,7 +25,8 @@ void convert() {
   auto init = [&] {
     should_generate = util::cmdline::parse_or_default_string("generator", "") != "";
     should_generate_by_nb_edges_target = util::cmdline::parse_or_default_uint64("nb_edges_target", 0) > 0;
-    should_disable_random_permutation_of_vertices = util::cmdline::parse_or_default_bool("should_disable_random_permutation_of_vertices", false, false);
+    // by default, we randomly permute vertex labels if and only if the graph is one of our synthetic graphs
+    should_disable_random_permutation_of_vertices = util::cmdline::parse_or_default_bool("should_disable_random_permutation_of_vertices", !should_generate, false);
   };
   auto run = [&] (bool sequential) {
     Adjlist graph;
@@ -39,6 +40,7 @@ void convert() {
     }
     std::cout << "nb_vertices\t" << graph.get_nb_vertices() << std::endl;
     std::cout << "nb_edges\t" << graph.nb_edges << std::endl;
+    std::cout << "randomly_permuted_vertex_labels\t" << !should_disable_random_permutation_of_vertices << std::endl;
     write_graph_to_file(graph);
   };
   auto output = [&] { };

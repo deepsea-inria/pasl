@@ -308,7 +308,7 @@ void read_twitter_graph(std::string fname, edgelist<Edge_bag>& dst) {
   dst.nb_vertices = max_vtxid_of_edgelist(dst) + 1;
   //std::cout << dst.nb_vertices << std::endl;
   msg("make undirected");
-  bool should_make_undirected = util::cmdline::parse_or_default_bool("should_make_undirected", true);
+  bool should_make_undirected = util::cmdline::parse_or_default_bool("should_make_undirected", false);
   if (should_make_undirected)
     make_edgelist_graph_undirected(dst);
 }

@@ -431,6 +431,14 @@ let mk_graph_outputs_all_generated : Params.t =
              let nb_per_phase = 524288 in
              let nb_phases = real_load / nb_per_phase in
              (nb_phases, nb_per_phase, 1, 0))
+
+        ++ build "phased_mix_100" (fun size ->
+                                   (*             let real_load = (if size = Large then 2 else 2) * load size in*)
+             let nb_per_phase = 250000 in
+             let nb_phases = 20 in
+             let arity = 100 in
+             (nb_phases, nb_per_phase, 0, arity))
+                 
         (* ++ build "phased_2048_single" (fun size ->
              let real_load = (if size = Large then 2 else 2) * load size in
              let nb_per_phase = 2048 in
@@ -482,6 +490,14 @@ let mk_graph_outputs_all_generated : Params.t =
              let nb_phases = 1 in
              let edges = real_load / paths / nb_phases in
              (nb_phases, paths, edges))
+
+        ++ build "paths_3percent" (fun size ->
+             let real_load = load size / 2 in
+             let edges = 38 in                                   
+             let paths = real_load / edges in
+             let nb_phases = 1 in
+             (nb_phases, paths, edges))
+                 
         (*++ build "paths_524288_phases_1" (fun size ->
              let real_load = load size / 2 in
              let paths = 524288 in
@@ -1007,6 +1023,9 @@ let mk_sequential_bfs =
 let mk_our_parallel_dfs =
   (mk_algo "our_pseudodfs" & mk int "our_pseudodfs_cutoff" 1024)
 
+    let mk_umut_parallel_dfs =
+  (mk_algo "umut_pseudodfs" & mk int "umut_pseudodfs_cutoff" 1024)
+
 let mk_our_parallel_dfs_preemptive =
   (mk_algo "our_pseudodfs_preemptive" & mk int "our_pseudodfs_cutoff" 1024)
 
@@ -1026,7 +1045,8 @@ let arg_our_pseudodfs_preemptive = XCmd.mem_flag "our_pseudodfs_preemptive"
 
 let mk_parallel_dfs =
      mk_cong_parallel_dfs
-  ++ mk_our_parallel_dfs
+     ++ mk_our_parallel_dfs
+     (*        ++ mk_umut_parallel_dfs*)
   ++ (if arg_our_pseudodfs_preemptive
                           then mk_our_parallel_dfs_preemptive
                           else Params.from_envs []) (* todo: replace this with mk_unit *)
@@ -1035,13 +1055,13 @@ let mk_parallel_dfs =
 let mk_ls_pbfs_loop_cutoff = 
   mk int "ls_pbfs_loop_cutoff" arg_ls_pbfs_loop_cutoff
 
-let mk_ls_bfs =
+let mk_ls_pbfs =
    (mk_algo_frontier "ls_pbfs" "ls_bag"
       & mk int "ls_pbfs_cutoff" arg_ls_pbfs_cutoff
       & mk_ls_pbfs_loop_cutoff)
 
 let mk_parallel_bfs =
-      mk_ls_bfs
+      mk_ls_pbfs
    ++ mk_our_parallel_bfs
    ++ mk_our_lazy_parallel_bfs
    (* ++ (mk_algo_frontier "ls_pbfs" "chunkedseq_bag"
@@ -1305,7 +1325,11 @@ module ExpBaselines = struct
 let name = "baselines"
 
 let mk_dfs =
-   mk_sequential_prog & mk string "algo" "dfs_by_vertexid_array"
+  mk_sequential_prog & mk string "algo" "dfs_by_vertexid_array" & mk int "should_pdfs_permute" 0
+
+let mk_dfs_perm =
+  mk_sequential_prog & mk string "algo" "dfs_by_vertexid_array" & mk int "should_pdfs_permute" 1
+                         
 
 let mk_bfs =
    mk_sequential_prog & mk string "algo" "bfs_by_dual_arrays"
@@ -1317,7 +1341,8 @@ let run () =
    Mk_runs.(call (run_modes @ [
       Output (file_results name);
       Args (
-            (   (mk_traversal_dfs & mk_dfs)
+          (     (mk_traversal_dfs & mk_dfs)
+                ++ (mk_traversal_dfs & mk_dfs_perm)
              ++ (mk_traversal_bfs & mk_bfs))
            & mk_graph_inputs 
            )
@@ -1387,7 +1412,7 @@ let mk_seq_dfs =
    & (   (mk_sequential_prog & (mk_sequential_dfs ++ mk_our_parallel_dfs))
       ++ (mk_para_seq_init & mk_our_parallel_dfs))
 
-let mk_ls_bfs =
+let mk_ls_pbfs =
    (mk_algo_frontier "ls_pbfs" "ls_bag"
       & mk int "ls_pbfs_cutoff" 4096  (* used to be 1024 *)
       & mk_ls_pbfs_loop_cutoff)
@@ -1396,7 +1421,7 @@ let mk_seq_bfs =
      mk_traversal_bfs
    & (   (mk_sequential_prog & (mk_sequential_bfs ++ mk_our_parallel_bfs))
       ++ (mk_para_seq_init & mk_our_parallel_bfs)
-      ++ (mk_para_seq_init & mk_ls_bfs))
+      ++ (mk_para_seq_init & mk_ls_pbfs))
 
 let make () =
    build [prog_sequential; prog_parallel; prog_parallel_seq_init;
@@ -1953,10 +1978,10 @@ end
 
 module ExpOverview = struct
 
-let name = "overview"
+  let name = "overview"
 
 let mk_parallel_bfs =
-      mk_ls_bfs
+      mk_ls_pbfs
       ++ mk_our_lazy_parallel_bfs
 
 let mk_parallel_bfs =
@@ -1993,6 +2018,31 @@ let mk_pbbs_pbfs_cilk =
   & mk_algo "pbbs_pbfs_cilk"
   & mk int "proc" arg_proc
 
+let mk_our_parallel_dfs =
+  Params.eval (Params.filter env_in_arg_algos (mk_algo "our_pseudodfs" & mk int "our_pseudodfs_cutoff" 1024 & mk int "should_pdfs_permute" 0))
+
+let mk_our_parallel_dfs_perm =
+  Params.eval (Params.filter env_in_arg_algos (mk_algo "our_pseudodfs" & mk int "our_pseudodfs_cutoff" 1024 & mk int "should_pdfs_permute" 1))
+
+let mk_cong_parallel_dfs =
+  Params.eval (Params.filter env_in_arg_algos (mk_algo "cong_pseudodfs" & mk int "should_pdfs_permute" 0))
+
+let mk_cong_parallel_dfs_perm =
+  Params.eval (Params.filter env_in_arg_algos (mk_algo "cong_pseudodfs" & mk int "should_pdfs_permute" 1))
+
+let mk_pbbs_pbfs =
+     mk_prog "./search.virtual" 
+   & mk_algo "pbbs_pbfs" 
+   & mk int "proc" arg_proc
+   & mk int "should_pbfs_permute" 0        
+
+let mk_pbbs_pbfs_perm =
+     mk_prog "./search.virtual" 
+   & mk_algo "pbbs_pbfs" 
+   & mk int "proc" arg_proc
+   & mk int "should_pbfs_permute" 1
+
+        
 let run () =
    Mk_runs.(call (run_modes @ [
       Output (file_results name);
@@ -2000,10 +2050,15 @@ let run () =
             mk int "idempotent" 0
           & mk_graph_inputs
           & (   (mk_parallel_prog_maxproc_here & mk_traversal_bfs & mk_parallel_bfs)
-             ++ (mk_parallel_prog_maxproc_here & mk_traversal_dfs & mk_parallel_dfs)
+             ++ (mk_parallel_prog_maxproc_here & mk_traversal_dfs & mk_cong_parallel_dfs)
+             ++ (mk_parallel_prog_maxproc_here & mk_traversal_dfs & mk_cong_parallel_dfs_perm)                     
+             ++ (mk_parallel_prog_maxproc_here & mk_traversal_dfs & mk_our_parallel_dfs)                     
+             ++ (mk_parallel_prog_maxproc_here & mk_traversal_dfs & mk_our_parallel_dfs_perm)
              ++ (mk_ligra & mk_traversal_bfs)
              ++ (mk_ls_pbfs_cilk & mk_traversal_bfs)
              ++ (mk_pbbs_pbfs_cilk & mk_traversal_bfs)
+             ++ (mk_pbbs_pbfs & mk_traversal_bfs)
+             ++ (mk_pbbs_pbfs_perm & mk_traversal_bfs)                                          
              ))
       ]))
 
@@ -2019,8 +2074,6 @@ let plot () =
    let results = Results.from_file (file_results name) in
    let results_baseline = Results.from_file (file_results ExpBaselines.name) in
    let results_accessible = Results.from_file (file_results ExpAccessible.name) in
-   let tex_file = file_tables_src name in
-   let pdf_file = file_tables name in
            
    let my_eval_speedup = fun env all_results results ->
      let tp = Results.get_mean_of "exectime" results in
@@ -2035,6 +2088,7 @@ let plot () =
      @ Env.format_hiddens [ "bits"; "source"; "load"; "frontier";
                             "prog"; "proc"; "our_pseudodfs_cutoff"; "size";
                             "ls_pbfs_cutoff"; "ls_pbfs_loop_cutoff";
+                            "should_pbfs_permute"; "should_pdfs_permute";
                           ]
      @ ["algo", Env.Format_custom (fun s ->
                                    match s with
@@ -2044,6 +2098,7 @@ let plot () =
                                    | "pbbs_pbfs_cilk" -> "PBBS PBFS"
                                    | "ligra" -> "Ligra"
                                    | "ls_pbfs" -> "LS PBFS"
+                                   | "pbbs_pbfs" -> "PBBS PBFS (PASL)"
                                    | _ -> "<bogus>" )]
    in
 
@@ -2054,33 +2109,13 @@ let plot () =
         Y_axis [Axis.Lower (Some 0.) ] ]);
      Formatter (Env.format barplot_formatter);
      Charts (mk_sizes);
-     Series (mk_our_parallel_dfs ++ mk_cong_parallel_dfs ++ mk_ls_pbfs_cilk ++ mk_pbbs_pbfs_cilk);
+     Series (mk_our_parallel_dfs ++ mk_cong_parallel_dfs);
      X mk_kind_for_size;
      Input (file_results name);
-     Output (file_plots name);
+     Output "plot_us_vs_cong.pdf";
      Y_label "Speedup vs. serial DFS";
      Y my_eval_speedup;
                      ]));
-(*
-    Mk_bar_plot.(call ([
-     Bar_plot_opt Bar_plot.([
-        Chart_opt Chart.([Dimensions (10.,7.) ]);
-        X_titles_dir Vertical;
-        Y_axis [Axis.Lower (Some 0.) ] ]);
-     Formatter (Env.format barplot_formatter);
-     Charts (mk_sizes);
-     Series (mk_our_parallel_dfs ++ mk_cong_parallel_dfs ++ mk_ls_bfs);
-     X mk_kind_for_size;
-     Input (file_results name);
-     Output (file_plots (name^"_pasl"));
-     Y_label "Speedup vs. serial DFS";
-     Y my_eval_speedup;
-                      ]));
-    
-    let my_eval_utilization = fun env all_results results ->
-      Results.get_mean_of "utilization" results 
-    in
-
 
     Mk_bar_plot.(call ([
      Bar_plot_opt Bar_plot.([
@@ -2089,15 +2124,13 @@ let plot () =
         Y_axis [Axis.Lower (Some 0.) ] ]);
      Formatter (Env.format barplot_formatter);
      Charts (mk_sizes);
-     Series (mk_our_parallel_dfs ++ mk_cong_parallel_dfs ++ mk_ls_bfs);
+     Series (mk_our_parallel_dfs ++ mk_pbbs_pbfs ++ mk_pbbs_pbfs_cilk ++ mk_ls_pbfs ++ mk_ls_pbfs_cilk);
      X mk_kind_for_size;
      Input (file_results name);
-     Output (file_plots (name^"_utilization"));
-     Y_label "Utilization";
-     Y my_eval_utilization;
+     Output "plot_dfs_vs_bfs.pdf";
+     Y_label "Speedup vs. serial DFS";
+     Y my_eval_speedup;
                      ]));
-
- *)
 
     let my_eval_ligra = fun env all_results results ->
       let tlig = Results.get_mean_of "exectime" results in
@@ -2107,7 +2140,7 @@ let plot () =
       (tours /. tlig)
     in
    
-     Mk_bar_plot.(call ([
+   Mk_bar_plot.(call ([
      Bar_plot_opt Bar_plot.([
         Chart_opt Chart.([Dimensions (10.,7.) ]);
         X_titles_dir Vertical;
@@ -2122,25 +2155,23 @@ let plot () =
      Y my_eval_ligra;
                      ]));
 
-
    Mk_table.build_table "table_graphs.tex" "table_graphs.pdf" (fun add ->
     let env = Env.empty in
     let envs_tables = (mk_sizes) env in
     ~~ List.iter envs_tables (fun env_tables ->
-       let results = Results.filter env_tables results in
+                              (*       let results = Results.filter env_tables results in*)
        let results_baseline = Results.filter env_tables results_baseline in
        let results_accessible = Results.filter env_tables results_accessible in
        let env = Env.append env env_tables in
        let envs_rows = mk_kind_for_size env in
-       let nb_infos = 4 in
-       add (Latex.tabular_begin (String.concat "" (["|l|c|c|c|c|"])));
+       add (Latex.tabular_begin (String.concat "" (["|l|c|c|c|c|c|"])));
        (*       add Latex.tabular_newline;*)
-       add "graph & verti. & edges & max & seq ";
+       add "graph & verti. & edges & max & nb. & seq ";
        add Latex.new_line;
-       add " &  (m) & (m) & dist & DFS ";
+       add " &  (m) & (m) & dist & visited & DFS ";
        add Latex.tabular_newline;
        ~~ List.iter envs_rows (fun env_rows ->
-         let results = Results.filter env_rows results in
+                               (*         let results = Results.filter env_rows results in*)
          let results_baseline = Results.filter env_rows results_baseline in
          let results_accessible = Results.filter env_rows results_accessible in
          let results_baseline_bfs = Results.filter_by_params mk_traversal_bfs results_baseline in
@@ -2151,6 +2182,7 @@ let plot () =
          let nb_edges = Results.get_unique_of "nb_edges" results_accessible in
          let _nb_visited_edges = Results.get_unique_of "nb_edges_processed" results_accessible in
          let max_dist = Results.get_unique_of "max_dist" results_baseline_bfs in
+         let nb_visited = Results.get_unique_of "nb_visited" results_baseline_bfs in         
          let exectime_for rs mk_base =
             let rs = Results.filter_by_params mk_base rs in
             Results.check_consistent_inputs [] rs;
@@ -2163,13 +2195,75 @@ let plot () =
          Mk_table.cell add (string_of_millions nb_vertices);
          Mk_table.cell add (string_of_millions nb_edges);
          Mk_table.cell add (string_of_exp_range (int_of_float max_dist));
-         Mk_table.cell ~last:true add (string_of_exectime ~prec:1 v_dfs_seq);
+         Mk_table.cell add (string_of_exp_range (int_of_float nb_visited));         
+         Mk_table.cell ~last:true add (string_of_exectime ~prec:2 v_dfs_seq);
          add Latex.tabular_newline;
          );
        add Latex.tabular_end;
        add Latex.new_page;
-      ));
+                             ));
+   
+   let generate_locality_table name mk_orig mk_perm = (
+      Mk_table.build_table ("table_locality_"^name^".tex") ("table_locality_"^name^".pdf") (fun add ->
+        let env = Env.empty in
+        let envs_tables = (mk_sizes) env in
+        ~~ List.iter envs_tables (fun env_tables ->
+           let results = Results.filter env_tables results in
+           let results_baseline = Results.filter env_tables results_baseline in
+           (*           let results_accessible = Results.filter env_tables results_accessible in*)
+           let env = Env.append env env_tables in
+           let envs_rows = mk_kind_for_size env in
+           add (Latex.tabular_begin (String.concat "" (["|l|c|c|c|c|c|c|c|c|"])));
 
+           add " & "; add (Latex.tabular_multicol 3 "|c|" (Latex.bold "Without layout")); add " & "; 
+                      add (Latex.tabular_multicol 3 "|c|" (Latex.bold "With layout")); add " & "; 
+                      add (Latex.tabular_multicol 2 "|c|" (Latex.bold "Improvement of layout")); 
+           add Latex.tabular_newline;                  
+
+           add "graph & seq & par & speedup & seq & par & speedup & seq & par ";
+           add Latex.tabular_newline;                  
+           ~~ List.iter envs_rows (fun env_rows ->
+             let results = Results.filter env_rows results in
+             let results_baseline = Results.filter env_rows results_baseline in
+             (*             let results_accessible = Results.filter env_rows results_accessible in*)
+             (*             let results_baseline_bfs = Results.filter_by_params mk_traversal_bfs results_baseline in*)
+             let env = Env.append env env_rows in
+             let kind = Env.get_as_string env "kind" in
+             let exectime_for rs mk_base =
+                let rs = Results.filter_by_params mk_base rs in
+                Results.check_consistent_inputs [] rs;
+                let v = Results.get_mean_of "exectime" rs in
+                v
+                in
+             let v_dfs_seq = exectime_for results_baseline ExpBaselines.mk_dfs in
+             let v_dfs_our = exectime_for results mk_orig in                     
+             let v_dfs_seq_perm = exectime_for results_baseline ExpBaselines.mk_dfs_perm in
+             let v_dfs_our_perm = exectime_for results mk_perm in                     
+
+
+             Mk_table.cell add (graph_renamer kind); 
+             Mk_table.cell add (string_of_exectime ~prec:2 v_dfs_seq);
+             Mk_table.cell add (string_of_exectime ~prec:2 v_dfs_our);         
+             Mk_table.cell add (string_of_speedup (v_dfs_seq /. v_dfs_our));
+             Mk_table.cell add (string_of_exectime ~prec:2 v_dfs_seq_perm);
+             Mk_table.cell add (string_of_exectime ~prec:2 v_dfs_our_perm);         
+             Mk_table.cell add (string_of_speedup (v_dfs_seq_perm /. v_dfs_our_perm));
+             Mk_table.cell add (string_of_speedup (v_dfs_seq /. v_dfs_seq_perm));
+             Mk_table.cell ~last:true add (string_of_speedup (v_dfs_our /. v_dfs_our_perm));
+
+             add Latex.tabular_newline;
+             );
+           add Latex.tabular_end;
+           add Latex.new_page;
+                                 )))
+      in
+
+      let _ = generate_locality_table "ours" mk_our_parallel_dfs mk_our_parallel_dfs_perm in
+      let _ = generate_locality_table "cong" mk_cong_parallel_dfs mk_cong_parallel_dfs_perm in
+      let _ = generate_locality_table "pbbs" mk_pbbs_pbfs mk_pbbs_pbfs_perm in      
+      
+(*
+      
    Mk_table.build_table tex_file pdf_file (fun add ->
     let env = Env.empty in
     let envs_tables = (mk_sizes) env in
@@ -2210,7 +2304,7 @@ let plot () =
             v
             in
          let v_bfs_seq = exectime_for results_baseline ExpBaselines.mk_bfs in
-         let v_bfs_ls = exectime_for results mk_ls_bfs in
+         let v_bfs_ls = exectime_for results mk_ls_pbfs in
          let v_bfs_ligra = exectime_for results mk_ligra in
          let v_bfs_ls_cilk = exectime_for results mk_ls_pbfs_cilk in
          let v_bfs_pbbs_cilk = exectime_for results mk_pbbs_pbfs_cilk in
@@ -2223,11 +2317,11 @@ let plot () =
          Mk_table.cell add (string_of_millions nb_vertices);
          Mk_table.cell add (string_of_millions nb_edges);
          Mk_table.cell add (string_of_exp_range (int_of_float max_dist));
-         Mk_table.cell add (string_of_exectime ~prec:1 v_dfs_seq);
+         Mk_table.cell add (string_of_exectime ~prec:2 v_dfs_seq);
          Mk_table.cell add (string_of_speedup (v_dfs_seq /. v_dfs_our));
          Mk_table.cell add (string_of_speedup (v_dfs_seq /. v_dfs_cong));
          Mk_table.cell add (Latex.bold (string_of_speedup (v_dfs_cong /. v_dfs_our)));
-         Mk_table.cell add (string_of_exectime ~prec:1 v_bfs_seq);
+         Mk_table.cell add (string_of_exectime ~prec:2 v_bfs_seq);
          Mk_table.cell add (string_of_speedup (v_bfs_seq /. v_bfs_our));
          Mk_table.cell add (string_of_speedup (v_bfs_seq /. v_bfs_ls));
          Mk_table.cell add (Latex.bold (string_of_speedup (v_bfs_ls /. v_bfs_our)));
@@ -2239,7 +2333,9 @@ let plot () =
          );
        add Latex.tabular_end;
        add Latex.new_page;
-      ))
+                             ));
+ *)   
+   ()
 
 let all () =
    select make run check plot
@@ -2311,7 +2407,7 @@ let plot () =
             v
             in
          let v_bfs_seq = exectime_for results_baseline ExpBaselines.mk_bfs in
-         let v_bfs_ls = exectime_for results mk_ls_bfs in
+         let v_bfs_ls = exectime_for results mk_ls_pbfs in
          let v_bfs_our = exectime_for results mk_our_lazy_parallel_bfs in
          let v_dfs_seq = exectime_for results_baseline ExpBaselines.mk_dfs in
          let v_dfs_cong = exectime_for results mk_cong_parallel_dfs in

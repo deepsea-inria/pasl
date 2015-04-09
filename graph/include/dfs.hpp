@@ -212,6 +212,7 @@ std::atomic<int>* our_pseudodfs(const Adjlist& graph, typename Adjlist::vtxid_ty
   auto fork = [&] (Frontier& src, Frontier& dst) {
     vtxid_type m = vtxid_type((src.nb_outedges() + 1) / 2);
     src.split(m, dst);
+    src.swap(dst); // can optimize
   };
   auto set_in_env = [graph_alias] (Frontier& f) {
     f.set_graph(graph_alias);

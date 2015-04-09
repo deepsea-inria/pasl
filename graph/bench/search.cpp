@@ -67,6 +67,7 @@ using ls_bag = data::Bag<typename Adjlist::vtxid_type>;
 
 //int cong_pdfs_cutoff = 10000;
 int our_pseudodfs_cutoff = 10000;
+  int umut_pseudodfs_cutoff = 10000;
 int ls_pbfs_cutoff = 10000;
 int ls_pbfs_loop_cutoff = 10000;
 int our_bfs_cutoff = 10000;
@@ -75,6 +76,8 @@ int our_lazy_bfs_cutoff = 10000;
 
 /*---------------------------------------------------------------------*/
 
+bool should_pdfs_permute;
+
 template <class Adjlist, class Search, class Report, class Destroy>
 void search_benchmark_select_input_graph(const Search& search,
                                          const Report& report,
@@ -82,11 +85,22 @@ void search_benchmark_select_input_graph(const Search& search,
   using vtxid_type = typename Adjlist::vtxid_type;
   Adjlist graph;
   vtxid_type source = vtxid_type(util::cmdline::parse_or_default_uint64("source", 0));
+  bool should_pdfs_permute = util::cmdline::parse_or_default_bool("should_pdfs_permute", false);
+  bool should_pbfs_permute = util::cmdline::parse_or_default_bool("should_pbfs_permute", false);  
   auto init = [&] {
     util::cmdline::argmap_dispatch tmg;
     tmg.add("from_file",          [&] { load_graph_from_file(graph); });
     tmg.add("by_generator",       [&] { generate_graph(graph); });
     util::cmdline::dispatch_by_argmap(tmg, "load");
+    if (should_pdfs_permute) {
+      std::cout << "pdfs_permute\t1" << std::endl;
+      apply_pdfs_permutation(graph, source);
+    } else if (should_pbfs_permute) {
+      std::cout << "pbfs_permute\t1" << std::endl;
+      apply_pbfs_permutation(graph, source);
+    } else {
+      std::cout << "pdfs_permute\t0" << std::endl;
+    }
     mlockall(0);
   };
   auto run = [&] (bool sequential) {
@@ -226,6 +240,187 @@ void search_benchmark_frontier_sequential_select_algo() {
 
 //--------------
 
+/*---------------------------------------------------------------------*/
+/* Applies a specified permutation of a graph given in adjacency 
+ * list format */
+
+template <class Adjlist>
+void apply_permutation(typename Adjlist::vtxid_type* perm, const Adjlist& src, Adjlist& dst) {
+  using vtxid_type = typename Adjlist::vtxid_type;
+  vtxid_type nb_vertices = src.get_nb_vertices();
+  vtxid_type nb_edges = src.nb_edges;
+  vtxid_type nb_offsets = nb_vertices + 1;
+  edgeid_type contents_sz = nb_offsets + nb_edges;
+  char* contents = (char*)data::mynew_array<vtxid_type>(contents_sz);
+  dst.adjlists.init(contents, nb_vertices, nb_edges);
+  vtxid_type* offsets_dst = dst.adjlists.offsets;
+  for (vtxid_type i = 0; i < nb_vertices; i++) {
+    vtxid_type v = perm[i];
+    assert(v >= 0);
+    assert(v < nb_vertices);
+    offsets_dst[v] = src.adjlists[i].get_out_degree();
+  }
+  vtxid_type offset = 0;
+  for (vtxid_type i = 0; i < nb_vertices; i++) {
+    vtxid_type orig = offsets_dst[i];
+    offsets_dst[i] = offset;
+    offset += orig;
+  }
+  offsets_dst[nb_vertices] = offset;
+  for (vtxid_type i = 0; i < nb_vertices; i++) {
+    vtxid_type v = perm[i];
+    vtxid_type degree = src.adjlists[i].get_out_degree();
+    assert(src.adjlists[i].get_out_degree() == dst.adjlists[v].get_out_degree());
+    vtxid_type* neighbors_src = src.adjlists[i].get_out_neighbors();
+    vtxid_type* neighbors_dst = dst.adjlists[v].get_out_neighbors();
+    for (vtxid_type j = 0; j < degree; j++) {
+      neighbors_dst[j] = perm[neighbors_src[j]];
+    }
+  }
+  dst.nb_edges = nb_edges;
+  dst.check();
+}
+  
+template <class Adjlist, class Frontier>
+typename Adjlist::vtxid_type*
+our_pseudodfs_permutation(const Adjlist& graph, typename Adjlist::vtxid_type source) {
+  using vtxid_type = typename Adjlist::vtxid_type;
+  vtxid_type nb_vertices = graph.get_nb_vertices();
+  int* visited = data::mynew_array<int>(nb_vertices);
+  for (vtxid_type i = 0; i < nb_vertices; i++) {
+    visited[i] = 0;
+  }
+  //  fill_array_par(visited, nb_vertices, 0);
+  LOG_BASIC(ALGO_PHASE);
+  auto graph_alias = get_alias_of_adjlist(graph);
+  Frontier frontier(graph_alias);
+  frontier.push_vertex_back(source);
+  visited[source] = 1;
+  //  visited[source].store(1, std::memory_order_relaxed);
+  vtxid_type time = 0;
+  vtxid_type* perm = data::mynew_array<vtxid_type>(nb_vertices);
+  for (vtxid_type i = 0; i < nb_vertices; i++) {
+    perm[i] = (vtxid_type)-1;
+  }
+  perm[source] = time++;
+  while (frontier.nb_outedges() > 0) {
+    frontier.for_at_most_nb_outedges(our_pseudodfs_cutoff, [&](vtxid_type other_vertex) {
+        if (visited[other_vertex] == 0) {
+          visited[other_vertex] = 1;
+          //        if (try_to_mark<Adjlist, int, idempotent>(graph, visited, other_vertex)) {
+          frontier.push_vertex_back(other_vertex);
+          perm[other_vertex] = time;
+          time++;
+        }
+      });
+  }
+  for (vtxid_type i = 0; i < nb_vertices; i++) {
+    if (perm[i] == (vtxid_type)-1) {
+      perm[i] = time;
+      time++;
+    }
+  }
+  free(visited);
+  return perm;
+}
+
+template <bool idempotent, class Adjlist>
+typename Adjlist::vtxid_type*
+pbbs_pbfs_permutation(const Adjlist& graph, typename Adjlist::vtxid_type source) {
+  using vtxid_type = typename Adjlist::vtxid_type;
+  struct nonNegF{bool operator() (vtxid_type a) {return (a>=0);}};
+  vtxid_type unknown = graph_constants<vtxid_type>::unknown_vtxid;
+  vtxid_type nb_vertices = graph.get_nb_vertices();
+  edgeid_type nb_edges = graph.nb_edges;
+  std::atomic<vtxid_type>* dists = data::mynew_array<std::atomic<vtxid_type>>(nb_vertices);
+  fill_array_par(dists, nb_vertices, unknown);
+  LOG_BASIC(ALGO_PHASE);
+  vtxid_type* Frontier = data::mynew_array<vtxid_type>(nb_edges);
+  vtxid_type* FrontierNext = data::mynew_array<vtxid_type>(nb_edges);
+  vtxid_type* Counts = data::mynew_array<vtxid_type>(nb_vertices);
+  vtxid_type dist = 0;
+  Frontier[0] = source;
+  vtxid_type frontierSize = 1;
+  dists[source].store(dist);
+
+  vtxid_type time = 0;
+  vtxid_type* perm = data::mynew_array<vtxid_type>(nb_vertices);
+  for (vtxid_type i = 0; i < nb_vertices; i++) {
+    perm[i] = (vtxid_type)-1;
+  }
+  perm[source] = time++;
+
+  
+  while (frontierSize > 0) {
+    dist++;
+    sched::native::parallel_for(vtxid_type(0), frontierSize, [&] (vtxid_type i) {
+      Counts[i] = graph.adjlists[Frontier[i]].get_out_degree();
+    });
+    vtxid_type nr = pbbs::sequence::scan(Counts,Counts,frontierSize,pbbs::utils::addF<vtxid_type>(),vtxid_type(0));
+    for(vtxid_type i = 0; i < frontierSize; i++) {
+      //    sched::native::parallel_for(vtxid_type(0), frontierSize, [&] (vtxid_type i) {
+      vtxid_type v = Frontier[i];
+      vtxid_type o = Counts[i];
+      vtxid_type degree = graph.adjlists[v].get_out_degree();
+      vtxid_type* neighbors = graph.adjlists[v].get_out_neighbors();
+      for (vtxid_type j = 0; j < degree; j++) {
+        vtxid_type other = neighbors[j];
+        if (ls_pbfs<idempotent>::try_to_set_dist(other, unknown, dist, dists)) {
+          if (PUSH_ZERO_ARITY_VERTICES || graph.adjlists[other].get_out_degree() > 0) {          
+            FrontierNext[o+j] = other;
+            
+            perm[other] = time;
+            time++;
+
+          } else {
+            FrontierNext[o+j] = vtxid_type(-1);
+          }
+        } else {
+          FrontierNext[o+j] = vtxid_type(-1);
+        }
+      }
+    }
+    frontierSize = pbbs::sequence::filter(FrontierNext,Frontier,nr,nonNegF());
+  }
+  free(FrontierNext); free(Frontier); free(Counts); free(dists);
+
+  for (vtxid_type i = 0; i < nb_vertices; i++) {
+    if (perm[i] == (vtxid_type)-1) {
+      perm[i] = time;
+      time++;
+    }
+  }
+
+  return perm;
+}
+  
+
+template <class Adjlist>
+void apply_pdfs_permutation(Adjlist& src, typename Adjlist::vtxid_type& source) {
+  using vtxid_type = typename Adjlist::vtxid_type;
+  using adjlist_type = Adjlist;
+  using adjlist_alias_type = typename adjlist_type::alias_type;  
+  Adjlist dst;
+  vtxid_type* perm = our_pseudodfs_permutation<Adjlist,frontiersegbag<adjlist_alias_type>>(src, source);
+  source = perm[source];  
+  apply_permutation(perm, src, dst);
+  free(perm);
+  src.adjlists.swap(dst.adjlists);
+}
+
+template <class Adjlist>
+void apply_pbfs_permutation(Adjlist& src, typename Adjlist::vtxid_type& source) {
+  using vtxid_type = typename Adjlist::vtxid_type;
+  using adjlist_type = Adjlist;
+  using adjlist_alias_type = typename adjlist_type::alias_type;  
+  Adjlist dst;
+  vtxid_type* perm = pbbs_pbfs_permutation<false,Adjlist>(src, source);
+  source = perm[source];  
+  apply_permutation(perm, src, dst);
+  free(perm);
+  src.adjlists.swap(dst.adjlists);
+}
+
 template <class Adjlist, bool idempotent>
 void search_benchmark_parallel_select_algo() {
   using adjlist_type = Adjlist;
@@ -322,6 +517,7 @@ static bool is_parallel_algo() {
   if (algo == "our_pbfs_with_swap")    return true;
   if (algo == "our_lazy_pbfs")         return true;
   if (algo == "our_pseudodfs")         return true;
+    if (algo == "umut_pseudodfs")         return true;
   if (algo == "cong_pseudodfs")        return true;
   if (algo == "pbbs_pbfs")             return true;
   return false;
