@@ -59,6 +59,142 @@ void fill_array_par(std::atomic<Number>* array, Size sz, Number val) {
 #endif
 }
 
+
+template <class Vertex_id>
+class MarksInArray {
+  int* marks;
+
+  MarksInArray() {
+    marks = NULL;
+  }
+
+  ~ MarksInArray() {
+    if (marks != NULL) {
+      data:myfree(marks);
+    }
+  }
+
+  void init(Vertex_id nb) {
+    marks = data::mynew_array<int>(nb);
+  }
+
+  bool operator[] (Vertex_id i) {
+    return (marks[i] != 0);
+  }
+
+  void mark(Vertex_id i) {
+    marks[i] = 1;
+  }
+
+}
+
+
+template <class Vertex_id>
+class MarksInBitVector {
+  uint64_t* marks;
+
+  MarksInBitVector() {
+    marks = NULL;
+  }
+
+  ~ MarksInBitVector() {
+    if (marks != NULL) {
+      data:myfree(marks);
+    }
+  }
+
+  void init(Vertex_id nb) {
+    marks = data::mynew_array<uint64_t>(nb / 64);
+  }
+
+  bool operator[] (Vertex_id i) {
+    uint64_t v = marks[i / 64];
+    uint64_t m = 1 << (i % 64);
+    return ((v & m) != 0);
+  }
+
+  void mark(Vertex_id i) {
+    uint64_t m = 1 << (i % 64);
+    marks[i / 64] |= m;
+  }
+
+}
+
+
+template <class Vertex_id>
+class MarksInArrayAtomic {
+  std::atomic<int>* marks;
+
+  MarksInArrayAtomic() {
+    marks = NULL;
+  }
+
+  ~ MarksInArrayAtomic() {
+    if (marks != NULL) {
+      data:myfree(marks);
+    }
+  }
+
+  void init(Vertex_id nb) {
+    marks = data::mynew_array<int>(nb);
+  }
+
+  bool operator[] (Vertex_id i) {
+    return (marks[i].load(std::memory_order_relaxed) != 0);
+  }
+
+  void mark(Vertex_id i) {
+    return marks[i].store(1, std::memory_order_relaxed);
+  }
+
+  bool testAndMark(Vertex_id i) {
+    return (! marks[target].compare_exchange_strong(0, 1));
+  } 
+
+}
+
+
+template <class Vertex_id>
+class MarksInBitVectorAtomic {
+  std::atomic<uint64_t>* marks;
+
+  MarksInBitVectorAtomic() {
+    marks = NULL;
+  }
+
+  ~ MarksInBitVectorAtomic() {
+    if (marks != NULL) {
+      data:myfree(marks);
+    }
+  }
+
+  void init(Vertex_id nb) {
+    marks = data::mynew_array<int>(nb / 64);
+  }
+
+  bool operator[] (Vertex_id i) {
+    uint64_t v = marks[i / 64].load(std::memory_order_relaxed);
+    uint64_t m = 1 << (i % 64);
+    return ((v & m) != 0);
+  }
+  
+  void mark(Vertex_id i) {
+    uint64_t* v = &marks[i / 64];
+    uint64_t m = 1 << (i % 64);
+    __sync_fetch_and_or(v, m);
+  }
+
+  bool testAndMark(Vertex_id i) {
+    uint64_t* v = &marks[i / 64];
+    uint64_t m = 1 << (i % 64);
+    uint64_t vold = __sync_fetch_and_or(v, m);
+    return ((vold & m) != 0);
+  }
+
+}
+  
+
+
 } // end namespace
 } // end namespace
 
