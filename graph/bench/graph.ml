@@ -30,6 +30,8 @@ let system = Pbench.system
 
    "-exp x1,x2"  to consider only selected experiments (used by cutoff and lack_parallelism experiments)
 
+   "-sub x1,x2"  to consider only selected plots
+
    "-proc n" to specify the number of processors that can be used in parallel runs.
                 Default value is based on the host machine.
 
@@ -1159,9 +1161,10 @@ let optfloat_of_float v =
 let string_of_exectime ?(prec=2) v =
    match classify_float v with
    | FP_normal | FP_zero -> 
-      if prec = 1 then sprintf "%.1fs" v
+      if prec = 0 then sprintf "%.0fs" v
+      else if prec = 1 then sprintf "%.1fs" v
       else if prec = 2 then sprintf "%.2fs" v
-      else failwith "only precision 1 and 2 are supported"
+      else failwith "only precision 0 and 1 and 2 are supported"
    | FP_infinite -> "$+\\infty$"
    | FP_subnormal -> "na"
    | FP_nan -> "na"
@@ -2102,166 +2105,217 @@ let plot () =
                                    | _ -> "<bogus>" )]
    in
 
-   Mk_bar_plot.(call ([
-     Bar_plot_opt Bar_plot.([
-        Chart_opt Chart.([Dimensions (10.,7.) ]);
-        X_titles_dir Vertical;
-        Y_axis [Axis.Lower (Some 0.) ] ]);
-     Formatter (Env.format barplot_formatter);
-     Charts (mk_sizes);
-     Series (mk_our_parallel_dfs ++ mk_cong_parallel_dfs);
-     X mk_kind_for_size;
-     Input (file_results name);
-     Output "plot_us_vs_cong.pdf";
-     Y_label "Speedup vs. serial DFS";
-     Y my_eval_speedup;
-                     ]));
-
-    Mk_bar_plot.(call ([
-     Bar_plot_opt Bar_plot.([
-        Chart_opt Chart.([Dimensions (10.,7.) ]);
-        X_titles_dir Vertical;
-        Y_axis [Axis.Lower (Some 0.) ] ]);
-     Formatter (Env.format barplot_formatter);
-     Charts (mk_sizes);
-     Series (mk_our_parallel_dfs ++ mk_pbbs_pbfs ++ mk_pbbs_pbfs_cilk ++ mk_ls_pbfs ++ mk_ls_pbfs_cilk);
-     X mk_kind_for_size;
-     Input (file_results name);
-     Output "plot_dfs_vs_bfs.pdf";
-     Y_label "Speedup vs. serial DFS";
-     Y my_eval_speedup;
-                     ]));
-
-    let my_eval_ligra = fun env all_results results ->
-      let tlig = Results.get_mean_of "exectime" results in
-      let env = mk_our_parallel_dfs & from_env (Env.filter_keys ["kind"; "size"] env) in
-      let results_baseline = Results.filter_by_params env all_results in
-      let tours = Results.get_mean_of "exectime" results_baseline in
-      (tours /. tlig)
-    in
-   
-   Mk_bar_plot.(call ([
-     Bar_plot_opt Bar_plot.([
-        Chart_opt Chart.([Dimensions (10.,7.) ]);
-        X_titles_dir Vertical;
-        Y_axis [Axis.Lower (Some 0.) ] ]);
-     Formatter (Env.format barplot_formatter);
-     Charts (mk_sizes);
-     Series (mk_ligra);
-     X mk_kind_for_size;
-     Input (file_results name);
-     Output (file_plots (name^"_ligra"));
-     Y_label "Our PDFS / Ligra";
-     Y my_eval_ligra;
-                     ]));
-
-   Mk_table.build_table "table_graphs.tex" "table_graphs.pdf" (fun add ->
-    let env = Env.empty in
-    let envs_tables = (mk_sizes) env in
-    ~~ List.iter envs_tables (fun env_tables ->
-                              (*       let results = Results.filter env_tables results in*)
-       let results_baseline = Results.filter env_tables results_baseline in
-       let results_accessible = Results.filter env_tables results_accessible in
-       let env = Env.append env env_tables in
-       let envs_rows = mk_kind_for_size env in
-       add (Latex.tabular_begin (String.concat "" (["|l|c|c|c|c|c|"])));
-       (*       add Latex.tabular_newline;*)
-       add "graph & verti. & edges & max & nb. & seq ";
-       add Latex.new_line;
-       add " &  (m) & (m) & dist & visited & DFS ";
-       add Latex.tabular_newline;
-       ~~ List.iter envs_rows (fun env_rows ->
-                               (*         let results = Results.filter env_rows results in*)
-         let results_baseline = Results.filter env_rows results_baseline in
-         let results_accessible = Results.filter env_rows results_accessible in
-         let results_baseline_bfs = Results.filter_by_params mk_traversal_bfs results_baseline in
-         let env = Env.append env env_rows in
-         let kind = Env.get_as_string env "kind" in
-         let nb_vertices = Results.get_unique_of "nb_vertices" results_accessible in
-         let _nb_visited_vertices = Results.get_unique_of "nb_visited" results_accessible in
-         let nb_edges = Results.get_unique_of "nb_edges" results_accessible in
-         let _nb_visited_edges = Results.get_unique_of "nb_edges_processed" results_accessible in
-         let max_dist = Results.get_unique_of "max_dist" results_baseline_bfs in
-         let nb_visited = Results.get_unique_of "nb_visited" results_baseline_bfs in         
-         let exectime_for rs mk_base =
-            let rs = Results.filter_by_params mk_base rs in
-            Results.check_consistent_inputs [] rs;
-            let v = Results.get_mean_of "exectime" rs in
-            v
-            in
-         let v_dfs_seq = exectime_for results_baseline ExpBaselines.mk_dfs in
-
-         Mk_table.cell add (graph_renamer kind); 
-         Mk_table.cell add (string_of_millions nb_vertices);
-         Mk_table.cell add (string_of_millions nb_edges);
-         Mk_table.cell add (string_of_exp_range (int_of_float max_dist));
-         Mk_table.cell add (string_of_exp_range (int_of_float nb_visited));         
-         Mk_table.cell ~last:true add (string_of_exectime ~prec:2 v_dfs_seq);
-         add Latex.tabular_newline;
-         );
-       add Latex.tabular_end;
-       add Latex.new_page;
-                             ));
-   
-   let generate_locality_table name mk_orig mk_perm = (
-      Mk_table.build_table ("table_locality_"^name^".tex") ("table_locality_"^name^".pdf") (fun add ->
-        let env = Env.empty in
-        let envs_tables = (mk_sizes) env in
-        ~~ List.iter envs_tables (fun env_tables ->
-           let results = Results.filter env_tables results in
-           let results_baseline = Results.filter env_tables results_baseline in
-           (*           let results_accessible = Results.filter env_tables results_accessible in*)
-           let env = Env.append env env_tables in
-           let envs_rows = mk_kind_for_size env in
-           add (Latex.tabular_begin (String.concat "" (["|l|c|c|c|c|c|c|c|c|"])));
-
-           add " & "; add (Latex.tabular_multicol 3 "|c|" (Latex.bold "Without layout")); add " & "; 
-                      add (Latex.tabular_multicol 3 "|c|" (Latex.bold "With layout")); add " & "; 
-                      add (Latex.tabular_multicol 2 "|c|" (Latex.bold "Improvement of layout")); 
-           add Latex.tabular_newline;                  
-
-           add "graph & seq & par & speedup & seq & par & speedup & seq & par ";
-           add Latex.tabular_newline;                  
-           ~~ List.iter envs_rows (fun env_rows ->
-             let results = Results.filter env_rows results in
-             let results_baseline = Results.filter env_rows results_baseline in
-             (*             let results_accessible = Results.filter env_rows results_accessible in*)
-             (*             let results_baseline_bfs = Results.filter_by_params mk_traversal_bfs results_baseline in*)
-             let env = Env.append env env_rows in
-             let kind = Env.get_as_string env "kind" in
-             let exectime_for rs mk_base =
-                let rs = Results.filter_by_params mk_base rs in
-                Results.check_consistent_inputs [] rs;
-                let v = Results.get_mean_of "exectime" rs in
-                v
-                in
-             let v_dfs_seq = exectime_for results_baseline ExpBaselines.mk_dfs in
-             let v_dfs_our = exectime_for results mk_orig in                     
-             let v_dfs_seq_perm = exectime_for results_baseline ExpBaselines.mk_dfs_perm in
-             let v_dfs_our_perm = exectime_for results mk_perm in                     
-
-
-             Mk_table.cell add (graph_renamer kind); 
-             Mk_table.cell add (string_of_exectime ~prec:2 v_dfs_seq);
-             Mk_table.cell add (string_of_exectime ~prec:2 v_dfs_our);         
-             Mk_table.cell add (string_of_speedup (v_dfs_seq /. v_dfs_our));
-             Mk_table.cell add (string_of_exectime ~prec:2 v_dfs_seq_perm);
-             Mk_table.cell add (string_of_exectime ~prec:2 v_dfs_our_perm);         
-             Mk_table.cell add (string_of_speedup (v_dfs_seq_perm /. v_dfs_our_perm));
-             Mk_table.cell add (string_of_speedup (v_dfs_seq /. v_dfs_seq_perm));
-             Mk_table.cell ~last:true add (string_of_speedup (v_dfs_our /. v_dfs_our_perm));
-
-             add Latex.tabular_newline;
-             );
-           add Latex.tabular_end;
-           add Latex.new_page;
-                                 )))
+    let plot_cong () =
+     Mk_bar_plot.(call ([
+       Bar_plot_opt Bar_plot.([
+          Chart_opt Chart.([Dimensions (10.,7.) ]);
+          X_titles_dir Vertical;
+          Y_axis [Axis.Lower (Some 0.) ] ]);
+       Formatter (Env.format barplot_formatter);
+       Charts (mk_sizes);
+       Series (mk_our_parallel_dfs ++ mk_cong_parallel_dfs);
+       X mk_kind_for_size;
+       Input (file_results name);
+       Output "plot_us_vs_cong.pdf";
+       Y_label "Speedup vs. serial DFS";
+       Y my_eval_speedup;
+                       ]));
       in
+
+   let plot_speedup () =
+      Mk_bar_plot.(call ([
+       Bar_plot_opt Bar_plot.([
+          Chart_opt Chart.([Dimensions (10.,7.) ]);
+          X_titles_dir Vertical;
+          Y_axis [Axis.Lower (Some 0.) ] ]);
+       Formatter (Env.format barplot_formatter);
+       Charts (mk_sizes);
+       Series (mk_our_parallel_dfs ++ mk_pbbs_pbfs ++ mk_pbbs_pbfs_cilk ++ mk_ls_pbfs ++ mk_ls_pbfs_cilk);
+       X mk_kind_for_size;
+       Input (file_results name);
+       Output "plot_dfs_vs_bfs.pdf";
+       Y_label "Speedup vs. serial DFS";
+       Y my_eval_speedup;
+                       ]));
+    in
+
+  let plot_ligra () =
+      let my_eval_ligra = fun env all_results results ->
+        let tcur = Results.get_mean_of "exectime" results in
+        let env = ExpBaselines.mk_dfs & from_env (Env.filter_keys ["kind"; "size"] env) in
+        let results_baseline = Results.filter_by_params env results_baseline in
+        let tbase = Results.get_mean_of "exectime" results_baseline in
+        (tbase /. tcur)
+       in
+     let results_for_max_dist = Results.filter_by_params mk_traversal_bfs results_baseline in
+     let max_dist_for env = 
+        let results = Results.filter (Env.filter_keys ["size";"kind"] env) results_for_max_dist in
+        Results.get_unique_of_as Env.as_int "max_dist" results
+        in
+     let barplot_formatter_with_maxdist env =
+        ["kind", Env.Format_custom (fun s -> 
+          (* let env = Env.add (Env.filter_keys ["size"] env) "kind" (Env.Vstring s) in  --useless line*)
+          sprintf "%s (D=%s)" (graph_renamer s) (string_of_exp_range (max_dist_for env)))] 
+        @ barplot_formatter 
+        in
+     Mk_bar_plot.(call ([
+       Bar_plot_opt Bar_plot.([
+          Chart_opt Chart.([Dimensions (10.,7.) ]);
+          X_titles_dir Vertical;
+          Y_axis [Axis.Lower (Some 0.); Axis.Upper (Some 65.) ] ]);
+       Formatter (fun env -> Env.format (barplot_formatter_with_maxdist env) env);
+       Charts (mk_sizes);
+       Series (mk_ligra ++ mk_our_parallel_dfs);
+       X (fun env ->  
+          let kinds = mk_kind_for_size env in
+          (* uncomment to activate sorting by diameter
+          let kinds_maxdist = ~~ List.map kinds (fun kind -> (kind, max_dist_for (Env.append env kind))) in
+          let kinds_maxdist = List.sort (fun (_,x) (_,y) -> x-y) kinds_maxdist in
+          let kinds = List.map fst kinds_maxdist in
+          *)
+          kinds);
+       Input (file_results name);
+       Output (file_plots (name^"_ligra"));
+       Y_label "speedup (w.r.t. sequential DFS)";
+       Y my_eval_ligra;
+                     ]));
+      in
+
+   let plot_graphs () =
+     Mk_table.build_table "table_graphs.tex" "table_graphs.pdf" (fun add ->
+      let env = Env.empty in
+      let envs_tables = (mk_sizes) env in
+      ~~ List.iter envs_tables (fun env_tables ->
+                                (*       let results = Results.filter env_tables results in*)
+         let results_baseline = Results.filter env_tables results_baseline in
+         let results_accessible = Results.filter env_tables results_accessible in
+         let env = Env.append env env_tables in
+         let envs_rows = mk_kind_for_size env in
+         add (Latex.tabular_begin (String.concat "" (["|l|c|c|c|c|c|c|c|c|"])));
+         (*       add Latex.tabular_newline;*)
+
+         (* LATER: remove max dist *)
+         add "graph & verti. & edges & max & nb. & seq & PDFS & PDFS & ordered PDFS ";
+         add Latex.new_line;
+         add " &  (m) & (m) & dist & visited & DFS & (s) & (mEdge/s) & (mEdge/s)";
+         add Latex.tabular_newline;
+         ~~ List.iter envs_rows (fun env_rows ->
+           let results = Results.filter env_rows results in
+           let results_baseline = Results.filter env_rows results_baseline in
+           let results_accessible = Results.filter env_rows results_accessible in
+           let results_baseline_bfs = Results.filter_by_params mk_traversal_bfs results_baseline in
+           let results_our_parallel_dfs = Results.filter_by_params mk_our_parallel_dfs results in
+           let results_our_parallel_dfs_perm = Results.filter_by_params mk_our_parallel_dfs_perm results in
+           let env = Env.append env env_rows in
+           let kind = Env.get_as_string env "kind" in
+           let nb_vertices = Results.get_unique_of "nb_vertices" results_accessible in
+           let _nb_visited_vertices = Results.get_unique_of "nb_visited" results_accessible in
+           let nb_edges = Results.get_unique_of "nb_edges" results_accessible in
+           let _nb_visited_edges = Results.get_unique_of "nb_edges_processed" results_accessible in
+           let max_dist = Results.get_unique_of "max_dist" results_baseline_bfs in
+           let nb_visited = Results.get_unique_of "nb_visited" results_baseline_bfs in         
+           let exectime_for rs mk_base =
+              let rs = Results.filter_by_params mk_base rs in
+              Results.check_consistent_inputs [] rs;
+              let v = Results.get_mean_of "exectime" rs in
+              v
+              in
+           let v_dfs_seq = exectime_for results_baseline ExpBaselines.mk_dfs in
+           let v_dfs_par = exectime_for results_our_parallel_dfs mk_our_parallel_dfs in
+           let v_dfs_par_perm = exectime_for results_our_parallel_dfs_perm mk_our_parallel_dfs_perm in
+           let v_dfs_throughput = nb_visited /. 1000000. /. v_dfs_par in
+           let v_dfs_throughput_perm = nb_visited /. 1000000. /. v_dfs_par_perm in
+
+           Mk_table.cell add (graph_renamer kind); 
+           Mk_table.cell add (string_of_millions nb_vertices);
+           Mk_table.cell add (string_of_millions nb_edges);
+           Mk_table.cell add (string_of_exp_range (int_of_float max_dist));
+           Mk_table.cell add (string_of_exp_range (int_of_float nb_visited));         
+           Mk_table.cell add (string_of_exectime ~prec:2 v_dfs_seq);
+           Mk_table.cell add (string_of_exectime ~prec:2 v_dfs_par);
+           Mk_table.cell add (sprintf "%.0f" v_dfs_throughput);
+           Mk_table.cell ~last:true add (sprintf "%.0f" v_dfs_throughput_perm);
+           add Latex.tabular_newline;
+           );
+         add Latex.tabular_end;
+         add Latex.new_page;
+                               ));
+      in
+      
+   let plot_others () =
+     let generate_locality_table name mk_orig mk_perm = (
+        Mk_table.build_table ("table_locality_"^name^".tex") ("table_locality_"^name^".pdf") (fun add ->
+          let env = Env.empty in
+          let envs_tables = (mk_sizes) env in
+          ~~ List.iter envs_tables (fun env_tables ->
+             let results = Results.filter env_tables results in
+             let results_baseline = Results.filter env_tables results_baseline in
+             (*           let results_accessible = Results.filter env_tables results_accessible in*)
+             let env = Env.append env env_tables in
+             let envs_rows = mk_kind_for_size env in
+             add (Latex.tabular_begin (String.concat "" (["|l|c|c|c|c|c|c|c|c|"])));
+
+             add " & "; add (Latex.tabular_multicol 3 "|c|" (Latex.bold "Without layout")); add " & "; 
+                        add (Latex.tabular_multicol 3 "|c|" (Latex.bold "With layout")); add " & "; 
+                        add (Latex.tabular_multicol 2 "|c|" (Latex.bold "Improvement of layout")); 
+             add Latex.tabular_newline;                  
+
+             add "graph & seq & par & speedup & seq & par & speedup & seq & par ";
+             add Latex.tabular_newline;                  
+             ~~ List.iter envs_rows (fun env_rows ->
+               let results = Results.filter env_rows results in
+               let results_baseline = Results.filter env_rows results_baseline in
+               (*             let results_accessible = Results.filter env_rows results_accessible in*)
+               (*             let results_baseline_bfs = Results.filter_by_params mk_traversal_bfs results_baseline in*)
+               let env = Env.append env env_rows in
+               let kind = Env.get_as_string env "kind" in
+               let exectime_for rs mk_base =
+                  let rs = Results.filter_by_params mk_base rs in
+                  Results.check_consistent_inputs [] rs;
+                  let v = Results.get_mean_of "exectime" rs in
+                  v
+                  in
+               let v_dfs_seq = exectime_for results_baseline ExpBaselines.mk_dfs in
+               let v_dfs_our = exectime_for results mk_orig in                     
+               let v_dfs_seq_perm = exectime_for results_baseline ExpBaselines.mk_dfs_perm in
+               let v_dfs_our_perm = exectime_for results mk_perm in                     
+
+
+               Mk_table.cell add (graph_renamer kind); 
+               Mk_table.cell add (string_of_exectime ~prec:2 v_dfs_seq);
+               Mk_table.cell add (string_of_exectime ~prec:2 v_dfs_our);         
+               Mk_table.cell add (string_of_speedup (v_dfs_seq /. v_dfs_our));
+               Mk_table.cell add (string_of_exectime ~prec:2 v_dfs_seq_perm);
+               Mk_table.cell add (string_of_exectime ~prec:2 v_dfs_our_perm);         
+               Mk_table.cell add (string_of_speedup (v_dfs_seq_perm /. v_dfs_our_perm));
+               Mk_table.cell add (string_of_speedup (v_dfs_seq /. v_dfs_seq_perm));
+               Mk_table.cell ~last:true add (string_of_speedup (v_dfs_our /. v_dfs_our_perm));
+
+               add Latex.tabular_newline;
+               );
+             add Latex.tabular_end;
+             add Latex.new_page;
+                                   ))) in
 
       let _ = generate_locality_table "ours" mk_our_parallel_dfs mk_our_parallel_dfs_perm in
       let _ = generate_locality_table "cong" mk_cong_parallel_dfs mk_cong_parallel_dfs_perm in
-      let _ = generate_locality_table "pbbs" mk_pbbs_pbfs mk_pbbs_pbfs_perm in      
-      
+      let _ = generate_locality_table "pbbs" mk_pbbs_pbfs mk_pbbs_pbfs_perm in    
+      ()
+
+   in
+
+   let arg_sub = XCmd.parse_or_default_list_string "sub" ["all"] in
+   let bindings = [
+      "cong", plot_cong;
+      "speedup", plot_speedup;
+      "graphs", plot_graphs;
+      "ligra", plot_ligra;
+      "others", plot_others;
+      ] in
+   let arg_sub = if arg_sub = ["all"] then List.map fst bindings else arg_sub in
+   ~~ List.iter bindings (fun (k,f) -> if List.mem k arg_sub then f());
+   ()
+
 (*
       
    Mk_table.build_table tex_file pdf_file (fun add ->
@@ -2335,7 +2389,6 @@ let plot () =
        add Latex.new_page;
                              ));
  *)   
-   ()
 
 let all () =
    select make run check plot
