@@ -1,6 +1,5 @@
 # OS X
 .DS_Store
-pasl.xcodeproj
 
 # build folder && executables
 _build/
