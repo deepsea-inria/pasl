@@ -63,15 +63,19 @@
             isEnabled = "YES">
          </CommandLineArgument>
          <CommandLineArgument
+            argument = "-algo_num 1"
+            isEnabled = "YES">
+         </CommandLineArgument>
+         <CommandLineArgument
             argument = "-graph 1"
             isEnabled = "NO">
          </CommandLineArgument>
          <CommandLineArgument
-            argument = "-edges 1000000"
+            argument = "-edges 5000"
             isEnabled = "YES">
          </CommandLineArgument>
          <CommandLineArgument
-            argument = "-cutoff1 2000"
+            argument = "-cutoff 20000"
             isEnabled = "YES">
          </CommandLineArgument>
          <CommandLineArgument
@@ -83,19 +87,11 @@
             isEnabled = "YES">
          </CommandLineArgument>
          <CommandLineArgument
-            argument = "-algo_num 0"
-            isEnabled = "NO">
-         </CommandLineArgument>
-         <CommandLineArgument
-            argument = "-algo_num 5"
-            isEnabled = "NO">
-         </CommandLineArgument>
-         <CommandLineArgument
             argument = "-infile &quot;BalancedTree.dot&quot;"
             isEnabled = "NO">
          </CommandLineArgument>
          <CommandLineArgument
-            argument = "-algo_num 7"
+            argument = "-impl_num 0"
             isEnabled = "YES">
          </CommandLineArgument>
          <CommandLineArgument

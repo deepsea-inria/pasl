@@ -303,6 +303,8 @@
 		C0794E5D1A0A4B46002D8880 /* shared.ml */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = shared.ml; sourceTree = "<group>"; };
 		C0794E5E1A0A4B46002D8880 /* visualize.ml */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = visualize.ml; sourceTree = "<group>"; };
 		C0794EAB1A0A4BF5002D8880 /* graph_test */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = graph_test; sourceTree = BUILT_PRODUCTS_DIR; };
+		C0B896571AD84A6F00188CFE /* floyd.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = floyd.hpp; sourceTree = "<group>"; };
+		C0B896581AD85DCA00188CFE /* base_algo.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = base_algo.hpp; sourceTree = "<group>"; };
 		C0CC2C5C1A0D44F40092DD21 /* tests_shortest.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = tests_shortest.cpp; sourceTree = "<group>"; };
 		C0D61CBD1A8F5E53003B7B79 /* gtest-death-test.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "gtest-death-test.h"; sourceTree = "<group>"; };
 		C0D61CBE1A8F5E53003B7B79 /* gtest-message.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "gtest-message.h"; sourceTree = "<group>"; };
@@ -578,6 +580,8 @@
 		C0794DCA1A0A4B46002D8880 /* include */ = {
 			isa = PBXGroup;
 			children = (
+				C0B896581AD85DCA00188CFE /* base_algo.hpp */,
+				C0B896571AD84A6F00188CFE /* floyd.hpp */,
 				C0D61CBC1A8F5E53003B7B79 /* gtest */,
 				C027015B1A83EE130072B58D /* bellman_ford.hpp */,
 				C0794DCB1A0A4B46002D8880 /* adjlist.hpp */,
