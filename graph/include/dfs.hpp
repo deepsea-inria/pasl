@@ -228,6 +228,50 @@ std::atomic<int>* our_pseudodfs(const Adjlist& graph, typename Adjlist::vtxid_ty
   return visited;
 }
 
+template <class Adjlist, class Frontier, class Mark, bool idempotent = false>
+Mark our_pseudodfs_new(const Adjlist& graph, typename Adjlist::vtxid_type source) {
+  using vtxid_type = typename Adjlist::vtxid_type;
+  using edgelist_type = typename Frontier::edgelist_type;
+  vtxid_type nb_vertices = graph.get_nb_vertices();
+  /*  std::atomic<int>* visited = data::mynew_array<std::atomic<int>>(nb_vertices);*/
+  Mark visited;
+  visited.init(nb_vertices);
+  //fill_array_par(visited.marks, nb_vertices, 0);
+  sched::native::parallel_for(vtxid_type(0), nb_vertices/visited.bits, [&] (vtxid_type i) {
+    visited.marks[i] = 0;
+  });
+  LOG_BASIC(ALGO_PHASE);
+  auto graph_alias = get_alias_of_adjlist(graph);
+  Frontier frontier(graph_alias);
+  frontier.push_vertex_back(source);
+  //  visited[source].store(1, std::memory_order_relaxed);
+  //  visited.mark(source);
+  if (visited.testAndMark(source))
+    std::cout << "error" << std::endl;
+
+  auto size = [] (Frontier& frontier) {
+    return frontier.nb_outedges();
+  };
+  auto fork = [&] (Frontier& src, Frontier& dst) {
+    vtxid_type m = vtxid_type((src.nb_outedges() + 1) / 2);
+    src.split(m, dst);
+    src.swap(dst); // can optimize
+  };
+  auto set_in_env = [graph_alias] (Frontier& f) {
+    f.set_graph(graph_alias);
+  };
+  if (frontier.nb_outedges() == 0)
+    return visited;
+  PARALLEL_WHILE(frontier, size, fork, set_in_env, [&] (Frontier& frontier) {
+    frontier.for_at_most_nb_outedges(our_pseudodfs_cutoff, [&](vtxid_type other_vertex) {
+        if (!visited.testAndMark(other_vertex))
+          frontier.push_vertex_back(other_vertex);
+    });
+  });
+  return visited;
+}
+  
+
 /*---------------------------------------------------------------------*/
 /* Cong et al's adaptive parallel pseudo DFS */
 

@@ -62,18 +62,19 @@ void fill_array_par(std::atomic<Number>* array, Size sz, Number val) {
 
 template <class Vertex_id>
 class MarksInArray {
+public:
   int* marks;
 
   MarksInArray() {
     marks = NULL;
   }
-
+  /*
   ~ MarksInArray() {
     if (marks != NULL) {
       data:myfree(marks);
     }
   }
-
+  */
   void init(Vertex_id nb) {
     marks = data::mynew_array<int>(nb);
   }
@@ -86,23 +87,24 @@ class MarksInArray {
     marks[i] = 1;
   }
 
-}
+};
 
 
 template <class Vertex_id>
 class MarksInBitVector {
+public:  
   uint64_t* marks;
 
   MarksInBitVector() {
     marks = NULL;
   }
-
+  /*
   ~ MarksInBitVector() {
     if (marks != NULL) {
       data:myfree(marks);
     }
   }
-
+  */
   void init(Vertex_id nb) {
     marks = data::mynew_array<uint64_t>(nb / 64);
   }
@@ -118,23 +120,24 @@ class MarksInBitVector {
     marks[i / 64] |= m;
   }
 
-}
+};
 
 
 template <class Vertex_id>
 class MarksInArrayAtomic {
+public:  
   std::atomic<int>* marks;
 
   MarksInArrayAtomic() {
     marks = NULL;
   }
-
+  /*
   ~ MarksInArrayAtomic() {
     if (marks != NULL) {
       data:myfree(marks);
     }
   }
-
+  */
   void init(Vertex_id nb) {
     marks = data::mynew_array<int>(nb);
   }
@@ -148,50 +151,58 @@ class MarksInArrayAtomic {
   }
 
   bool testAndMark(Vertex_id i) {
-    return (! marks[target].compare_exchange_strong(0, 1));
+    return (! marks[i].compare_exchange_strong(0, 1));
   } 
 
-}
+};
 
 
 template <class Vertex_id>
 class MarksInBitVectorAtomic {
-  std::atomic<uint64_t>* marks;
+public:  
+  //  std::atomic<uint64_t>* marks;
+  unsigned* marks;
+
+  int bits = 32;
 
   MarksInBitVectorAtomic() {
-    marks = NULL;
+    marks = nullptr;
   }
-
+  /*
   ~ MarksInBitVectorAtomic() {
     if (marks != NULL) {
       data:myfree(marks);
     }
   }
-
+  */
   void init(Vertex_id nb) {
-    marks = data::mynew_array<int>(nb / 64);
+    marks = data::mynew_array<unsigned>((nb+1) / bits);
   }
 
   bool operator[] (Vertex_id i) {
-    uint64_t v = marks[i / 64].load(std::memory_order_relaxed);
-    uint64_t m = 1 << (i % 64);
+    //    unsigned v = marks[i / bits].load(std::memory_order_relaxed);
+    unsigned v = marks[i/bits];
+    unsigned m = 1 << (i % bits);
     return ((v & m) != 0);
   }
   
   void mark(Vertex_id i) {
-    uint64_t* v = &marks[i / 64];
-    uint64_t m = 1 << (i % 64);
+    unsigned* v = &marks[i / bits];
+    unsigned m = 1 << (i % bits);
     __sync_fetch_and_or(v, m);
   }
 
+  // returns true if already visited; false otherwise
   bool testAndMark(Vertex_id i) {
-    uint64_t* v = &marks[i / 64];
-    uint64_t m = 1 << (i % 64);
-    uint64_t vold = __sync_fetch_and_or(v, m);
+    volatile unsigned* v = &marks[i / bits];
+    unsigned m = 1 << (i % bits);
+    if ((*v & m) != 0)
+      return true;
+    unsigned vold = __sync_fetch_and_or(v, m);
     return ((vold & m) != 0);
   }
 
-}
+};
   
 
 

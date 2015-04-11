@@ -431,6 +431,9 @@ void search_benchmark_parallel_select_algo() {
   vtxid_type unknown = graph_constants<vtxid_type>::unknown_vtxid;
   std::atomic<vtxid_type>* dists = nullptr;
   std::atomic<int>* visited = nullptr;
+  MarksInBitVectorAtomic<vtxid_type> marks;
+  marks.marks = nullptr;
+  
   util::cmdline::argmap<search_type> m;
 #ifndef SKIP_FAST
   m.add("pbbs_pbfs",   [&] (const adjlist_type& graph, vtxid_type source) {
@@ -451,18 +454,29 @@ void search_benchmark_parallel_select_algo() {
   m.add("cong_pseudodfs",   [&] (const adjlist_type& graph, vtxid_type source) {
     visited = cong_pseudodfs<adjlist_seq_type, idempotent>(graph, source); });
 
+  m.add("our_pseudodfs_new",   [&] (const adjlist_type& graph, vtxid_type source) {
+    our_pseudodfs_cutoff = util::cmdline::parse_or_default_int("our_pseudodfs_cutoff", 1024);
+    marks = our_pseudodfs_new<adjlist_type, frontiersegbag<adjlist_alias_type>, MarksInBitVectorAtomic<vtxid_type>, idempotent>(graph, source); });
+
   auto search = m.find_by_arg("algo");
   auto report = [&] (const adjlist_type& graph) {
     if (dists != nullptr)
       report_bfs_results(graph, unknown, [&] (vtxid_type i) { return dists[i].load(); });
-    else
+    else if (visited != nullptr)
       report_dfs_results(graph, [&] (vtxid_type i) { return vtxid_type(visited[i].load()); });
+    else if (marks.marks != nullptr)
+      report_dfs_results(graph, [&] (vtxid_type i) { return vtxid_type(marks[i]); });
+    else
+      util::atomic::die("we have a problem");
+    
   };
   auto destroy = [&] {
     if (dists != nullptr)
       data::myfree(dists);
     else if (visited != nullptr)
       data::myfree(visited);
+    else if (marks.marks != nullptr)
+      data::myfree(marks.marks);
   };
   search_benchmark_select_input_graph<Adjlist>(search, report, destroy);
 }
@@ -517,7 +531,7 @@ static bool is_parallel_algo() {
   if (algo == "our_pbfs_with_swap")    return true;
   if (algo == "our_lazy_pbfs")         return true;
   if (algo == "our_pseudodfs")         return true;
-    if (algo == "umut_pseudodfs")         return true;
+  if (algo == "our_pseudodfs_new")         return true;  
   if (algo == "cong_pseudodfs")        return true;
   if (algo == "pbbs_pbfs")             return true;
   return false;
