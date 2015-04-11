@@ -38,6 +38,9 @@ namespace pasl {
           case FW_PAR_BFS:
             return floyd_warshall_par_bfs(graph);
             break;
+          case FW_PAR_BFS2:
+            return floyd_warshall_par_bfs2(graph);
+            break;
           default:
             return floyd_seq_classic(graph);
         }
@@ -48,13 +51,15 @@ namespace pasl {
         FW_SERIAL_CLASSIC,
         FW_PAR_CLASSIC,      
         FW_PAR_BFS,
+        FW_PAR_BFS2,        
         FW_NB_ALGO 
       };   
       
-      std::string const fw_algo_names[3] = {
+      std::string const fw_algo_names[4] = {
         "SerialClassic", 
-        "ParClassic",       
-        "ParBFS"
+        "ParClassic",      
+        "ParBFSForAllVertices",
+        "ParBFSForEveryVertex"
       };    
       
       static void print_dist(int nb_vertices, int * dist) {
@@ -115,8 +120,11 @@ namespace pasl {
       /*---------------------------------------------------------------------*/
       /*---------------------------------------------------------------------*/
       /* Floyd-Warshall; parallel bfs */
+      /* One bfs for all the vertices */      
       /*---------------------------------------------------------------------*/
       static adjlist<Adjlist_seq> modify_graph(const adjlist<Adjlist_seq>& graph) {
+        // TODO: make it smarter
+        
         using vtxid_type = typename adjlist<Adjlist_seq>::vtxid_type;
         using edge_type = wedge<vtxid_type>;
         using edgelist_bag_type = pasl::data::array_seq<edge_type>;
@@ -148,15 +156,33 @@ namespace pasl {
       static int* floyd_warshall_par_bfs(const adjlist<Adjlist_seq>& init_graph) {
         using vtxid_type = typename adjlist<Adjlist_seq>::vtxid_type;
         vtxid_type nb_vertices = init_graph.get_nb_vertices();
-        
         auto graph = modify_graph(init_graph);
         std::vector<vtxid_type> sources;
         for (int i = 0; i < nb_vertices; ++i) {
           sources.push_back(i * nb_vertices + i);
         }
         return bellman_ford_algo<Adjlist_seq>::bfs_bellman_ford::bellman_ford_par_bfs(graph, sources);
-      }    
+      }   
       
+      /*---------------------------------------------------------------------*/
+      /*---------------------------------------------------------------------*/
+      /*---------------------------------------------------------------------*/
+      /* Floyd-Warshall; parallel bfs */
+      /* Bfs for every vertex */      
+      /*---------------------------------------------------------------------*/          
+      static int* floyd_warshall_par_bfs2(const adjlist<Adjlist_seq>& init_graph) {
+        using vtxid_type = typename adjlist<Adjlist_seq>::vtxid_type;
+        vtxid_type nb_vertices = init_graph.get_nb_vertices();
+        int* dists = data::mynew_array<int>(nb_vertices * nb_vertices);
+        for (int i = 0; i < nb_vertices; ++i) {
+          vtxid_type* dist = bellman_ford_algo<Adjlist_seq>::bfs_bellman_ford::bellman_ford_par_bfs(init_graph, i, false);
+          for (int j = 0; j < nb_vertices; j++) {
+            dists[i * nb_vertices + j] = dist[j];
+          }
+          free(dist);
+        }
+        return dists;
+      }  
       
     };
     

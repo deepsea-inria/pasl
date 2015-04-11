@@ -64,18 +64,18 @@
          </CommandLineArgument>
          <CommandLineArgument
             argument = "-check 1"
-            isEnabled = "NO">
-         </CommandLineArgument>
-         <CommandLineArgument
-            argument = "-test_num 1"
             isEnabled = "YES">
          </CommandLineArgument>
          <CommandLineArgument
-            argument = "-impl_num 0"
+            argument = "-test_num 5"
             isEnabled = "YES">
          </CommandLineArgument>
          <CommandLineArgument
-            argument = "-edges 100000"
+            argument = "-impl_num 2"
+            isEnabled = "YES">
+         </CommandLineArgument>
+         <CommandLineArgument
+            argument = "-edges 100"
             isEnabled = "YES">
          </CommandLineArgument>
          <CommandLineArgument

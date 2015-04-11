@@ -455,11 +455,12 @@ namespace pasl {
         }
         
         static edgeweight_type* bellman_ford_par_bfs(const adjlist<Adjlist_seq>& graph,
-                                                     typename adjlist<Adjlist_seq>::vtxid_type source) {
-          return bellman_ford_par_bfs(graph, {source});
+                                                     typename adjlist<Adjlist_seq>::vtxid_type source, bool debug = true) {
+          std::vector<typename adjlist<Adjlist_seq>::vtxid_type> sources  = {source};
+          return bellman_ford_par_bfs(graph, sources, debug);
         }      
         
-        static edgeweight_type* bellman_ford_par_bfs(const adjlist<Adjlist_seq>& graph, std::vector<typename adjlist<Adjlist_seq>::vtxid_type> sources) {
+        static edgeweight_type* bellman_ford_par_bfs(const adjlist<Adjlist_seq>& graph, std::vector<typename adjlist<Adjlist_seq>::vtxid_type> sources, bool debug = true) {
           auto inf_dist = shortest_path_constants<edgeweight_type>::inf_dist;
           
           vtxid_type nb_vertices = graph.get_nb_vertices();
@@ -513,7 +514,7 @@ namespace pasl {
           }
           
           
-          std::cout << "Rounds : " << steps << "; Forked = " << forked_first_cnt <<std::endl;
+          if (debug) std::cout << "Rounds : " << steps << "; Forked = " << forked_first_cnt <<std::endl;
           delete(visited);
           return normalize(graph, dists);
         }  
