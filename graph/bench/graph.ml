@@ -1325,13 +1325,15 @@ end
 
 module ExpBaselines = struct
 
-let name = "baselines"
+  let name = "baselines"
+
+  let dfs_algo_name = "dfs_by_vertexid_array"
 
 let mk_dfs =
-  mk_sequential_prog & mk string "algo" "dfs_by_vertexid_array" & mk int "should_pdfs_permute" 0
+  mk_sequential_prog & mk string "algo" dfs_algo_name & mk int "should_pdfs_permute" 0
 
 let mk_dfs_perm =
-  mk_sequential_prog & mk string "algo" "dfs_by_vertexid_array" & mk int "should_pdfs_permute" 1
+  mk_sequential_prog & mk string "algo" dfs_algo_name & mk int "should_pdfs_permute" 1
                          
 
 let mk_bfs =
@@ -2100,8 +2102,9 @@ let plot () =
                                    | "our_pseudodfs" -> "Unordered PDFS"
                                    | "pbbs_pbfs_cilk" -> "PBBS PBFS"
                                    | "ligra" -> "Ligra"
-                                   | "ls_pbfs" -> "LS PBFS"
+                                   | "ls_pbfs" -> "LS PBFS (PASL)"
                                    | "pbbs_pbfs" -> "PBBS PBFS (PASL)"
+                                   | "dfs_by_vertexid_array" -> "Sequential DFS"
                                    | _ -> "<bogus>" )]
    in
 
@@ -2117,7 +2120,7 @@ let plot () =
        X mk_kind_for_size;
        Input (file_results name);
        Output "plot_us_vs_cong.pdf";
-       Y_label "Speedup vs. serial DFS";
+       Y_label "Speedup w.r.t. sequential DFS";
        Y my_eval_speedup;
                        ]));
       in
@@ -2134,7 +2137,7 @@ let plot () =
        X mk_kind_for_size;
        Input (file_results name);
        Output "plot_dfs_vs_bfs.pdf";
-       Y_label "Speedup vs. serial DFS";
+       Y_label "Speedup w.r.t. sequential DFS";
        Y my_eval_speedup;
                        ]));
     in
@@ -2165,7 +2168,7 @@ let plot () =
           Y_axis [Axis.Lower (Some 0.); Axis.Upper (Some 65.) ] ]);
        Formatter (fun env -> Env.format (barplot_formatter_with_maxdist env) env);
        Charts (mk_sizes);
-       Series (mk_ligra ++ mk_our_parallel_dfs);
+       Series (mk_our_parallel_dfs ++ mk_ligra);
        X (fun env ->  
           let kinds = mk_kind_for_size env in
           (* uncomment to activate sorting by diameter
@@ -2179,9 +2182,63 @@ let plot () =
        Y_label "speedup (w.r.t. sequential DFS)";
        Y my_eval_ligra;
                      ]));
-      in
+  in
 
-   let plot_graphs () =
+  let _ = system ("cat "^ (file_results name) ^ " " ^ (file_results ExpBaselines.name) ^ " > mytmpfile.txt") in
+
+  let plot_locality () =
+      let my_eval = fun env all_results results ->
+        let tcur = Results.get_mean_of "exectime" results in
+        let mk_baseline = match Results.get_unique_of_as Env.as_string "algo" results with
+          | "our_pseudodfs" -> mk_our_parallel_dfs
+          | "cong_pseudodfs" -> mk_cong_parallel_dfs
+          | "dfs_by_vertexid_array" -> ExpBaselines.mk_dfs
+        in
+        let env = mk_baseline & from_env (Env.filter_keys ["kind"; "size"] env) in
+        let results_baseline = Results.filter_by_params env all_results in
+        let tbase = Results.get_mean_of "exectime" results_baseline in
+        (tbase /. tcur)
+       in
+     let results_for_max_dist = Results.filter_by_params mk_traversal_bfs results_baseline in
+     let max_dist_for env = 
+        let results = Results.filter (Env.filter_keys ["size";"kind"] env) results_for_max_dist in
+        Results.get_unique_of_as Env.as_int "max_dist" results
+        in
+     let barplot_formatter_with_maxdist env =
+        ["kind", Env.Format_custom (fun s -> 
+          (* let env = Env.add (Env.filter_keys ["size"] env) "kind" (Env.Vstring s) in  --useless line*)
+          sprintf "%s (D=%s)" (graph_renamer s) (string_of_exp_range (max_dist_for env)))] 
+        @ barplot_formatter 
+        in
+        Mk_bar_plot.(call ([
+         Chart_opt Chart.([
+            Legend_opt Legend.([
+               Legend_pos Top_left
+               ])]);                            
+       Bar_plot_opt Bar_plot.([
+          Chart_opt Chart.([Dimensions (10.,7.) ]);
+          X_titles_dir Vertical;
+          Y_axis [Axis.Lower (Some 0.); Axis.Upper (Some 30.) ] ]);
+       Formatter (fun env -> Env.format (barplot_formatter_with_maxdist env) env);
+       Charts (mk_sizes);
+       Series (mk_our_parallel_dfs_perm ++ mk_cong_parallel_dfs_perm ++ ExpBaselines.mk_dfs_perm);
+       X (fun env ->  
+          let kinds = mk_kind_for_size env in
+          (* uncomment to activate sorting by diameter
+          let kinds_maxdist = ~~ List.map kinds (fun kind -> (kind, max_dist_for (Env.append env kind))) in
+          let kinds_maxdist = List.sort (fun (_,x) (_,y) -> x-y) kinds_maxdist in
+          let kinds = List.map fst kinds_maxdist in
+          *)
+          kinds);
+       (*       Input (file_results name);*)
+       Input ("mytmpfile.txt");
+       Output (file_plots (name^"_locality"));
+       Y_label "speedup (w.r.t. original vertex labeling)";
+       Y my_eval;
+                     ]));
+  in
+
+  let plot_graphs () =
      Mk_table.build_table "table_graphs.tex" "table_graphs.pdf" (fun add ->
       let env = Env.empty in
       let envs_tables = (mk_sizes) env in
@@ -2297,9 +2354,9 @@ let plot () =
              add Latex.new_page;
                                    ))) in
 
-      let _ = generate_locality_table "ours" mk_our_parallel_dfs mk_our_parallel_dfs_perm in
-      let _ = generate_locality_table "cong" mk_cong_parallel_dfs mk_cong_parallel_dfs_perm in
-      let _ = generate_locality_table "pbbs" mk_pbbs_pbfs mk_pbbs_pbfs_perm in    
+(*      let _ = generate_locality_table "ours" mk_our_parallel_dfs mk_our_parallel_dfs_perm in
+      let _ = generate_locality_table "cong" mk_cong_parallel_dfs mk_cong_parallel_dfs_perm in 
+      let _ = generate_locality_table "pbbs" mk_pbbs_pbfs mk_pbbs_pbfs_perm in    *)
       ()
 
    in
@@ -2311,6 +2368,7 @@ let plot () =
       "graphs", plot_graphs;
       "ligra", plot_ligra;
       "others", plot_others;
+      "locality", plot_locality;
       ] in
    let arg_sub = if arg_sub = ["all"] then List.map fst bindings else arg_sub in
    ~~ List.iter bindings (fun (k,f) -> if List.mem k arg_sub then f());
