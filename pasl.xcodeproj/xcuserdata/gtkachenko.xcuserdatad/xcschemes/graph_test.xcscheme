@@ -59,23 +59,23 @@
       </BuildableProductRunnable>
       <CommandLineArguments>
          <CommandLineArgument
-            argument = "-test_num 0"
-            isEnabled = "YES">
-         </CommandLineArgument>
-         <CommandLineArgument
             argument = "-algo_num 1"
             isEnabled = "YES">
          </CommandLineArgument>
          <CommandLineArgument
-            argument = "-graph 1"
+            argument = "-check 1"
             isEnabled = "NO">
          </CommandLineArgument>
          <CommandLineArgument
-            argument = "-edges 5000"
+            argument = "-test_num 1"
             isEnabled = "YES">
          </CommandLineArgument>
          <CommandLineArgument
-            argument = "-cutoff 20000"
+            argument = "-impl_num 0"
+            isEnabled = "YES">
+         </CommandLineArgument>
+         <CommandLineArgument
+            argument = "-edges 100000"
             isEnabled = "YES">
          </CommandLineArgument>
          <CommandLineArgument
@@ -83,24 +83,12 @@
             isEnabled = "YES">
          </CommandLineArgument>
          <CommandLineArgument
-            argument = "-max 10000"
-            isEnabled = "YES">
-         </CommandLineArgument>
-         <CommandLineArgument
-            argument = "-infile &quot;BalancedTree.dot&quot;"
-            isEnabled = "NO">
-         </CommandLineArgument>
-         <CommandLineArgument
-            argument = "-impl_num 0"
+            argument = "-max 1"
             isEnabled = "YES">
          </CommandLineArgument>
          <CommandLineArgument
             argument = "-proc 4"
             isEnabled = "YES">
-         </CommandLineArgument>
-         <CommandLineArgument
-            argument = "-gen_file 1"
-            isEnabled = "NO">
          </CommandLineArgument>
          <CommandLineArgument
             argument = "-shuffle 1"

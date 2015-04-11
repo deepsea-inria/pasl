@@ -29,6 +29,9 @@ std::string const algo_names[] = {
 // Algorithm's thresholds
 int pasl::graph::bellman_ford_par_serial_cutoff;
 int pasl::graph::bellman_ford_par_bfs_cutoff;
+int pasl::graph::floyd_warshall_par_bfs_cutoff;
+int pasl::graph::floyd_warshall_par_serial_cutoff;
+
 
 // Graph properties
 using vtxid_type = int;
@@ -222,6 +225,9 @@ int main(int argc, char ** argv) {
     }
     pasl::graph::bellman_ford_par_serial_cutoff = cutoff;
     pasl::graph::bellman_ford_par_bfs_cutoff = cutoff;
+    pasl::graph::floyd_warshall_par_bfs_cutoff = cutoff;
+    pasl::graph::floyd_warshall_par_serial_cutoff = cutoff;
+    
     switch (algo_num) {
       case BELLMAN_FORD:
         algo = new bellman_ford_algo<adjlist_seq_type>();

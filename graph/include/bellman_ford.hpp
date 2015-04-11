@@ -47,7 +47,6 @@ namespace pasl {
         }
       }
       
-    private:
       enum { 	
         BF_SERIAL_CLASSIC,
         BF_SERIAL_BFS,
@@ -397,8 +396,8 @@ namespace pasl {
                 Frontier fr_out(graph_alias);
                 prev.split(prev.nb_outedges() / 2, fr_in);
                 forked_first_cnt++;
-                sched::native::fork2([&] { process_layer_par(graph_alias, visited, prev, next, dists, layer, forked_first_cnt); },
-                                     [&] { process_layer_par(graph_alias, visited, fr_in, fr_out, dists, layer, forked_first_cnt); });
+                sched::native::fork2([&] { process_layer_par_lazy(graph_alias, visited, prev, next, dists, layer, forked_first_cnt); },
+                                     [&] { process_layer_par_lazy(graph_alias, visited, fr_in, fr_out, dists, layer, forked_first_cnt); });
                 next.concat(fr_out);
                 
                 if (blocked) // should always be false due to the order of the conditionals; yet, keep it for safety
@@ -457,6 +456,10 @@ namespace pasl {
         
         static edgeweight_type* bellman_ford_par_bfs(const adjlist<Adjlist_seq>& graph,
                                                      typename adjlist<Adjlist_seq>::vtxid_type source) {
+          return bellman_ford_par_bfs(graph, {source});
+        }      
+        
+        static edgeweight_type* bellman_ford_par_bfs(const adjlist<Adjlist_seq>& graph, std::vector<typename adjlist<Adjlist_seq>::vtxid_type> sources) {
           auto inf_dist = shortest_path_constants<edgeweight_type>::inf_dist;
           
           vtxid_type nb_vertices = graph.get_nb_vertices();
@@ -466,7 +469,7 @@ namespace pasl {
           fill_array_par(visited, nb_vertices, unknown);
           
           fill_array_seq(dists, nb_vertices, inf_dist);
-          dists[source] = 0;
+          
           
           
           LOG_BASIC(ALGO_PHASE);
@@ -477,7 +480,10 @@ namespace pasl {
           frontiers[1].set_graph(graph_alias);
           vtxid_type cur = 0; // either 0 or 1, depending on parity of dist
           vtxid_type nxt = 1; // either 1 or 0, depending on parity of dist
-          frontiers[0].push_vertex_back(source);
+          for (vtxid_type cur_source : sources) {
+            dists[cur_source] = 0;   
+            frontiers[0].push_vertex_back(cur_source);
+          }
           
           int steps = 0;
           std::atomic<int> forked_first_cnt;
@@ -510,7 +516,7 @@ namespace pasl {
           std::cout << "Rounds : " << steps << "; Forked = " << forked_first_cnt <<std::endl;
           delete(visited);
           return normalize(graph, dists);
-        }            
+        }  
       };
 
 
