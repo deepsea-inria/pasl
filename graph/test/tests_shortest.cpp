@@ -25,13 +25,11 @@ std::string const algo_names[] = {
   "Floyd-Warshall"
 };
 
-
 // Algorithm's thresholds
 int pasl::graph::bellman_ford_par_serial_cutoff;
 int pasl::graph::bellman_ford_par_bfs_cutoff;
 int pasl::graph::floyd_warshall_par_bfs_cutoff;
 int pasl::graph::floyd_warshall_par_serial_cutoff;
-
 
 // Graph properties
 using vtxid_type = int;
@@ -78,6 +76,7 @@ void print_graph_debug_info(const adjlist_type & graph, vtxid_type & src, std::s
   std::cout << "Fraction = " << (.0 + num_less) / num_edges << "; " << "AvgDegree = " << (.0 + num_edges) / nb_vertices << std::endl;;
 }
 
+// TODO : use write_graph_to_file from graphfileshared.hpp
 void print_graph_to_file(const adjlist_type & graph, std::string type) {
   std::ofstream graph_file(graph_types[test_num] + ".dot");
   if (graph_file.is_open())
@@ -134,6 +133,7 @@ static inline void parse_fname(std::string fname, std::string& base, std::string
   std::getline(ss, extension);
 }
 
+// TODO : use load_graph_from_file from graphfileshared.hpp
 template <class Adjlist>
 bool load_graph_from_file(Adjlist& graph) {
   std::string infile = pasl::util::cmdline::parse_or_default_string("infile", "");
