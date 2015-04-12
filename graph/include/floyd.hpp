@@ -139,39 +139,42 @@ namespace pasl {
         vtxid_type* offsets_in = adj.adjlists.offsets_in;        
         vtxid_type* edges = adj.adjlists.edges;
         vtxid_type* edges_in = adj.adjlists.edges_in;
+        vtxid_type init_nb_vertices = graph.get_nb_vertices();
         
         int cur_offset = 0, cur_offset_in = 0, cur_id = 0;
-        for (int i = 0; i < graph.get_nb_vertices(); ++i) {
-          for (int j = 0; j < graph.get_nb_vertices(); ++j) {
+        for (int i = 0; i < init_nb_vertices; ++i) {          
+          sched::native::parallel_for(0, init_nb_vertices, [&] (int j) {
             // offsets
-            offsets[cur_id] = cur_offset;
-            offsets_in[cur_id] = cur_offset_in;            
-            cur_offset += graph.adjlists.offsets[j + 1] - graph.adjlists.offsets[j];    
-            cur_offset_in += graph.adjlists.offsets_in[j + 1] - graph.adjlists.offsets_in[j];
-            cur_id++;
-          }
+            offsets[cur_id + j] = cur_offset + graph.adjlists.offsets[j];
+            offsets_in[cur_id + j] = cur_offset_in + graph.adjlists.offsets_in[j];            
+          });
+          cur_offset += graph.adjlists.offsets[init_nb_vertices];    
+          cur_offset_in += graph.adjlists.offsets_in[init_nb_vertices];
+          cur_id += init_nb_vertices;
         }
         offsets[nb_offsets - 1] = cur_offset;
         offsets_in[nb_offsets - 1] = cur_offset_in;  
         
+        
         cur_id = 0;
-        for (int i = 0; i < graph.get_nb_vertices(); ++i) {
-          const int off = i * graph.get_nb_vertices();
-          for (int j = 0; j < graph.get_nb_vertices(); ++j) {
+        for (int i = 0; i < init_nb_vertices; ++i) {
+          const int off = i * init_nb_vertices;
+          sched::native::parallel_for(0, init_nb_vertices, [&] (int j) {
             // edges
-            int start = offsets[cur_id], num = offsets[cur_id + 1] - offsets[cur_id];
+            int start = offsets[cur_id + j], num = offsets[cur_id + j + 1] - offsets[cur_id + j];
 						memcpy(edges + start, graph.adjlists.edges + graph.adjlists.offsets[j], sizeof(vtxid_type) * num);            
             for (int k = 0; k < num / 2; k++) {
               int to = edges[start + k];
               edges[start + k] += off;
             }
-            start = offsets_in[cur_id], num = offsets_in[cur_id + 1] - offsets_in[cur_id];
+            start = offsets_in[cur_id + j], num = offsets_in[cur_id + j + 1] - offsets_in[cur_id + j];
             memcpy(edges_in + start, graph.adjlists.edges_in + graph.adjlists.offsets_in[j], sizeof(vtxid_type) * num);            
             for (int k = 0; k < num / 2; k++) {
               edges_in[start + k] += off;
             }
-            cur_id++;
-          }
+
+          });
+          cur_id += init_nb_vertices;
         }
         adj.nb_edges = nb_edges;
         return adj;
@@ -181,6 +184,7 @@ namespace pasl {
         using vtxid_type = typename adjlist<Adjlist_seq>::vtxid_type;
         vtxid_type nb_vertices = init_graph.get_nb_vertices();
         auto graph = modify_graph(init_graph);
+        std::cout << "Finished modifiyng graph" << std::endl;
         std::vector<vtxid_type> sources;
         for (int i = 0; i < nb_vertices; ++i) {
           sources.push_back(i * nb_vertices + i);
