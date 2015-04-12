@@ -64,10 +64,10 @@
          </CommandLineArgument>
          <CommandLineArgument
             argument = "-check 1"
-            isEnabled = "YES">
+            isEnabled = "NO">
          </CommandLineArgument>
          <CommandLineArgument
-            argument = "-test_num 5"
+            argument = "-test_num 1"
             isEnabled = "YES">
          </CommandLineArgument>
          <CommandLineArgument
@@ -75,15 +75,19 @@
             isEnabled = "YES">
          </CommandLineArgument>
          <CommandLineArgument
-            argument = "-edges 100"
+            argument = "-edges 6"
+            isEnabled = "NO">
+         </CommandLineArgument>
+         <CommandLineArgument
+            argument = "-edges 100000"
             isEnabled = "YES">
          </CommandLineArgument>
          <CommandLineArgument
-            argument = "-min 1"
+            argument = "-min 100"
             isEnabled = "YES">
          </CommandLineArgument>
          <CommandLineArgument
-            argument = "-max 1"
+            argument = "-max 100"
             isEnabled = "YES">
          </CommandLineArgument>
          <CommandLineArgument

@@ -185,7 +185,6 @@
 		C0794DD31A0A4B46002D8880 /* graphio.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = graphio.hpp; sourceTree = "<group>"; };
 		C0794DD41A0A4B46002D8880 /* README.md */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = README.md; sourceTree = "<group>"; };
 		C0794DD61A0A4B46002D8880 /* Makefile */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.make; path = Makefile; sourceTree = "<group>"; };
-		C0794DD71A0A4B46002D8880 /* tests.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = tests.cpp; sourceTree = "<group>"; };
 		C0794DD81A0A4B46002D8880 /* LICENSE */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = LICENSE; sourceTree = "<group>"; };
 		C0794DDA1A0A4B46002D8880 /* barrier.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = barrier.hpp; sourceTree = "<group>"; };
 		C0794DDB1A0A4B46002D8880 /* cldeque.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = cldeque.hpp; sourceTree = "<group>"; };
@@ -602,7 +601,6 @@
 			children = (
 				C0794DD61A0A4B46002D8880 /* Makefile */,
 				C0CC2C5C1A0D44F40092DD21 /* tests_shortest.cpp */,
-				C0794DD71A0A4B46002D8880 /* tests.cpp */,
 			);
 			path = test;
 			sourceTree = "<group>";
