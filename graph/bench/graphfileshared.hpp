@@ -184,6 +184,8 @@ void load_graph_from_file(Adjlist& graph) {
     read_dimacs10_graph(infile, graph);
   else if (extension == "yahoo")
     read_yahoo_graph(infile, graph);
+  else if (extension == "pbbs_adjlist")
+    read_pbbs_adjlist_graph(infile, graph);
   else
     util::atomic::die("unknown file format %s", extension.c_str());
 }

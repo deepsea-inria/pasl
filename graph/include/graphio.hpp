@@ -470,6 +470,61 @@ void read_dimacs9_graph(std::string fname, adjlist<flat_adjlist_seq<Vertex_id>>&
   adjlist_from_edgelist(edges, graph);
 }
 
+//--------------------------------------------------------
+
+template <class Vertex_id>
+void read_pbbs_adjlist_graph(std::string fname, adjlist<flat_adjlist_seq<Vertex_id>>& graph) {
+  using vtxid_type = Vertex_id;
+  int nb_header_lines = 3;
+
+  std::ifstream in (fname, std::ios::in | std::ios::binary | std::ios::ate);
+  in.seekg (0, std::ios::beg);
+  auto begin = in.tellg();
+  in.seekg (0, std::ios::end);
+  auto end = in.tellg();
+  long n = end-begin;
+  in.seekg (0, std::ios::beg);
+  char* bytes = data::mynew_array<char>(n+1);
+  in.read (bytes,n);
+  in.close();
+
+  data::pcontainer::stack<char*> words;
+  tokenize_string([] (char c) { return is_space(c); }, bytes, vtxid_type(n), words);
+  data::array_seq<char*> words_array;
+  data::pcontainer::transfer_contents_to_array_seq(words, words_array);
+
+  vtxid_type nb_vertices;
+  edgeid_type nb_edges;
+  str_to_vtxidtype(words_array[1], nb_vertices);
+  str_to_vtxidtype(words_array[2], nb_edges);
+  vtxid_type nb_offsets = nb_vertices + 1;
+  vtxid_type offsets_szb = sizeof(vtxid_type) * nb_offsets;
+  vtxid_type edges_szb = sizeof(vtxid_type) * nb_edges;
+  long contents_szb = offsets_szb + edges_szb;
+
+  char* output = data::mynew_array<char>(contents_szb);
+
+  vtxid_type* offsets = (vtxid_type*)(output);
+  vtxid_type* edges = (vtxid_type*)(output+offsets_szb);
+
+  if (words_array.size() != nb_header_lines + nb_vertices + nb_edges)
+    util::atomic::die("bogus: n=%d m=%d sz=%d sz2=%d\n",nb_vertices,nb_edges,words_array.size(),words.size());
+
+  sched::native::parallel_for(vtxid_type(0), nb_vertices, [&] (vtxid_type i) {
+    str_to_vtxidtype(words_array[i+nb_header_lines], offsets[i]);
+  });
+
+  offsets[nb_vertices] = nb_edges;
+
+  sched::native::parallel_for(edgeid_type(0), nb_edges, [&] (vtxid_type i) {
+      str_to_vtxidtype(words_array[i+nb_header_lines+nb_vertices], edges[i]);
+  });
+
+  graph.adjlists.init(output, nb_vertices, nb_edges);
+  graph.nb_edges = nb_edges;
+  free(bytes);
+}
+
 template <class Vertex_id>
 void read_yahoo_graph(std::string fname, adjlist<flat_adjlist_seq<Vertex_id>>& graph) {
   using vtxid_type = Vertex_id;
