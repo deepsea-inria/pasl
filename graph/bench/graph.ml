@@ -759,7 +759,7 @@ let mk_graph_outputs_all_manual : Params.t =
    Params.eval (
       mk_manual "orkut" Large 32 1
    ++ mk_manual "livejournal1" size_medium 32 0                 
-   ++ mk_manual "twitter" Large 64 12                 
+   ++ mk_manual "twitter" Large 64 1                 
    ++ mk_manual "friendster" Large 64 123
    ++ mk_manual "cage15" size_medium 32 0
    ++ mk_manual "Freescale1" size_medium 32 0                   
