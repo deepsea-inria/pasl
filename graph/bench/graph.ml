@@ -2193,6 +2193,7 @@ let plot () =
           | "our_pseudodfs" -> mk_our_parallel_dfs
           | "cong_pseudodfs" -> mk_cong_parallel_dfs
           | "dfs_by_vertexid_array" -> ExpBaselines.mk_dfs
+          | _ -> failwith "unsupported algo for plot_locality"
         in
         let env = mk_baseline & from_env (Env.filter_keys ["kind"; "size"] env) in
         let results_baseline = Results.filter_by_params env all_results in
@@ -2268,7 +2269,7 @@ let plot () =
            let nb_vertices = Results.get_unique_of "nb_vertices" results_accessible in
            let _nb_visited_vertices = Results.get_unique_of "nb_visited" results_accessible in
            let nb_edges = Results.get_unique_of "nb_edges" results_accessible in
-           let _nb_visited_edges = Results.get_unique_of "nb_edges_processed" results_accessible in
+           let nb_visited_edges = Results.get_unique_of "nb_edges_processed" results_accessible in
            let max_dist = Results.get_unique_of "max_dist" results_baseline_bfs in
            let nb_visited = Results.get_unique_of "nb_visited" results_baseline_bfs in         
            let exectime_for rs mk_base =
@@ -2280,8 +2281,8 @@ let plot () =
            let v_dfs_seq = exectime_for results_baseline ExpBaselines.mk_dfs in
            let v_dfs_par = exectime_for results_our_parallel_dfs mk_our_parallel_dfs in
            let v_dfs_par_perm = exectime_for results_our_parallel_dfs_perm mk_our_parallel_dfs_perm in
-           let v_dfs_throughput = nb_visited /. 1000000. /. v_dfs_par in
-           let v_dfs_throughput_perm = nb_visited /. 1000000. /. v_dfs_par_perm in
+           let v_dfs_throughput = nb_visited_edges /. 1000000. /. v_dfs_par in
+           let v_dfs_throughput_perm = nb_visited_edges /. 1000000. /. v_dfs_par_perm in
 
            Mk_table.cell add (graph_renamer kind); 
            Mk_table.cell add (string_of_millions nb_vertices);
