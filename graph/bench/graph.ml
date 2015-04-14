@@ -388,10 +388,9 @@ let mk_graph_outputs_all_generated : Params.t =
             let nb_nodes = load size / 3 in
             let nb_side = XInt.pow_float nb_nodes (1. /. 3.) in
             mk int "nb_on_side" nb_side))
-      in
-   let mk_phased =
-       let build file params =
-         mk_file_by_size file (fun size ->
+   in
+   let build_phased file params =
+     mk_file_by_size file (fun size ->
            let (nb_phases,nb_per_phase,nb_at_max,arity_not) = params size in
               mk_common "phased"
             & mk int "nb_phases" nb_phases
@@ -399,60 +398,65 @@ let mk_graph_outputs_all_generated : Params.t =
             & mk int "nb_per_phase_at_max_arity" nb_at_max
             & mk int "arity_of_vertices_not_at_max_arity" arity_not)
             in
-          (
-          (* build "phased_200_full" (fun size ->
+
+   let mk_phased1 =
+     build_phased "phased_mix_10" (fun size ->
+             let nb_phases = 10 in
+             let arity = 2 in
+             let nb_per_phase = (load size) / nb_phases / (1+arity) in
+             (nb_phases, nb_per_phase, 1, arity))
+              in
+          (* build_phased "phased_200_full" (fun size ->
              let real_load = (if size = Large then (*30*) 2 else 10) * load size in
              let nb_per_phase = 200 in
              let nb_phases = XInt.sqrt (real_load / nb_per_phase / nb_per_phase) in
              (nb_phases, nb_per_phase, nb_per_phase, 0))
         ++
-           build "phased_high_50" (fun size ->
+           build_phased "phased_high_50" (fun size ->
              let real_load = (if size = Large then (*30*) 2 else 10) * load size in
              let nb_phases = 50 in
              let nb_per_phase = XInt.sqrt (real_load / nb_phases) in
              (nb_phases, nb_per_phase, nb_per_phase, 0))
-        ++ build "phased_low_50" (fun size ->
+        ++ build_phased "phased_low_50" (fun size ->
              let real_load = (if size = Large then 2 else 1) * load size in
              let nb_phases = 50 in
              let arity = 5 in
              let nb_per_phase = real_load / nb_phases / arity in
              (nb_phases, nb_per_phase, 0, arity))
-        ++ *) build "phased_mix_10" (fun size ->
-             let nb_phases = 10 in
-             let arity = 2 in
-             let nb_per_phase = (load size) / nb_phases / (1+arity) in
-             (nb_phases, nb_per_phase, 1, arity))
-        (* ++ build "phased_mix_2" (fun size ->
+        ++ *) 
+              
+        (* ++ build_phased "phased_mix_2" (fun size ->
              let real_load = (if size = Large then 3 else 2) * load size in
              let nb_phases = 2 in
              let arity = 2 in
              let nb_per_phase = real_load / (2+arity) in
              (nb_phases, nb_per_phase, 1, arity)) *)
-        ++ build "phased_524288_single" (fun size ->
+              let mk_phased2 = build_phased "phased_524288_single" (fun size ->
              let real_load = (if size = Large then 2 else 2) * load size in
              let nb_per_phase = 524288 in
              let nb_phases = real_load / nb_per_phase in
              (nb_phases, nb_per_phase, 1, 0))
-
-        ++ build "phased_mix_100" (fun size ->
+              in
+              
+              let mk_phased3 = build_phased "phased_mix_100" (fun size ->
                                    (*             let real_load = (if size = Large then 2 else 2) * load size in*)
              let nb_per_phase = 250000 in
              let nb_phases = 20 in
              let arity = 100 in
              (nb_phases, nb_per_phase, 0, arity))
                  
-        (* ++ build "phased_2048_single" (fun size ->
+        (* ++ build_phased "phased_2048_single" (fun size ->
              let real_load = (if size = Large then 2 else 2) * load size in
              let nb_per_phase = 2048 in
              let nb_phases = real_load / nb_per_phase in
              (nb_phases, nb_per_phase, 1, 0))
-        ++ build "phased_4096_single" (fun size ->
+        ++ build_phased "phased_4096_single" (fun size ->
              let real_load = (if size = Large then 2 else 2) * load size in
              let nb_per_phase = 4096 in
              let nb_phases = real_load / nb_per_phase in
              (nb_phases, nb_per_phase, 1, 0)) *)
         (*++ (let phased_n_n n =
-              build (sprintf "phased_%d_arity_%d" n n) (fun size ->
+              build_phased (sprintf "phased_%d_arity_%d" n n) (fun size ->
                 let real_load = (if size = Large then 2 else 2) * load size in
                 let nb_per_phase = n in
                 let nb_phases = max 2 (real_load / nb_per_phase / nb_per_phase) in
@@ -463,69 +467,71 @@ let mk_graph_outputs_all_generated : Params.t =
          ++ phased_n_n 513
          ++ phased_n_n 1024
          ++ phased_n_n 1025 ) *)
-        )
+        
       in
-   let mk_parallel_paths =
-       let build file params =
+ 
+       let build_pp file params =
          mk_file_by_size file (fun size ->
            let (nb_phases,nb_paths_per_phase,nb_edges_per_path) = params size in
               mk_common "parallel_paths"
             & mk int "nb_phases" nb_phases
             & mk int "nb_paths_per_phase" nb_paths_per_phase
             & mk int "nb_edges_per_path" nb_edges_per_path
-            )in
-         ( (* build "paths_8_phases_1" (fun size ->
+                              ) in
+          (* build_pp "paths_8_phases_1" (fun size ->
              let real_load = load size / 2 in
              let paths = 8 in
              let nb_phases = 1 in
              let edges = real_load / paths / nb_phases  in
              (nb_phases, paths, edges))
-        ++ build "paths_20_phases_1" (fun size ->
+        ++ build_pp "paths_20_phases_1" (fun size ->
              let real_load = load size / 2 in
              let paths = 20 in
              let nb_phases = 1 in
              let edges = real_load / paths / nb_phases  in
              (nb_phases, paths, edges)) 
-        ++ *) build "paths_100_phases_1" (fun size ->
-             let real_load = load size / 2 in
-             let paths = 100 in
-             let nb_phases = 1 in
-             let edges = real_load / paths / nb_phases in
-             (nb_phases, paths, edges))
-
-        ++ build "paths_3percent" (fun size ->
-             let real_load = load size / 2 in
-             let edges = 38 in                                   
-             let paths = real_load / edges in
-             let nb_phases = 1 in
-             (nb_phases, paths, edges))
-                 
-        (*++ build "paths_524288_phases_1" (fun size ->
+        ++ *)
+           let mk_parallel_paths1 = build_pp "paths_100_phases_1" (fun size ->
+                                                                   let real_load = load size / 2 in
+                                                                   let paths = 100 in
+                                                                   let nb_phases = 1 in
+                                                                   let edges = real_load / paths / nb_phases in
+                                                                   (nb_phases, paths, edges))
+           in
+             
+             let mk_parallel_paths2 =
+               build_pp "paths_3percent" (fun size ->
+                                          let real_load = load size / 2 in
+                                          let edges = 38 in                                   
+                                          let paths = real_load / edges in
+                                          let nb_phases = 1 in
+                                          (nb_phases, paths, edges))
+             in         
+        (*++ build_pp "paths_524288_phases_1" (fun size ->
              let real_load = load size / 2 in
              let paths = 524288 in
              let nb_phases = 1 in
              let edges = real_load / paths / nb_phases in
              (nb_phases, paths, edges)) *)
-        (* ++ build "paths_100_phases_200" (fun size ->
+        (* ++ build_pp "paths_100_phases_200" (fun size ->
              let real_load = load size / 2 in
              let paths = 100 in
              let nb_phases = 200 in
              let edges = real_load / paths / nb_phases in
              (nb_phases, paths, edges)) *)
-        (*++ build "paths_30_phases_200" (fun size ->
+        (*++ build_pp "paths_30_phases_200" (fun size ->
              let real_load = load size / 2 in
              let paths = 30 in
              let nb_phases = 200 in
              let edges = real_load / paths / nb_phases in
              (nb_phases, paths, edges))*)
-       (*++ build "paths_100000_len_2" (fun size ->
+       (*++ build_pp "paths_100000_len_2" (fun size ->
              let real_load = load size in
              let paths = 100000 in
              let edges = 2 in
              let nb_phases = real_load / paths / (1+edges) in
              (nb_phases, paths, edges))*)
-        )
-      in
+        
     let mk_tree_binary =
          mk_file_by_size "tree_binary" (fun size ->
             let height = XInt.log2 (load size) in
@@ -643,7 +649,7 @@ let mk_graph_outputs_all_generated : Params.t =
 
       in
    let mk_random =
-      let build file params =
+      let build_rnd file params =
          mk_file_by_size ~bits:32 file (fun size ->
            (* load needs to be limited cause only 32 bits *)
            let (dim,degree,num_rows) = params size in
@@ -652,22 +658,22 @@ let mk_graph_outputs_all_generated : Params.t =
             & mk int "degree" degree
             & mk int "num_rows" num_rows)
             in
-         ( (* build "random_arity_3" (fun size ->
+         ( (* build_rnd "random_arity_3" (fun size ->
              let dim = 10 in
              let degree = 3 in
              let num_rows = load size / degree in
              (dim, degree, num_rows)) *)
-      (* ++ build "random_arity_8" (fun size ->
+      (* ++ build_rnd "random_arity_8" (fun size ->
              let dim = 10 in
              let degree = 8 in
              let num_rows = load size / degree in
              (dim, degree, num_rows)) 
-       ++ *) build "random_arity_100" (fun size ->
+       ++ *) build_rnd "random_arity_100" (fun size ->
              let dim = 10 in
              let degree = 100 in
              let num_rows = load size / degree in
              (dim, degree, num_rows))
-       (*++ build "random_arity_1000" (fun size ->
+       (*++ build_rnd "random_arity_1000" (fun size ->
              let real_load = (if size = Large then 1 else 15) * load size in
              let dim = 10 in
              let degree = 1000 in
@@ -678,14 +684,18 @@ let mk_graph_outputs_all_generated : Params.t =
       Params.eval (
           mk_tree_depth_2          
        ++ mk_random
-       ++ mk_rmat27
-       ++ mk_phased
-       ++ mk_rmat24
-       ++ mk_tree_binary               
-       ++ mk_grid3
+          ++ mk_rmat27
+          ++ mk_phased1               
+          ++ mk_rmat24
+          ++ mk_phased3               
+       ++ mk_tree_binary                             
+          ++ mk_parallel_paths2                              
+          ++ mk_grid3
+          ++ mk_phased2               
        ++ mk_grid2               
-       ++ mk_parallel_paths            
-       ++ mk_circular_knext            
+          ++ mk_parallel_paths1
+          ++ mk_circular_knext
+
     )
 
 
@@ -862,7 +872,7 @@ let generated_kinds_of_size size =
 
 let mk_kind_for_size =
    mk_eval_list string "kind" (fun e -> kinds_of_size (Env.get_as_string e "size"))
-
+                
 let mk_generated_kind_for_size =
    mk_eval_list string "kind" (fun e -> generated_kinds_of_size (Env.get_as_string e "size"))
 
@@ -2047,7 +2057,11 @@ let mk_pbbs_pbfs_perm =
    & mk int "proc" arg_proc
    & mk int "should_pbfs_permute" 1
 
-        
+let swpr xs =
+  match xs with
+  | x :: y :: xs -> y :: x :: xs
+  | _ -> xs
+
 let run () =
    Mk_runs.(call (run_modes @ [
       Output (file_results name);
@@ -2079,7 +2093,7 @@ let plot () =
    let results = Results.from_file (file_results name) in
    let results_baseline = Results.from_file (file_results ExpBaselines.name) in
    let results_accessible = Results.from_file (file_results ExpAccessible.name) in
-           
+          
    let my_eval_speedup = fun env all_results results ->
      let tp = Results.get_mean_of "exectime" results in
      let env = ExpBaselines.mk_dfs & from_env (Env.filter_keys ["kind"; "size"] env) in
@@ -2107,6 +2121,35 @@ let plot () =
                                    | "dfs_by_vertexid_array" -> "Sequential DFS"
                                    | _ -> "<bogus>" )]
    in
+
+   let plot_main () =
+     let results_for_max_dist = Results.filter_by_params mk_traversal_bfs results_baseline in
+     let max_dist_for env = 
+        let results = Results.filter (Env.filter_keys ["size";"kind"] env) results_for_max_dist in
+        Results.get_unique_of_as Env.as_int "max_dist" results
+        in
+     let barplot_formatter_with_maxdist env =
+        ["kind", Env.Format_custom (fun s -> 
+          (* let env = Env.add (Env.filter_keys ["size"] env) "kind" (Env.Vstring s) in  --useless line*)
+          sprintf "%s (D=%s)" (graph_renamer s) (string_of_exp_range (max_dist_for env)))] 
+        @ barplot_formatter 
+     in
+     Mk_bar_plot.(call ([
+       Bar_plot_opt Bar_plot.([
+          Chart_opt Chart.([Dimensions (10.,7.) ]);
+          X_titles_dir Vertical;
+          Y_axis [Axis.Lower (Some 0.) ] ]);
+       Formatter (fun env -> Env.format (barplot_formatter_with_maxdist env) env);
+       Charts (mk_sizes);
+       Series (mk_our_parallel_dfs ++ mk_cong_parallel_dfs ++ mk_pbbs_pbfs_cilk);
+       X mk_kind_for_size;
+       Input (file_results name);
+       Output "plot_main.pdf";
+       Y_label "Speedup w.r.t. sequential DFS";
+       Y my_eval_speedup;
+                       ]));
+      in
+
 
     let plot_cong () =
      Mk_bar_plot.(call ([
@@ -2249,13 +2292,13 @@ let plot () =
          let results_accessible = Results.filter env_tables results_accessible in
          let env = Env.append env env_tables in
          let envs_rows = mk_kind_for_size env in
-         add (Latex.tabular_begin (String.concat "" (["|l|c|c|c|c|c|c|c|c|"])));
+         add (Latex.tabular_begin (String.concat "" (["|l|c|c|c|c|c|c|c|"])));
          (*       add Latex.tabular_newline;*)
 
          (* LATER: remove max dist *)
-         add "graph & verti. & edges & max & nb. & seq & PDFS & PDFS & ordered PDFS ";
+         add "graph & verti. & edges & nb. & seq & PDFS & PDFS & ordered PDFS ";
          add Latex.new_line;
-         add " &  (m) & (m) & dist & visited & DFS & (s) & (mEdge/s) & (mEdge/s)";
+         add " &  (m) & (m) & visited & DFS & (s) & (mEdge/s) & (mEdge/s)";
          add Latex.tabular_newline;
          ~~ List.iter envs_rows (fun env_rows ->
            let results = Results.filter env_rows results in
@@ -2287,7 +2330,7 @@ let plot () =
            Mk_table.cell add (graph_renamer kind); 
            Mk_table.cell add (string_of_millions nb_vertices);
            Mk_table.cell add (string_of_millions nb_edges);
-           Mk_table.cell add (string_of_exp_range (int_of_float max_dist));
+           (*           Mk_table.cell add (string_of_exp_range (int_of_float max_dist));*)
            Mk_table.cell add (string_of_exp_range (int_of_float nb_visited));         
            Mk_table.cell add (string_of_exectime ~prec:2 v_dfs_seq);
            Mk_table.cell add (string_of_exectime ~prec:2 v_dfs_par);
@@ -2364,6 +2407,7 @@ let plot () =
 
    let arg_sub = XCmd.parse_or_default_list_string "sub" ["all"] in
    let bindings = [
+     "main", plot_main;
       "cong", plot_cong;
       "speedup", plot_speedup;
       "graphs", plot_graphs;
