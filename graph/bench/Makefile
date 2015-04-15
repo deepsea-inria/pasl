@@ -141,6 +141,7 @@ ifeq ($(PBENCH_PATH),)
 endif
 
 include $(PBENCH_PATH)/Makefile_common
+<<<<<<< HEAD
 
 graph: graph.pbench
 	ln -sf $< $@ 
@@ -161,6 +162,11 @@ graph_change: graph
 
 ligra_comp: graph
 	./graph ligra -size small -proc 40 -skip make
+=======
+
+graph: graph.pbench
+	ln -sf $< $@ 
+>>>>>>> bdfaafddb0d39067e8b505ad76ddc4f09f21ad04
 
 clean: pbench_clean
 	

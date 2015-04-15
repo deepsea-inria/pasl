@@ -99,7 +99,7 @@ void stats_t::sum() {
 
 // assumes sums have been computed
 void stats_t::print_idle(FILE* f) {
-  // fprintf(f, "total_idle_time %.3lf\n", total_idle_time);
+  fprintf(f, "total_idle_time %.3lf\n", total_idle_time);
   fprintf(f, "utilization %.4lf\n", utilization);
 }
 

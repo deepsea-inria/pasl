@@ -209,7 +209,8 @@ let arg_ls_pbfs_loop_cutoff = XCmd.parse_or_default_int "ls_pbfs_loop_cutoff" 51
 
 let run_modes =
   Mk_runs.([
-    Mode arg_mode;
+    Mode (Mk_runs.mode_of_string arg_mode);
+    (* Mode arg_mode; *)
     Virtual arg_virtual_run;
     Runs arg_nb_runs; ])
 
