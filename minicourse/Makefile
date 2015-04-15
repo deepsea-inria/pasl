@@ -30,7 +30,9 @@ VERBOSE_DEPENDENCIES=0
 PROGRAMS=\
 	example.cpp \
 	check.cpp \
-	bench.cpp 
+	bench.cpp \
+	test.cpp
+
 #       add reference to your cpp source here
 
 ####################################################################
@@ -56,6 +58,7 @@ include $(TOOLS_BUILD_FOLDER)/Makefile_options
 # of COMPILE_OPTIONS_FOR further below, and also for "clean".
 
 MODES=opt optfp elision baseline log dbg dbgfp dbgfs cilk
+MODES=opt log dbg elision baseline
 
 # Compilation options for each mode
 

@@ -379,7 +379,7 @@ public:
   }
 
   // Warning: "func" may only call "push_vertex_back"
-  // Returns the number of nodes that have been processed
+  // Returns the number of edges that have been processed
   template <class Body>
   size_type for_at_most_nb_outedges(size_type nb, const Body& func) {
     size_type nb_left = nb;
@@ -428,6 +428,7 @@ public:
         return nb;
       } else {
         // process all of the back
+        nb_left -= b_size;
         b.for_each(func);
         b.clear();
       }

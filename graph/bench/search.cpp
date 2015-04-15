@@ -67,6 +67,7 @@ using ls_bag = data::Bag<typename Adjlist::vtxid_type>;
 
 //int cong_pdfs_cutoff = 10000;
 int our_pseudodfs_cutoff = 10000;
+int our_pseudodfs_split_cutoff = 10000;
   int umut_pseudodfs_cutoff = 10000;
 int ls_pbfs_cutoff = 10000;
 int ls_pbfs_loop_cutoff = 10000;
@@ -446,8 +447,12 @@ void search_benchmark_parallel_select_algo() {
     dists = our_lazy_bfs<idempotent>::template main<adjlist_type, frontiersegbag<adjlist_alias_type>>(graph, source); });
 #endif
   m.add("our_pseudodfs",   [&] (const adjlist_type& graph, vtxid_type source) {
-    our_pseudodfs_cutoff = util::cmdline::parse_or_default_int("our_pseudodfs_cutoff", 1024);
+    our_pseudodfs_split_cutoff = util::cmdline::parse_or_default_int("our_pseudodfs_split_cutoff", 1024); // = K in the paper
+    our_pseudodfs_cutoff = util::cmdline::parse_or_default_int("our_pseudodfs_cutoff", 64); // = D in the paper
     visited = our_pseudodfs<adjlist_type, frontiersegbag<adjlist_alias_type>, idempotent>(graph, source); });
+  m.add("our_pseudodfs_old",   [&] (const adjlist_type& graph, vtxid_type source) {
+    our_pseudodfs_cutoff = util::cmdline::parse_or_default_int("our_pseudodfs_cutoff", 1024);
+    visited = our_pseudodfs_old<adjlist_type, frontiersegbag<adjlist_alias_type>, idempotent>(graph, source); });
   m.add("cong_pseudodfs",   [&] (const adjlist_type& graph, vtxid_type source) {
     visited = cong_pseudodfs<adjlist_seq_type, idempotent>(graph, source); });
 

@@ -321,7 +321,7 @@ void msg(const Body& b) {
   if (debug_print)
     util::atomic::msg(b);
 }
-  
+ 
 template <class Input, class Size_input, class Fork_input, class Set_in_env, class Body>
 void parallel_while(Input& input, const Size_input& size_input, const Fork_input& fork_input,
                     const Set_in_env& set_in_env, const Body& body) {
@@ -379,6 +379,9 @@ void parallel_while(const Body& body) {
 }
   
 //! \todo replace calls to frontier.swap with calls to new given function called input_swap
+
+// size_input: returns 0 for no work left, returns > 0 for splitting, returns < 0 for refusing to split.
+
 template <class Input, class Size_input, class Fork_input, class Set_in_env, class Body>
 void parallel_while_cas_ri(Input& input, const Size_input& size_input, const Fork_input& fork_input,
                            const Set_in_env& set_in_env, const Body& body) {

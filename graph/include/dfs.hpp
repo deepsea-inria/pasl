@@ -187,7 +187,8 @@ bool try_to_mark(const Adjlist& graph,
 }
 
 extern int our_pseudodfs_cutoff;
-  
+extern int our_pseudodfs_split_cutoff;
+ 
 #ifndef DISABLE_NEW_PSEUDODFS
 #define PARALLEL_WHILE sched::native::parallel_while_cas_ri
 #else
@@ -196,6 +197,55 @@ extern int our_pseudodfs_cutoff;
 
 template <class Adjlist, class Frontier, bool idempotent = false>
 std::atomic<int>* our_pseudodfs(const Adjlist& graph, typename Adjlist::vtxid_type source) {
+  using vtxid_type = typename Adjlist::vtxid_type;
+  using edgelist_type = typename Frontier::edgelist_type;
+  vtxid_type nb_vertices = graph.get_nb_vertices();
+  std::atomic<int>* visited = data::mynew_array<std::atomic<int>>(nb_vertices);
+  fill_array_par(visited, nb_vertices, 0);
+  LOG_BASIC(ALGO_PHASE);
+  auto graph_alias = get_alias_of_adjlist(graph);
+  Frontier frontier(graph_alias);
+  frontier.push_vertex_back(source);
+  visited[source].store(1, std::memory_order_relaxed);
+  int nb_since_last_split = 0;
+  auto size = [] (Frontier& frontier) {
+    size_type f = frontier.nb_outedges();
+    if (f == 0) {
+      nb_since_last_split = 0;
+      return 0;
+    }
+    if (f > our_pseudodfs_split_cutoff 
+     || (nb_since_last_split > our_pseudodfs_split_cutoff && f > 1))
+      return f; // or simply "return 1"
+    else 
+      return -1; // refuse to split
+  };
+  auto fork = [&] (Frontier& src, Frontier& dst) {
+    vtxid_type m = vtxid_type(src.nb_outedges() / 2); // smaller half given away
+    src.split(m, dst);
+    src.swap(dst); // could optimize
+    nb_since_last_split = 0;
+  };
+  auto set_in_env = [graph_alias] (Frontier& f) {
+    f.set_graph(graph_alias);
+  };
+  if (frontier.nb_outedges() == 0)
+    return visited;
+  PARALLEL_WHILE(frontier, size, fork, set_in_env, [&] (Frontier& frontier) {
+    nb_since_last_split += frontier.for_at_most_nb_outedges(our_pseudodfs_cutoff, [&](vtxid_type other_vertex) {
+      if (try_to_mark<Adjlist, int, idempotent>(graph, visited, other_vertex))
+        frontier.push_vertex_back(other_vertex);
+    });
+  });
+  return visited;
+}
+
+
+/*---------------------------------------------------------------------*/
+// -------- OLD VERSION of the above
+
+template <class Adjlist, class Frontier, bool idempotent = false>
+std::atomic<int>* our_pseudodfs_old(const Adjlist& graph, typename Adjlist::vtxid_type source) {
   using vtxid_type = typename Adjlist::vtxid_type;
   using edgelist_type = typename Frontier::edgelist_type;
   vtxid_type nb_vertices = graph.get_nb_vertices();
