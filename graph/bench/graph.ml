@@ -55,6 +55,16 @@ let system = Pbench.system
 todo: report stddev optionally via get_mean_and_stddev_of
 *)
 
+(*
+  ln -s /home/rainey/graphdata graphdata
+  ln -s /home/rainey/pasl/graph/bench/_data ~/pasl/graph/bench/_data
+
+
+*)
+
+
+
+
 (* ============> paper <=========================
 
     ./bench.sh baselines -size large
@@ -1203,6 +1213,9 @@ let string_of_percentage ?(show_plus=false) v =
    | FP_infinite -> "$+\\infty$"
    | FP_nan -> "na"
 
+let string_of_percentage_special v =
+  if v > 0.995 && v < 1.0 then "$1-\\epsilon$" else string_of_percentage v
+
 let string_of_percentage_change vold vnew =
   string_of_percentage (vnew /. vold -. 1.0)
 
@@ -2292,13 +2305,13 @@ let plot () =
          let results_accessible = Results.filter env_tables results_accessible in
          let env = Env.append env env_tables in
          let envs_rows = mk_kind_for_size env in
-         add (Latex.tabular_begin (String.concat "" (["|l|c|c|c|c|c|c|c|"])));
+         add (Latex.tabular_begin (String.concat "" (["|l||c|c|c|c|c||c|c|c|c|"])));
          (*       add Latex.tabular_newline;*)
 
-         (* LATER: remove max dist *)
-         add "graph & verti. & edges & nb. & seq & PDFS & PDFS & ordered PDFS ";
+         add "graph & vertices & edges & vertices & edges & max & seq.DFS & seq.DFS & PDFS & PDFS ";
+         (* removed:  & ordered PDFS  (mEdge/s) *)
          add Latex.new_line;
-         add " &  (m) & (m) & visited & DFS & (s) & (mEdge/s) & (mEdge/s)";
+         add " &  (m) & (m) & seen & seen & dist. & (s) & (s) & (mEdge/s) & (mEdge/s)";
          add Latex.tabular_newline;
          ~~ List.iter envs_rows (fun env_rows ->
            let results = Results.filter env_rows results in
@@ -2309,12 +2322,12 @@ let plot () =
            let results_our_parallel_dfs_perm = Results.filter_by_params mk_our_parallel_dfs_perm results in
            let env = Env.append env env_rows in
            let kind = Env.get_as_string env "kind" in
-           let nb_vertices = Results.get_unique_of "nb_vertices" results_accessible in
-           let _nb_visited_vertices = Results.get_unique_of "nb_visited" results_accessible in
+           let nb_vertices = Results.get_unique_of "nb_vertices" results_accessible in 
+           let nb_visited_vertices = Results.get_unique_of "nb_visited" results_accessible in
            let nb_edges = Results.get_unique_of "nb_edges" results_accessible in
            let nb_visited_edges = Results.get_unique_of "nb_edges_processed" results_accessible in
            let max_dist = Results.get_unique_of "max_dist" results_baseline_bfs in
-           let nb_visited = Results.get_unique_of "nb_visited" results_baseline_bfs in         
+           (*let _nb_visited = Results.get_unique_of "nb_visited" results_baseline_bfs in*)         
            let exectime_for rs mk_base =
               let rs = Results.filter_by_params mk_base rs in
               Results.check_consistent_inputs [] rs;
@@ -2324,18 +2337,25 @@ let plot () =
            let v_dfs_seq = exectime_for results_baseline ExpBaselines.mk_dfs in
            let v_dfs_par = exectime_for results_our_parallel_dfs mk_our_parallel_dfs in
            let v_dfs_par_perm = exectime_for results_our_parallel_dfs_perm mk_our_parallel_dfs_perm in
-           let v_dfs_throughput = nb_visited_edges /. 1000000. /. v_dfs_par in
-           let v_dfs_throughput_perm = nb_visited_edges /. 1000000. /. v_dfs_par_perm in
+           let v_seqdfs_throughput = nb_visited_edges /. 1000000. /. v_dfs_seq in
+           let v_pardfs_throughput = nb_visited_edges /. 1000000. /. v_dfs_par in
+           (* let v_pardfs_throughput_perm = nb_visited_edges /. 1000000. /. v_dfs_par_perm in*)
 
            Mk_table.cell add (graph_renamer kind); 
            Mk_table.cell add (string_of_millions nb_vertices);
            Mk_table.cell add (string_of_millions nb_edges);
-           (*           Mk_table.cell add (string_of_exp_range (int_of_float max_dist));*)
-           Mk_table.cell add (string_of_exp_range (int_of_float nb_visited));         
+           (*           *)
+           Mk_table.cell add (string_of_percentage_special (nb_visited_vertices /. nb_vertices));
+  (*            (string_of_exp_range (int_of_float nb_visited_vertices));  *)
+           Mk_table.cell add (string_of_percentage_special (nb_visited_edges /. nb_edges)); 
+           Mk_table.cell add (string_of_exp_range (int_of_float max_dist));
            Mk_table.cell add (string_of_exectime ~prec:2 v_dfs_seq);
            Mk_table.cell add (string_of_exectime ~prec:2 v_dfs_par);
-           Mk_table.cell add (sprintf "%.0f" v_dfs_throughput);
-           Mk_table.cell ~last:true add (sprintf "%.0f" v_dfs_throughput_perm);
+           let show_throughput v = 
+              if v > 10. then sprintf "%.0f" v else sprintf "%.1f" v in
+           Mk_table.cell add (show_throughput v_seqdfs_throughput);
+           Mk_table.cell ~last:true add (show_throughput v_pardfs_throughput);
+           (* Mk_table.cell ~last:true add (sprintf "%.0f" v_pardfs_throughput_perm); *)
            add Latex.tabular_newline;
            );
          add Latex.tabular_end;
@@ -2344,7 +2364,7 @@ let plot () =
       in
       
    let plot_others () =
-     let generate_locality_table name mk_orig mk_perm = (
+     let _generate_locality_table name mk_orig mk_perm = (
         Mk_table.build_table ("table_locality_"^name^".tex") ("table_locality_"^name^".pdf") (fun add ->
           let env = Env.empty in
           let envs_tables = (mk_sizes) env in
