@@ -207,9 +207,9 @@ std::atomic<int>* our_pseudodfs(const Adjlist& graph, typename Adjlist::vtxid_ty
   Frontier frontier(graph_alias);
   frontier.push_vertex_back(source);
   visited[source].store(1, std::memory_order_relaxed);
-  int nb_since_last_split = 0;
-  auto size = [] (Frontier& frontier) {
-    size_type f = frontier.nb_outedges();
+  size_t nb_since_last_split = 0;
+  auto size = [&] (Frontier& frontier) {
+    auto f = frontier.nb_outedges();
     if (f == 0) {
       nb_since_last_split = 0;
       return 0;
