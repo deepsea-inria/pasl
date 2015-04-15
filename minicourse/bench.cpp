@@ -98,6 +98,9 @@ benchmark_type fib_bench() {
   return make_benchmark(init, bench, output, destroy);
 }
 
+// TODO: take threshold as argument, if != -1, set it into
+// threshold (which should be renamed mfib_threshold)
+// and run mfib; merging the code below with the one above.
 benchmark_type mfib_bench() {
   long n = pasl::util::cmdline::parse_or_default_long("n", 38);
   long* result = new long;

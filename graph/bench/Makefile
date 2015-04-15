@@ -152,6 +152,7 @@ overview: graph
 overview_plot: graph
 	./graph overview -size large -proc 40 -only plot
 
+<<<<<<< HEAD
 overview_ligra: graph
 	./graph overview -size large -proc 40 -only plot -sub ligra
 overview_graphs: graph
@@ -159,6 +160,10 @@ overview_graphs: graph
 
 graph_change: graph
 	./graph change -size large -proc 40 -only plot 
+=======
+overview_plot_old: graph
+	./graph overview_old -size large -proc 40 -only plot
+>>>>>>> b3ddaa98f0abca6bd4779d719f1bab648484553e
 
 ligra_comp: graph
 	./graph ligra -size small -proc 40 -skip make

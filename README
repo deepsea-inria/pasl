@@ -1,0 +1,6 @@
+To view the current PASL documentation, you can either view the
+contents of README.md directly or render README.md to the format of
+your choise using [pandoc](http://johnmacfarlane.net/pandoc/). For
+example, to generate a PDF, run from the command line the following.
+
+    pandoc README.md -o README.pdf
