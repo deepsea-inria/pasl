@@ -187,6 +187,7 @@ bool try_to_mark(const Adjlist& graph,
 }
 
 extern int our_pseudodfs_cutoff;
+extern int our_pseudodfs_poll_cutoff;
 extern int our_pseudodfs_split_cutoff;
  
 #ifndef DISABLE_NEW_PSEUDODFS
@@ -232,7 +233,7 @@ std::atomic<int>* our_pseudodfs(const Adjlist& graph, typename Adjlist::vtxid_ty
   if (frontier.nb_outedges() == 0)
     return visited;
   PARALLEL_WHILE(frontier, size, fork, set_in_env, [&] (Frontier& frontier) {
-    nb_since_last_split += frontier.for_at_most_nb_outedges(our_pseudodfs_cutoff, [&](vtxid_type other_vertex) {
+    nb_since_last_split += frontier.for_at_most_nb_outedges(our_pseudodfs_poll_cutoff, [&](vtxid_type other_vertex) {
       if (try_to_mark<Adjlist, int, idempotent>(graph, visited, other_vertex))
         frontier.push_vertex_back(other_vertex);
     });
