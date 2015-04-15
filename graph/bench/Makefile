@@ -156,6 +156,8 @@ overview_ligra: graph
 overview_graphs: graph
 	./graph overview -size large -proc 40 -only plot -sub graphs
 
+graph_change: graph
+	./graph change -size large -proc 40 -only plot 
 
 ligra_comp: graph
 	./graph ligra -size small -proc 40 -skip make

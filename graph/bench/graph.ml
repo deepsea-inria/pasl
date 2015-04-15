@@ -1045,7 +1045,7 @@ let mk_sequential_bfs =
 let mk_our_parallel_dfs =
   (mk_algo "our_pseudodfs" & mk int "our_pseudodfs_cutoff" 1024)
 
-    let mk_umut_parallel_dfs =
+let mk_umut_parallel_dfs =
   (mk_algo "umut_pseudodfs" & mk int "umut_pseudodfs_cutoff" 1024)
 
 let mk_our_parallel_dfs_preemptive =
@@ -2336,7 +2336,7 @@ let plot () =
               in
            let v_dfs_seq = exectime_for results_baseline ExpBaselines.mk_dfs in
            let v_dfs_par = exectime_for results_our_parallel_dfs mk_our_parallel_dfs in
-           let v_dfs_par_perm = exectime_for results_our_parallel_dfs_perm mk_our_parallel_dfs_perm in
+           let _v_dfs_par_perm = exectime_for results_our_parallel_dfs_perm mk_our_parallel_dfs_perm in
            let v_seqdfs_throughput = nb_visited_edges /. 1000000. /. v_dfs_seq in
            let v_pardfs_throughput = nb_visited_edges /. 1000000. /. v_dfs_par in
            (* let v_pardfs_throughput_perm = nb_visited_edges /. 1000000. /. v_dfs_par_perm in*)
@@ -2686,6 +2686,89 @@ let check () =
    Results.check_consistent_output_filter_by_params_from_file
       "result" mk_graph_files (file_results name)
 *)
+
+
+
+
+(*****************************************************************************)
+(** Change *)
+
+module ExpChange = struct
+
+let name = "change"
+
+let make () =
+   build [prog_parallel]
+
+let mk_our_parallel_dfs_old =
+  (mk_algo "our_pseudodfs_old" & mk int "our_pseudodfs_cutoff" 1024)
+
+let mk_versions_all =
+  mk_our_parallel_dfs ++ mk_our_parallel_dfs_old
+
+let run () =
+   Mk_runs.(call (run_modes @ [
+      Output (file_results name);
+      Args (mk_parallel_prog_maxproc
+          & mk int "idempotent" 0
+          & mk_graph_inputs
+          & mk_versions_all
+          )
+        ] ))
+
+let plot () =
+   let tex_file = file_tables_src name in
+   let pdf_file = file_tables name in
+   Mk_table.build_table tex_file pdf_file (fun add ->
+    let all_results = Results.from_file (file_results name) in
+   let all_results = Results.filter_by_params (mk int "should_pdfs_permute" 0) all_results in
+    let results = all_results in
+   let env = Env.empty in
+    let envs_tables = (mk_sizes) env in
+    ~~ List.iter envs_tables (fun env_tables ->
+       let results = Results.filter env_tables results in
+       let env = Env.append env env_tables in
+       let envs_rows = mk_kind_for_size env in
+       let envs_serie = mk_versions_all env in
+       let nb_series = List.length envs_serie in
+       Mk_table.escape add (Env.get_as_string env "size");
+       add Latex.new_line;
+       add (Latex.tabular_begin (String.concat "" (["|l|"] @ XList.init (nb_series) (fun i -> "c|"))  ));
+       ~~ List.iter envs_serie (fun env_serie ->
+          let env = Env.append env env_serie in
+          add " & ";
+          Mk_table.escape add (sprintf "algo=%s" (Env.get_as_string env "algo"));
+       );
+       add Latex.tabular_newline;
+       ~~ List.iter envs_rows (fun env_rows ->
+         let results = Results.filter env_rows results in
+         let results_baseline = Results.filter (Env.concat [ env_tables ; env_rows ; Params.to_env (mk string "algo" "our_pseudodfs_old") ]) all_results in
+         let env = Env.append env env_rows in
+         Mk_table.escape add (Env.get_as_string env "kind");
+         Results.check_consistent_inputs [] results_baseline;
+         let v_baseline = Results.get_mean_of "exectime" results_baseline in
+         ~~ List.iter envs_serie (fun env_serie ->
+            add " & ";
+            let results = Results.filter env_serie results in
+            let env = Env.append env env_serie in
+            Results.check_consistent_inputs [] results;
+            let v = Results.get_mean_of "exectime" results in
+            let is_first_col = (Env.get_as_string env "algo") = "our_pseudodfs_old" in
+            if is_first_col
+               then Mk_table.escape add (string_of_exectime v)
+               else Mk_table.escape add (string_of_percentage_change v_baseline v ^ report_exectime_if_required v);
+            );
+         add Latex.tabular_newline;
+         );
+       add Latex.tabular_end;
+       add Latex.new_page;
+      ))
+
+let all () =
+   select make run nothing plot
+
+end
+
 
 
 (*****************************************************************************)
@@ -3172,6 +3255,7 @@ let _ =
       "lack_parallelism", ExpLackParallelism.all;
       "speedups_dfs", (let module E = ExpSpeedups(struct let key = "dfs" end) in E.all);
       "speedups_bfs", (let module E = ExpSpeedups(struct let key = "bfs" end) in E.all);
+      "change", ExpChange.all;
       "compare", ExpCompare.all;
       "overview", ExpOverview.all;
       "overheads", ExpOverheads.all;
