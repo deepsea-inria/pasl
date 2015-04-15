@@ -208,7 +208,7 @@ std::atomic<int>* our_pseudodfs(const Adjlist& graph, typename Adjlist::vtxid_ty
   Frontier frontier(graph_alias);
   frontier.push_vertex_back(source);
   visited[source].store(1, std::memory_order_relaxed);
-  size_t nb_since_last_split = 0;
+  vtxid_type nb_since_last_split = 0;
   auto size = [&] (Frontier& frontier) {
     auto f = frontier.nb_outedges();
     if (f == 0) {
@@ -217,7 +217,7 @@ std::atomic<int>* our_pseudodfs(const Adjlist& graph, typename Adjlist::vtxid_ty
     }
     if (f > our_pseudodfs_split_cutoff 
      || (nb_since_last_split > our_pseudodfs_split_cutoff && f > 1))
-      return f; // or simply "return 1"
+      return 1; // or simply "return 1"
     else 
       return -1; // refuse to split
   };

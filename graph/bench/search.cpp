@@ -69,7 +69,6 @@ using ls_bag = data::Bag<typename Adjlist::vtxid_type>;
 int our_pseudodfs_cutoff = 10000;
 int our_pseudodfs_split_cutoff = 10000;
 int our_pseudodfs_poll_cutoff = 10000;
-  int umut_pseudodfs_cutoff = 10000;
 int ls_pbfs_cutoff = 10000;
 int ls_pbfs_loop_cutoff = 10000;
 int our_bfs_cutoff = 10000;
@@ -525,7 +524,7 @@ static bool is_parallel_algo() {
   if (algo == "our_pbfs_with_swap")    return true;
   if (algo == "our_lazy_pbfs")         return true;
   if (algo == "our_pseudodfs")         return true;
-    if (algo == "umut_pseudodfs")         return true;
+  if (algo == "our_pseudodfs_old")         return true;  
   if (algo == "cong_pseudodfs")        return true;
   if (algo == "pbbs_pbfs")             return true;
   return false;

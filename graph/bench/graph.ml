@@ -2714,15 +2714,31 @@ let run () =
           & mk_graph_inputs
           & mk_versions_all
           )
-        ] ))
+                   ] ))
 
 let plot () =
+     Mk_bar_plot.(call ([
+      Bar_plot_opt Bar_plot.([
+         Chart_opt Chart.([Dimensions (10.,5.) ]);
+         X_titles_dir Vertical;
+         Y_axis [Axis.Lower (Some 0.) ] ]);
+      Formatter my_formatter;
+      Charts (mk_sizes );
+      Series mk_versions_all;
+      X mk_kind_for_size;
+      Input (file_results name);
+      Output (file_plots name);
+      Y_label "exectime";
+      Y eval_exectime
+      ]))
+
+let plot2 () =
    let tex_file = file_tables_src name in
    let pdf_file = file_tables name in
    Mk_table.build_table tex_file pdf_file (fun add ->
     let all_results = Results.from_file (file_results name) in
    let all_results = Results.filter_by_params (mk int "should_pdfs_permute" 0) all_results in
-    let results = all_results in
+   let results = all_results in
    let env = Env.empty in
     let envs_tables = (mk_sizes) env in
     ~~ List.iter envs_tables (fun env_tables ->
