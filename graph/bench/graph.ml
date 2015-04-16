@@ -2107,14 +2107,14 @@ end
 module ExpOverview = struct
 
   let name = "overview"
-
+(*
 let mk_parallel_bfs =
       mk_ls_pbfs
       ++ mk_our_lazy_parallel_bfs
 
 let mk_parallel_bfs =
    Params.eval (Params.filter env_in_arg_algos mk_parallel_bfs)
-
+ *)
 let prog_parallel_here = (*"./search.sta"*)  (*"./search.opt2" *) "./search.virtual"
 let prog_ls_pbfs_cilk = "ls-pbfs.cilk_32"
 let prog_ligra = "ligra.cilk"
@@ -2183,18 +2183,20 @@ let run () =
       Args ( 
             mk int "idempotent" 0
           & mk_graph_inputs
-          & (   (mk_parallel_prog_maxproc_here & mk_traversal_bfs & mk_parallel_bfs)
-             ++ (mk_parallel_prog_maxproc_here & mk_traversal_dfs & mk_cong_parallel_dfs)
-             (*++ (mk_parallel_prog_maxproc_here & mk_traversal_dfs & mk_cong_parallel_dfs_perm) *)
+          & (
+                (mk_parallel_prog_maxproc_here & mk_traversal_dfs & mk_cong_parallel_dfs)
              ++ (mk_parallel_prog_maxproc_here & mk_traversal_dfs & mk_our_parallel_dfs)                     
              ++ (mk_parallel_prog_maxproc_here & mk_traversal_dfs & mk_our_parallel_dfs_perm)
-             ++ (mk_ligra & mk_traversal_bfs)
-             ++ (mk_ls_pbfs_cilk & mk_traversal_bfs)
+             ++ (mk_traversal_bfs & mk_ligra)
              ++ (mk_pbbs_pbfs_cilk & mk_traversal_bfs)
-             ++ (mk_pbbs_pbfs & mk_traversal_bfs)
-             ++ (mk_pbbs_pbfs_perm & mk_traversal_bfs)                                
              ))
-      ]))
+                   ]))
+(*
+             (mk_parallel_prog_maxproc_here & mk_traversal_bfs & mk_parallel_bfs)
+   ++ (mk_ls_pbfs_cilk & mk_traversal_bfs)
+                     ++ (mk_pbbs_pbfs & mk_traversal_bfs)
+             ++ (mk_pbbs_pbfs_perm & mk_traversal_bfs)                                 *)
+
 
 let check () =
    let results =

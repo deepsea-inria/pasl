@@ -38,22 +38,38 @@ void check_vertex(Vertex_id v, Vertex_id nb_vertices) {
 
 template <class Number, class Size>
 void fill_array_seq(Number* array, Size sz, Number val) {
-  memset(array, val, sz);
+  memset(array, val, sz*sizeof(Number));
   // for (Size i = Size(0); i < sz; i++)
   //   array[i] = val;
 }
  
 template <class Number, class Size>
 void fill_array_par_seq(std::atomic<Number>* array, Size sz, Number val) {
-  memset(array, val, sz);
+  memset(array, val, sz*sizeof(Number));
   // for (Size i = Size(0); i < sz; i++) {
   //   array[i].store(val, std::memory_order_relaxed);
   // }
 }
 
+static inline void pmemset(char * ptr, int value, size_t num) {
+  const size_t cutoff = 100000;
+  if (num <= cutoff) {
+    memset(ptr, value, num);
+  } else {
+    long m = num/2;
+    sched::native::fork2([&] {
+      pmemset(ptr, value, m);
+    }, [&] {
+      pmemset(ptr+m, value, num-m);
+    });
+  }
+}
+  
+
 template <class Number, class Size>
 void fill_array_par(std::atomic<Number>* array, Size sz, Number val) {
-  memset(array, val, sz);
+  pmemset((char*)array, val, sz*sizeof(Number));
+}
 /*
 #ifdef FILL_ARRAY_PAR_SEQ
   fill_array_par_seq(array, sz, val);
@@ -63,7 +79,6 @@ void fill_array_par(std::atomic<Number>* array, Size sz, Number val) {
   });
 #endif
 */
-}
 
 } // end namespace
 } // end namespace
