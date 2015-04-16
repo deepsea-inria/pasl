@@ -11,6 +11,7 @@
 
 #include <assert.h>
 #include <algorithm>
+#include <cstring>
 
 #include "atomic.hpp"
 #include "container.hpp"
@@ -37,19 +38,23 @@ void check_vertex(Vertex_id v, Vertex_id nb_vertices) {
 
 template <class Number, class Size>
 void fill_array_seq(Number* array, Size sz, Number val) {
-  for (Size i = Size(0); i < sz; i++)
-    array[i] = val;
+  memset(array, val, sz);
+  // for (Size i = Size(0); i < sz; i++)
+  //   array[i] = val;
 }
  
 template <class Number, class Size>
 void fill_array_par_seq(std::atomic<Number>* array, Size sz, Number val) {
-  for (Size i = Size(0); i < sz; i++) {
-    array[i].store(val, std::memory_order_relaxed);
-  }
+  memset(array, val, sz);
+  // for (Size i = Size(0); i < sz; i++) {
+  //   array[i].store(val, std::memory_order_relaxed);
+  // }
 }
 
 template <class Number, class Size>
 void fill_array_par(std::atomic<Number>* array, Size sz, Number val) {
+  memset(array, val, sz);
+/*
 #ifdef FILL_ARRAY_PAR_SEQ
   fill_array_par_seq(array, sz, val);
 #else
@@ -57,6 +62,7 @@ void fill_array_par(std::atomic<Number>* array, Size sz, Number val) {
     array[i].store(val, std::memory_order_relaxed);
   });
 #endif
+*/
 }
 
 } // end namespace

@@ -169,9 +169,9 @@ void search_benchmark_sequential_select_algo() {
 #endif
   m.add("dfs_by_vertexid_array", [&] (const adjlist_type& graph, vtxid_type source) {
     visited = dfs_by_vertexid_array(graph, source); });
+#ifndef SKIP_FAST
   m.add("dfs_by_frontier_segment", [&] (const adjlist_type& graph, vtxid_type source) {
     visited = dfs_by_frontier_segment<adjlist_type, frontiersegbag<adjlist_alias_type>>(graph, source); });
-#ifndef SKIP_FAST
   m.add("report_nb_edges_processed", [&] (const adjlist_type& graph, vtxid_type source) {
     long nb_edges_processed;
     visited = dfs_by_vertexid_array<adjlist_seq_type,true>(graph, source, &nb_edges_processed);
@@ -212,7 +212,8 @@ void search_benchmark_frontier_sequential_select_algo() {
   int* visited = NULL;
   util::cmdline::argmap<search_type> m;
 #ifndef SKIP_FAST
-  m.add("dfs_by_vertexid_frontier", [&] (const adjlist_type& graph, vtxid_type source) { visited = dfs_by_vertexid_frontier<adjlist_seq_type, Frontier>(graph, source); });
+  m.add("dfs_by_vertexid_frontier", [&] (const adjlist_type& graph, vtxid_type source) {
+    visited = dfs_by_vertexid_frontier<adjlist_seq_type, Frontier>(graph, source); });
 #endif
 #ifndef SKIP_OTHER_SEQUENTIAL
   m.add("bfs_by_dynamic_array", [&] (const adjlist_type& graph, vtxid_type source) {
