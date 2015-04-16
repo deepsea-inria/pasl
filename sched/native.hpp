@@ -380,7 +380,7 @@ void parallel_while(const Body& body) {
   
 //! \todo replace calls to frontier.swap with calls to new given function called input_swap
 
-// size_input: returns 0 for no work left, returns > 0 for splitting, returns < 0 for refusing to split.
+// size_input: returns 0 for no work left, returns > 1 for splitting, returns 1 for refusing to split.
 
 template <class Input, class Size_input, class Fork_input, class Set_in_env, class Body>
 void parallel_while_cas_ri(Input& input, const Size_input& size_input, const Fork_input& fork_input,

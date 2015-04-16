@@ -208,8 +208,8 @@ std::atomic<int>* our_pseudodfs(const Adjlist& graph, typename Adjlist::vtxid_ty
   Frontier frontier(graph_alias);
   frontier.push_vertex_back(source);
   visited[source].store(1, std::memory_order_relaxed);
-    data::perworker::array<int> nb_since_last_split;
-    nb_since_last_split.init(0);
+  data::perworker::array<int> nb_since_last_split;
+  nb_since_last_split.init(0);
   auto size = [&] (Frontier& frontier) {
     auto f = frontier.nb_outedges();
     if (f == 0) {
@@ -220,7 +220,7 @@ std::atomic<int>* our_pseudodfs(const Adjlist& graph, typename Adjlist::vtxid_ty
         || (nb_since_last_split.mine() > our_pseudodfs_split_cutoff && f > 1))
       return (int)f; // or simply "return 1"
     else 
-      return 0; // refuse to split
+      return 1; // refuse to split
   };
   auto fork = [&] (Frontier& src, Frontier& dst) {
     vtxid_type m = vtxid_type(src.nb_outedges() / 2); // smaller half given away
@@ -234,9 +234,10 @@ std::atomic<int>* our_pseudodfs(const Adjlist& graph, typename Adjlist::vtxid_ty
   if (frontier.nb_outedges() == 0)
     return visited;
   PARALLEL_WHILE(frontier, size, fork, set_in_env, [&] (Frontier& frontier) {
-      nb_since_last_split.mine() += frontier.for_at_most_nb_outedges(our_pseudodfs_poll_cutoff, [&](vtxid_type other_vertex) {
-      if (try_to_mark<Adjlist, int, idempotent>(graph, visited, other_vertex))
-        frontier.push_vertex_back(other_vertex);
+      nb_since_last_split.mine() +=    
+        frontier.for_at_most_nb_outedges(our_pseudodfs_poll_cutoff, [&](vtxid_type other_vertex) {
+          if (try_to_mark<Adjlist, int, idempotent>(graph, visited, other_vertex))
+            frontier.push_vertex_back(other_vertex);
     });
   });
   return visited;

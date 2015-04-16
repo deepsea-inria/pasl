@@ -445,18 +445,18 @@ void search_benchmark_parallel_select_algo() {
   m.add("our_lazy_pbfs",    [&] (const adjlist_type& graph, vtxid_type source) {
     our_lazy_bfs_cutoff = util::cmdline::parse_or_default_int("our_lazy_pbfs_cutoff", 1024);
     dists = our_lazy_bfs<idempotent>::template main<adjlist_type, frontiersegbag<adjlist_alias_type>>(graph, source); });
+  m.add("cong_pseudodfs",   [&] (const adjlist_type& graph, vtxid_type source) {
+    visited = cong_pseudodfs<adjlist_seq_type, idempotent>(graph, source); });
 #endif
   m.add("our_pseudodfs",   [&] (const adjlist_type& graph, vtxid_type source) {
     our_pseudodfs_split_cutoff = util::cmdline::parse_or_default_int("our_pseudodfs_cutoff", 1024); // = K in the paper
     // TODO: later rename the argument passed by graph.ml from our_pseudodfs_cutoff to our_pseudodfs_split_cutoff
     // TODO: add in graph.ml the binding of the variable our_pseudodfs_poll_cutoff
-    our_pseudodfs_poll_cutoff = util::cmdline::parse_or_default_int("our_pseudodfs_poll_cutoff", 64); // = D in the paper
+    our_pseudodfs_poll_cutoff = util::cmdline::parse_or_default_int("our_pseudodfs_poll_cutoff", 256); // = D in the paper
     visited = our_pseudodfs<adjlist_type, frontiersegbag<adjlist_alias_type>, idempotent>(graph, source); });
   m.add("our_pseudodfs_old",   [&] (const adjlist_type& graph, vtxid_type source) {
     our_pseudodfs_cutoff = util::cmdline::parse_or_default_int("our_pseudodfs_cutoff", 1024);
     visited = our_pseudodfs_old<adjlist_type, frontiersegbag<adjlist_alias_type>, idempotent>(graph, source); });
-  m.add("cong_pseudodfs",   [&] (const adjlist_type& graph, vtxid_type source) {
-    visited = cong_pseudodfs<adjlist_seq_type, idempotent>(graph, source); });
 
   auto search = m.find_by_arg("algo");
   auto report = [&] (const adjlist_type& graph) {
