@@ -1140,7 +1140,8 @@ let my_formatter_settings = Env.(
     @ format_hiddens [ "bits"; "source"; "load"; "frontier"; ]
     @ (List.map (fun k -> (k, Format_custom (fun s -> "cutoff=" ^ s)))
         [ "ls_pbfs_cutoff"; "our_pbfs_cutoff"; "our_pbfs_cutoff";
-          "cong_pseudodfs_cutoff"; "our_pseudodfs_cutoff" ])
+          "cong_pseudodfs_cutoff"; "our_pseudodfs_cutoff";
+          "our_pseudodfs_poll_cutoff"; "our_pseudodfs_split_cutoff" ])
     @ ["infile", Format_custom (fun s ->
          let a = String.rindex s '/' + 1 in
          let b = String.length ".adj_bin" in
@@ -2154,8 +2155,10 @@ let mk_our_parallel_dfs_perm =
 let mk_cong_parallel_dfs =
   Params.eval (Params.filter env_in_arg_algos (mk_algo "cong_pseudodfs" & mk int "should_pdfs_permute" 0))
 
+(*
 let mk_cong_parallel_dfs_perm =
   Params.eval (Params.filter env_in_arg_algos (mk_algo "cong_pseudodfs" & mk int "should_pdfs_permute" 1))
+*)
 
 let mk_pbbs_pbfs =
      mk_prog "./search.virtual" 
@@ -2182,7 +2185,7 @@ let run () =
           & mk_graph_inputs
           & (   (mk_parallel_prog_maxproc_here & mk_traversal_bfs & mk_parallel_bfs)
              ++ (mk_parallel_prog_maxproc_here & mk_traversal_dfs & mk_cong_parallel_dfs)
-             ++ (mk_parallel_prog_maxproc_here & mk_traversal_dfs & mk_cong_parallel_dfs_perm)                     
+             (*++ (mk_parallel_prog_maxproc_here & mk_traversal_dfs & mk_cong_parallel_dfs_perm) *)
              ++ (mk_parallel_prog_maxproc_here & mk_traversal_dfs & mk_our_parallel_dfs)                     
              ++ (mk_parallel_prog_maxproc_here & mk_traversal_dfs & mk_our_parallel_dfs_perm)
              ++ (mk_ligra & mk_traversal_bfs)
@@ -2218,7 +2221,9 @@ let plot () =
    let barplot_formatter =
      ["kind", Env.Format_custom (fun s -> graph_renamer s)]
      @ Env.format_hiddens [ "bits"; "source"; "load"; "frontier";
-                            "prog"; "proc"; "our_pseudodfs_cutoff"; "size";
+                            "prog"; "proc"; "our_pseudodfs_cutoff";
+                            "our_pseudodfs_poll_cutoff";
+                            "our_pseudodfs_split_cutoff"; "size";
                             "ls_pbfs_cutoff"; "ls_pbfs_loop_cutoff";
                             "should_pbfs_permute"; "should_pdfs_permute";
                           ]
@@ -2226,7 +2231,7 @@ let plot () =
                                    match s with
                                    | "cong_pseudodfs" -> "Cong PDFS"
                                    | "ls_pbfs_cilk" -> "LS PBFS"
-                                   | "our_pseudodfs" -> "Unordered PDFS"
+                                   | "our_pseudodfs" -> "Our PDFS"
                                    | "pbbs_pbfs_cilk" -> "PBBS PBFS"
                                    | "ligra" -> "Ligra"
                                    | "ls_pbfs" -> "LS PBFS (PASL)"
@@ -2375,10 +2380,10 @@ let plot () =
        Bar_plot_opt Bar_plot.([
           Chart_opt Chart.([Dimensions (10.,7.) ]);
           X_titles_dir Vertical;
-          Y_axis [Axis.Lower (Some 0.); Axis.Upper (Some 30.) ] ]);
+          Y_axis [Axis.Lower (Some 1.); Axis.Upper (Some 50.); Axis.Is_log true ] ]);
        Formatter (fun env -> Env.format (barplot_formatter_with_maxdist env) env);
        Charts (mk_sizes);
-       Series (mk_our_parallel_dfs_perm ++ mk_cong_parallel_dfs_perm ++ ExpBaselines.mk_dfs_perm);
+       Series (ExpBaselines.mk_dfs_perm ++ mk_our_parallel_dfs_perm (* ++ mk_cong_parallel_dfs_perm *));
        X (fun env ->  
           let kinds = mk_kind_for_size env in
           (* uncomment to activate sorting by diameter
@@ -2390,7 +2395,7 @@ let plot () =
        (*       Input (file_results name);*)
        Input ("mytmpfile.txt");
        Output (file_plots (name^"_locality"));
-       Y_label "speedup (w.r.t. original vertex labeling)";
+       Y_label "speedup w.r.t. original vertex labeling";
        Y my_eval;
                      ]));
   in
@@ -2727,7 +2732,7 @@ let mk_our_parallel_dfs_old =
 let mk_our_parallel_dfs =
   (mk_algo "our_pseudodfs"  
    & mk int "our_pseudodfs_cutoff" 1024
-   & mk int "our_pseudodfs_poll_cutoff" 256)
+   & mk int "our_pseudodfs_poll_cutoff" 2048) (* todo: 256*)
 
 let mk_our_parallel_dfs_64 = (* to study other polling cutoffs *)
   (mk_algo "our_pseudodfs"  
@@ -3261,7 +3266,8 @@ let cutoff_formatter =
    let f = ~~ XList.assoc_replaces my_formatter_settings
       (List.map (fun k -> (k, Env.Format_key_eq_value))
         [ "ls_pbfs_cutoff"; "our_pbfs_cutoff"; "our_pbfs_cutoff";
-          "cong_pseudodfs_cutoff"; "our_pseudodfs_cutoff" ])
+          "cong_pseudodfs_cutoff"; "our_pseudodfs_cutoff";
+          "our_pseudodfs_poll_cutoff"; "our_pseudodfs_split_cutoff" ])
     in
    Env.format f
 
