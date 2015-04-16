@@ -445,6 +445,7 @@ void parallel_while_cas_ri(Input& input, const Size_input& size_input, const For
           msg([&] { std::cout << "decr my_id=" << my_id << " sum=" << counter.sum() << std::endl; });
           break;
         } else { // have some work to do
+          // TODO: should communicate first, before working
           body(my_frontier);
           // communicate
           msg([&] { std::cout << "communicate my_id=" << my_id << std::endl; });
