@@ -2254,12 +2254,12 @@ let plot () =
      in
      Mk_bar_plot.(call ([
        Bar_plot_opt Bar_plot.([
-          Chart_opt Chart.([Dimensions (10.,7.) ]);
+          Chart_opt Chart.([Dimensions (20.,7.) ]);
           X_titles_dir Vertical;
-          Y_axis [Axis.Lower (Some 0.) ] ]);
+          Y_axis [Axis.Lower (Some 0.); Axis.Upper (Some 40.) ] ]);
        Formatter (fun env -> Env.format (barplot_formatter_with_maxdist env) env);
        Charts (mk_sizes);
-       Series (mk_our_parallel_dfs ++ mk_cong_parallel_dfs ++ mk_pbbs_pbfs_cilk);
+       Series (mk_our_parallel_dfs ++ mk_cong_parallel_dfs ++ mk_pbbs_pbfs_cilk ++ mk_ligra);
        X mk_kind_for_size;
        Input (file_results name);
        Output "plot_main.pdf";
@@ -2805,7 +2805,8 @@ let plot2 () =
             let results = Results.filter env_serie results in
             let env = Env.append env env_serie in
             Results.check_consistent_inputs [] results;
-            let v = Results.get_mean_of "exectime" results in
+            (* let v = Results.get_mean_of "exectime" results in *)
+            let v = Results.get_median_of "exectime" results in
             let is_first_col = (Env.get_as_string env "algo") = "our_pseudodfs_old" in
             if is_first_col
                then Mk_table.escape add (string_of_exectime v)
