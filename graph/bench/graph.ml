@@ -595,7 +595,28 @@ let mk_graph_outputs_all_generated : Params.t =
           & mk int "branching_factor_1" branching_factor_1
           & mk int "branching_factor_2" branching_factor_2
           & mk int "nb_phases" nb_phases) *)
-         in
+    in
+        let mk_unbalanced_tree_trunk_first =
+       mk_file_by_size "unbalanced_tree_trunk_first" (fun size ->
+          let depth_of_branches = load size / 10 in
+          let depth_of_trunk = 2 in
+          let trunk_first = 1 in
+            mk_common "unbalanced_tree"
+          & mk int "depth_of_trunk" depth_of_trunk
+          & mk int "depth_of_branches" depth_of_branches
+          & mk int "trunk_first" trunk_first)
+    in
+    let mk_unbalanced_tree_trunk_last =
+       mk_file_by_size "unbalanced_tree_trunk_last" (fun size ->
+          let depth_of_branches = load size / 10 in
+          let depth_of_trunk = 2 in
+          let trunk_first = 0 in
+            mk_common "unbalanced_tree"
+          & mk int "depth_of_trunk" depth_of_trunk
+          & mk int "depth_of_branches" depth_of_branches
+          & mk int "trunk_first" trunk_first)
+      in
+(*
     let _mk_unbalanced_tree =
        mk_file_by_size "unbalanced_tree" (fun size ->
           let real_load = load size * 6 in
@@ -610,6 +631,7 @@ let mk_graph_outputs_all_generated : Params.t =
           & mk int "depth_of_branches" depth_of_branches
           & mk int "trunk_first" trunk_first)
       in
+ *)
       let mk_rmat27 =
         (*** rmat graph parameters used in Ligra paper: **
 
@@ -705,6 +727,9 @@ let mk_graph_outputs_all_generated : Params.t =
        ++ mk_grid2               
           ++ mk_parallel_paths1
           ++ mk_circular_knext
+          ++ mk_unbalanced_tree_trunk_first
+          ++ mk_unbalanced_tree_trunk_last
+
 
     )
 
@@ -733,6 +758,8 @@ let graph_renaming =
      "phased_524288_single", "trees_524k";
      "grid_sq", "square_grid";
      "cube", "cube_grid";
+     "unbalanced_tree_trunk_first", "trunk_first"     ;
+     "unbalanced_tree_trunk_last", "trunk_last"     ;
     ]
 
 (*
@@ -1243,7 +1270,7 @@ module ExpGenerate = struct
 
 let name = "generate"
 
-let prog = "./graphfile.opt2"
+let prog = "./graphfile.elision2"
 
 let make()  =
    system("mkdir -p _data");
@@ -1257,7 +1284,7 @@ let run () =
            mk_prog prog
          & mk int "loop_cutoff" 1000
          & mk_graph_outputs_generated
-         & mk_eval int "proc" (fun e -> Env.get_as_int e "generator_proc")
+        (*         & mk_eval int "proc" (fun e -> Env.get_as_int e "generator_proc")*)
        ) ] ))
 
 let plot () =
