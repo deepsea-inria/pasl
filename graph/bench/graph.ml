@@ -1247,7 +1247,7 @@ let string_of_percentage ?(show_plus=false) v =
    | FP_nan -> "na"
 
 let string_of_percentage_special v =
-  if v > 0.995 && v < 1.0 then "$1-\\epsilon$" else string_of_percentage v
+  if v > 0.995 && v < 1.0 then "$>$99%" else string_of_percentage v
 
 let string_of_percentage_change ?(show_plus=false) vold vnew =
   string_of_percentage ~show_plus:show_plus (vnew /. vold -. 1.0)
