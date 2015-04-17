@@ -731,13 +731,13 @@ let mk_graph_outputs_all_generated : Params.t =
           ++ mk_phased3               
        ++ mk_tree_binary                             
           ++ mk_parallel_paths2
-          ++ mk_parallel_paths3               
           ++ mk_grid3
           ++ mk_phased2               
        ++ mk_grid2               
           ++ mk_parallel_paths1
-          ++ mk_circular_knext
           ++ mk_unbalanced_tree_trunk_first
+          ++ mk_parallel_paths3                              
+          ++ mk_circular_knext
         (*          ++ mk_unbalanced_tree_trunk_last*)
 
 
