@@ -2487,13 +2487,13 @@ let plot () =
          let results_accessible = Results.filter env_tables results_accessible in
          let env = Env.append env env_tables in
          let envs_rows = mk_kind_for_size env in
-         add (Latex.tabular_begin (String.concat "" (["|l||c|c|c|c|c||c|c|c|c|c|"])));
+         add (Latex.tabular_begin (String.concat "" (["|l||c|c|c|c|c||c|c|c|c|@{\\,}c@{\\,}|@{\\,}c@{\\,}|"])));
          (*       add Latex.tabular_newline;*)
 
-         add "graph & vertices & edges & vertices & edges & max & seq.DFS &  PDFS & PDFS & seq.DFS & PDFS ";
+         add "graph & vertices & edges & vertices & edges & max & seq.DFS & PDFS & PDFS & PDFS & seq.DFS & PDFS ";
          (* removed:  & ordered PDFS  (mEdge/s) *)
          add Latex.new_line;
-         add " &  (m) & (m) & seen & seen & dist. & (s) & 1-core & (s) & (mEdge/s) & (mEdge/s)";
+         add " &  (m) & (m) & seen & seen & dist. & (s) & 1-core & (s) & vs seq. & (mEdge/s) & (mEdge/s)";
          add Latex.tabular_newline;
          ~~ List.iter envs_rows (fun env_rows ->
            let results = Results.filter env_rows results in
@@ -2521,6 +2521,7 @@ let plot () =
            let v_dfs_par_single = exectime_for results_overheads ExpOverheads.mk_our_parallel_dfs in
            let v_dfs_par = exectime_for results_our_parallel_dfs mk_our_parallel_dfs in
            let _v_dfs_par_perm = exectime_for results_our_parallel_dfs_perm mk_our_parallel_dfs_perm in
+           let v_dfs_par_speedup = v_dfs_seq /. v_dfs_par in
            let v_seqdfs_throughput = nb_visited_edges /. 1000000. /. v_dfs_seq in
            let v_pardfs_throughput = nb_visited_edges /. 1000000. /. v_dfs_par in
            (* let v_pardfs_throughput_perm = nb_visited_edges /. 1000000. /. v_dfs_par_perm in*)
@@ -2537,6 +2538,8 @@ let plot () =
            (* Mk_table.cell add (string_of_exectime ~prec:2 v_dfs_par_single); *)
            Mk_table.cell add (string_of_percentage_change ~show_plus:true v_dfs_seq v_dfs_par_single);
            Mk_table.cell add (string_of_exectime ~prec:2 v_dfs_par);
+           Mk_table.cell add (string_of_speedup v_dfs_par_speedup);
+           
            let show_throughput v = 
               if v > 10. then sprintf "%.0f" v else sprintf "%.1f" v in
            Mk_table.cell add (show_throughput v_seqdfs_throughput);
