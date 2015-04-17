@@ -730,7 +730,7 @@ let mk_graph_outputs_all_generated : Params.t =
           ++ mk_rmat24
           ++ mk_phased3               
        ++ mk_tree_binary                             
-          ++ mk_parallel_paths2
+          (*          ++ mk_parallel_paths2*)
           ++ mk_grid3
           ++ mk_phased2               
        ++ mk_grid2               
@@ -764,7 +764,8 @@ let graph_renaming =
      "random_arity_8", "random_arity_8";
      "random_arity_100", "random_arity_100"; 
      "phased_low_50", "phases_50_d_5"; 
-     "phased_mix_10", "phases_10_d_2_one"; 
+     "phased_mix_10", "phases_10_d_2_one";
+     "phased_mix_100", "phases_20_d_100";     
      (* "phased_mix_2", "phases_2_arity_2_but_one"; *)
      "phased_524288_single", "trees_524k";
      "grid_sq", "square_grid";
@@ -2272,7 +2273,7 @@ let plot () =
                                    | "cong_pseudodfs" -> "Cong PDFS"
                                    | "ls_pbfs_cilk" -> "LS PBFS"
                                    | "our_pseudodfs" -> "Our PDFS"
-                                   | "pbbs_pbfs_cilk" -> "PBBS PBFS"
+                                   | "pbbs_pbfs_cilk" -> "PBFS"
                                    | "ligra" -> "Ligra"
                                    | "ls_pbfs" -> "LS PBFS (PASL)"
                                    | "pbbs_pbfs" -> "PBBS PBFS (PASL)"
