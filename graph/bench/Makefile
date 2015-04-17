@@ -161,6 +161,7 @@ overview_graphs: graph
 # graph overheads -size large -proc 40 -kind fast 
 # graph change -size large -proc 40 -runs 10 -kind fast
 # graph overview -size large -proc 40 -only plot -sub graphs
+# graph overview -size large -proc 40 -only plot -sub main_relative
 
 graph_change: graph
 	./graph change -size large -proc 40 -kind fast

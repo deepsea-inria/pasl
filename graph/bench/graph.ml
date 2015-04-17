@@ -615,7 +615,7 @@ let mk_graph_outputs_all_generated : Params.t =
           & mk int "depth_of_branches" depth_of_branches
           & mk int "trunk_first" trunk_first)
     in
-    let mk_unbalanced_tree_trunk_last =
+    let _mk_unbalanced_tree_trunk_last =
        mk_file_by_size "unbalanced_tree_trunk_last" (fun size ->
           let depth_of_branches = load size / 10 in
           let depth_of_trunk = 2 in
@@ -2309,6 +2309,42 @@ let plot () =
                        ]));
       in
 
+   let plot_main_relative () =
+     (* todo: remove copy paste *)
+     let results_for_max_dist = Results.filter_by_params mk_traversal_bfs results_baseline in
+     let max_dist_for env = 
+        let results = Results.filter (Env.filter_keys ["size";"kind"] env) results_for_max_dist in
+        Results.get_unique_of_as Env.as_int "max_dist" results
+        in
+     let my_eval_speedup_relative = fun env all_results the_results ->
+       let tp = Results.get_mean_of "exectime" the_results in
+       let env = mk_our_parallel_dfs & from_env (Env.filter_keys ["kind"; "size"] env) in
+       let results_baseline = Results.filter_by_params env results in
+       let tours = Results.get_mean_of "exectime" results_baseline in
+       tp /. tours 
+     in
+     let barplot_formatter_with_maxdist env =
+        ["kind", Env.Format_custom (fun s -> 
+          (* let env = Env.add (Env.filter_keys ["size"] env) "kind" (Env.Vstring s) in  --useless line*)
+          sprintf "%s (D=%s)" (graph_renamer s) (string_of_exp_range (max_dist_for env)))] 
+        @ barplot_formatter 
+     in
+     Mk_bar_plot.(call ([
+       Bar_plot_opt Bar_plot.([
+          Chart_opt Chart.([Dimensions (20.,7.) ]);
+          X_titles_dir Vertical;
+          (* Y_axis [Axis.Is_log true]*)
+          (* Y_axis [Axis.Lower (Some 0.); Axis.Upper (Some 40.) ]*) ]);
+       Formatter (fun env -> Env.format (barplot_formatter_with_maxdist env) env);
+       Charts (mk_sizes & (mk_cong_parallel_dfs ++ mk_pbbs_pbfs_cilk ++ mk_ligra));
+       Series (mk_unit);
+       X mk_kind_for_size;
+       Input (file_results name);
+       Output "plot_main_relative.pdf";
+       Y_label "Speedup of our PDFS w.r.t. cong";
+       Y my_eval_speedup_relative;
+                       ]));
+      in
 
     let plot_cong () =
      Mk_bar_plot.(call ([
@@ -2551,7 +2587,6 @@ let plot () =
                let v_dfs_seq_perm = exectime_for results_baseline ExpBaselines.mk_dfs_perm in
                let v_dfs_our_perm = exectime_for results mk_perm in                     
 
-
                Mk_table.cell add (graph_renamer kind); 
                Mk_table.cell add (string_of_exectime ~prec:2 v_dfs_seq);
                Mk_table.cell add (string_of_exectime ~prec:2 v_dfs_our);         
@@ -2577,7 +2612,8 @@ let plot () =
 
    let arg_sub = XCmd.parse_or_default_list_string "sub" ["all"] in
    let bindings = [
-     "main", plot_main;
+      "main_relative", plot_main_relative;
+      "main", plot_main;
       "cong", plot_cong;
       "speedup", plot_speedup;
       "graphs", plot_graphs;
