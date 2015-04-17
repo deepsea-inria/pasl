@@ -488,7 +488,7 @@ let mk_graph_outputs_all_generated : Params.t =
             & mk int "nb_paths_per_phase" nb_paths_per_phase
             & mk int "nb_edges_per_path" nb_edges_per_path
                               ) in
-          (* build_pp "paths_8_phases_1" (fun size ->
+                 (* build_pp "paths_8_phases_1" (fun size ->
              let real_load = load size / 2 in
              let paths = 8 in
              let nb_phases = 1 in
@@ -516,7 +516,16 @@ let mk_graph_outputs_all_generated : Params.t =
                                           let paths = real_load / edges in
                                           let nb_phases = 1 in
                                           (nb_phases, paths, edges))
-             in         
+             in
+
+             let mk_parallel_paths3 = build_pp "paths_2_phases_1" (fun size ->
+                                                                     let real_load = load size / 2 in
+                                                                     let paths = 2 in
+                                                                     let nb_phases = 1 in
+                                                                     let edges = real_load / paths / nb_phases in
+                                                                     (nb_phases, paths, edges))
+           in
+
         (*++ build_pp "paths_524288_phases_1" (fun size ->
              let real_load = load size / 2 in
              let paths = 524288 in
@@ -721,14 +730,15 @@ let mk_graph_outputs_all_generated : Params.t =
           ++ mk_rmat24
           ++ mk_phased3               
        ++ mk_tree_binary                             
-          ++ mk_parallel_paths2                              
+          ++ mk_parallel_paths2
+          ++ mk_parallel_paths3               
           ++ mk_grid3
           ++ mk_phased2               
        ++ mk_grid2               
           ++ mk_parallel_paths1
           ++ mk_circular_knext
           ++ mk_unbalanced_tree_trunk_first
-          ++ mk_unbalanced_tree_trunk_last
+        (*          ++ mk_unbalanced_tree_trunk_last*)
 
 
     )
@@ -741,6 +751,7 @@ let graph_renaming =
      "paths_100_phases_1", "par_chains_100";
      "paths_20_phases_1", "par_chains_20";
      "paths_8_phases_1", "par_chains_8";
+     "paths_2_phases_1", "par_chains_2";     
      "chain", "chain";
      "tree_binary", "complete_bin_tree";
      "tree_depth_2", "trees_10k_10k";
