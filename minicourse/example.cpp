@@ -15,7 +15,6 @@
 #include "string.hpp"
 #include "sort.hpp"
 #include "graph.hpp"
-#include "fib.hpp"
 #include "mcss.hpp"
 #include "numeric.hpp"
 #include "exercises.hpp"
@@ -96,7 +95,7 @@ void bar() {
   std::cout << "xs = " << xs << std::endl;
 }
 
-auto is_even = [&] (value_type x) {
+auto is_even = [] (value_type x) {
   return (x%2) == 0;
 };
 
@@ -262,9 +261,12 @@ void Data_parallelism() {
   std::cout << "Example: The allocation problem" << std::endl;
   std::cout << "-----------------------" << std::endl;
   {
+    /*
     sparray flags = { true, false, false, true, false, true, true };
     sparray xs    = {   34,    13,     5,    1,    41,   11,   10 };
     std::cout << "pack(flags, xs) = " << pack(flags, xs) << std::endl;
+     */
+    std::cout << "pack example currently broken" << std::endl;
   }
   std::cout << "-----------------------" << std::endl;
 }

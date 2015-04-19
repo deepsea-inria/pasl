@@ -9,7 +9,6 @@
 #include "messagestrategy.hpp"
 #include "instrategy.hpp"
 #include "outstrategy.hpp"
-#include "graphfileshared.hpp"
 
 namespace pasl {
 namespace sched {

@@ -18,12 +18,6 @@
 /*---------------------------------------------------------------------*/
 /* Parallel fibonacci */
 
-long de_moivre(long n) {
-  const double phi = 1.61803399;
-  double res = pow(phi, (double)n);
-  return (long) max(res, LONG_MAX); 
-}
-
 long fib_seq(long n) {
   long result;
   if (n < 2) {
@@ -41,7 +35,7 @@ controller_type fib_contr("fib");
 
 long fib_par(long n) {
   long result;
-  par::cstmt(fib_contr, [&] { return de_moivre(n); }, [&] {
+  par::cstmt(fib_contr, [&] { return 1<<n; }, [&] {
     if (n < 2) {
       result = n;
     } else {
