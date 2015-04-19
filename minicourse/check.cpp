@@ -269,6 +269,26 @@ void check_graph() {
   c.find_by_arg("algo")();
 }
 
+void check_graph_ex() {
+  pasl::util::cmdline::argmap_dispatch c;
+  class trusted_fct {
+  public:
+    sparray operator()(const adjlist& graph, vtxid_type source) {
+      return bfs_seq(graph, source);
+    }
+  };
+  c.add("bfs", [&] {
+    class untrusted_fct {
+    public:
+      sparray operator()(const adjlist& graph, vtxid_type source) {
+        return exercises::bfs(graph, source);
+      }
+    };
+    using property_type = bfs_correct<trusted_fct, untrusted_fct>;
+    checkit<property_type>("BFS is correct");
+  });
+  c.find_by_arg("algo")();
+}
 
 /*---------------------------------------------------------------------*/
 /* Unit tests for student exercises */
@@ -408,7 +428,7 @@ void check() {
     class untrusted_fct {
     public:
       sparray operator()(const sparray& xs) {
-        return mergesort_ex(xs);
+        return exercises::mergesort(xs);
       }
     };
     using property_type = sort_correct<trusted_sort_fct, untrusted_fct>;
@@ -442,6 +462,7 @@ void check() {
   c.add("duplicate_ex", std::bind(check_duplicate));
   c.add("ktimes_ex", std::bind(check_ktimes));
   c.add("filter_ex", std::bind(check_filter_ex));
+  c.add("graph_ex", std::bind(check_graph_ex));
   c.find_by_arg("check")();
 }
 

@@ -299,36 +299,6 @@ benchmark_type dmdvmult_bench() {
   return make_benchmark(init, bench, output, destroy);
 }
 
-benchmark_type merge_bench() {
-  long n = pasl::util::cmdline::parse_or_default_long("n", 1l<<20);
-  sparray* inp1 = new sparray(0);
-  sparray* inp2 = new sparray(0);
-  sparray* outp = new sparray(0);
-  pasl::util::cmdline::argmap<std::function<sparray (sparray&,sparray&)>> algos;
-  algos.add("ours", [] (sparray& xs, sparray& ys) { return merge(xs, ys); });
-  algos.add("cilk", [] (sparray& xs, sparray& ys) { return cilkmerge(xs, ys); });
-  auto merge_fct = algos.find_by_arg("algo");
-  auto init = [=] {
-    pasl::util::cmdline::argmap_dispatch c;
-    *inp1 = gen_random_sparray(n);
-    *inp2 = gen_random_sparray(n);
-    in_place_sort(*inp1);
-    in_place_sort(*inp2);
-  };
-  auto bench = [=] {
-    *outp = merge_fct(*inp1, *inp2);
-  };
-  auto output = [=] {
-    std::cout << "result " << (*outp)[outp->size()-1] << std::endl;
-  };
-  auto destroy = [=] {
-    delete inp1;
-    delete inp2;
-    delete outp;
-  };
-  return make_benchmark(init, bench, output, destroy);
-}
-
 benchmark_type sort_bench() {
   long n = pasl::util::cmdline::parse_or_default_long("n", 1l<<20);
   sparray* inp = new sparray(0);
@@ -338,7 +308,7 @@ benchmark_type sort_bench() {
   algos.add("mergesort",          [] (sparray& xs) { return mergesort(xs); });
   algos.add("mergesort_seqmerge", [] (sparray& xs) { return mergesort<false>(xs); });
   algos.add("cilksort",           [] (sparray& xs) { return cilksort(xs); });
-  algos.add("mergesort_ex",       [] (sparray& xs) { return mergesort_ex(xs); });
+  algos.add("mergesort_ex",       [] (sparray& xs) { return exercises::mergesort(xs); });
   auto sort_fct = algos.find_by_arg("bench");
   auto init = [=] {
     pasl::util::cmdline::argmap_dispatch c;
@@ -372,13 +342,18 @@ benchmark_type graph_bench() {
   sparray* visitedp = new sparray;
   std::string fname = pasl::util::cmdline::parse_or_default_string("fname", "");
   vtxid_type source = pasl::util::cmdline::parse_or_default_long("source", (value_type)0);
+  pasl::util::cmdline::argmap<std::function<sparray (const adjlist&, vtxid_type)>> algos;
+  algos.add("bfs", [&] (const adjlist& graph, vtxid_type source) { return bfs(graph, source); });
+  algos.add("bfs_ex", [&] (const adjlist& graph, vtxid_type source) { return exercises::bfs(graph, source); });
+  auto bfs_fct = algos.find_by_arg("bench");
   if (fname == "")
     pasl::util::atomic::fatal([] { std::cerr << "missing filename for graph: -fname filename"; });
   auto init = [=] {
     graphp->load_from_file(fname);
   };
   auto bench = [=] {
-    *visitedp = bfs(*graphp, source);
+    //*visitedp = bfs(*graphp, source);
+    *visitedp = bfs_fct(*graphp, source);
   };
   auto output = [=] {
     long nb_visited = sum(*visitedp);
@@ -409,7 +384,6 @@ int main(int argc, char** argv) {
     m.add("scan",                 [&] { return scan_bench(); });
     m.add("mcss",                 [&] { return mcss_bench(); });
     m.add("dmdvmult",             [&] { return dmdvmult_bench(); });
-    m.add("merge",                [&] { return merge_bench(); });
     m.add("quicksort",            [&] { return sort_bench(); });
     m.add("mergesort",            [&] { return sort_bench(); });
     m.add("mergesort_seqmerge",   [&] { return sort_bench(); });

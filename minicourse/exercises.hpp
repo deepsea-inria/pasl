@@ -11,6 +11,8 @@
 #include <limits.h>
 
 #include "sparray.hpp"
+#include "sort.hpp"
+#include "graph.hpp"
 
 #ifndef _MINICOURSE_EXERCISES_H_
 #define _MINICOURSE_EXERCISES_H_
@@ -19,10 +21,13 @@
 
 namespace exercises {
   
+/*---------------------------------------------------------------------*/
+/* Stub functions for required exercises */
+  
 void map_incr(const value_type* source, value_type* dest, long n) {
   // todo: fill in
 }
- 
+  
 // source: pointer to the first item of the source array
 // n: number of items in the source array
 // seed: value to return in the case where `n` == 0
@@ -61,6 +66,46 @@ template <class Assoc_comb_op>
 value_type reduce(Assoc_comb_op op, value_type seed, const value_type* source, long n) {
   return seed; // todo fill in
 }
+  
+sparray mergesort(const sparray& xs) {
+  // students insert their solution here
+  return copy(xs);
+}
+  
+sparray edge_map_ex(const adjlist& graph,
+                    std::atomic<bool>* visited,
+                    const sparray& in_frontier) {
+  // students insert their solution here
+  return copy(in_frontier);
+}
+  
+loop_controller_type bfs_par_init_contr("bfs_init");
+
+sparray bfs_par_ex(const adjlist& graph, vtxid_type source) {
+  long n = graph.get_nb_vertices();
+  std::atomic<bool>* visited = my_malloc<std::atomic<bool>>(n);
+  par::parallel_for(bfs_par_init_contr, 0l, n, [&] (long i) {
+    visited[i].store(false);
+  });
+  visited[source].store(true);
+  sparray cur_frontier = { source };
+  while (cur_frontier.size() > 0)
+    cur_frontier = edge_map_ex(graph, visited, cur_frontier);
+  sparray result = tabulate([&] (value_type i) { return visited[i].load(); }, n);
+  free(visited);
+  return result;
+}
+
+sparray bfs(const adjlist& graph, vtxid_type source) {
+#ifdef SEQUENTIAL_BASELINE
+  return bfs_seq(graph, source);
+#else
+  return bfs_par_ex(graph, source);
+#endif
+}
+
+/*---------------------------------------------------------------------*/
+/* Stub functions for suggested exercises */
 
 sparray duplicate(const sparray& xs) {
   return empty(); // todo: fill in
@@ -80,33 +125,6 @@ sparray pack_ex(const sparray& flags, const sparray& xs) {
 template <class Predicate>
 sparray filter(Predicate p, const sparray& xs) {
   return pack_ex(map(p, xs), xs);
-}
-  
-// Merge the combined contents in the two given ranges of
-// the two given source arrays, namely `xs` and `ys`, copying
-// out the result to `tmp`.
-// In each of the two given ranges in the two given source
-// arrays, the items are guaranteed by precondition to appear
-// in ascending order.
-// By postcondition, the items that are written to tmp are to
-// appear in ascending order as well.
-// More specifically, we want to merge the combined results in the
-// range [lo_xs, hi_xs) of xs and in the range [lo_ys, hi_ys) of
-// ys, copying out the items to the range [lo_tmp, m) of tmp,
-// where m = (hi_xs-lo_xs)+(hi_ys-lo_ys).
-// For an example use of this function, see the function in
-// examples.hpp that is named `merge_ex_test`.
-void merge_par(const sparray& xs, const sparray& ys, sparray& tmp,
-               long lo_xs, long hi_xs,
-               long lo_ys, long hi_ys,
-               long lo_tmp) {
-  // todo: fill in
-}
-  
-void merge_par(sparray& xs, sparray& tmp, long lo, long mid, long hi) {
-  merge_par(xs, xs, tmp, lo, mid, mid, hi, lo);
-  // copy back to source array
-  prim::pcopy(&tmp[0], &xs[0], lo, hi, lo);
 }
   
 } // end namespace

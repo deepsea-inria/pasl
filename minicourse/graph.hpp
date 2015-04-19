@@ -275,44 +275,8 @@ sparray bfs_seq(const adjlist& graph, vtxid_type source) {
 /*---------------------------------------------------------------------*/
 /* Parallel BFS */
 
-const value_type not_a_vertexid = -1l;
-
-sparray just_vertexids(const sparray& vs) {
-  return filter([] (vtxid_type v) { return v != not_a_vertexid; }, vs);
-}
-
-sparray get_out_degrees_of(const adjlist& graph, const sparray& vs) {
-  return map([&] (vtxid_type v) { return graph.get_out_degree_of(v); }, vs);
-}
-
-loop_controller_type process_out_edges_contr("process_out_edges");
-loop_controller_type edge_map_contr("edge_map");
-
 sparray edge_map(const adjlist& graph, std::atomic<bool>* visited, const sparray& in_frontier) {
-  // scan_excl_result offsets = prefix_sums_excl(get_out_degrees_of(graph, in_frontier));
-  auto get_outdegree_fct = [&] (vtxid_type v) { return graph.get_out_degree_of(v); };
-  scan_excl_result offsets = scan_excl(plus_fct, get_outdegree_fct, 0l, in_frontier);
-  long m = in_frontier.size();
-  long n = offsets.total;
-  auto weight = [&] (long lo, long hi) {
-    long u = (hi == m) ? n : offsets.partials[hi];
-    return u - offsets.partials[lo];
-  };
-  sparray out_frontier = sparray(n);
-  par::parallel_for(edge_map_contr, weight, 0l, m, [&] (long i) {
-    vtxid_type src = in_frontier[i];
-    long offset = offsets.partials[i];
-    neighbor_list out_edges = graph.get_out_edges_of(src);
-    long degree = graph.get_out_degree_of(src);
-    par::parallel_for(process_out_edges_contr, 0l, degree, [&] (long j) {
-      long dst = out_edges[j];
-      bool orig = false;
-      if (visited[dst].load() || ! visited[dst].compare_exchange_strong(orig, true))
-        dst = not_a_vertexid;
-      out_frontier[offset+j] = dst;
-    });
-  });
-  return just_vertexids(out_frontier);
+  return copy(in_frontier);
 }
 
 loop_controller_type bfs_par_init_contr("bfs_init");
