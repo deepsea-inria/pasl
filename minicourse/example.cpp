@@ -273,7 +273,7 @@ void Data_parallelism() {
 
 void Sorting() {
   std::cout << "Sorting examples" << std::endl;
-  
+  /*
   std::cout << "Example: The allocation problem" << std::endl;
   std::cout << "-----------------------" << std::endl;
   {
@@ -289,7 +289,7 @@ void Sorting() {
     std::cout << "xs = " << xs << std::endl;
   }
   std::cout << "-----------------------" << std::endl;
-  
+  */
 
 }
 
@@ -389,7 +389,7 @@ void Graph_processing() {
 
 void merge_exercise_example() {
   std::cout << "Merge exercise example" << std::endl;
-
+/*
   std::cout << "-----------------------" << std::endl;
   sparray xs = { 2, 4, 6, 8 };
   sparray ys = { 5, 5, 13, 21, 23 };
@@ -405,7 +405,7 @@ void merge_exercise_example() {
   std::cout << "ys =" << slice(ys, lo_ys, hi_ys) << std::endl;
   std::cout << "tmp = " << tmp << std::endl;
   std::cout << "-----------------------" << std::endl;
-
+*/
   /*
    When your merge exercise is complete, the output should be
    the following:
@@ -434,7 +434,7 @@ int main(int argc, char** argv) {
     c.add("simple-parallel-arrays", [&] { Simple_parallel_arrays(); });
     c.add("data-parallelism", [&] { Data_parallelism(); });
     c.add("sorting", [&] { Sorting(); });
-    c.add("graph-processing", [&] { Graph_processing(); });
+    //c.add("graph-processing", [&] { Graph_processing(); });
     c.add("merge-exercise", [&] { merge_exercise_example(); });
     // Add an option for your example code here:
     // c.add("your-example", [&] { your_function(); });
