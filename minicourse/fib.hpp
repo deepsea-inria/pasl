@@ -35,7 +35,7 @@ controller_type fib_contr("fib");
 
 long fib_par(long n) {
   long result;
-  par::cstmt(fib_contr, [&] { return 1<<n; }, [&] {
+  par::cstmt(fib_contr, [&] { return 1l<<n; }, [&] {
     if (n < 2) {
       result = n;
     } else {
