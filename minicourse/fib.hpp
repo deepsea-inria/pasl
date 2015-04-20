@@ -18,7 +18,7 @@
 /*---------------------------------------------------------------------*/
 /* Parallel fibonacci */
 
-long fib_seq(long n) {
+static long fib_seq(long n) {
   long result;
   if (n < 2) {
     result = n;
@@ -33,7 +33,7 @@ long fib_seq(long n) {
 
 controller_type fib_contr("fib");
 
-long fib_par(long n) {
+static long fib_par(long n) {
   long result;
   par::cstmt(fib_contr, [&] { return 1l<<n; }, [&] {
     if (n < 2) {
