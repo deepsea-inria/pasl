@@ -48,7 +48,7 @@ bool generate_graph_file = false;
 bool print_graph = false;
 bool need_shuffle = false;
 int cutoff = 1024;
-double custom_lex_order_edges_fraction = 0.9;
+double custom_lex_order_edges_fraction = 0.5;
 double custom_avg_degree = 600;
 
 // Testing graph values
@@ -205,7 +205,7 @@ int main(int argc, char ** argv) {
     algo_num = pasl::util::cmdline::parse_or_default_int("algo_num", algo_num);    
     impl_num = pasl::util::cmdline::parse_or_default_int("impl_num", impl_num);    
     custom_avg_degree = pasl::util::cmdline::parse_or_default_int("custom_deg", custom_avg_degree);
-    custom_lex_order_edges_fraction = pasl::util::cmdline::parse_or_default_int("custom_fraction", custom_lex_order_edges_fraction);
+    custom_lex_order_edges_fraction = pasl::util::cmdline::parse_or_default_double("custom_fraction", custom_lex_order_edges_fraction);
     test_num = pasl::util::cmdline::parse_or_default_int("test_num", test_num);
     edges_num = pasl::util::cmdline::parse_or_default_int("edges", edges_num);
     cutoff = pasl::util::cmdline::parse_or_default_int("cutoff", cutoff);
@@ -216,13 +216,9 @@ int main(int argc, char ** argv) {
     assert(algo_num < NB_ALGO);
     assert(test_num < NB_GENERATORS);
     
-    if (test_num != RANDOM_CUSTOM) {
-      custom_avg_degree = -1;
-      custom_lex_order_edges_fraction = -1;
-    } else {
-      assert(custom_avg_degree >= 0);
-      assert(0 <= custom_lex_order_edges_fraction && custom_lex_order_edges_fraction <= 1);      
-    }
+    assert(custom_avg_degree >= 0);
+    assert(0 <= custom_lex_order_edges_fraction && custom_lex_order_edges_fraction <= 1);      
+
     pasl::graph::bellman_ford_par_serial_cutoff = cutoff;
     pasl::graph::bellman_ford_par_bfs_cutoff = cutoff;
     pasl::graph::floyd_warshall_par_bfs_cutoff = cutoff;
@@ -248,7 +244,7 @@ int main(int argc, char ** argv) {
       graph_type = graph_types[test_num]; 
       generator_type which_generator;
       which_generator.ty = test_num;
-      source_vertex = generate(which_generator, edges_num, graph, custom_lex_order_edges_fraction, custom_avg_degree);
+      source_vertex = generate(which_generator, edges_num, graph, custom_lex_order_edges_fraction, custom_avg_degree, need_shuffle);
       std::cout << "Done generating" << std::endl;        
     }
     print_graph_debug_info(graph, source_vertex, graph_types[test_num]);      

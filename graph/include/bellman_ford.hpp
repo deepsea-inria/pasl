@@ -279,6 +279,7 @@ namespace pasl {
         }
       }
       
+
       void process_par_by_edges(const adjlist<Adjlist_seq>& graph,
                                 int * dists, int start, int stop, int * pref_sum, std::unordered_map<long long, int> & mid_map,  bool & changed, int & vertex_num) {
         int nb_edges = pref_sum[stop] - pref_sum[start];

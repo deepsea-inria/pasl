@@ -442,10 +442,13 @@ void generate_randlocal_by_nb_edges(edgeid_type tgt_nb_edges, edgelist<Edge_bag>
   nb_vertices = std::max(vtxid_type(3), nb_vertices);
   
   sched::native::parallel_for(edgeid_type(0), tgt_nb_edges, [&] (edgeid_type i) {
-    vtxid_type from = rand() % nb_vertices;
-    vtxid_type to = rand() % nb_vertices;
+    unsigned int from;
+    unsigned int to;
+    quickcheck::generate(nb_vertices, from);
+    quickcheck::generate(nb_vertices, to);
+    
     while (from == to)
-      to = rand() % nb_vertices;
+      quickcheck::generate(nb_vertices, to);
     dst.edges[i] = edge_type(from, to);
   });
   dst.nb_vertices = nb_vertices;
@@ -651,8 +654,8 @@ static inline void generate(generator_type& ty) {
   
 template <class Adjlist_seq>
 int generate(generator_type& which_generator, size_t _tgt_nb_edges, adjlist<Adjlist_seq>& graph,
-             double fraction = -1,
-             double avg_degree = -1,
+             double fraction = 0.5,
+             double avg_degree = 1,
              bool need_shuffle = true) {
   using vtxid_type = typename adjlist<Adjlist_seq>::vtxid_type;
   using edge_type = wedge<vtxid_type>;
@@ -660,9 +663,11 @@ int generate(generator_type& which_generator, size_t _tgt_nb_edges, adjlist<Adjl
   using edgelist_type = edgelist<edgelist_bag_type>;
   edgelist_type edg;
   generate(_tgt_nb_edges, which_generator, edg, fraction, avg_degree);
+  
+  
   std::vector<int> map_vector;
   for (int i = 0; i < edg.nb_vertices; ++i) map_vector.push_back(i);
-  if (fraction == -1 && need_shuffle) std::random_shuffle ( map_vector.begin(), map_vector.end() );
+  if (need_shuffle) std::random_shuffle ( map_vector.begin(), map_vector.end() );
   for (edgeid_type i = 0; i < edg.edges.size(); i++) {
     edg.edges[i].dst = map_vector[edg.edges[i].dst];
     edg.edges[i].src = map_vector[edg.edges[i].src];
@@ -675,8 +680,8 @@ template <class Edge_bag>
 void generate(edgeid_type& tgt_nb_edges,
               generator_type& which_generator,
               edgelist<Edge_bag>& graph,
-              double fraction = -1,
-              double avg_degree = -1) {
+              double fraction = 0.5,
+              double avg_degree = 1) {
   using vtxid_type = typename Edge_bag::value_type::vtxid_type;
   using edge_type = edge<vtxid_type>;
   using edgelist_bag_type = Edge_bag;
