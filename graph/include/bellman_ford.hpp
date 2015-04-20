@@ -4,6 +4,7 @@
 #include "pcontainer.hpp"
 #include <thread>
 #include <unordered_map>
+#include "utils.hpp"
 
 #ifndef _PASL_GRAPH_BELLMAN_FORD_H_
 #define _PASL_GRAPH_BELLMAN_FORD_H_
@@ -222,18 +223,16 @@ namespace pasl {
           }
         }
       }
-      
+
       void process_vertex_par(const adjlist<Adjlist_seq>& graph,
                               int* dists, int vertex, bool& changed) {
-        std::atomic<int> min_val;
         int degree = graph.adjlists[vertex].get_in_degree();
         int* neighbours = graph.adjlists[vertex].get_in_neighbors();
         
-        min_val.store(dists[vertex]);
         sched::native::parallel_for(0, degree, [&] (int edge) {
           int other = neighbours[edge];
           int w = dists[other] + neighbours[edge + degree];
-          changed |= update_minimum(min_val, w);
+          changed |= pbbs::utils::writeMin(&dists[vertex], w);
         });
       }
       
@@ -354,7 +353,7 @@ namespace pasl {
           for (int j = 0; j < nb_vertices; j++) {
             vtxid_type degree = graph.adjlists[j].get_in_degree();            
             if (degree < 1000) {
-              process_vertex_seq(graph, dists, j, changed);
+              process_vertex_par(graph, dists, j, changed);
             } else {
               process_vertex_par(graph, dists, j, changed);
             }            
@@ -417,34 +416,10 @@ namespace pasl {
           if (cur_d == layer)
             return false;
           return visited[target].compare_exchange_strong(cur_d, layer);
-        }
-        
-        template <class ET>
-        static inline bool CAS(ET *ptr, ET oldv, ET newv) {
-          if (sizeof(ET) == 8) {
-            long* o = (long*) &oldv;
-            long* n = (long*) &newv;
-            return __sync_bool_compare_and_swap((long*)ptr, *o, *n);
-          } else if (sizeof(ET) == 4) {
-            int* o = (int*) &oldv;
-            int* n = (int*) &newv;
-            return __sync_bool_compare_and_swap((int*)ptr, *o, *n);
-          } else {
-            std::cout << "CAS bad length" << std::endl;
-            abort();
-          }
-        }
-        
-        template <class ET>
-        static inline bool writeMin(ET *a, ET b) {
-          ET c; bool r=0;
-          do c = *a; 
-          while (c > b && !(r=CAS(a,c,b)));
-          return r;
-        }
+        }        
         
         static inline bool try_to_update_dist(vtxid_type & target, int & candidate, int* dists) {
-          return writeMin(&dists[target], candidate);
+          return pbbs::utils::writeMin(&dists[target], candidate);
         }
         
         template <class Adjlist_alias, class Frontier>
