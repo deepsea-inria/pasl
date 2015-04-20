@@ -8,6 +8,8 @@
  */
 
 #include <math.h>
+#include <iostream>
+#include <fstream>
 
 #include "benchmark.hpp"
 #include "hash.hpp"
@@ -40,10 +42,23 @@ namespace quickcheck {
 /*---------------------------------------------------------------------*/
 
 long nb_tests;
+std::string outfile;
 
 template <class Property>
 void checkit(std::string msg) {
-  quickcheck::check<Property>(msg.c_str(), nb_tests);
+  if (outfile == "") {
+    quickcheck::check<Property>(msg.c_str(), nb_tests);
+  } else {
+    std::ofstream f(outfile);
+    if (f.is_open()) {
+      bool isVerbose = false;
+      size_t max = 5 * nb_tests;
+      quickcheck::check<Property>(msg.c_str(), nb_tests, max, isVerbose, f);
+    } else {
+      std::cerr << "Failed to open output file " << outfile << std::endl;
+    }
+  }
+
 }
 
 bool same_sparray(const sparray& xs, const sparray& ys) {
@@ -406,6 +421,7 @@ void check_filter_ex() {
 
 void check() {
   nb_tests = pasl::util::cmdline::parse_or_default_long("nb_tests", 500);
+  outfile = pasl::util::cmdline::parse_or_default_string("outfile", "");
   pasl::util::cmdline::argmap_dispatch c;
   c.add("mcss", std::bind(check_mcss));
   class trusted_sort_fct {
