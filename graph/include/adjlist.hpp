@@ -176,6 +176,7 @@ public:
   
   edgeid_type nb_edges;
   adjlist_seq_type adjlists;
+  double fraction = -1;
   
   adjlist()
   : nb_edges(0) { }

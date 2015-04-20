@@ -57,7 +57,7 @@ base_algo<adjlist_seq_type> * algo;
 adjlist_type graph;
 vtxid_type   source_vertex;
 
-void print_graph_debug_info(const adjlist_type & graph, vtxid_type & src, std::string type) {
+void print_graph_debug_info(adjlist_type & graph, vtxid_type & src, std::string type) {
   std::cout << std::endl << "GRAPH INFO:" << std::endl;
   std::cout << "Type = " << type << std::endl;
   std::cout << "Source vertex = " << src << std::endl;
@@ -73,6 +73,7 @@ void print_graph_debug_info(const adjlist_type & graph, vtxid_type & src, std::s
       if (from < to) num_less++;
     }
   }
+  graph.fraction = (.0 + num_less) / num_edges;
   std::cout << "Fraction = " << (.0 + num_less) / num_edges << "; " << "AvgDegree = " << (.0 + num_edges) / nb_vertices << std::endl;;
 }
 
