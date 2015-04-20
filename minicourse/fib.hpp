@@ -54,7 +54,11 @@ long fib_par(long n) {
 }
 
 long fib(long n) {
+#ifdef SEQUENTIAL_BASELINE
+  return fib_seq(n);
+#else
   return fib_par(n);
+#endif
 }
 
 const long threshold = 4;
