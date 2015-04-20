@@ -36,8 +36,11 @@ namespace pasl {
           case BF_SERIAL_BFS:
             return bellman_ford_seq_bfs(graph, source_vertex);
             break;
-          case BF_PAR_CLASSIC:
-            return bellman_ford_par_edges(graph, source_vertex);
+          case BF_PAR_CLASSIC_ALL_EDGES:
+            return bellman_ford_par_all_edges(graph, source_vertex);
+            break;
+          case BF_PAR_CLASSIC_VERTEX_EDGES:
+            return bellman_ford_par_vertex_edges(graph, source_vertex);
             break;
           case BF_PAR_BFS:
             return bfs_bellman_ford::bellman_ford_par_bfs(graph, source_vertex);
@@ -50,17 +53,18 @@ namespace pasl {
       enum { 	
         BF_SERIAL_CLASSIC,
         BF_SERIAL_BFS,
-        BF_PAR_CLASSIC,
+        BF_PAR_CLASSIC_ALL_EDGES,
+        BF_PAR_CLASSIC_VERTEX_EDGES,        
         BF_PAR_BFS,
         BF_NB_ALGO 
       };      			
       
-      std::string const bf_algo_names[4] = {
+      std::string const bf_algo_names[5] = {
         "SerialClassic", 
         "SerialBFS", 
-        "ParClassic", 
+        "ParClassicByAllEdges", 
+        "ParClassicByVertexEdges", 
         "ParBFS"};  
-      
       
       
       template <class Size, class Dist>
@@ -201,53 +205,59 @@ namespace pasl {
       /*---------------------------------------------------------------------*/
       /*---------------------------------------------------------------------*/
       /*---------------------------------------------------------------------*/
-      /* Bellman-Ford; parallel classic */
+      /* Bellman-Ford; parallel utils */
       /*---------------------------------------------------------------------*/  
       
-      int* bellman_ford_par_edges(const adjlist<Adjlist_seq>& graph,
-                                  typename adjlist<Adjlist_seq>::vtxid_type source) {
-        if (graph.fraction > 0.97) {
-          std::cout << "Choose high fraction method" << std::endl;
-          return bellman_ford_par_group_edges(graph, source);
-        } else {
-          std::cout << "Choose low fraction method" << std::endl;
-          return bellman_ford_par_all_edges(graph, source);
-        }
-      }
-      
-      // For high fraction
-      int* bellman_ford_par_group_edges(const adjlist<Adjlist_seq>& graph,
-                                        typename adjlist<Adjlist_seq>::vtxid_type source) {
-        using vtxid_type = typename adjlist<Adjlist_seq>::vtxid_type;
-        int inf_dist = shortest_path_constants<int>::inf_dist;
-        vtxid_type nb_vertices = graph.get_nb_vertices();
-        int* dists = data::mynew_array<int>(nb_vertices);
+      void process_vertex_seq(const adjlist<Adjlist_seq>& graph,
+                              int* dists, int vertex, bool& changed) {
+        int degree = graph.adjlists[vertex].get_in_degree();
+        int* neighbours = graph.adjlists[vertex].get_in_neighbors();
         
-        sched::native::parallel_for(0, nb_vertices, [&] (int i) {
-          dists[i] = inf_dist;
-        });
-        
-        dists[source] = 0;
-        bool changed = false;
-        int steps = 0;
-        for (int i = 0; i < nb_vertices; i++) {
-          steps++;
-          changed = false;
-          for (int j = 0; j < nb_vertices; j++) {
-            vtxid_type degree = graph.adjlists[j].get_in_degree();            
-            if (degree < 1000) {
-              process_vertex_seq(graph, dists, j, changed);
-            } else {
-              process_vertex_par(graph, dists, j, changed);
-            }            
+        for (int edge = 0; edge < degree; edge++) {
+          int other = neighbours[edge];
+          int new_dist = dists[other] + neighbours[edge + degree];
+          if (dists[vertex] > new_dist) {
+            dists[vertex] = new_dist;
+            changed = true;
           }
-          if (!changed) break;
         }
-        std::cout << "Rounds : " << steps << std::endl;
-        return normalize(graph, dists);
       }
       
-      // For low fraction
+      void process_vertex_par(const adjlist<Adjlist_seq>& graph,
+                              int* dists, int vertex, bool& changed) {
+        std::atomic<int> min_val;
+        int degree = graph.adjlists[vertex].get_in_degree();
+        int* neighbours = graph.adjlists[vertex].get_in_neighbors();
+        
+        min_val.store(dists[vertex]);
+        sched::native::parallel_for(0, degree, [&] (int edge) {
+          int other = neighbours[edge];
+          int w = dists[other] + neighbours[edge + degree];
+          changed |= update_minimum(min_val, w);
+        });
+      }
+      
+      void process_vertices_seq(const adjlist<Adjlist_seq>& graph,
+                                int* dists, int start, int stop, bool& changed) {
+        for (int i = start; i < stop; i++) {
+          process_vertex_seq(graph, dists, i, changed);
+        }
+      }
+      
+      bool update_minimum(std::atomic<int>& min_value, int const& value) {
+        int prev_value = min_value;
+        bool res = prev_value > value;
+        while(prev_value > value &&
+              !min_value.compare_exchange_weak(prev_value, value))
+          ;
+        return res;
+      }
+      
+      /*---------------------------------------------------------------------*/
+      /*---------------------------------------------------------------------*/
+      /*---------------------------------------------------------------------*/
+      /* Bellman-Ford; parallel classic by all edges */
+      /*---------------------------------------------------------------------*/  
       int* bellman_ford_par_all_edges(const adjlist<Adjlist_seq>& graph,
                                       typename adjlist<Adjlist_seq>::vtxid_type source) {
         using vtxid_type = typename adjlist<Adjlist_seq>::vtxid_type;
@@ -284,8 +294,6 @@ namespace pasl {
         
         return normalize(graph, dists);
       }
-
-			// Utils
       
       void build_plan(std::unordered_map<long long, int> & mid_map, int start, int stop, int * pref_sum, int & vertex_num, int & forked_cnt) {
         int nb_edges = pref_sum[stop] - pref_sum[start];
@@ -308,43 +316,6 @@ namespace pasl {
         }
       }  
       
-      void process_vertex_seq(const adjlist<Adjlist_seq>& graph,
-                              int* dists, int vertex, bool& changed) {
-        int degree = graph.adjlists[vertex].get_in_degree();
-        int* neighbours = graph.adjlists[vertex].get_in_neighbors();
-
-        for (int edge = 0; edge < degree; edge++) {
-          int other = neighbours[edge];
-          int new_dist = dists[other] + neighbours[edge + degree];
-          if (dists[vertex] > new_dist) {
-            dists[vertex] = new_dist;
-            changed = true;
-          }
-        }
-      }
-      
-      void process_vertex_par(const adjlist<Adjlist_seq>& graph,
-                              int* dists, int vertex, bool& changed) {
-        std::atomic<int> min_val;
-        int degree = graph.adjlists[vertex].get_in_degree();
-        int* neighbours = graph.adjlists[vertex].get_in_neighbors();
-
-        min_val.store(dists[vertex]);
-        sched::native::parallel_for(0, degree, [&] (int edge) {
-          int other = neighbours[edge];
-          int w = dists[other] + neighbours[edge + degree];
-          changed |= update_minimum(min_val, w);
-        });
-      }
-      
-      void process_vertices_seq(const adjlist<Adjlist_seq>& graph,
-                                int* dists, int start, int stop, bool& changed) {
-        for (int i = start; i < stop; i++) {
-          process_vertex_seq(graph, dists, i, changed);
-        }
-      }
-      
-
       void process_par_by_edges(const adjlist<Adjlist_seq>& graph,
                                 int * dists, int start, int stop, int * pref_sum, std::unordered_map<long long, int> & mid_map,  bool & changed, int & vertex_num) {
         int nb_edges = pref_sum[stop] - pref_sum[start];
@@ -358,18 +329,42 @@ namespace pasl {
         }
       }  
       
-      
-      bool update_minimum(std::atomic<int>& min_value, int const& value) {
-        int prev_value = min_value;
-        bool res = prev_value > value;
-        while(prev_value > value &&
-              !min_value.compare_exchange_weak(prev_value, value))
-          ;
-        return res;
+      /*---------------------------------------------------------------------*/
+      /*---------------------------------------------------------------------*/
+      /*---------------------------------------------------------------------*/
+      /* Bellman-Ford; parallel classic by all edges */
+      /*---------------------------------------------------------------------*/ 
+      int* bellman_ford_par_vertex_edges(const adjlist<Adjlist_seq>& graph,
+                                        typename adjlist<Adjlist_seq>::vtxid_type source) {
+        using vtxid_type = typename adjlist<Adjlist_seq>::vtxid_type;
+        int inf_dist = shortest_path_constants<int>::inf_dist;
+        vtxid_type nb_vertices = graph.get_nb_vertices();
+        int* dists = data::mynew_array<int>(nb_vertices);
+        
+        sched::native::parallel_for(0, nb_vertices, [&] (int i) {
+          dists[i] = inf_dist;
+        });
+        
+        dists[source] = 0;
+        bool changed = false;
+        int steps = 0;
+        for (int i = 0; i < nb_vertices; i++) {
+          steps++;
+          changed = false;
+          for (int j = 0; j < nb_vertices; j++) {
+            vtxid_type degree = graph.adjlists[j].get_in_degree();            
+            if (degree < 1000) {
+              process_vertex_seq(graph, dists, j, changed);
+            } else {
+              process_vertex_par(graph, dists, j, changed);
+            }            
+          }
+          if (!changed) break;
+        }
+        std::cout << "Rounds : " << steps << std::endl;
+        return normalize(graph, dists);
       }
-      
-      
-      
+
       
       /*---------------------------------------------------------------------*/
       /*---------------------------------------------------------------------*/
