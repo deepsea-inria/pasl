@@ -764,7 +764,7 @@ let graph_renaming =
      "random_arity_8", "random_arity_8";
      "random_arity_100", "random_arity_100"; 
      "phased_low_50", "phases_50_d_5"; 
-     "phased_mix_10", "phases_10_d_2_one";
+     "phased_mix_10", "phases_10_d_2";
      "phased_mix_100", "phases_20_d_100";     
      (* "phased_mix_2", "phases_2_arity_2_but_one"; *)
      "phased_524288_single", "trees_524k";

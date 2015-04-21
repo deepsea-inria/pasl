@@ -4,8 +4,8 @@ PAPER=$HOME/Work/deepsea/2015/sc-submit-graphs/_results/
 
 make graph.pbench
 
-./graph.pbench overview -size large -proc 40 -only plot -sub main
-cp _results/chart-1.pdf $PAPER/main.pdf
+#./graph.pbench overview -size large -proc 40 -only plot -sub main
+#cp _results/chart-1.pdf $PAPER/main.pdf
 
 ./graph.pbench overview -size large -proc 40 -only plot -sub cong
 cp _results/chart-1.pdf $PAPER/cong.pdf
