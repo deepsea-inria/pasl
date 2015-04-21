@@ -220,12 +220,10 @@ namespace pasl {
         using vtxid_type = typename adjlist<Adjlist_seq>::vtxid_type;
         vtxid_type nb_vertices = init_graph.get_nb_vertices();        
         int* dists = data::mynew_array<int>((long long) nb_vertices * nb_vertices);
+        long long cur_off = 0;
         for (int i = 0; i < nb_vertices; ++i) {
-          vtxid_type* dist = bellman_ford_algo<Adjlist_seq>::bfs_bellman_ford::bellman_ford_par_bfs(init_graph, i, false);
-          for (int j = 0; j < nb_vertices; j++) {
-            dists[i * nb_vertices + j] = dist[j];
-          }
-          free(dist);
+          bellman_ford_algo<Adjlist_seq>::bfs_bellman_ford::bellman_ford_par_bfs(init_graph, i, false, dists + cur_off);
+          cur_off += nb_vertices;
         }
         return dists;
       }  

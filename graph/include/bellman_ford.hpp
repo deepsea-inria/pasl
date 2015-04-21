@@ -504,16 +504,20 @@ namespace pasl {
         }
         
         static edgeweight_type* bellman_ford_par_bfs(const adjlist<Adjlist_seq>& graph,
-                                                     typename adjlist<Adjlist_seq>::vtxid_type source, bool debug = true) {
+                                                     typename adjlist<Adjlist_seq>::vtxid_type source, bool debug = true,
+                                                     edgeweight_type* provided_dists = nullptr) {
           std::vector<typename adjlist<Adjlist_seq>::vtxid_type> sources  = {source};
-          return bellman_ford_par_bfs(graph, sources, debug);
+          return bellman_ford_par_bfs(graph, sources, debug, provided_dists);
         }      
         
-        static edgeweight_type* bellman_ford_par_bfs(const adjlist<Adjlist_seq>& graph, std::vector<typename adjlist<Adjlist_seq>::vtxid_type> sources, bool debug = true) {
+        static edgeweight_type* bellman_ford_par_bfs(const adjlist<Adjlist_seq>& graph, std::vector<typename adjlist<Adjlist_seq>::vtxid_type> sources, bool debug = true, edgeweight_type* provided_dists = nullptr) {
           auto inf_dist = shortest_path_constants<edgeweight_type>::inf_dist;
           
           vtxid_type nb_vertices = graph.get_nb_vertices();
-          edgeweight_type* dists = data::mynew_array<edgeweight_type>(nb_vertices);
+          edgeweight_type* dists = provided_dists;
+          if (dists == nullptr) 
+            dists = data::mynew_array<edgeweight_type>(nb_vertices);
+          
           std::atomic<int>* visited = data::mynew_array<std::atomic<int>>(nb_vertices);
           int unknown = 0;
           fill_array_par(visited, nb_vertices, unknown);
