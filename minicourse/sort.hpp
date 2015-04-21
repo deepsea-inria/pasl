@@ -119,37 +119,7 @@ void merge_par(const sparray& xs, const sparray& ys, sparray& tmp,
                long lo_xs, long hi_xs,
                long lo_ys, long hi_ys,
                long lo_tmp) {
-  long n1 = hi_xs-lo_xs;
-  long n2 = hi_ys-lo_ys;
-  auto seq = [&] {
-    merge_seq(xs, ys, tmp, lo_xs, hi_xs, lo_ys, hi_ys, lo_tmp);
-  };
-  par::cstmt(merge_contr, [&] { return n1+n2; }, [&] {
-    if (n1 < n2) {
-      // to ensure that the first subarray being sorted is the larger or the two
-      merge_par(ys, xs, tmp, lo_ys, hi_ys, lo_xs, hi_xs, lo_tmp);
-    } else if (n1 == 1) {
-      if (n2 == 0) {
-        // xs singleton; ys empty
-        tmp[lo_tmp] = xs[lo_xs];
-      } else {
-        // both singletons
-        tmp[lo_tmp+0] = std::min(xs[lo_xs], ys[lo_ys]);
-        tmp[lo_tmp+1] = std::max(xs[lo_xs], ys[lo_ys]);
-      }
-    } else {
-      // select pivot positions
-      long mid_xs = (lo_xs+hi_xs)/2;
-      long mid_ys = lower_bound(ys, lo_ys, hi_ys, xs[mid_xs]);
-      // number of items to be treated by the first parallel call
-      long k = (mid_xs-lo_xs) + (mid_ys-lo_ys);
-      par::fork2([&] {
-        merge_par(xs, ys, tmp, lo_xs, mid_xs, lo_ys, mid_ys, lo_tmp);
-      }, [&] {
-        merge_par(xs, ys, tmp, mid_xs, hi_xs, mid_ys, hi_ys, lo_tmp+k);
-      });
-    }
-  }, seq);
+  // later: fill in
 }
 
 void merge_par(sparray& xs, sparray& tmp,
