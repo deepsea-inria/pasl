@@ -39,6 +39,9 @@ namespace pasl {
           case FW_PAR_BFS:
             return floyd_warshall_par_bfs(graph);
             break;
+          case FW_PAR_BFSmemory:
+            return floyd_warshall_par_bfs_memory_opt(graph);
+            break;              
           case FW_PAR_BFS2:
             return floyd_warshall_par_bfs2(graph);
             break;
@@ -54,14 +57,16 @@ namespace pasl {
         FW_SERIAL_CLASSIC,
         FW_PAR_CLASSIC,      
         FW_PAR_BFS,
+        FW_PAR_BFSmemory,      
         FW_PAR_BFS2,        
         FW_NB_ALGO 
       };   
       
-      std::string const fw_algo_names[4] = {
+      std::string const fw_algo_names[5] = {
         "SerialClassic", 
         "ParClassic",      
         "ParBFSForAllVertices",
+        "ParBFSForAllVertices (Memory Optimized)",
         "ParBFSForEveryVertex"
       };    
       
@@ -129,7 +134,7 @@ namespace pasl {
         
         auto nb_vertices = (long long) graph.get_nb_vertices() * graph.get_nb_vertices();
         auto nb_offsets = nb_vertices + 1;
-        auto nb_edges = graph.nb_edges * graph.get_nb_vertices();
+        auto nb_edges = (long long) graph.nb_edges * graph.get_nb_vertices();
         auto contents_sz = nb_offsets + nb_edges * 2;
         char* contents = (char*)data::mynew_array<vtxid_type>(contents_sz);
         char* contents_in = (char*)data::mynew_array<vtxid_type>(contents_sz);
@@ -191,6 +196,19 @@ namespace pasl {
         }
         return bellman_ford_algo<Adjlist_seq>::bfs_bellman_ford::bellman_ford_par_bfs(graph, sources);
       }   
+      
+      /*---------------------------------------------------------------------*/
+      /*---------------------------------------------------------------------*/
+      /*---------------------------------------------------------------------*/
+      /* Floyd-Warshall; parallel bfs */
+      /* One bfs for all the vertices */      
+      /*---------------------------------------------------------------------*/
+      static int* floyd_warshall_par_bfs_memory_opt(const adjlist<Adjlist_seq>& init_graph) {
+        // TODO : write it
+        using vtxid_type = typename adjlist<Adjlist_seq>::vtxid_type;
+        vtxid_type nb_vertices = init_graph.get_nb_vertices();        
+        return floyd_warshall_par_bfs(init_graph);
+      }  
       
       /*---------------------------------------------------------------------*/
       /*---------------------------------------------------------------------*/
