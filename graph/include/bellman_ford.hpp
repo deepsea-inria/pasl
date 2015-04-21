@@ -290,7 +290,7 @@ namespace pasl {
           if (!changed) break;
         }
         std::cout << "Rounds : " << steps << "; Forked per round : " << forked_cnt << std::endl;
-        
+        free(pref_sum);
         return normalize(graph, dists);
       }
       
@@ -564,7 +564,7 @@ namespace pasl {
           
           
           if (debug) std::cout << "Rounds : " << steps << "; Forked = " << forked_first_cnt <<std::endl;
-          delete(visited);
+          free(visited);
           return normalize(graph, dists);
         }  
       };
