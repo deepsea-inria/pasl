@@ -127,10 +127,10 @@ namespace pasl {
       static adjlist<Adjlist_seq> modify_graph(const adjlist<Adjlist_seq>& graph) {
         adjlist<Adjlist_seq> adj;
         
-        vtxid_type nb_vertices = graph.get_nb_vertices() * graph.get_nb_vertices();
-        vtxid_type nb_offsets = nb_vertices + 1;
-        edgeid_type nb_edges = graph.nb_edges * graph.get_nb_vertices();
-        edgeid_type contents_sz = nb_offsets + nb_edges * 2;
+        auto nb_vertices = (long long) graph.get_nb_vertices() * graph.get_nb_vertices();
+        auto nb_offsets = nb_vertices + 1;
+        auto nb_edges = graph.nb_edges * graph.get_nb_vertices();
+        auto contents_sz = nb_offsets + nb_edges * 2;
         char* contents = (char*)data::mynew_array<vtxid_type>(contents_sz);
         char* contents_in = (char*)data::mynew_array<vtxid_type>(contents_sz);
         
@@ -200,8 +200,8 @@ namespace pasl {
       /*---------------------------------------------------------------------*/          
       static int* floyd_warshall_par_bfs2(const adjlist<Adjlist_seq>& init_graph) {
         using vtxid_type = typename adjlist<Adjlist_seq>::vtxid_type;
-        vtxid_type nb_vertices = init_graph.get_nb_vertices();
-        int* dists = data::mynew_array<int>(nb_vertices * nb_vertices);
+        vtxid_type nb_vertices = init_graph.get_nb_vertices();        
+        int* dists = data::mynew_array<int>((long long) nb_vertices * nb_vertices);
         for (int i = 0; i < nb_vertices; ++i) {
           vtxid_type* dist = bellman_ford_algo<Adjlist_seq>::bfs_bellman_ford::bellman_ford_par_bfs(init_graph, i, false);
           for (int j = 0; j < nb_vertices; j++) {
