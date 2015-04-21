@@ -29,6 +29,13 @@ namespace pasl {
         return BF_NB_ALGO;
       }
       
+      void print_res(int* res, int vertices, std::ofstream& to) {
+        for (int i = 0; i < vertices; i++) {
+        	to << i << " = " << res[i] << "\n";
+        }
+      }
+
+      
       int* get_dist(int algo_id, const adjlist<Adjlist_seq>& graph, int source_vertex) {
         switch (algo_id) {
           case BF_SERIAL_CLASSIC:

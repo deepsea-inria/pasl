@@ -47,12 +47,14 @@ bool should_check_correctness = false;
 bool generate_graph_file = false;
 bool print_graph = false;
 bool need_shuffle = false;
+bool gen_res = false;
 int cutoff = 1024;
 double custom_lex_order_edges_fraction = 0.5;
 double custom_avg_degree = 600;
 
 // Testing graph values
 int* res;
+int* our_res;
 base_algo<adjlist_seq_type> * algo;
 adjlist_type graph;
 vtxid_type   source_vertex;
@@ -201,6 +203,7 @@ int main(int argc, char ** argv) {
     // Parsing arguments
     should_check_correctness = pasl::util::cmdline::parse_or_default_bool("check", should_check_correctness, should_check_correctness);
     need_shuffle = pasl::util::cmdline::parse_or_default_bool("shuffle", need_shuffle, need_shuffle);    
+    gen_res = pasl::util::cmdline::parse_or_default_bool("gen_res", gen_res, gen_res);    
     generate_graph_file = pasl::util::cmdline::parse_or_default_bool("gen_file", generate_graph_file, generate_graph_file);
     print_graph = pasl::util::cmdline::parse_or_default_bool("graph", print_graph, print_graph);    
     algo_num = pasl::util::cmdline::parse_or_default_int("algo_num", algo_num);    
@@ -272,15 +275,23 @@ int main(int argc, char ** argv) {
   };
   
   auto run = [&] (bool sequential) {
-    int* our_res = algo->get_dist(impl_num, graph, source_vertex);
+    our_res = algo->get_dist(impl_num, graph, source_vertex);    
+  };
+  auto output = [&] {
     if (should_check_correctness && same_arrays(graph.get_nb_vertices(), our_res, res)) {
       std::cout << "OK" << std::endl;
     }
-    delete(our_res);
-  };
-  auto output = [&] {};
+    
+    if (gen_res) {
+      std::cout << "Printing res to file" << std::endl;
+      std::ofstream result_file("result.out");
+      algo->print_res(our_res, graph.get_nb_vertices(), result_file);
+      result_file.close();
+    }
+	};
   auto destroy = [&] {
     delete(res);
+    delete(our_res);
   };
   pasl::sched::launch(argc, argv, init, run, output, destroy);  
   return 0;

@@ -28,6 +28,15 @@ namespace pasl {
         return FW_NB_ALGO;
       }
       
+      void print_res(int* res, int vertices, std::ofstream& to) {
+        for (int i = 0; i < vertices; i++) {
+          to << "Distances from " << i << " vertex \n";
+          for (int j = 0; j < vertices; j++) {
+            to << j << " = " << res[(long long) i * vertices + j] << "\n";            
+          }
+        }
+      }
+      
       int* get_dist(int algo_id, const adjlist<Adjlist_seq>& graph, int source) {
         switch (algo_id) {
           case FW_SERIAL_CLASSIC:
