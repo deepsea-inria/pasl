@@ -302,13 +302,13 @@ void counter_racing(long n) {
   par::fork2([&] {
 
     par::parallel_for(counter_racing_contr, 0l, n, [&] (long i) {
-	counter = counter + 1
+	counter = counter + 1;
     });
 
   }, [&] {
 
     par::parallel_for(counter_racing_contr, 0l, n, [&] (long i) {
-	counter = counter + 1
+	counter = counter + 1;
     });
 
   });
@@ -459,7 +459,7 @@ int main(int argc, char** argv) {
     c.add("sorting", [&] { Sorting(); });
     // counter racing example
     long n = pasl::util::cmdline::parse_or_default_long ("n",1000000);
-    c.add("counter_racing", [&] { counter_racing(); });
+    c.add("counter_racing", [&] { counter_racing(n); });
     //c.add("graph-processing", [&] { Graph_processing(); });
     c.add("merge-exercise", [&] { merge_exercise_example(); });
     // Add an option for your example code here:
