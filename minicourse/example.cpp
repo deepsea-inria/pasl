@@ -293,6 +293,29 @@ void Sorting() {
 
 }
 
+loop_controller_type counter_racing_contr ("parallel for");
+
+void counter_racing(long n) {
+
+  long counter = 0;
+    
+  par::fork2([&] {
+
+    par::parallel_for(counter_racing_contr, 0l, n, [&] (long i) {
+	counter = counter + 1
+    });
+
+  }, [&] {
+
+    par::parallel_for(counter_racing_contr, 0l, n, [&] (long i) {
+	counter = counter + 1
+    });
+
+  });
+
+}
+
+
 void Graph_processing() {
   std::cout << "Graph-processing examples" << std::endl;
   
@@ -434,6 +457,9 @@ int main(int argc, char** argv) {
     c.add("simple-parallel-arrays", [&] { Simple_parallel_arrays(); });
     c.add("data-parallelism", [&] { Data_parallelism(); });
     c.add("sorting", [&] { Sorting(); });
+    // counter racing example
+    long n = pasl::util::cmdline::parse_or_default_long ("n",1000000);
+    c.add("counter_racing", [&] { counter_racing(); });
     //c.add("graph-processing", [&] { Graph_processing(); });
     c.add("merge-exercise", [&] { merge_exercise_example(); });
     // Add an option for your example code here:
