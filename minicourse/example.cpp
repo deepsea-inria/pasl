@@ -301,17 +301,54 @@ void counter_racing(long n) {
     
   par::fork2([&] {
 
-    par::parallel_for(counter_racing_contr, 0l, n, [&] (long i) {
+    par::parallel_for(counter_racing_contr, 0l, n/2, [&] (long i) {
 	counter = counter + 1;
     });
 
   }, [&] {
 
-    par::parallel_for(counter_racing_contr, 0l, n, [&] (long i) {
+    par::parallel_for(counter_racing_contr, 0l, n/2, [&] (long i) {
 	counter = counter + 1;
     });
 
   });
+
+  std::cout << "Counter-racing:" << "n = " << n << " result = " << counter << std::endl;
+
+}
+
+
+loop_controller_type counter_atomic_contr ("parallel for");
+
+void counter_atomic(long n) {
+
+  std::atomic<long> counter;
+
+  auto incr = [&] () {
+        while (true) { 
+	  long cur = counter.load();
+	  if (counter.compare_exchange_strong (cur,cur+1)) {
+            break;
+	  }
+	}
+  };
+
+  counter.store(0);
+    
+  par::fork2([&] {
+    par::parallel_for(counter_racing_contr, 0l, n/2, [&] (long i) {
+	incr();
+    });
+
+  }, [&] {
+
+    par::parallel_for(counter_racing_contr, 0l, n/2, [&] (long i) {
+	incr();
+    });
+
+    });
+
+  std::cout << "Counter-atomic:" << "n = " << n << " result = " << counter << std::endl;
 
 }
 
@@ -460,6 +497,8 @@ int main(int argc, char** argv) {
     // counter racing example
     long n = pasl::util::cmdline::parse_or_default_long ("n",1000000);
     c.add("counter_racing", [&] { counter_racing(n); });
+    // counter atomic example
+    c.add("counter_atomic", [&] { counter_atomic(n); });
     //c.add("graph-processing", [&] { Graph_processing(); });
     c.add("merge-exercise", [&] { merge_exercise_example(); });
     // Add an option for your example code here:
