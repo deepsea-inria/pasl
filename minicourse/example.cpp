@@ -294,23 +294,17 @@ void Sorting() {
 }
 
 loop_controller_type counter_racing_contr ("parallel for");
-
 void counter_racing(long n) {
 
   long counter = 0;
+
+  auto incr = [&] () {
+    counter = counter + 1
+  };
     
-  par::fork2([&] {
 
-    par::parallel_for(counter_racing_contr, 0l, n/2, [&] (long i) {
-	counter = counter + 1;
-    });
-
-  }, [&] {
-
-    par::parallel_for(counter_racing_contr, 0l, n/2, [&] (long i) {
-	counter = counter + 1;
-    });
-
+  par::parallel_for(counter_racing_contr, 0l, n, [&] (long i) {
+      incr(); 
   });
 
   std::cout << "Counter-racing:" << "n = " << n << " result = " << counter << std::endl;
@@ -326,27 +320,18 @@ void counter_atomic(long n) {
 
   auto incr = [&] () {
         while (true) { 
-	  long cur = counter.load();
-	  if (counter.compare_exchange_strong (cur,cur+1)) {
+	  long current = counter.load();
+	  if (counter.compare_exchange_strong (current,cur+1)) {
             break;
 	  }
 	}
   };
 
   counter.store(0);
-    
-  par::fork2([&] {
-    par::parallel_for(counter_racing_contr, 0l, n/2, [&] (long i) {
-	incr();
-    });
 
-  }, [&] {
-
-    par::parallel_for(counter_racing_contr, 0l, n/2, [&] (long i) {
-	incr();
-    });
-
-    });
+  par::parallel_for(counter_racing_contr, 0l, n, [&] (long i) {
+      incr(); 
+  });
 
   std::cout << "Counter-atomic:" << "n = " << n << " result = " << counter << std::endl;
 
