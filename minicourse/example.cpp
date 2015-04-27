@@ -293,64 +293,46 @@ void Sorting() {
 
 }
 
-loop_controller_type counter_racing_contr ("parallel for");
+loop_controller_type concurrent_counter_contr ("parallel for");
 
-void counter_racing(long n) {
-
+void concurrent_counter(long n) {
   long counter = 0;
+
+  auto incr = [&] () {
+    counter = counter + 1;
+  };
     
-  par::fork2([&] {
-
-    par::parallel_for(counter_racing_contr, 0l, n/2, [&] (long i) {
-	counter = counter + 1;
-    });
-
-  }, [&] {
-
-    par::parallel_for(counter_racing_contr, 0l, n/2, [&] (long i) {
-	counter = counter + 1;
-    });
-
+  par::parallel_for(counter_counter_contr, 0l, n, [&] (long i) {
+      incr(); 
   });
 
-  std::cout << "Counter-racing:" << "n = " << n << " result = " << counter << std::endl;
-
+  std::cout << "Concurrent-counter:" << "n = " << n << " result = " << counter << std::endl;
+}
 }
 
 
-loop_controller_type counter_atomic_contr ("parallel for");
+loop_controller_type concurrent_counter_atomic_contr ("parallel for");
 
-void counter_atomic(long n) {
-
+void concurrent_counter_atomic(long n) {
   std::atomic<long> counter;
+  counter.store(0);
 
   auto incr = [&] () {
         while (true) { 
-	  long cur = counter.load();
-	  if (counter.compare_exchange_strong (cur,cur+1)) {
+	  long current = counter.load();
+	  if (counter.compare_exchange_strong (current,current+1)) {
             break;
 	  }
 	}
   };
 
-  counter.store(0);
-    
-  par::fork2([&] {
-    par::parallel_for(counter_racing_contr, 0l, n/2, [&] (long i) {
-	incr();
-    });
+  par::parallel_for(concurrent_counter_atomic_contr, 0l, n, [&] (long i) {
+      incr(); 
+  });
 
-  }, [&] {
-
-    par::parallel_for(counter_racing_contr, 0l, n/2, [&] (long i) {
-	incr();
-    });
-
-    });
-
-  std::cout << "Counter-atomic:" << "n = " << n << " result = " << counter << std::endl;
-
+  std::cout << "Concurrent-counter-atomic:" << "n = " << n << " result = " << counter << std::endl;
 }
+
 
 
 void Graph_processing() {
@@ -496,9 +478,9 @@ int main(int argc, char** argv) {
     c.add("sorting", [&] { Sorting(); });
     // counter racing example
     long n = pasl::util::cmdline::parse_or_default_long ("n",1000000);
-    c.add("counter_racing", [&] { counter_racing(n); });
+    c.add("concurrent_counter", [&] { concurrent_counter(n); });
     // counter atomic example
-    c.add("counter_atomic", [&] { counter_atomic(n); });
+    c.add("concurrent_counter_atomic", [&] { concurrent_counter_atomic(n); });
     //c.add("graph-processing", [&] { Graph_processing(); });
     c.add("merge-exercise", [&] { merge_exercise_example(); });
     // Add an option for your example code here:
