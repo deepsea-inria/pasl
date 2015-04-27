@@ -339,8 +339,8 @@ void concurrent_counter_atomic_aba(long n) {
   std::atomic<long> counter;
   counter.store(0);
 
-  auto incr = [&] (long i) {
-    if (i-2*i/2 == 0) {
+  auto incr_decr = [&] (long i) {
+    if (i-2*(i/2) == 0) {
       while (true) { 
         long current = counter.load();
   	if (counter.compare_exchange_strong (current,current+1)) {
@@ -358,7 +358,7 @@ void concurrent_counter_atomic_aba(long n) {
   };
 
   par::parallel_for(concurrent_counter_atomic_contr_aba, 0l, n, [&] (long i) {
-      incr(i); 
+      incr_decr(i); 
   });
 
   std::cout << "Concurrent-counter-atomic-aba: " << "n = " << n << " result = " << counter << std::endl;
