@@ -138,12 +138,11 @@ namespace pasl {
       /* Floyd-Warshall; parallel bfs */
       /* One bfs for all the vertices */      
       /*---------------------------------------------------------------------*/
-      static adjlist<Adjlist_seq> modify_graph(const adjlist<Adjlist_seq>& graph) {
-        adjlist<Adjlist_seq> adj;
-        
-        auto nb_vertices = (long long) graph.get_nb_vertices() * graph.get_nb_vertices();
+      static adjlist<Adjlist_seq> modify_graph(const adjlist<Adjlist_seq>& graph, int dist_root_vertices) {
+        adjlist<Adjlist_seq> adj;        
+        auto nb_vertices = (long long) dist_root_vertices * graph.get_nb_vertices();
         auto nb_offsets = nb_vertices + 1;
-        auto nb_edges = (long long) graph.nb_edges * graph.get_nb_vertices();
+        auto nb_edges = (long long) graph.nb_edges * dist_root_vertices;
         auto contents_sz = nb_offsets + nb_edges * 2;
         char* contents = (char*)data::mynew_array<vtxid_type>(contents_sz);
         char* contents_in = (char*)data::mynew_array<vtxid_type>(contents_sz);
@@ -156,7 +155,7 @@ namespace pasl {
         vtxid_type init_nb_vertices = graph.get_nb_vertices();
         
         int cur_offset = 0, cur_offset_in = 0, cur_id = 0;
-        for (int i = 0; i < init_nb_vertices; ++i) {          
+        for (int i = 0; i < dist_root_vertices; ++i) {          
           sched::native::parallel_for(0, init_nb_vertices, [&] (int j) {
             // offsets
             offsets[cur_id + j] = cur_offset + graph.adjlists.offsets[j];
@@ -171,7 +170,7 @@ namespace pasl {
         
         
         cur_id = 0;
-        for (int i = 0; i < init_nb_vertices; ++i) {
+        for (int i = 0; i < dist_root_vertices; ++i) {
           const int off = i * init_nb_vertices;
           sched::native::parallel_for(0, init_nb_vertices, [&] (int j) {
             // edges
@@ -197,7 +196,7 @@ namespace pasl {
       static int* floyd_warshall_par_bfs(const adjlist<Adjlist_seq>& init_graph) {
         using vtxid_type = typename adjlist<Adjlist_seq>::vtxid_type;
         vtxid_type nb_vertices = init_graph.get_nb_vertices();
-        auto graph = modify_graph(init_graph);
+        auto graph = modify_graph(init_graph, nb_vertices);
         std::cout << "Finished modifiyng graph" << std::endl;
         std::vector<vtxid_type> sources;
         for (int i = 0; i < nb_vertices; ++i) {
@@ -213,10 +212,29 @@ namespace pasl {
       /* One bfs for all the vertices */      
       /*---------------------------------------------------------------------*/
       static int* floyd_warshall_par_bfs_memory_opt(const adjlist<Adjlist_seq>& init_graph) {
-        // TODO : write it
         using vtxid_type = typename adjlist<Adjlist_seq>::vtxid_type;
-        vtxid_type nb_vertices = init_graph.get_nb_vertices();        
-        return floyd_warshall_par_bfs(init_graph);
+        
+        vtxid_type nb_vertices = init_graph.get_nb_vertices();
+        vtxid_type nb_edges = init_graph.nb_edges;
+        int vertices_to_process = nb_vertices;
+        if ((long long) nb_edges * nb_vertices > 1e9) 
+          vertices_to_process = std::min(nb_vertices, nb_vertices * nb_vertices / nb_edges + 5000);
+
+        std::cout << "Vertices to process per round " << vertices_to_process << std::endl;
+
+        int* dists = data::mynew_array<int>(nb_vertices * nb_vertices);
+        auto graph = modify_graph(init_graph, vertices_to_process);
+        std::cout << "Finished modifiyng graph" << std::endl;
+
+        for (int i = 0; i < nb_vertices; i += vertices_to_process) {
+          std::vector<vtxid_type> sources;
+          int from = i, to = std::min(nb_vertices, i + vertices_to_process);
+          for (int j = from; j < to; ++j) {
+            sources.push_back((j - from) * nb_vertices + j);
+          }
+          bellman_ford_algo<Adjlist_seq>::bfs_bellman_ford::bellman_ford_par_bfs(graph, sources, false, dists + (long long) from * nb_vertices);
+        }
+        return dists;
       }  
       
       /*---------------------------------------------------------------------*/

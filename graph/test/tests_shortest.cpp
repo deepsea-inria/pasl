@@ -278,7 +278,7 @@ int main(int argc, char ** argv) {
     our_res = algo->get_dist(impl_num, graph, source_vertex);    
   };
   auto output = [&] {
-    if (should_check_correctness && same_arrays(graph.get_nb_vertices(), our_res, res)) {
+    if (should_check_correctness && same_arrays(algo_num == 0 ? graph.get_nb_vertices() : graph.get_nb_vertices() * graph.get_nb_vertices(), our_res, res)) {
       std::cout << "OK" << std::endl;
     }
     
