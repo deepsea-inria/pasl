@@ -218,11 +218,10 @@ namespace pasl {
         vtxid_type nb_edges = init_graph.nb_edges;
         int vertices_to_process = nb_vertices;
         if ((long long) nb_edges * nb_vertices > 1e9) 
-          vertices_to_process = std::min(nb_vertices, nb_vertices * nb_vertices / nb_edges + 5000);
-
+					vertices_to_process = std::min(nb_vertices, 1000000000 / nb_edges);
         std::cout << "Vertices to process per round " << vertices_to_process << std::endl;
 
-        int* dists = data::mynew_array<int>(nb_vertices * nb_vertices);
+        int* dists = data::mynew_array<int>((long long) nb_vertices * nb_vertices);
         auto graph = modify_graph(init_graph, vertices_to_process);
         std::cout << "Finished modifiyng graph" << std::endl;
 
