@@ -219,20 +219,23 @@ namespace pasl {
         int vertices_to_process = nb_vertices;
         if ((long long) nb_edges * nb_vertices > 1e9) 
 					vertices_to_process = std::min(nb_vertices, 1000000000 / nb_edges);
+        
         std::cout << "Vertices to process per round " << vertices_to_process << std::endl;
 
-        int* dists = data::mynew_array<int>((long long) nb_vertices * nb_vertices);
+        int* dists = data::mynew_array<int>((long long) nb_vertices * nb_vertices * 2);
         auto graph = modify_graph(init_graph, vertices_to_process);
         std::cout << "Finished modifiyng graph" << std::endl;
 
-        for (int i = 0; i < nb_vertices; i += vertices_to_process) {
+        sched::native::parallel_for(0, nb_vertices / vertices_to_process + 1, [&] (int i) {
           std::vector<vtxid_type> sources;
-          int from = i, to = std::min(nb_vertices, i + vertices_to_process);
+          int from = i * vertices_to_process, to = std::min(nb_vertices, from + vertices_to_process);
+          std::cout << from << " " << to << std::endl;
           for (int j = from; j < to; ++j) {
             sources.push_back((j - from) * nb_vertices + j);
           }
-          bellman_ford_algo<Adjlist_seq>::bfs_bellman_ford::bellman_ford_par_bfs(graph, sources, false, dists + (long long) from * nb_vertices);
-        }
+          bellman_ford_algo<Adjlist_seq>::bfs_bellman_ford::bellman_ford_par_bfs(graph, sources, false, dists + (long long) from * nb_vertices);          
+        });
+        
         return dists;
       }  
       
