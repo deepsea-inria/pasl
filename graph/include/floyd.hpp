@@ -225,19 +225,28 @@ namespace pasl {
         int* dists = data::mynew_array<int>((long long) nb_vertices * nb_vertices * 2);
         auto graph = modify_graph(init_graph, vertices_to_process);
         std::cout << "Finished modifiyng graph" << std::endl;
-
-        sched::native::parallel_for(0, nb_vertices / vertices_to_process + 1, [&] (int i) {
-          std::vector<vtxid_type> sources;
-          int from = i * vertices_to_process, to = std::min(nb_vertices, from + vertices_to_process);
-          std::cout << from << " " << to << std::endl;
-          for (int j = from; j < to; ++j) {
-            sources.push_back((j - from) * nb_vertices + j);
-          }
-          bellman_ford_algo<Adjlist_seq>::bfs_bellman_ford::bellman_ford_par_bfs(graph, sources, false, dists + (long long) from * nb_vertices);          
-        });
-        
+        process(0, nb_vertices / vertices_to_process + 1, graph, nb_vertices, dists, vertices_to_process);
         return dists;
       }  
+      
+      static void process(int index_from, int index_to, const adjlist<Adjlist_seq>& graph, vtxid_type & nb_vertices, int* dists, int & vertices_to_process) {
+        if (index_to - index_from < 3) {
+          for (int i = index_from; i < index_to; ++i) {
+            std::vector<vtxid_type> sources;
+            int from = i * vertices_to_process, to = std::min(nb_vertices, from + vertices_to_process);
+            std::cout << from << " " << to << std::endl;
+            for (int j = from; j < to; ++j) {
+              sources.push_back((j - from) * nb_vertices + j);
+            }
+            bellman_ford_algo<Adjlist_seq>::bfs_bellman_ford::bellman_ford_par_bfs(graph, sources, false, dists + (long long) from * nb_vertices); 
+            
+          }
+        } else {
+          sched::native::fork2([&] { process(index_from, (index_from + index_to) / 2, graph, nb_vertices, dists, vertices_to_process); },
+                               [&] { process((index_from + index_to) / 2, index_to, graph, nb_vertices, dists, vertices_to_process); });
+        }
+        
+      }
       
       /*---------------------------------------------------------------------*/
       /*---------------------------------------------------------------------*/
@@ -247,15 +256,14 @@ namespace pasl {
       /*---------------------------------------------------------------------*/          
       static int* floyd_warshall_par_bfs2(const adjlist<Adjlist_seq>& init_graph) {
         using vtxid_type = typename adjlist<Adjlist_seq>::vtxid_type;
-        vtxid_type nb_vertices = init_graph.get_nb_vertices();        
+        vtxid_type nb_vertices = init_graph.get_nb_vertices();
         int* dists = data::mynew_array<int>((long long) nb_vertices * nb_vertices);
-        long long cur_off = 0;
-        for (int i = 0; i < nb_vertices; ++i) {
+        sched::native::parallel_for(0, nb_vertices, [&] (int i) {
+          long long cur_off = (long long) i * nb_vertices;
           bellman_ford_algo<Adjlist_seq>::bfs_bellman_ford::bellman_ford_par_bfs(init_graph, i, false, dists + cur_off);
-          cur_off += nb_vertices;
-        }
+        });
         return dists;
-      }  
+      } 
       
     };
     
