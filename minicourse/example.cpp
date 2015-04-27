@@ -302,12 +302,11 @@ void concurrent_counter(long n) {
     counter = counter + 1;
   };
     
-  par::parallel_for(counter_counter_contr, 0l, n, [&] (long i) {
+  par::parallel_for(concurrent_counter_contr, 0l, n, [&] (long i) {
       incr(); 
   });
 
-  std::cout << "Concurrent-counter:" << "n = " << n << " result = " << counter << std::endl;
-}
+  std::cout << "Concurrent-counter: " << "n = " << n << " result = " << counter << std::endl;
 }
 
 
@@ -318,21 +317,52 @@ void concurrent_counter_atomic(long n) {
   counter.store(0);
 
   auto incr = [&] () {
-        while (true) { 
-	  long current = counter.load();
-	  if (counter.compare_exchange_strong (current,current+1)) {
-            break;
-	  }
-	}
+    while (true) { 
+      long current = counter.load();
+      if (counter.compare_exchange_strong (current,current+1)) {
+        break;
+      }
+    }
   };
 
   par::parallel_for(concurrent_counter_atomic_contr, 0l, n, [&] (long i) {
       incr(); 
   });
 
-  std::cout << "Concurrent-counter-atomic:" << "n = " << n << " result = " << counter << std::endl;
+  std::cout << "Concurrent-counter-atomic: " << "n = " << n << " result = " << counter << std::endl;
 }
 
+
+loop_controller_type concurrent_counter_atomic_contr_aba ("parallel for");
+
+void concurrent_counter_atomic_aba(long n) {
+  std::atomic<long> counter;
+  counter.store(0);
+
+  auto incr = [&] (long i) {
+    if (i-2*i/2 == 0) {
+      while (true) { 
+        long current = counter.load();
+  	if (counter.compare_exchange_strong (current,current+1)) {
+          break;
+	}
+      }}
+    else {
+      while (true) { 
+        long current = counter.load();
+  	if (counter.compare_exchange_strong (current,current-1)) {
+          break;
+	}
+      }}
+
+  };
+
+  par::parallel_for(concurrent_counter_atomic_contr_aba, 0l, n, [&] (long i) {
+      incr(i); 
+  });
+
+  std::cout << "Concurrent-counter-atomic-aba: " << "n = " << n << " result = " << counter << std::endl;
+}
 
 
 void Graph_processing() {
@@ -476,11 +506,11 @@ int main(int argc, char** argv) {
     c.add("simple-parallel-arrays", [&] { Simple_parallel_arrays(); });
     c.add("data-parallelism", [&] { Data_parallelism(); });
     c.add("sorting", [&] { Sorting(); });
-    // counter racing example
+    // counters
     long n = pasl::util::cmdline::parse_or_default_long ("n",1000000);
     c.add("concurrent_counter", [&] { concurrent_counter(n); });
-    // counter atomic example
     c.add("concurrent_counter_atomic", [&] { concurrent_counter_atomic(n); });
+    c.add("concurrent_counter_atomic_aba", [&] { concurrent_counter_atomic_aba(n); });
     //c.add("graph-processing", [&] { Graph_processing(); });
     c.add("merge-exercise", [&] { merge_exercise_example(); });
     // Add an option for your example code here:
