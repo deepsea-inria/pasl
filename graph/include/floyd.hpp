@@ -154,24 +154,24 @@ namespace pasl {
         vtxid_type* edges_in = adj.adjlists.edges_in;
         vtxid_type init_nb_vertices = graph.get_nb_vertices();
         
-        int cur_offset = 0, cur_offset_in = 0, cur_id = 0;
-        for (int i = 0; i < dist_root_vertices; ++i) {          
+        sched::native::parallel_for(0, dist_root_vertices, [&] (int i) {
+          const int cur_offset = i * graph.adjlists.offsets[init_nb_vertices];    
+          const int cur_offset_in = i * graph.adjlists.offsets_in[init_nb_vertices];
+          const int cur_id = i * init_nb_vertices;
+
           sched::native::parallel_for(0, init_nb_vertices, [&] (int j) {
             // offsets
             offsets[cur_id + j] = cur_offset + graph.adjlists.offsets[j];
             offsets_in[cur_id + j] = cur_offset_in + graph.adjlists.offsets_in[j];            
           });
-          cur_offset += graph.adjlists.offsets[init_nb_vertices];    
-          cur_offset_in += graph.adjlists.offsets_in[init_nb_vertices];
-          cur_id += init_nb_vertices;
-        }
-        offsets[nb_offsets - 1] = cur_offset;
-        offsets_in[nb_offsets - 1] = cur_offset_in;  
+        });
+        offsets[nb_offsets - 1] = dist_root_vertices * graph.adjlists.offsets[init_nb_vertices];
+        offsets_in[nb_offsets - 1] = dist_root_vertices * graph.adjlists.offsets_in[init_nb_vertices];  
         
         
-        cur_id = 0;
-        for (int i = 0; i < dist_root_vertices; ++i) {
+        sched::native::parallel_for(0, dist_root_vertices, [&] (int i) {
           const int off = i * init_nb_vertices;
+          const int cur_id = off;
           sched::native::parallel_for(0, init_nb_vertices, [&] (int j) {
             // edges
             int start = offsets[cur_id + j], num = offsets[cur_id + j + 1] - offsets[cur_id + j];
@@ -187,8 +187,7 @@ namespace pasl {
             }
 
           });
-          cur_id += init_nb_vertices;
-        }
+        });
         adj.nb_edges = nb_edges;
         return adj;
       }
@@ -229,8 +228,25 @@ namespace pasl {
         return dists;
       }  
       
+     
+      
+      /*---------------------------------------------------------------------*/
+      /*---------------------------------------------------------------------*/
+      /*---------------------------------------------------------------------*/
+      /* Floyd-Warshall; parallel bfs */
+      /* Bfs for every vertex */      
+      /*---------------------------------------------------------------------*/          
+      static int* floyd_warshall_par_bfs2(const adjlist<Adjlist_seq>& init_graph) {
+        using vtxid_type = typename adjlist<Adjlist_seq>::vtxid_type;
+        vtxid_type nb_vertices = init_graph.get_nb_vertices();
+        int* dists = data::mynew_array<int>((long long) nb_vertices * nb_vertices);
+        int vertices_to_process = 1;
+        process(0, nb_vertices, init_graph, nb_vertices, dists, vertices_to_process);
+        return dists;
+      } 
+      
       static void process(int index_from, int index_to, const adjlist<Adjlist_seq>& graph, vtxid_type & nb_vertices, int* dists, int & vertices_to_process) {
-        if (index_to - index_from < 3) {
+        if (index_to - index_from < 1000) {
           for (int i = index_from; i < index_to; ++i) {
             std::vector<vtxid_type> sources;
             int from = i * vertices_to_process, to = std::min(nb_vertices, from + vertices_to_process);
@@ -247,23 +263,6 @@ namespace pasl {
         }
         
       }
-      
-      /*---------------------------------------------------------------------*/
-      /*---------------------------------------------------------------------*/
-      /*---------------------------------------------------------------------*/
-      /* Floyd-Warshall; parallel bfs */
-      /* Bfs for every vertex */      
-      /*---------------------------------------------------------------------*/          
-      static int* floyd_warshall_par_bfs2(const adjlist<Adjlist_seq>& init_graph) {
-        using vtxid_type = typename adjlist<Adjlist_seq>::vtxid_type;
-        vtxid_type nb_vertices = init_graph.get_nb_vertices();
-        int* dists = data::mynew_array<int>((long long) nb_vertices * nb_vertices);
-        sched::native::parallel_for(0, nb_vertices, [&] (int i) {
-          long long cur_off = (long long) i * nb_vertices;
-          bellman_ford_algo<Adjlist_seq>::bfs_bellman_ford::bellman_ford_par_bfs(init_graph, i, false, dists + cur_off);
-        });
-        return dists;
-      } 
       
     };
     

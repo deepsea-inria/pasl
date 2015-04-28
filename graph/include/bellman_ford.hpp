@@ -527,11 +527,10 @@ namespace pasl {
           
           std::atomic<int>* visited = data::mynew_array<std::atomic<int>>(nb_vertices);
           int unknown = 0;
-          fill_array_par(visited, nb_vertices, unknown);
-          
-          fill_array_seq(dists, nb_vertices, inf_dist);
-          
-          
+          sched::native::parallel_for(0, nb_vertices, [&] (int i) {
+            visited[i] = unknown;
+            dists[i] = inf_dist;
+          });
           
           LOG_BASIC(ALGO_PHASE);
           auto graph_alias = get_alias_of_adjlist(graph);
