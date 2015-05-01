@@ -247,25 +247,14 @@ namespace pasl {
           masks[i / bits_per_block] |= (one << (i % bits_per_block));
         }
         
-        std::vector<int> get_one_bits_num() {
-          std::vector<int> positions;
-          for (int i = 0; i < masks_num; ++i) {
-            for (int j = 0; j < bits_per_block; j++) {
-              T bit = masks[i] & (one << j);
-              if (bit != 0) {
-                positions.push_back(i * bits_per_block + j);
-              }
-            }
-          }
-          return positions;
+        int get_bit(int i) {
+          T bit = masks[i / bits_per_block] & (one << (i % bits_per_block));
+          return bit == 0 ? 0 : 1;
         }
         
         void print() {
-          for (int i = 0; i < masks_num; ++i) {
-            for (int j = 0; j < bits_per_block; j++) {
-              T bit = masks[i] & (one << j);
-	            std::cout << (bit == 0 ? 0 : 1);
-            }
+          for (int i = 0; i < elements_num; ++i) {
+            std::cout << get_bit(i);
           }
           std::cout << std::endl;
         }
@@ -433,7 +422,7 @@ namespace pasl {
         }        
 
         for (int layer = 1; layer <= max_level; layer++) {
-	  std::cout << "Processing layer " << layer << std::endl;
+	  			std::cout << "Processing layer " << layer << std::endl;
           frontier.clear();
           int frontier_level = layer - 1;
           for (int i = level_offset[frontier_level]; i < level_offset[frontier_level] + num_vertices_at_level[frontier_level]; i++) {
@@ -452,24 +441,22 @@ namespace pasl {
           }
         }     
 
-	std::cout << "Finished processing" << std::endl;
-
-        for (int i = 0; i < nb_vertices; ++i) {
+        std::cout << "Finished processing" << std::endl;
+        sched::native::parallel_for(0, nb_vertices, [&] (int i) {
           int dist_to_i = dists[big_vertex * nb_vertices + i];
-          for (int j = -deep; j <= deep; j++) {
-            if (dist_to_i + j < 0) continue;
-            
-            std::vector<int> pos = masks[i][j + deep].get_one_bits_num();
-            for (int k = 0; k < pos.size(); ++k) {
-              long long from = handle_vertices[pos[k]];
-              dists[from * nb_vertices + i] = dist_to_i + j;
-            }
-          }          
-        }
+          for (int j = std::max(-deep, -dist_to_i); j <= deep; ++j) {
+            sched::native::parallel_for(0, handle_vertices_num, [&] (int k) {
+              if (masks[i][j + deep].get_bit(k)) {
+                long long from = handle_vertices[k];
+                dists[from * nb_vertices + i] = dist_to_i + j;
+              }              
+            });
+          };
+        });
       }
       
       template <class Masks>
-      static void print_info_for_layer(int layer, Masks & masks, Masks & masks_calculated, int * dists, int big_vertex, int & nb_vertices) {
+      static void print_info_for_layer(int layer, Masks & masks, Masks & masks_calculated, int * dists, long long big_vertex, int & nb_vertices) {
         std::cout << "Layer # " << layer << std::endl;
         for (int vertex = 0; vertex < nb_vertices; vertex++) {
           int layer_vertex_index = layer_index_for_vertex(vertex, layer, dists, big_vertex, nb_vertices);
