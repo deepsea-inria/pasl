@@ -458,7 +458,7 @@ namespace pasl {
         std::cout << "Finished processing" << std::endl;
         sched::native::parallel_for(0, nb_vertices, [&] (int i) {            
           const int dist_to_i = dists[big_vertex * nb_vertices + i];
-          for (int j = -deep; j <= deep; ++j) {
+          for (int j = std::max(-deep, -dist_to_i); j <= deep; ++j) {
             sched::native::parallel_for(0, handle_vertices_num, [&] (int bit_position) {
                 if (masks[i][j + deep].get_bit(bit_position) != 0) {
                   dists[(long long) handle_vertices[bit_position] * nb_vertices + i] = dist_to_i + j; 
