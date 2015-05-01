@@ -308,7 +308,7 @@ namespace pasl {
         int bits_per_block;
       };
       
-      static inline int layer_index_for_vertex(int & vertex, int layer, int* dists, int &big_vertex, int &nb_vertices) {
+      static inline int layer_index_for_vertex(int & vertex, int layer, int* dists, long long &big_vertex, int &nb_vertices) {
         int dist_to_vertex = dists[big_vertex * nb_vertices + vertex];
         return layer - dist_to_vertex + deep;
       }
@@ -319,7 +319,7 @@ namespace pasl {
       }
       
       template <class MasksClass>
-      static inline void try_to_update_mask(MasksClass& masks, int from, int to, int &layer, int* dists, int &big_vertex, int &nb_vertices) {
+      static inline void try_to_update_mask(MasksClass& masks, int from, int to, int &layer, int* dists, long long &big_vertex, int &nb_vertices) {
         int from_layer_index = layer_index_for_vertex(from, layer, dists, big_vertex, nb_vertices);
         int to_layer_index = layer_index_for_vertex(to, layer + 1, dists, big_vertex, nb_vertices);
 
@@ -333,7 +333,7 @@ namespace pasl {
                                          MasksClass& masks, 
                                          int & layer,
                                          int* dists, 
-                                         int &big_vertex,
+                                         long long &big_vertex,
                                          int &nb_vertices) {
         
         vtxid_type unknown = graph_constants<vtxid_type>::unknown_vtxid;
@@ -369,9 +369,9 @@ namespace pasl {
           bellman_ford_algo<Adjlist_seq>::bfs_bellman_ford::unblock();
       }
           
-      static const int deep = 2;
+      static const int deep = 4;
 
-      static void calc_for_big_vertex(int big_vertex, const adjlist<Adjlist_seq>& graph, vtxid_type & nb_vertices, int* dists, int* handle_vertices, int handle_vertices_num) {
+      static void calc_for_big_vertex(long long big_vertex, const adjlist<Adjlist_seq>& graph, vtxid_type & nb_vertices, int* dists, int* handle_vertices, int handle_vertices_num) {
         int* num_vertices_at_level = data::mynew_array<int>(nb_vertices);
         int* vertex_id_at_level = data::mynew_array<int>(nb_vertices);
         int* level_offset = data::mynew_array<int>(nb_vertices);
@@ -379,7 +379,7 @@ namespace pasl {
         fill_array_seq(vertex_id_at_level, nb_vertices, 0);
         fill_array_seq(num_vertices_at_level, nb_vertices, 0);
 
-        const int off = big_vertex * nb_vertices;
+        auto off = (long long) big_vertex * nb_vertices;
         int max_level = -1;
         for (int i = 0; i < nb_vertices; i++) {
           int val = dists[off + i];
@@ -405,14 +405,15 @@ namespace pasl {
           }
         }
         
-        for (int i = 0; i <= max_level; i++) {
-          std::cout << "Vertices at level " << i << std::endl; 
-          for (int j = 0; j < num_vertices_at_level[i]; j++) {
-            std::cout << vertices_at_level[level_offset[i] + j] << " ";          
-          }
-          std::cout << std::endl;
-        }
+       // for (int i = 0; i <= max_level; i++) {
+       //   std::cout << "Vertices at level " << i << std::endl; 
+       //   for (int j = 0; j < num_vertices_at_level[i]; j++) {
+       //     std::cout << vertices_at_level[level_offset[i] + j] << " ";          
+       //   }
+       //   std::cout << std::endl;
+       // }
         
+        std::cout << "Initialization..." << std::endl; 
         auto graph_alias = get_alias_of_adjlist(graph);
         Frontier frontier(graph_alias);
         std::vector<std::array<mask<long long>, 2 * deep + 1> > masks(nb_vertices);
@@ -423,7 +424,6 @@ namespace pasl {
             masks_calculated[i][j + deep].set_elements_num(handle_vertices_num);
           }          
         }
-        
         for (int i = 0; i < handle_vertices_num; i++) {
           int layer_vertex_index = layer_index_for_vertex(handle_vertices[i], 0, dists, big_vertex, nb_vertices);
           if (check_index(layer_vertex_index)) {
@@ -433,6 +433,7 @@ namespace pasl {
         }        
 
         for (int layer = 1; layer <= max_level; layer++) {
+	  std::cout << "Processing layer " << layer << std::endl;
           frontier.clear();
           int frontier_level = layer - 1;
           for (int i = level_offset[frontier_level]; i < level_offset[frontier_level] + num_vertices_at_level[frontier_level]; i++) {
@@ -449,10 +450,9 @@ namespace pasl {
 					    masks_calculated[vertex][layer_vertex_index] |= masks_calculated[vertex][layer_vertex_index - 1];
             }   
           }
-          
-
-          
         }     
+
+	std::cout << "Finished processing" << std::endl;
 
         for (int i = 0; i < nb_vertices; ++i) {
           int dist_to_i = dists[big_vertex * nb_vertices + i];
@@ -461,7 +461,7 @@ namespace pasl {
             
             std::vector<int> pos = masks[i][j + deep].get_one_bits_num();
             for (int k = 0; k < pos.size(); ++k) {
-              int from = handle_vertices[pos[k]];
+              long long from = handle_vertices[pos[k]];
               dists[from * nb_vertices + i] = dist_to_i + j;
             }
           }          
