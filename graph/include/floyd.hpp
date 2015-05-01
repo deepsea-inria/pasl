@@ -248,13 +248,16 @@ namespace pasl {
         }
         
         int get_bit(int i) {
-          T bit = masks[i / bits_per_block] & (one << (i % bits_per_block));
-          return bit == 0 ? 0 : 1;
+          return get_bit(i / bits_per_block, i % bits_per_block);
+        }
+        
+        T get_bit(int mask, int position) {
+          return masks[mask] & (one << position);
         }
         
         void print() {
           for (int i = 0; i < elements_num; ++i) {
-            std::cout << get_bit(i);
+            std::cout << get_bit(i) == 0 ? 0 : 1;
           }
           std::cout << std::endl;
         }
@@ -453,17 +456,20 @@ namespace pasl {
         }     
 
         std::cout << "Finished processing" << std::endl;
-        sched::native::parallel_for(0, nb_vertices, [&] (int i) {
-          int dist_to_i = dists[big_vertex * nb_vertices + i];
-          for (int j = std::max(-deep, -dist_to_i); j <= deep; ++j) {
-            sched::native::parallel_for(0, handle_vertices_num, [&] (int k) {
-              if (masks[i][j + deep].get_bit(k)) {
-                long long from = handle_vertices[k];
-                dists[from * nb_vertices + i] = dist_to_i + j;
-              }              
-            });
-          };
-        });
+        sched::native::parallel_for(0, handle_vertices_num, [&] (int bit_position) {
+          const int mask = bit_position / bits_per_block;
+          const int pos = bit_position % bits_per_block;
+          
+          sched::native::parallel_for(0, nb_vertices, [&] (int i) {            
+            const int dist_to_i = dists[big_vertex * nb_vertices + i];
+            for (int j = std::max(-deep, -dist_to_i); j <= deep; ++j) {
+              if (masks[i][j + deep].get_bit(mask, pos) != 0) {
+                dists[(long long) handle_vertices[bit_position] * nb_vertices + i] = dist_to_i + j; 
+              }
+            };
+          });          
+				});
+        
         
         free(data_masks);
         free(data_masks_calculated);
