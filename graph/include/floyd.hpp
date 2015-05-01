@@ -224,23 +224,23 @@ namespace pasl {
       template <class T>
       struct mask {
       public:    
-        mask() {}   
+        mask() {
+          init_mask();
+        }   
         
-        mask(int size) {
-          set_elements_num(size);
-        }        
-        ~mask() {
-//          if (allocated) delete(masks);
-        }
-        void set_elements_num(int _elements_num) {
+        mask(int masks_num, int elements_num, T * masks) {
+          init_mask();
+          init_data(masks_num, elements_num, masks);
+        }     
+        
+        void init_mask() {
           bits_per_block = 8 * sizeof(T); 
+        }
+        
+        void init_data(int _masks_num, int _elements_num, T * _masks) {
           elements_num = _elements_num;
-          masks_num = elements_num / bits_per_block;
-          if (elements_num % bits_per_block != 0) masks_num++;
-          
-          masks = data::mynew_array<T>(masks_num);
-          fill_array_seq(masks, masks_num, T(0));
-          allocated = true;
+          masks_num = _masks_num;
+          masks = _masks;          
         }
         
         void set_bit(int i) {
@@ -273,12 +273,10 @@ namespace pasl {
           return *this; 
         }
         
-        mask operator~() const {
-          mask res(elements_num);
+        void not_this() {
           for (int i = 0; i < masks_num; i++) {
-            res.masks[i] = ~masks[i];
+            masks[i] = ~masks[i];
           }
-          return res;
         }
         
         mask& operator=(mask other) {
@@ -288,8 +286,6 @@ namespace pasl {
           return *this;
         }
 
-        
-        bool allocated = false;
         T* masks;
         T one = T(1);
         int masks_num;
@@ -407,12 +403,25 @@ namespace pasl {
         Frontier frontier(graph_alias);
         std::vector<std::array<mask<long long>, 2 * deep + 1> > masks(nb_vertices);
         std::vector<std::array<mask<long long>, 2 * deep + 1> > masks_calculated(nb_vertices);
+        int bits_per_block = 8 * sizeof(long long);
+        int values_per_mask = handle_vertices_num / bits_per_block;
+        if (handle_vertices_num % bits_per_block != 0) values_per_mask++;
+        long long* data_masks = data::mynew_array<long long>((long long) nb_vertices * (2 * deep + 1) * values_per_mask);
+        long long* data_masks_calculated = data::mynew_array<long long>((long long) nb_vertices * (2 * deep + 1) * values_per_mask);
+        sched::native::parallel_for(0, nb_vertices * (2 * deep + 1) * values_per_mask, [&] (int i) {
+          data_masks[i] = 0;
+          data_masks_calculated[i] = 0;
+        });
+
+        long long offset_data = 0;
         for (int i = 0; i < nb_vertices; ++i) {
           for (int j = -deep; j <= deep; j++) {
-            masks[i][j + deep].set_elements_num(handle_vertices_num);
-            masks_calculated[i][j + deep].set_elements_num(handle_vertices_num);
+            masks[i][j + deep].init_data(values_per_mask, handle_vertices_num, data_masks + offset_data);
+            masks_calculated[i][j + deep].init_data(values_per_mask, handle_vertices_num, data_masks_calculated + offset_data);
+            offset_data += values_per_mask;
           }          
         }
+        
         for (int i = 0; i < handle_vertices_num; i++) {
           int layer_vertex_index = layer_index_for_vertex(handle_vertices[i], 0, dists, big_vertex, nb_vertices);
           if (check_index(layer_vertex_index)) {
@@ -435,7 +444,9 @@ namespace pasl {
             int layer_vertex_index = layer_index_for_vertex(vertex, layer, dists, big_vertex, nb_vertices);
             masks_calculated[vertex][layer_vertex_index] = masks[vertex][layer_vertex_index];   
             if (layer_vertex_index > 0) {
-              masks[vertex][layer_vertex_index] &= (~masks_calculated[vertex][layer_vertex_index - 1]);
+              masks_calculated[vertex][layer_vertex_index - 1].not_this();
+              masks[vertex][layer_vertex_index] &= masks_calculated[vertex][layer_vertex_index - 1];
+              masks_calculated[vertex][layer_vertex_index - 1].not_this();            
 					    masks_calculated[vertex][layer_vertex_index] |= masks_calculated[vertex][layer_vertex_index - 1];
             }   
           }
@@ -453,6 +464,9 @@ namespace pasl {
             });
           };
         });
+        
+        free(data_masks);
+        free(data_masks_calculated);
       }
       
       template <class Masks>
