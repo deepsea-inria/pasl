@@ -142,20 +142,26 @@ Number triangular_root(Number x) {
 // stupid implementation for the sole purpose of testing
 template <class Edge_bag>
 void generate_complete_graph(typename Edge_bag::value_type::vtxid_type nb_vertices, edgelist<Edge_bag>& dst) {
+  std::cout << "start generating" << std::endl;
   using edgelist_type = edgelist<Edge_bag>;
   using edge_bag_type = Edge_bag;
   using vtxid_type = typename edge_bag_type::value_type::vtxid_type;
   using edge_type = typename edgelist_type::edge_type;
   using resizable_edge_bag = data::pcontainer::bag<edge_type>;
   resizable_edge_bag edges;
+  std::cout << "ok typenames" << std::endl;
   data::pcontainer::combine(vtxid_type(0), nb_vertices, edges, [&] (vtxid_type u, resizable_edge_bag& edges) {
     data::pcontainer::combine(vtxid_type(0), nb_vertices, edges, [&] (vtxid_type v, resizable_edge_bag& edges) {
-      if (u != v)
+      if (u != v) {
+        std::cout << "try to add edge " << u << " " << v << std::endl;
         edges.push_back(edge_type(u, v));
+      }
     });
   });
+  std::cout << "!!!!" << std::endl;
   data::pcontainer::transfer_contents_to_array_seq(edges, dst.edges);
   dst.nb_vertices = nb_vertices;
+  std::cout << "done generating graph" << std::endl;
 }
 
 template <class Edge_bag>
@@ -561,7 +567,7 @@ void generate_unbalanced_tree(typename edgelist<Edge_bag>::vtxid_type depth_of_t
 enum { BALANCED_TREE,
        COMPLETE, PHASED, PARALLEL_PATHS, RMAT, 
 	 SQUARE_GRID, CUBE_GRID, CHAIN, STAR,
-       //RANDOM,
+       RANDOM_SPARSE,
   NB_GENERATORS };
 
 class generator_type {
@@ -574,6 +580,34 @@ public:
 
 void generate(generator_type& ty) {
   quickcheck::generate(NB_GENERATORS-1, ty.ty);
+}
+
+template <class Edge_bag>
+void generate_randlocal_by_nb_edges(edgeid_type tgt_nb_edges, edgelist<Edge_bag>& dst, bool is_sparse) {
+  using edgelist_type = edgelist<Edge_bag>;
+  using edge_bag_type = Edge_bag;
+  using vtxid_type = typename edge_bag_type::value_type::vtxid_type;
+  using edge_type = typename edgelist_type::edge_type;
+  dst.edges.alloc(tgt_nb_edges);
+  vtxid_type nb_vertices;
+  if (is_sparse) {
+    nb_vertices = tgt_nb_edges / 4;
+  } else {
+    nb_vertices = ((vtxid_type)sqrt(tgt_nb_edges)) * 3;
+  }
+  nb_vertices = std::max(vtxid_type(3), nb_vertices);
+  sched::native::parallel_for(edgeid_type(0), tgt_nb_edges, [&] (edgeid_type i) {
+    unsigned int from;
+    unsigned int to;
+    quickcheck::generate(nb_vertices - 1, from);
+    quickcheck::generate(nb_vertices - 1, to);
+    
+    while (from == to)
+      quickcheck::generate(nb_vertices - 1, to);
+    dst.edges[i] = edge_type(from, to);
+  });
+  dst.nb_vertices = nb_vertices;
+  dst.check();
 }
 
 template <class Edge_bag>
@@ -621,11 +655,10 @@ void generate(edgeid_type& tgt_nb_edges,
       generate_balanced_tree(tgt_nb_edges, graph);
       break;
     }
- /*
-    case RANDOM: {
-      generate_randlocal_by_nb_edges(tgt_nb_edges, graph);
+    case RANDOM_SPARSE: {
+      generate_randlocal_by_nb_edges(tgt_nb_edges, graph, true);
       break;
-    } */
+    } 
     default: {
       util::atomic::die("unknown graph type %d",which_generator.ty);
     }

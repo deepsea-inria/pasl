@@ -69,7 +69,7 @@ FOLDERS=$(INCLUDES)
 
 all: progs
 
-progs: tests.exe
+progs: tests.exe tests_connected_components.exe
 
 test: progs
 	./tests.exe

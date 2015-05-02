@@ -28,7 +28,7 @@ void adjlist_from_edgelist(const edgelist<Edge_bag>& edg, adjlist<Adjlist_seq>& 
 
 // serial algorithm
 template <class Edge_bag, class Vertex_id>
-void adjlist_from_edgelist(const edgelist<Edge_bag>& edg, adjlist<flat_adjlist_seq<Vertex_id>>& adj) {
+void adjlist_from_edgelist(const edgelist<Edge_bag>& edg, adjlist<flat_adjlist_seq<Vertex_id>>& adj, bool is_graph_directed = true) {
   using vtxid_type = typename Edge_bag::value_type::vtxid_type;
   using adjlist_type = adjlist<flat_adjlist_seq<Vertex_id>>;
   using edge_type = typename Edge_bag::value_type;
@@ -37,7 +37,7 @@ void adjlist_from_edgelist(const edgelist<Edge_bag>& edg, adjlist<flat_adjlist_s
   edg.check();
   vtxid_type nb_vertices = edg.nb_vertices;
   vtxid_type nb_offsets = nb_vertices + 1;
-  edgeid_type nb_edges = edg.get_nb_edges();
+  edgeid_type nb_edges = edg.get_nb_edges() * (is_graph_directed ? 1 : 2);
   edgeid_type contents_sz = nb_offsets + nb_edges;
   char* contents = (char*)data::mynew_array<vtxid_type>(contents_sz);
   adj.adjlists.init(contents, nb_vertices, nb_edges);
@@ -50,6 +50,7 @@ void adjlist_from_edgelist(const edgelist<Edge_bag>& edg, adjlist<flat_adjlist_s
   for (edgeid_type i = 0; i < edg.edges.size(); i++) {
     edge_type e = edg.edges[i];
     degrees[e.src]++;
+    if (!is_graph_directed) degrees[e.dst]++;
   }
   offsets[0] = 0;
   for (vtxid_type i = 1; i < nb_offsets; i++)
@@ -61,6 +62,10 @@ void adjlist_from_edgelist(const edgelist<Edge_bag>& edg, adjlist<flat_adjlist_s
     vtxid_type cnt = degrees[e.src];
     edges[offsets[e.src] + cnt] = e.dst;
     degrees[e.src]++;
+    if (!is_graph_directed) {
+      edges[offsets[e.dst] + degrees[e.dst]] = e.src;
+      degrees[e.dst]++;
+    }
   }
   adj.nb_edges = nb_edges;
   adj.check();
