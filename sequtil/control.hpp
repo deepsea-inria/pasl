@@ -22,9 +22,13 @@ namespace control {
 
 static constexpr int thread_stack_szb = 1<<20;
   
-#if defined(TARGET_MAC_OS) || defined(USE_UCONTEXT)
- 
-  // on MAC OS need to define _XOPEN_SOURCE to access setcontext
+#ifdef USE_UCONTEXT
+
+#ifdef TARGET_MAC_OS
+// on MAC OS need to define _XOPEN_SOURCE to access setcontext
+#define _XOPEN_SOURCE
+#endif
+
 #include <ucontext.h>
   
 class context {

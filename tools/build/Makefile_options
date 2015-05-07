@@ -128,7 +128,7 @@ ifeq ($(COMPILER),)
    COMPILER=g++
 endif
 
-COMPILER+= -std=gnu++14
+COMPILER+= -std=gnu++1y
 
 
 ####################################################################
@@ -188,7 +188,7 @@ endif
 OPTIONS_ARCH=-m64 -DTARGET_X86_64
 ifeq ($(OPERATING_SYSTEM), Linux)
    OPTIONS_ARCH+= -DTARGET_LINUX
-else ifeq ($(OPSYS), MacOS)
+else ifeq ($(OPERATING_SYSTEM), MacOS)
    OPTIONS_ARCH+= -DTARGET_MAC_OS
 endif
 
@@ -228,11 +228,7 @@ endif
 # only available if USE_PTHREADS=1
 
 ifeq ($(strip $(USE_PTHREADS)),1)
-   ifeq ($(OPERATING_SYSTEM),MacOS)
-      OPTIONS_TLS=-DHAVE_PTHREAD_BARRIER
-   else
-      OPTIONS_TLS=-DHAVE_GCC_TLS
-   endif
+   OPTIONS_TLS=-DHAVE_GCC_TLS
 endif
 
 ####################################################################

@@ -14,10 +14,18 @@
         .text
 
         /* _pasl_cxt_save(__jmp_buf env) */
+#ifdef TARGET_MAC_OS
+.globl __pasl_cxt_save
+#else
 .globl _pasl_cxt_save
         .type _pasl_cxt_save, @function
+#endif
         .align 16
+#ifdef TARGET_MAC_OS
+__pasl_cxt_save:
+#else
 _pasl_cxt_save:
+#endif
         /*
          * Save registers.
          */
@@ -35,16 +43,26 @@ _pasl_cxt_save:
         movq %rax, (JB_PC*8)(%rdi)
         xorq %rax, %rax
         ret
+#ifndef TARGET_MAC_OS
         .size _pasl_cxt_save, .-_pasl_cxt_save
+#endif
 
 
 /****************************************************************/
 
         /* _pasl_cxt_restore(__jmp_buf env, void* val) */
+#ifdef TARGET_MAC_OS
+.globl __pasl_cxt_restore
+#else
 .globl _pasl_cxt_restore
         .type _pasl_cxt_restore, @function
+#endif
         .align 16
+#ifdef TARGET_MAC_OS
+__pasl_cxt_restore:
+#else        
 _pasl_cxt_restore:
+#endif
         /*
          * Restore registers.
          */
@@ -63,4 +81,6 @@ _pasl_cxt_restore:
         movq (JB_RSP*8)(%rdi), %rsp
         /* Jump to saved PC */
         jmpq *%rdx
+#ifndef TARGET_MAC_OS
         .size _pasl_cxt_restore, .-_pasl_cxt_restore
+#endif
