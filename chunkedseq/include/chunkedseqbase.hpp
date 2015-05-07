@@ -962,7 +962,7 @@ public:
    */
   void popn_front(size_type nb) {
     auto c = [] (const_pointer, const_pointer) { };
-    stream_popn_front<typeof(c), false>(c, nb);
+    stream_popn_front<decltype(c), false>(c, nb);
   }
 
   /*!
@@ -985,7 +985,7 @@ public:
    */
   void popn_back(size_type nb) {
     auto c = [] (const_pointer, const_pointer) { };
-    stream_popn_back<typeof(c), false>(c, nb);
+    stream_popn_back<decltype(c), false>(c, nb);
   }
 
   /*!

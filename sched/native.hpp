@@ -343,7 +343,7 @@ void parallel_while(Input& input, const Size_input& size_input, const Fork_input
       input.swap(state);
     }
   };
-  using thread_type = parallel_while_base<typeof(b), Input, Size_input, Fork_input, Set_in_env>;
+  using thread_type = parallel_while_base<decltype(b), Input, Size_input, Fork_input, Set_in_env>;
   multishot* join = my_thread();
   thread_type* thread = new thread_type(b, size_input, fork_input, set_in_env, join);
   set_in_env(input);
@@ -372,7 +372,7 @@ void parallel_while(const Body& body) {
   auto b = [&] (input_type&) {
     body();
   };
-  using thread_type = parallel_while_base<typeof(b), input_type, typeof(size_fct), typeof(fork_fct), typeof(set_fct)>;
+  using thread_type = parallel_while_base<decltype(b), input_type, decltype(size_fct), decltype(fork_fct), decltype(set_fct)>;
   multishot* join = my_thread();
   thread_type* thread = new thread_type(b, size_fct, fork_fct, set_fct, join);
   join->finish(thread);
@@ -623,7 +623,7 @@ void parallel_for(Number lo, Number hi, const Body& body) {
     */
 #else
   struct { } output;
-  using output_type = typeof(output);
+  using output_type = decltype(output);
   auto join = [] (output_type,output_type) { };
   auto _body = [&body] (Number i, output_type) {
     body(i);
@@ -648,7 +648,7 @@ void parallel_for1(Number lo, Number hi, const Body& body) {
   auto cutoff = [] (range_type r) {
     return r.second - r.first <= 2;
   };
-  using output_type = typeof(output);
+  using output_type = decltype(output);
   auto join = [] (output_type,output_type) { };
   auto _body = [&body] (Number i, output_type) {
     body(i);

@@ -212,7 +212,7 @@ void popn_back(Container& c, value_type* dst, size_type nb) {
     p -= d;
     fixedcapacity::base::copy<allocator_type>(p, lo, d);
   };
-  c.template stream_popn_back<typeof(cons), true>(cons, nb);
+  c.template stream_popn_back<decltype(cons), true>(cons, nb);
 }
 
 template <class Container, class value_type, class size_type>
@@ -225,7 +225,7 @@ void popn_front(Container& c, value_type* dst, size_type nb) {
     fixedcapacity::base::copy<allocator_type>(p, lo, d);
     p += d;
   };
-  c.template stream_popn_front<typeof(cons), true>(cons, nb);
+  c.template stream_popn_front<decltype(cons), true>(cons, nb);
 }
   
 /*---------------------------------------------------------------------*/

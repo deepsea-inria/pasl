@@ -189,8 +189,8 @@ void check_bfs() {
       return bfs_by_dynamic_array<Adjlist_seq, data::stl::deque_seq<vtxid_type>>(graph, source);
     };
     using prop_by_dynamic_array =
-    prop_search_same<adjlist_type, typeof(trusted_bfs), typeof(by_dynamic_array),
-    typeof(get_visited_seq), typeof(get_visited_seq), vtxid_type>;
+    prop_search_same<adjlist_type, decltype(trusted_bfs), decltype(by_dynamic_array),
+    decltype(get_visited_seq), decltype(get_visited_seq), vtxid_type>;
     prop_by_dynamic_array (trusted_bfs, by_dynamic_array, get_visited_seq, get_visited_seq).check(nb_tests);
   });
   c.add("dual_arrays", [&] {
@@ -201,8 +201,8 @@ void check_bfs() {
       return bfs_by_dual_arrays(graph, source);
     };
     using prop_by_dual_arrays =
-    prop_search_same<adjlist_type, typeof(trusted_bfs), typeof(by_dual_arrays),
-    typeof(get_visited_seq), typeof(get_visited_seq), vtxid_type>;
+    prop_search_same<adjlist_type, decltype(trusted_bfs), decltype(by_dual_arrays),
+    decltype(get_visited_seq), decltype(get_visited_seq), vtxid_type>;
     prop_by_dual_arrays (trusted_bfs, by_dual_arrays, get_visited_seq, get_visited_seq).check(nb_tests);
   });
   c.add("dual_frontiers_and_pushpop", [&] {
@@ -213,8 +213,8 @@ void check_bfs() {
       return bfs_by_dual_frontiers_and_pushpop<Adjlist_seq, data::stl::vector_seq<vtxid_type>>(graph, source);
     };
     using prop_by_dual_frontiers_and_pushpop =
-    prop_search_same<adjlist_type, typeof(trusted_bfs), typeof(by_dual_frontiers_and_pushpop),
-    typeof(get_visited_seq), typeof(get_visited_seq), vtxid_type>;
+    prop_search_same<adjlist_type, decltype(trusted_bfs), decltype(by_dual_frontiers_and_pushpop),
+    decltype(get_visited_seq), decltype(get_visited_seq), vtxid_type>;
     prop_by_dual_frontiers_and_pushpop (trusted_bfs, by_dual_frontiers_and_pushpop,
                                         get_visited_seq, get_visited_seq).check(nb_tests);
   });
@@ -226,8 +226,8 @@ void check_bfs() {
       return bfs_by_dual_frontiers_and_foreach<Adjlist_seq, data::stl::vector_seq<vtxid_type>>(graph, source);
     };
     using prop_by_dual_frontiers_and_foreach =
-    prop_search_same<adjlist_type, typeof(trusted_bfs), typeof(by_dual_frontiers_and_foreach),
-    typeof(get_visited_seq), typeof(get_visited_seq), vtxid_type>;
+    prop_search_same<adjlist_type, decltype(trusted_bfs), decltype(by_dual_frontiers_and_foreach),
+    decltype(get_visited_seq), decltype(get_visited_seq), vtxid_type>;
     prop_by_dual_frontiers_and_foreach (trusted_bfs, by_dual_frontiers_and_foreach,
                                         get_visited_seq, get_visited_seq).check(nb_tests);
   });
@@ -239,8 +239,8 @@ void check_bfs() {
       return bfs_by_frontier_segment<adjlist_type, frontiersegbag_type>(graph, source);
     };
     using prop_by_frontier_segment =
-    prop_search_same<adjlist_type, typeof(trusted_bfs), typeof(by_frontier_segment),
-    typeof(get_visited_seq), typeof(get_visited_seq), vtxid_type>;
+    prop_search_same<adjlist_type, decltype(trusted_bfs), decltype(by_frontier_segment),
+    decltype(get_visited_seq), decltype(get_visited_seq), vtxid_type>;
     prop_by_frontier_segment (trusted_bfs, by_frontier_segment,
                               get_visited_seq, get_visited_seq).check(nb_tests);
   });
@@ -252,8 +252,8 @@ void check_bfs() {
       return pbbs_pbfs<false, adjlist_type>(graph, source);
     };
     using prop_pbbs_ndbfs =
-    prop_search_same<adjlist_type, typeof(trusted_bfs), typeof(by_pbbs_ndbfs),
-    typeof(get_visited_seq), typeof(get_visited_par), vtxid_type>;
+    prop_search_same<adjlist_type, decltype(trusted_bfs), decltype(by_pbbs_ndbfs),
+    decltype(get_visited_seq), decltype(get_visited_par), vtxid_type>;
     prop_pbbs_ndbfs (trusted_bfs, by_pbbs_ndbfs, get_visited_seq, get_visited_par).check(nb_tests);
   });
   c.add("ls_pbfs_with_our_bag", [&] {
@@ -264,8 +264,8 @@ void check_bfs() {
       return ls_pbfs<false>::main<Adjlist_seq, chunkedbag_type>(graph, source);
     };
     using prop_pbfs =
-    prop_search_same<adjlist_type, typeof(trusted_bfs), typeof(by_pbfs),
-    typeof(get_visited_seq), typeof(get_visited_par), vtxid_type>;
+    prop_search_same<adjlist_type, decltype(trusted_bfs), decltype(by_pbfs),
+    decltype(get_visited_seq), decltype(get_visited_par), vtxid_type>;
     prop_pbfs (trusted_bfs, by_pbfs, get_visited_seq, get_visited_par).check(nb_tests);
   });
   c.add("ls_pbfs", [&] {
@@ -276,8 +276,8 @@ void check_bfs() {
       return ls_pbfs<false>::main<Adjlist_seq, ls_bag_type>(graph, source);
     };
     using prop_pbfs =
-    prop_search_same<adjlist_type, typeof(trusted_bfs), typeof(by_pbfs),
-    typeof(get_visited_seq), typeof(get_visited_par), vtxid_type>;
+    prop_search_same<adjlist_type, decltype(trusted_bfs), decltype(by_pbfs),
+    decltype(get_visited_seq), decltype(get_visited_par), vtxid_type>;
     prop_pbfs (trusted_bfs, by_pbfs, get_visited_seq, get_visited_par).check(nb_tests);
   });
   c.add("our_pbfs", [&] {
@@ -288,8 +288,8 @@ void check_bfs() {
       return our_bfs<false>::main<adjlist_type, frontiersegbag_type>(graph, source);
     };
     using prop_fpbfs =
-    prop_search_same<adjlist_type, typeof(trusted_bfs), typeof(by_fpbfs),
-    typeof(get_visited_seq), typeof(get_visited_par), vtxid_type>;
+    prop_search_same<adjlist_type, decltype(trusted_bfs), decltype(by_fpbfs),
+    decltype(get_visited_seq), decltype(get_visited_par), vtxid_type>;
     prop_fpbfs (trusted_bfs, by_fpbfs, get_visited_seq, get_visited_par).check(nb_tests);
   });
   c.add("our_lazy_pbfs", [&] {
@@ -300,8 +300,8 @@ void check_bfs() {
       return our_lazy_bfs<false>::main<adjlist_type, frontiersegbag_type>(graph, source);
     };
     using prop_fpbfs =
-    prop_search_same<adjlist_type, typeof(trusted_bfs), typeof(by_fpbfs),
-    typeof(get_visited_seq), typeof(get_visited_par), vtxid_type>;
+    prop_search_same<adjlist_type, decltype(trusted_bfs), decltype(by_fpbfs),
+    decltype(get_visited_seq), decltype(get_visited_par), vtxid_type>;
     prop_fpbfs (trusted_bfs, by_fpbfs, get_visited_seq, get_visited_par).check(nb_tests);
   });
   util::cmdline::dispatch_by_argmap_with_default_all(c, "algo");
@@ -342,8 +342,8 @@ void check_dfs() {
       return dfs_by_vertexid_frontier<Adjlist_seq, data::stl::vector_seq<vtxid_type>>(graph, source);
     };
     using prop_by_vertexid_frontier =
-    prop_search_same<adjlist_type, typeof(trusted_dfs), typeof(by_vertexid_frontier),
-    typeof(get_visited_seq), typeof(get_visited_seq), int>;
+    prop_search_same<adjlist_type, decltype(trusted_dfs), decltype(by_vertexid_frontier),
+    decltype(get_visited_seq), decltype(get_visited_seq), int>;
     prop_by_vertexid_frontier (trusted_dfs, by_vertexid_frontier,
                                get_visited_seq, get_visited_seq).check(nb_tests);
   });
@@ -355,8 +355,8 @@ void check_dfs() {
       return dfs_by_frontier_segment<adjlist_type, frontiersegstack_type>(graph, source);
     };
     using prop_by_frontier_segment =
-    prop_search_same<adjlist_type, typeof(trusted_dfs), typeof(by_frontier_segment),
-    typeof(get_visited_seq), typeof(get_visited_seq), int>;
+    prop_search_same<adjlist_type, decltype(trusted_dfs), decltype(by_frontier_segment),
+    decltype(get_visited_seq), decltype(get_visited_seq), int>;
     prop_by_frontier_segment (trusted_dfs, by_frontier_segment,
                               get_visited_seq, get_visited_seq).check(nb_tests);
   });
@@ -368,8 +368,8 @@ void check_dfs() {
       return our_pseudodfs<adjlist_type, frontiersegstack_type>(graph, source);
     };
     using prop_by_pseudodfs =
-    prop_search_same<adjlist_type, typeof(trusted_dfs), typeof(by_pseudodfs),
-    typeof(get_visited_seq), typeof(get_visited_par), int>;
+    prop_search_same<adjlist_type, decltype(trusted_dfs), decltype(by_pseudodfs),
+    decltype(get_visited_seq), decltype(get_visited_par), int>;
     prop_by_pseudodfs (trusted_dfs, by_pseudodfs,
                        get_visited_seq, get_visited_par).check(nb_tests);
   });
@@ -381,8 +381,8 @@ void check_dfs() {
       return cong_pseudodfs<Adjlist_seq>(graph, source);
     };
     using prop_by_cong_pseudodfs =
-    prop_search_same<adjlist_type, typeof(trusted_dfs), typeof(by_cong_pseudodfs),
-    typeof(get_visited_seq), typeof(get_visited_par), int>;
+    prop_search_same<adjlist_type, decltype(trusted_dfs), decltype(by_cong_pseudodfs),
+    decltype(get_visited_seq), decltype(get_visited_par), int>;
     prop_by_cong_pseudodfs (trusted_dfs, by_cong_pseudodfs,
                             get_visited_seq, get_visited_par).check(nb_tests);
   });

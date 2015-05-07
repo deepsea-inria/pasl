@@ -155,7 +155,7 @@ int main(int argc, char** argv) {
   auto load2d = [&] {
     return pbbs::load_points2d<intT>();
   };
-  pbbs::doit<intT, 1, pbbs::point2d, typeof(load2d)>(argc, argv, load2d);
+  pbbs::doit<intT, 1, pbbs::point2d, decltype(load2d)>(argc, argv, load2d);
   return 0;
 }
 

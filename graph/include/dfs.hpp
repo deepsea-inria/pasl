@@ -287,7 +287,7 @@ std::atomic<int>* cong_pseudodfs(const adjlist<Adjlist_seq>& graph,
   frontier->push_back(source);
   visited[source].store(1, std::memory_order_relaxed);
   sched::native::finish([&] (sched::native::multishot* join) {
-    cong_pseudodfs_rec<typeof(graph_alias), Frontier, idempotent>(frontier, graph_alias, visited, join);
+    cong_pseudodfs_rec<decltype(graph_alias), Frontier, idempotent>(frontier, graph_alias, visited, join);
   });
   return visited;
 }

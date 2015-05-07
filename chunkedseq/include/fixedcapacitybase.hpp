@@ -1068,7 +1068,7 @@ public:
     auto _body = apply_foreach_body<Item_alloc, Body>(body);
     int ix = array_index_of_pointer(fr);
     int sz = size();
-    papply_wrap_dst<typeof(_body), nb_cells>(beg(), ix, sz, 0, _body);
+    papply_wrap_dst<decltype(_body), nb_cells>(beg(), ix, sz, 0, _body);
   }
   
   //! \todo: comment on the signature of body
@@ -1523,7 +1523,7 @@ public:
     auto _body = apply_foreach_body<Item_alloc, Body>(body);
     int ix_fr = array_index_of_front(fr);
     int sz = size();
-    papply_wrap_dst<typeof(_body), nbcells>(beg(), ix_fr, sz, 0, _body);
+    papply_wrap_dst<decltype(_body), nbcells>(beg(), ix_fr, sz, 0, _body);
   }
   
   template <class Body>
