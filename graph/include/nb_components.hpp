@@ -1,6 +1,7 @@
 #include "edgelist.hpp"
 #include "adjlist.hpp"
 #include "pcontainer.hpp"
+#include "quickcheck.hh"
 
 #ifndef _PASL_GRAPH_NB_COMPONENTS_H_
 #define _PASL_GRAPH_NB_COMPONENTS_H_
@@ -324,6 +325,135 @@ public:
   
 };
 
+
+
+template <class Edge_bag>
+typename edgelist<Edge_bag>::vtxid_type
+nb_components_star_contraction_seq(const edgelist<Edge_bag>& graph) {
+  using vtxid_type = typename edgelist<Edge_bag>::vtxid_type;
+  vtxid_type nb_vertices = graph.nb_vertices;
+  bool* is_center = data::mynew_array<bool>(nb_vertices);
+  vtxid_type* contract_to = data::mynew_array<vtxid_type>(nb_vertices);
+  vtxid_type* map_to = data::mynew_array<vtxid_type>(nb_vertices);
+  for (vtxid_type i = 0; i != nb_vertices; ++i) {
+    map_to[i] = i;
+  }
+  int iter = 0;
+  while (true) {
+    for (vtxid_type i = 0; i != nb_vertices; ++i) {
+       contract_to[i] = -1;
+       quickcheck::generate(1, is_center[i]);
+    }
+    bool exist_edges = false;
+    edgeid_type nb_edges = graph.get_nb_edges();
+    for (edgeid_type i = 0; i < nb_edges; ++i) {
+      vtxid_type src = map_to[graph.edges[i].src];
+      vtxid_type dst = map_to[graph.edges[i].dst];
+      if (src == dst) {
+        continue;
+      }
+      exist_edges = true;
+      if (is_center[src] == is_center[dst]) {
+        continue;
+      }
+      if (is_center[src]) {
+        std::swap(src, dst);
+      }
+      if (contract_to[src] < dst) {
+        contract_to[src] = dst;
+      }
+    }
+    if (!exist_edges) {
+      break;
+    }
+    for (vtxid_type i = 0; i != nb_vertices; ++i) {
+      if (contract_to[map_to[i]] != -1) {
+        map_to[i] = contract_to[map_to[i]];
+      }
+    }
+  }
+  vtxid_type result = 0;
+  for (vtxid_type i = 0; i != nb_vertices; ++i) {
+    if (map_to[i] == i) {
+      result++;
+    }
+  }
+  free(contract_to);
+  free(is_center);
+  free(map_to);
+  return result;
+}
+
+
+template <class Index, class Item>
+  static void try_to_set_contract_to(Index target,
+                              Item dist,
+                              std::atomic<Item>* dists) {
+    while (true) {
+      auto cur = dists[target].load(std::memory_order_relaxed);
+      if (cur >= dist) {
+        return;
+      }
+      if (dists[target].compare_exchange_strong(cur, dist)) {
+        return;
+      }
+    }
+  }
+
+template <class Edge_bag>
+typename edgelist<Edge_bag>::vtxid_type
+nb_components_star_contraction_par(const edgelist<Edge_bag>& graph) {
+  using vtxid_type = typename edgelist<Edge_bag>::vtxid_type;
+  vtxid_type nb_vertices = graph.nb_vertices;
+  bool* is_center = data::mynew_array<bool>(nb_vertices);
+  std::atomic<vtxid_type>* contract_to = data::mynew_array<std::atomic<vtxid_type>>(nb_vertices);
+  vtxid_type* map_to = data::mynew_array<vtxid_type>(nb_vertices);
+  sched::native::parallel_for(vtxid_type(0), nb_vertices, [&] (vtxid_type i) {
+      map_to[i] = i;
+  });
+  int iter = 0;
+  while (true) {
+    sched::native::parallel_for(vtxid_type(0), nb_vertices, [&] (vtxid_type i) {
+      contract_to[i] = -1;
+      quickcheck::generate(1, is_center[i]);
+    });
+    bool exist_edges = false;
+    edgeid_type nb_edges = graph.get_nb_edges();
+    sched::native::parallel_for(edgeid_type(0), nb_edges, [&] (edgeid_type i) {
+      vtxid_type src = map_to[graph.edges[i].src];
+      vtxid_type dst = map_to[graph.edges[i].dst];
+      if (src == dst) {
+        return;
+      }
+      exist_edges = true;
+      if (is_center[src] == is_center[dst]) {
+        return;
+      }
+      if (is_center[src]) {
+        std::swap(src, dst);
+      }
+      try_to_set_contract_to(src, dst, contract_to);
+    });
+    if (!exist_edges) {
+      break;
+    }
+    sched::native::parallel_for(vtxid_type(0), nb_vertices, [&] (vtxid_type i) {
+      if (contract_to[map_to[i]] != -1) {
+        map_to[i] = contract_to[map_to[i]];
+      }
+    });
+  }
+  vtxid_type result = 0;
+  for (vtxid_type i = 0; i != nb_vertices; ++i) {
+    if (map_to[i] == i) {
+      result++;
+    }
+  }
+  free(contract_to);
+  free(is_center);
+  free(map_to);
+  return result;
+}
 
 } // end namespace
 } // end namespace
