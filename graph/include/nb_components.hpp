@@ -230,6 +230,100 @@ nb_components_pbbs_pbfs(const Adjlist& graph) {
 }
 
 
+/*---------------------------------------------------------------------*/
+
+// Parallel BFS using our frontier-segment-based algorithm:
+// Process each frontier by doing a parallel_for on the set of 
+// outgoing edges, which is represented using our "frontier" data
+// structures that supports splitting according to the nb of edges.
+
+extern int our_bfs_cutoff;
+
+template <bool idempotent = false>
+class our_bfs_nc {
+public:
+  
+  using self_type = our_bfs_nc<idempotent>;
+  using idempotent_our_bfs = our_bfs_nc<true>;
+  
+  template <class Adjlist_alias, class Frontier>
+  static void process_layer(Adjlist_alias graph_alias,
+                            std::atomic<bool>* dists,
+                            typename Adjlist_alias::vtxid_type source,
+                            Frontier& prev,
+                            Frontier& next) {
+    using vtxid_type = typename Adjlist_alias::vtxid_type;
+    using size_type = typename Frontier::size_type;
+    using edgelist_type = typename Frontier::edgelist_type;
+    auto cutoff = [] (Frontier& f) {
+      return f.nb_outedges() <= vtxid_type(our_bfs_cutoff);
+    };
+    auto split = [] (Frontier& src, Frontier& dst) {
+      assert(src.nb_outedges() > 1);
+      src.split(src.nb_outedges() / 2, dst);
+    };
+    auto append = [] (Frontier& src, Frontier& dst) {
+      src.concat(dst);
+    };
+    auto set_env = [graph_alias] (Frontier& f) {
+      f.set_graph(graph_alias);
+    };
+    sched::native::forkjoin(prev, next, cutoff, split, append, set_env, set_env,
+                          [&] (Frontier& prev, Frontier& next) {
+      prev.for_each_outedge([&] (vtxid_type other) {
+        if (try_to_set_dist(other, false, true, dists))
+          next.push_vertex_back(other);
+          // warning: always does DONT_PUSH_ZERO_ARITY_VERTICES
+      });
+      prev.clear();
+    });
+  }
+
+  template <class Adjlist, class Frontier>
+  static typename Adjlist::vtxid_type
+  main(const Adjlist& graph) {
+    using vtxid_type = typename Adjlist::vtxid_type;
+    using size_type = typename Frontier::size_type;
+    vtxid_type nb_vertices = graph.get_nb_vertices();
+    std::atomic<bool>* dists = data::mynew_array<std::atomic<bool>>(nb_vertices);
+    fill_array_par(dists, nb_vertices, false);
+    LOG_BASIC(ALGO_PHASE);
+    auto graph_alias = get_alias_of_adjlist(graph);
+    Frontier frontiers[2];
+    frontiers[0].set_graph(graph_alias);
+    frontiers[1].set_graph(graph_alias);
+    vtxid_type cur = 0; // either 0 or 1, depending on parity of dist
+    vtxid_type nxt = 1; // either 1 or 0, depending on parity of dist
+    vtxid_type result = 0;
+    for (vtxid_type v = 0; v < nb_vertices; v++) {
+      if (dists[v]) {
+        continue;
+      }
+      result++;
+      frontiers[cur].push_vertex_back(v);
+      dists[v].store(true);
+      while (! frontiers[cur].empty()) {
+        if (frontiers[cur].nb_outedges() <= our_bfs_cutoff) {
+          // idempotent_our_bfs::process_layer(graph_alias, dists, dist, source, prev, next);
+          // idempotent_our_bfs::process_layer_sequentially(graph_alias, dists, dist, source, prev, next);
+          frontiers[cur].for_each_outedge_when_front_and_back_empty([&] (vtxid_type other) {
+            if (try_to_set_dist(other, false, true, dists))
+              frontiers[nxt].push_vertex_back(other);
+          });
+          frontiers[cur].clear_when_front_and_back_empty();
+        } else {
+          self_type::process_layer(graph_alias, dists, v, frontiers[cur], frontiers[nxt]);
+        }
+        cur = 1 - cur;
+        nxt = 1 - nxt;
+      }
+    }
+    return result;
+  }
+  
+  
+};
+
 
 } // end namespace
 } // end namespace

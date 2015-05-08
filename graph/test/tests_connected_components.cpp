@@ -14,6 +14,12 @@ using namespace pasl::data;
   
 int nb_tests = 1000;
 
+namespace pasl {
+namespace graph {
+int our_bfs_cutoff = 8;
+};
+};
+
 // Graph properties
 using vtxid_type = long;
 //using adjlist_seq_type = pasl::graph::flat_adjlist_seq<vtxid_type>;
@@ -25,10 +31,14 @@ using edgelist_type = pasl::graph::edgelist<edgelist_bag_type>;
 using adjlist_seq_type = pasl::graph::flat_adjlist_seq<vtxid_type>;
 using adjlist_type = adjlist<adjlist_seq_type>;
 
+using adjlist_alias_type = typename adjlist_type::alias_type;
+
+using frontiersegbag_type = pasl::graph::frontiersegbag<adjlist_alias_type>;
+
 // Testing constants
 //int pasl::graph::min_edge_weight = 1;
 //int pasl::graph::max_edge_weight = 100;
-unsigned long edges_num = 10000000;
+unsigned long edges_num = 1000000;//000000;
 
 void check(int argc, char ** argv, bool check_only_correctness = false) {
   edgelist_type graph;
@@ -61,9 +71,10 @@ void check(int argc, char ** argv, bool check_only_correctness = false) {
   };
   
   auto run = [&] (bool sequential) {
-    algo_result = nb_components_bfs_by_array(adjlist);
+    //algo_result = nb_components_bfs_by_array(adjlist);
     // algo_result = nb_components_disjoint_set_union(graph);
     // algo_result = nb_components_pbbs_pbfs(adjlist);
+    algo_result = our_bfs_nc<false>::main<adjlist_type, frontiersegbag_type>(adjlist);
   };
   if (!check_only_correctness) {
     auto output = [&] {
