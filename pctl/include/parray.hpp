@@ -122,7 +122,9 @@ public:
   
   parray(const parray& other) {
     alloc(other.size());
-    pmem::copy(&other[0], &other[sz-1]+1, &ptr[0]);
+    if(sz!=0) { 
+      pmem::copy(&other[0], &other[sz - 1] + 1, &ptr[0]);
+    }
   }
   
   parray& operator=(parray&& other) {
