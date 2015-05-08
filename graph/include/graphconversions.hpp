@@ -24,7 +24,7 @@ void adjlist_from_edgelist(const edgelist<Edge_bag>& edg, adjlist<Adjlist_seq>& 
   util::atomic::die("todo");
 }
 
-#ifdef SEQUENTIAL_ELISION
+//#ifdef SEQUENTIAL_ELISION
 
 // serial algorithm
 template <class Edge_bag, class Vertex_id>
@@ -71,10 +71,10 @@ void adjlist_from_edgelist(const edgelist<Edge_bag>& edg, adjlist<flat_adjlist_s
   adj.check();
 }
 
-#else
+/*#else
 
 template <class Edge_bag, class Vertex_id>
-void adjlist_from_edgelist(const edgelist<Edge_bag>& edg, adjlist<flat_adjlist_seq<Vertex_id>>& adj) {
+void adjlist_from_edgelist(const edgelist<Edge_bag>& edg, adjlist<flat_adjlist_seq<Vertex_id>>& adj, bool is_graph_directed = true) {
   using vtxid_type = typename Edge_bag::value_type::vtxid_type;
   using adjlist_type = adjlist<flat_adjlist_seq<Vertex_id>>;
   using adjlist_list_type = typename adjlist_type::adjlist_seq_type::value_type;
@@ -107,7 +107,7 @@ void adjlist_from_edgelist(const edgelist<Edge_bag>& edg, adjlist<flat_adjlist_s
   adj.check();
 }
 
-#endif
+#endif*/
 
 template <class Adjlist_seq, class Edge_bag>
 void edgelist_from_adjlist(const adjlist<Adjlist_seq>& adj, edgelist<Edge_bag>& edg) {

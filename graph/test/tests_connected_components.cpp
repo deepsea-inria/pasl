@@ -28,56 +28,44 @@ using adjlist_type = adjlist<adjlist_seq_type>;
 // Testing constants
 //int pasl::graph::min_edge_weight = 1;
 //int pasl::graph::max_edge_weight = 100;
-unsigned long edges_num = 3000000;
+unsigned long edges_num = 10000000;
 
 void check(int argc, char ** argv, bool check_only_correctness = false) {
   edgelist_type graph;
-  if (!check_only_correctness)
-    std::cout << "Generating graph..." << std::endl;        
-  generator_type which_generator;
-  which_generator.ty = RANDOM_SPARSE; //COMPLETE;
-  //graph = adjlist_type();
-  generate(edges_num, which_generator, graph);
-
   adjlist_type adjlist;
-  adjlist_from_edgelist(graph, adjlist, false);
+  vtxid_type algo_result, correct_result;
 
-  if (!check_only_correctness)
-    std::cout << "Done generating" << std::endl;  
-  if (!check_only_correctness)
-    std::cout << "number of vertices = " << adjlist.get_nb_vertices() << std::endl;
+  auto init = [&] {
+    if (!check_only_correctness)
+      std::cout << "Generating graph..." << std::endl;        
+    generator_type which_generator;
+    which_generator.ty = RANDOM_SPARSE; //COMPLETE;
+    //graph = adjlist_type();
+    generate(edges_num, which_generator, graph);
 
-  vtxid_type nb_edges = graph.get_nb_edges();
-  if (!check_only_correctness)
-    std::cout << "edges_count = " << nb_edges << std::endl;
-  //for (int i = 0; i < nb_edges; i++) {
-  //  std::cout << graph.edges[i].src  << " " << graph.edges[i].dst << std::endl;
-  //}
-  /*vtxid_type nb_vertices = adjlist.get_nb_vertices();
-  for (vtxid_type i = 0; i != nb_vertices; ++i) {
-    std::cout << i << ": ";
-    std::cout << adjlist.adjlists.offsets[i] << " " << adjlist.adjlists.offsets[i + 1] << "  ::::  ";
-    for (auto tmp = adjlist.adjlists.offsets[i]; tmp != adjlist.adjlists.offsets[i + 1]; ++tmp) {
-      std::cout << adjlist.adjlists.offsets[tmp] << " ";
-    }
-    std::cout << std::endl;
-    //std::cout << adjlist.adjlists.nb_offsets << std::endl;
-  }*/
+    adjlist_from_edgelist(graph, adjlist, false);
 
-  if (!check_only_correctness)
-    std::cout << "calculate number of components (for correctness)" << std::endl;
-  vtxid_type correct_result = nb_components_dfs_by_array(adjlist), algo_result;
-  if (!check_only_correctness)
-    std::cout << "number of components = " << correct_result << std::endl;
+    if (!check_only_correctness)
+      std::cout << "Done generating" << std::endl;  
+    if (!check_only_correctness)
+      std::cout << "number of vertices = " << adjlist.get_nb_vertices() << std::endl;
+
+    vtxid_type nb_edges = graph.get_nb_edges();
+    if (!check_only_correctness)
+      std::cout << "edges_count = " << nb_edges << std::endl;
+    if (!check_only_correctness)
+      std::cout << "calculate number of components (for correctness)" << std::endl;
+    correct_result = nb_components_dfs_by_array(adjlist);
+    if (!check_only_correctness)
+      std::cout << "number of components = " << correct_result << std::endl;
+  };
+  
   auto run = [&] (bool sequential) {
-    // algo_result = nb_components_bfs_by_array(adjlist);
+    algo_result = nb_components_bfs_by_array(adjlist);
     // algo_result = nb_components_disjoint_set_union(graph);
-    algo_result = nb_components_pbbs_pbfs(adjlist);
+    // algo_result = nb_components_pbbs_pbfs(adjlist);
   };
   if (!check_only_correctness) {
-    auto init = [&] {
-      
-    };
     auto output = [&] {
       assert(algo_result == correct_result);
       std::cout << "All tests complete" << std::endl;
@@ -87,6 +75,7 @@ void check(int argc, char ** argv, bool check_only_correctness = false) {
     };
     pasl::sched::launch(argc, argv, init, run, output, destroy);
   } else {
+    init();
     run(true);
     assert(algo_result == correct_result);
   }
