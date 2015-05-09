@@ -408,6 +408,7 @@ nb_components_star_contraction_par(const edgelist<Edge_bag>& graph) {
   bool* is_center = data::mynew_array<bool>(nb_vertices);
   std::atomic<vtxid_type>* contract_to = data::mynew_array<std::atomic<vtxid_type>>(nb_vertices);
   vtxid_type* map_to = data::mynew_array<vtxid_type>(nb_vertices);
+  edgeid_type* good_edge = data::mynew_array<edgeid_type>(graph.get_nb_edges());
   sched::native::parallel_for(vtxid_type(0), nb_vertices, [&] (vtxid_type i) {
       map_to[i] = i;
   });
@@ -415,26 +416,31 @@ nb_components_star_contraction_par(const edgelist<Edge_bag>& graph) {
   while (true) {
     sched::native::parallel_for(vtxid_type(0), nb_vertices, [&] (vtxid_type i) {
       contract_to[i] = -1;
-      quickcheck::generate(1, is_center[i]);
     });
-    bool exist_edges = false;
+    for (vtxid_type i = 0; i < nb_vertices; i++) {
+      quickcheck::generate(1, is_center[i]);
+    }
     edgeid_type nb_edges = graph.get_nb_edges();
     sched::native::parallel_for(edgeid_type(0), nb_edges, [&] (edgeid_type i) {
       vtxid_type src = map_to[graph.edges[i].src];
       vtxid_type dst = map_to[graph.edges[i].dst];
       if (src == dst) {
+        good_edge[i] = 0;
         return;
       }
-      exist_edges = true;
+      good_edge[i] = 1;
       if (is_center[src] == is_center[dst]) {
         return;
       }
       if (is_center[src]) {
-        std::swap(src, dst);
+        vtxid_type tmp = src;
+        src = dst;
+        dst = tmp;
       }
       try_to_set_contract_to(src, dst, contract_to);
     });
-    if (!exist_edges) {
+    edgeid_type cnt_good_edges = pbbs::sequence::scan(good_edge, good_edge, nb_edges, pbbs::utils::addF<edgeid_type>(), edgeid_type(0));
+    if (cnt_good_edges == 0) {
       break;
     }
     sched::native::parallel_for(vtxid_type(0), nb_vertices, [&] (vtxid_type i) {
@@ -452,6 +458,7 @@ nb_components_star_contraction_par(const edgelist<Edge_bag>& graph) {
   free(contract_to);
   free(is_center);
   free(map_to);
+  free(good_edge);
   return result;
 }
 
