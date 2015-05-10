@@ -567,7 +567,7 @@ void generate_unbalanced_tree(typename edgelist<Edge_bag>::vtxid_type depth_of_t
 enum { BALANCED_TREE,
        COMPLETE, PHASED, PARALLEL_PATHS, RMAT, 
 	 SQUARE_GRID, CUBE_GRID, CHAIN, STAR,
-       RANDOM_SPARSE,
+       RANDOM_SPARSE, RANDOM_BY_EDGES_AND_VERTICES, 
   NB_GENERATORS };
 
 class generator_type {
@@ -611,9 +611,68 @@ void generate_randlocal_by_nb_edges(edgeid_type tgt_nb_edges, edgelist<Edge_bag>
 }
 
 template <class Edge_bag>
+void generate_randlocal_by_nb_edges_and_nb_vertices(edgeid_type tgt_nb_edges, typename Edge_bag::value_type::vtxid_type nb_vertices, edgelist<Edge_bag>& dst) {
+  using edgelist_type = edgelist<Edge_bag>;
+  using edge_bag_type = Edge_bag;
+  using vtxid_type = typename edge_bag_type::value_type::vtxid_type;
+  using edge_type = typename edgelist_type::edge_type;
+  
+  vtxid_type* right_bound = data::mynew_array<vtxid_type>(nb_vertices);
+  vtxid_type* left_bound = data::mynew_array<vtxid_type>(nb_vertices);
+
+  for (vtxid_type v = 0; v != nb_vertices; ++v) {
+    right_bound[v] = nb_vertices - 1;
+    left_bound[v] = 0;
+  }
+
+  unsigned int NB_BLOCKS;
+  quickcheck::generate(300, NB_BLOCKS);
+  NB_BLOCKS += 300;
+  for (int block = 0; block < NB_BLOCKS; block++) {
+    unsigned int bound;
+    quickcheck::generate(nb_vertices - 1, bound);
+    for (vtxid_type v = bound; v >= 0; v--) {
+      if (right_bound[v] <= bound) {
+        break;
+      }
+      right_bound[v] = bound;
+      if (v == 0) {
+        break;
+      }
+    }
+    for (vtxid_type v = bound + 1; v < nb_vertices; ++v) {
+      if (left_bound[v] > bound) {
+        break;
+      }
+      left_bound[v] = bound + 1;
+    }
+  }
+
+  dst.edges.alloc(tgt_nb_edges);
+  sched::native::parallel_for(edgeid_type(0), tgt_nb_edges, [&] (edgeid_type i) {
+    unsigned int from;
+    unsigned int to;
+    while (true) {
+      quickcheck::generate(nb_vertices - 1, from);
+      quickcheck::generate(right_bound[from] - left_bound[from], to);
+      to += left_bound[from];
+      if (from != to) {
+        dst.edges[i] = edge_type(from, to);
+        break;
+      }
+    }
+  });
+  dst.nb_vertices = nb_vertices;
+  dst.check();
+
+  free(left_bound);
+  free(right_bound);
+}
+
+template <class Edge_bag>
 void generate(edgeid_type& tgt_nb_edges,
               generator_type& which_generator,
-              edgelist<Edge_bag>& graph) {
+              edgelist<Edge_bag>& graph, typename Edge_bag::value_type::vtxid_type nb_vertices = 0) {
   using vtxid_type = typename Edge_bag::value_type::vtxid_type;
   using edge_type = edge<vtxid_type>;
   using edgelist_bag_type = Edge_bag;
@@ -659,6 +718,9 @@ void generate(edgeid_type& tgt_nb_edges,
       generate_randlocal_by_nb_edges(tgt_nb_edges, graph, true);
       break;
     } 
+    case RANDOM_BY_EDGES_AND_VERTICES:
+      generate_randlocal_by_nb_edges_and_nb_vertices(tgt_nb_edges, nb_vertices, graph);
+      break;
     default: {
       util::atomic::die("unknown graph type %d",which_generator.ty);
     }

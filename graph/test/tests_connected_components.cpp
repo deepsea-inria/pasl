@@ -39,6 +39,7 @@ using frontiersegbag_type = pasl::graph::frontiersegbag<adjlist_alias_type>;
 //int pasl::graph::min_edge_weight = 1;
 //int pasl::graph::max_edge_weight = 100;
 unsigned long edges_num = 1000000;//000000;
+long vertices_num = 100000;
 unsigned int algo_id = 0;
 
 void check(int argc, char ** argv, bool check_only_correctness = false) {
@@ -50,9 +51,10 @@ void check(int argc, char ** argv, bool check_only_correctness = false) {
     if (!check_only_correctness)
       std::cout << "Generating graph..." << std::endl;        
     generator_type which_generator;
-    which_generator.ty = RANDOM_SPARSE; //COMPLETE;
+    // which_generator.ty = RANDOM_SPARSE; //COMPLETE;
+    which_generator.ty = RANDOM_BY_EDGES_AND_VERTICES;
     //graph = adjlist_type();
-    generate(edges_num, which_generator, graph);
+    generate(edges_num, which_generator, graph, vertices_num);
 
     adjlist_from_edgelist(graph, adjlist, false);
 
@@ -121,6 +123,7 @@ int main(int argc, char ** argv) {
   pasl::util::cmdline::set(argc, argv);
   bool check_only_correctness = pasl::util::cmdline::parse_or_default_bool("check_only_correctness", false);
   edges_num = pasl::util::cmdline::parse_or_default_int("edges_num", edges_num);
+  vertices_num = pasl::util::cmdline::parse_or_default_int("vertices_num", vertices_num);
   algo_id = pasl::util::cmdline::parse_or_default_int("algo_id", algo_id);
   size_t cur_nb_tests = (check_only_correctness ? nb_tests : 1);
   int last_done = 0;
