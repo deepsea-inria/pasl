@@ -1,0 +1,6 @@
+0 - sequential bfs
+1 - sequential dfs
+2 - pbfs
+3 - parallel bfs based on frontier
+4 - sequential star contraction 
+5 - parallel star contraction
