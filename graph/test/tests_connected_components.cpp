@@ -41,6 +41,7 @@ using frontiersegbag_type = pasl::graph::frontiersegbag<adjlist_alias_type>;
 unsigned long edges_num = 1000000;//000000;
 long vertices_num = 100000;
 unsigned int algo_id = 0;
+unsigned int graph_id = 0;
 
 void check(int argc, char ** argv, bool check_only_correctness = false) {
   edgelist_type graph;
@@ -53,6 +54,9 @@ void check(int argc, char ** argv, bool check_only_correctness = false) {
     generator_type which_generator;
     // which_generator.ty = RANDOM_SPARSE; //COMPLETE;
     which_generator.ty = RANDOM_BY_EDGES_AND_VERTICES;
+    if (graph_id == 1) {
+      which_generator.ty = RANDOM_SPARSE;
+    }
     //graph = adjlist_type();
     generate(edges_num, which_generator, graph, vertices_num);
 
@@ -93,6 +97,8 @@ void check(int argc, char ** argv, bool check_only_correctness = false) {
       case 5:
         algo_result = nb_components_star_contraction_par(graph);
         break;
+      case 6:
+        algo_result = nb_components_contraction_non_randomized(graph);
       default:
         break;
     }
@@ -125,6 +131,7 @@ int main(int argc, char ** argv) {
   edges_num = pasl::util::cmdline::parse_or_default_int("edges_num", edges_num);
   vertices_num = pasl::util::cmdline::parse_or_default_int("vertices_num", vertices_num);
   algo_id = pasl::util::cmdline::parse_or_default_int("algo_id", algo_id);
+  graph_id = pasl::util::cmdline::parse_or_default_int("graph_id", graph_id);
   size_t cur_nb_tests = (check_only_correctness ? nb_tests : 1);
   int last_done = 0;
   for (size_t test_n = 0; test_n != cur_nb_tests; ++test_n) {

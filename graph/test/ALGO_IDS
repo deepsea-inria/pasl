@@ -2,5 +2,10 @@
 1 - sequential dfs
 2 - pbfs
 3 - parallel bfs based on frontier
-4 - sequential star contraction 
+4 - sequential star contraction  
 5 - parallel star contraction
+6 - parallel contraction (non randomized)
+
+graph_generators:
+0 - split on random number of blocks [300..600], add edges in each block on random
+1 - add random edges 
