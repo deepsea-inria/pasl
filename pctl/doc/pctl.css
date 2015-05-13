@@ -5,7 +5,7 @@ body {
     max-width: 40em; 
 }
 pre {
-border: 1px dotted gray;
+    border: 1px dotted gray;
     color: #1111111;
     padding: 0.5em;
 }
@@ -67,7 +67,10 @@ dd p {
 
 
 table {
-    width: 100%; 
+    width: 100%;
+    padding-top:    0.2em;
+    padding-bottom: 1.2em;
+    border: 1px dashed black;
 }
 
 td, th { 
@@ -77,4 +80,5 @@ td, th {
     padding-right:  0.5em;
     padding-top:    0.2em;
     padding-bottom: 0.2em;
+    border: 1px solid black;
 }
