@@ -8,40 +8,12 @@
  *
  */
 
-#include "benchmark.hpp"
+#include "pasl.hpp"
 #include "psort.hpp"
 #include "io.hpp"
+#include "quickcheck.hpp"
 
 /***********************************************************************/
-
-/*---------------------------------------------------------------------*/
-/* Preliminaries */
-
-namespace pasl {
-namespace pctl {
-
-using value_type = int;
-
-using pchunkedseq_type = pchunkedseq::pchunkedseq<value_type>;
-using parray_type = parray::parray<value_type>;
-
-template <class Container>
-class container_wrapper {
-public:
-  Container c;
-};
-
-template <class Container>
-std::ostream& operator<<(std::ostream& out, const container_wrapper<Container>& c);
-
-template <class Container>
-void generate(size_t nb, container_wrapper<Container>& c);
-
-} // end namespace
-} // end namespace
-
-// This header must be included after the above definitions
-#include "quickcheck.hh"
 
 /*---------------------------------------------------------------------*/
 /* Quick check framework */
@@ -77,32 +49,15 @@ void generate(size_t nb, parray::parray<Item>& dst) {
 
 template <class Item>
 void generate(size_t nb, pchunkedseq::pchunkedseq<Item>& dst) {
-  if (nb == 0) {
-    return;
+  dst.clear();
+  for (size_t i = 0; i < nb; i++) {
+    dst.seq.push_back(random_value());
   }
-  parray_type tmp;
-  generate(nb, tmp);
-  dst.seq.clear();
-  dst.seq.pushn_back(&tmp[0], nb);
 }
 
 template <class Container>
 void generate(size_t nb, container_wrapper<Container>& c) {
   generate(nb, c.c);
-}
-
-template <class Iter>
-bool same_sequence(Iter xs_lo, Iter xs_hi, Iter ys_lo, Iter ys_hi) {
-  if (xs_hi-xs_lo != ys_hi-ys_lo) {
-    return false;
-  }
-  Iter ys_it = ys_lo;
-  for (Iter xs_it = xs_lo; xs_it != xs_hi; xs_it++, ys_it++) {
-    if (*xs_it != *ys_it) {
-      return false;
-    }
-  }
-  return  true;
 }
   
 bool verbose = true;
@@ -184,31 +139,16 @@ void checkit(std::string msg) {
   quickcheck::check<Property>(msg.c_str(), nb_tests);
 }
 
-void doit() {
-//  checkit<pchunkedseq_mergesort_property>("pchunkedseq mergesort");
-  checkit<parray_mergesort_property>("parray mergesort");
-}
-
 } // end namespace
 } // end namespace
 
 /*---------------------------------------------------------------------*/
 
 int main(int argc, char** argv) {
-  
-  auto init = [&] {
-    
-  };
-  auto run = [&] (bool sequential) {
-    pasl::pctl::doit();
-  };
-  auto output = [&] {
-    
-  };
-  auto destroy = [&] {
-    ;
-  };
-  pasl::sched::launch(argc, argv, init, run, output, destroy);
+  pasl::sched::launch(argc, argv, [&] (bool sequential) {
+    int nb_tests = pasl::util::cmdline::parse_or_default_int("n", 1000);
+    checkit<pasl::pctl::parray_mergesort_property>(nb_tests, "parray mergesort is correct");
+  });
   return 0;
 }
 
