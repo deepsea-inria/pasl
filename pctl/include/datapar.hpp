@@ -737,7 +737,7 @@ Result reducei(Iter lo,
   auto lift_comp_rng = [&] (Iter _lo, Iter _hi) {
     long l = _lo - lo;
     long h = _hi - lo;
-    long wrng = w[l] - w[h];
+    long wrng = w[h] - w[l];
     return (long)(log(wrng) * wrng);
   };
   auto seq_lift = [&] (Iter _lo, Iter _hi) {

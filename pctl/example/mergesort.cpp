@@ -8,7 +8,7 @@
  *
  */
 
-#include "benchmark.hpp"
+#include "pasl.hpp"
 #include "psort.hpp"
 #include "io.hpp"
 
@@ -20,20 +20,23 @@ namespace pctl {
 void ex() {
   
   // parallel array
+  std::cout << "-- parray -- " << std::endl;
   {
     parray::parray<int> xs = { 3, 2, 100, 1, 0, -1, -3 };
-    std::cout << xs << std::endl;
+    std::cout << "xs\t\t\t=\t" << xs << std::endl;
     sort::mergesort(xs);
-    std::cout << xs << std::endl;
+    std::cout << "mergesort(xs)\t=\t" << xs << std::endl;
   }
+  std::cout << std::endl;
   
   // parallel chunked sequence
+  std::cout << "-- pchunkedseq -- " << std::endl;
   {
     pchunkedseq::pchunkedseq<int> xs = { 3, 2, 100, 1, 0, -1, -3 };
-    std::cout << xs << std::endl;
-    pchunkedseq::pchunkedseq<int> ys = sort::mergesort(xs);
-    std::cout << ys << std::endl;
+    std::cout << "xs\t\t\t=\t" << xs << std::endl;
+    std::cout << "mergesort(xs)\t=\t" << sort::mergesort(xs) << std::endl;
   }
+  std::cout << std::endl;
 
 }
   
@@ -43,20 +46,9 @@ void ex() {
 /*---------------------------------------------------------------------*/
 
 int main(int argc, char** argv) {
-  
-  auto init = [&] {
-
-  };
-  auto run = [&] (bool sequential) {
+  pasl::sched::launch(argc, argv, [&] (bool sequential) {
     pasl::pctl::ex();
-  };
-  auto output = [&] {
-    
-  };
-  auto destroy = [&] {
-    ;
-  };
-  pasl::sched::launch(argc, argv, init, run, output, destroy);
+  });
   return 0;
 }
 

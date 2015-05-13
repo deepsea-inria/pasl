@@ -112,8 +112,9 @@ public:
   parray(std::initializer_list<value_type> xs) {
     alloc(xs.size());
     long i = 0;
-    for (auto it = xs.begin(); it != xs.end(); it++)
-      ptr[i++] = *it;
+    for (auto it = xs.begin(); it != xs.end(); it++) {
+      new (&ptr[i++]) value_type(*it);
+    }
   }
   
   ~parray() {
@@ -125,6 +126,17 @@ public:
     if(sz!=0) { 
       pmem::copy(&other[0], &other[sz - 1] + 1, &ptr[0]);
     }
+  }
+  
+  parray& operator=(const parray& other) {
+    if (&other == this) {
+      return *this;
+    }
+    alloc(other.size());
+    if(sz!=0) {
+      pmem::copy(&other[0], &other[sz - 1] + 1, &ptr[0]);
+    }
+    return *this;
   }
   
   parray& operator=(parray&& other) {
