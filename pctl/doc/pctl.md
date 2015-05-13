@@ -1073,6 +1073,11 @@ long max0(const parray<parray<long>>& xss) {
 }
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+[max.hpp]: ../example/max.hpp
+[max.cpp]: ../example/max.cpp
+
+Example source code in [max.hpp] and [max.cpp].
+
 Let us now analyze the efficiency of this algorithm. We will begin by
 analyzing the work. To start, we need to determine whether the
 combining operator of the reduction over `xss` is constant-time or
@@ -1366,6 +1371,7 @@ long max1(const parray<parray<long>>& xss) {
 }
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+Example source code in [max.hpp] and [max.cpp].
 
 ### Level 2 {#red-l-2}
 
@@ -1530,6 +1536,8 @@ long max_seq(Iter lo_xs, Iter hi_xs) {
   return m;
 }
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Example source code in [max.hpp] and [max.cpp].
 
 ### Level 3 {#red-l-3}
 
