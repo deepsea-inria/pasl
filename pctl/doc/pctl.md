@@ -887,7 +887,7 @@ template <
   class Item,
   class Combine
 >
-parray::parray<Item> scan(Iter lo,
+parray<Item> scan(Iter lo,
                           Iter hi,
                           Item id,
                           Combine combine,
@@ -899,7 +899,7 @@ template <
   class Weight,
   class Combine
 >
-parray::parray<Item> scan(Iter lo,
+parray<Item> scan(Iter lo,
                           Iter hi,
                           Item id,
                           Weight weight,
@@ -1170,12 +1170,12 @@ template <
   class Combine,
   class Lift
 >
-parray::parray<Result> scan(Iter lo,
-                            Iter hi,
-                            Result id,
-                            Combine combine,
-                            Lift lift,
-                            scan_type st);
+parray<Result> scan(Iter lo,
+                    Iter hi,
+                    Result id,
+                    Combine combine,
+                    Lift lift,
+                    scan_type st);
 
 
 template <
@@ -1184,12 +1184,12 @@ template <
   class Combine,
   class Lift_idx
 >
-parray::parray<Result> scani(Iter lo,
-                             Iter hi,
-                             Result id,
-                             Combine combine,
-                             Lift_idx lift_idx,
-                             scan_type st);
+parray<Result> scani(Iter lo,
+                     Iter hi,
+                     Result id,
+                     Combine combine,
+                     Lift_idx lift_idx,
+                     scan_type st);
 
 } } }
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1241,13 +1241,13 @@ template <
   class Lift_comp,
   class Lift
 >
-parray::parray<Result> scan(Iter lo,
-                            Iter hi,
-                            Result id,
-                            Combine combine,
-                            Lift_comp lift_comp,
-                            Lift lift,
-                            scan_type st);
+parray<Result> scan(Iter lo,
+                    Iter hi,
+                    Result id,
+                    Combine combine,
+                    Lift_comp lift_comp,
+                    Lift lift,
+                    scan_type st);
 
 template <
   class Iter,
@@ -1256,13 +1256,13 @@ template <
   class Lift_comp_idx,
   class Lift_idx
 >
-parray::parray<Result> scani(Iter lo,
-                             Iter hi,
-                             Result id,
-                             Combine combine,
-                             Lift_comp_idx lift_comp_idx,
-                             Lift_idx lift_idx,
-                             scan_type st);
+parray<Result> scani(Iter lo,
+                     Iter hi,
+                     Result id,
+                     Combine combine,
+                     Lift_comp_idx lift_comp_idx,
+                     Lift_idx lift_idx,
+                     scan_type st);
 
 } } }
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1424,14 +1424,14 @@ template <
   class Lift_idx,
   class Seq_lift
 >
-parray::parray<Result> scan(Iter lo,
-                            Iter hi,
-                            Result id,
-                            Combine combine,
-                            Lift_comp_rng lift_comp_rng,
-                            Lift_idx lift_idx,
-                            Seq_lift seq_lift,
-                            scan_type st);
+parray<Result> scan(Iter lo,
+                    Iter hi,
+                    Result id,
+                    Combine combine,
+                    Lift_comp_rng lift_comp_rng,
+                    Lift_idx lift_idx,
+                    Seq_lift seq_lift,
+                    scan_type st);
 
 } } }
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1721,7 +1721,7 @@ class cell_output {
 public:
   
   using result_type = Result;
-  using array_type = parray::parray<result_type>;
+  using array_type = parray<result_type>;
   using const_iterator = typename array_type::const_iterator;
   
   result_type id;
@@ -1978,7 +1978,7 @@ class random_access_iterator_input {
 public:
   
   using self_type = random_access_iterator_input;
-  using array_type = parray::parray<self_type>;
+  using array_type = parray<self_type>;
   
   Input_iter lo;
   Input_iter hi;

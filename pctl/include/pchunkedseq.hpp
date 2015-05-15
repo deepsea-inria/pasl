@@ -104,11 +104,13 @@ private:
 public:
   
   pchunkedseq(long sz = 0) {
-    
+    if (sz > 0) {
+      assert(false);
+    }
   }
   
   pchunkedseq(long sz, const value_type& val) {
-    
+    assert(false);
   }
   
   pchunkedseq(long sz, const std::function<value_type(long)>& body) {

@@ -378,18 +378,24 @@ template <class Body>
 class tabulate_input {
 public:
   
+  using self_type = tabulate_input;
+  using array_type = parray::parray<self_type>;
+  
   long lo;
   long hi;
-  Body body;
   
-  tabulate_input(long lo, long hi, const Body& body)
-  : lo(lo), hi(hi), body(body) { }
+  tabulate_input(long lo, long hi)
+  : lo(lo), hi(hi) { }
   
   tabulate_input(const tabulate_input& other)
-  : lo(other.lo), hi(other.hi), body(other.body) { }
+  : lo(other.lo), hi(other.hi) { }
   
   bool can_split() const {
-    return hi - lo >= 2;
+    return size() >= 2;
+  }
+  
+  long size() const {
+    return hi - lo;
   }
   
   void split(tabulate_input& dst) {
@@ -400,6 +406,11 @@ public:
     long mid = lo + (n / 2);
     hi = mid;
     dst.lo = mid;
+  }
+  
+  self_type slice(const array_type&, long _lo, long _hi) {
+    self_type tmp(lo + _lo, lo + _hi);
+    return tmp;
   }
   
 };
@@ -872,6 +883,19 @@ parray::parray<Result> scan(Iter lo,
   return scan(lo, hi, id, combine, lift_comp_idx, lift_idx, st);
 }
   
+template <
+  class Iter,
+  class Result,
+  class Combine,
+  class Lift
+>
+Result total_of_scan(Iter hi,
+                     const parray::parray<Result>& scans,
+                     const Combine& combine,
+                     const Lift& lift) {
+  return combine(scans[scans.size()-1], lift(hi-1));
+}
+  
 } // end namespace
   
 /*---------------------------------------------------------------------*/
@@ -940,6 +964,184 @@ parray::parray<Item> scan(Iter lo,
   };
   return level1::scan(lo, hi, id, combine, lift_comp, lift, st);
 }
+  
+/*---------------------------------------------------------------------*/
+/* Max index */
+  
+template <
+  class Item,
+  class Comp,
+  class Get
+>
+long max_index(long n, const Item& id, const Comp& comp, const Get& get) {
+  if (n < 1) {
+    return -1L;
+  }
+  using result_type = std::pair<long, Item>;
+  result_type res(0, id);
+  using input_type = level4::tabulate_input<typeof(get)>;
+  input_type in(0, n);
+  auto combine = [&] (result_type x, result_type y) {
+    if (comp(x.second, y.second)) { // x > y
+      return x;
+    } else {
+      return y;
+    }
+  };
+  using output_type = level3::cell_output<result_type, typeof(combine)>;
+  output_type out(res, combine);
+  auto convert_reduce_comp = [&] (input_type& in) {
+    return in.size();
+  };
+  auto convert_reduce = [&] (input_type& in, result_type& out) {
+    for (long i = in.lo; i < in.hi; i++) {
+      const Item& x = get(i);
+      if (comp(x, out.second)) {
+        out = result_type(i, x);
+      }
+    }
+  };
+  auto seq_convert_reduce = convert_reduce;
+  level4::reduce(in, out, res, res, convert_reduce_comp, convert_reduce, seq_convert_reduce);
+  return res.first;
+}
+  
+template <
+  class Iter,
+  class Item,
+  class Comp,
+  class Lift
+>
+long max_index(Iter lo, Iter hi, const Item& id, const Comp& comp, const Lift& lift) {
+  if (hi-lo < 1) {
+    return -1L;
+  }
+  using result_type = std::pair<long, Item>;
+  result_type id2(0, id);
+  auto combine = [&] (result_type x, result_type y) {
+    if (comp(x.second, y.second)) { // x > y
+      return x;
+    } else {
+      return y;
+    }
+  };
+  auto lift_comp_rng = [&] (Iter lo, Iter hi) {
+    return hi - lo;
+  };
+  auto lift_idx = [&] (long i, Iter it) {
+    return result_type(i, lift(*it));
+  };
+  auto seq_lift = [&] (Iter _lo, Iter _hi) {
+    long i = _lo - lo;
+    result_type res(0, id);
+    for (Iter it = _lo; it != _hi; it++, i++) {
+      const Item& x = *it;
+      if (comp(x, res.second)) {
+        res = result_type(i, x);
+      }
+    }
+    return res;
+  };
+  return level2::reduce(lo, hi, id2, combine, lift_comp_rng, lift_idx, seq_lift).first;
+}
+  
+template <
+  class Iter,
+  class Item,
+  class Comp
+>
+long max_index(Iter lo, Iter hi, const Item& id, const Comp& comp) {
+  return max_index(lo, hi, id, comp, [&] (const Item& x) {
+    return x;
+  });
+}
+  
+/*---------------------------------------------------------------------*/
+/* Pack and filter */
+  
+namespace level1 {
+  
+namespace __internal {
+  
+  template <
+    class Input_iter,
+    class Item,
+    class Output
+  >
+  long pack(parray::parray<bool>& flags, Input_iter lo, Input_iter hi, Item&, const Output& out) {
+    long n = hi - lo;
+    auto combine = [&] (long x, long y) {
+      return x + y;
+    };
+    auto lift = [&] (parray::parray<bool>::const_iterator it) {
+      return (long)*it;
+    };
+    parray::parray<long> offsets = level1::scan(flags.cbegin(), flags.cend(), 0L, combine, lift, exclusive_scan);
+    long m = total_of_scan(flags.cend(), offsets, combine, lift);
+    auto dst_lo = out(m);
+    parallel_for(0L, n, [&] (long i) {
+      if (flags[i]) {
+        long offset = offsets[i];
+        *(dst_lo+offset) = *(lo+i);
+      }
+    });
+    return m;
+  }
+  
+}
+  
+template <
+  class Input_iter,
+  class Output_iter
+>
+long pack(parray::parray<bool>& flags, Input_iter lo, Input_iter hi, Output_iter dst_lo) {
+  long n = hi - lo;
+  if (n < 1) {
+    return 0;
+  }
+  auto dummy = *lo;
+  return __internal::pack(flags, lo, hi, dummy, [&] (long) {
+    return dst_lo;
+  });
+}
+  
+template <
+  class Input_iter,
+  class Output_iter,
+  class Pred
+>
+long filter(Input_iter lo, Input_iter hi, Output_iter dst_lo, const Pred& p) {
+  long n = hi - lo;
+  parray::parray<bool> flags(n, [&] (long i) {
+    return p(*(lo+i));
+  });
+  return pack(flags, lo, hi, dst_lo);
+}
+  
+} // end namespace
+  
+template <
+  class Item,
+  class Pred
+>
+parray::parray<Item> filter(const parray::parray<Item>& xs, const Pred& p) {
+  long n = xs.size();
+  if (n < 1) {
+    parray::parray<Item> tmp = { };
+    return tmp;
+  }
+  parray::parray<bool> flags(n, [&] (long i) {
+    return p(xs[i]);
+  });
+  Item dummy;
+  parray::parray<Item> dst;
+  level1::__internal::pack(flags, xs.cbegin(), xs.cend(), dummy, [&] (long m) {
+    dst.resize(m);
+    return dst.begin();
+  });
+  return dst;
+}
+
   
 /***********************************************************************/
 
