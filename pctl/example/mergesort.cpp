@@ -22,7 +22,7 @@ void ex() {
   // parallel array
   std::cout << "-- parray -- " << std::endl;
   {
-    parray::parray<int> xs = { 3, 2, 100, 1, 0, -1, -3 };
+    parray<int> xs = { 3, 2, 100, 1, 0, -1, -3 };
     std::cout << "xs\t\t\t=\t" << xs << std::endl;
     sort::mergesort(xs);
     std::cout << "mergesort(xs)\t=\t" << xs << std::endl;
@@ -32,7 +32,7 @@ void ex() {
   // parallel chunked sequence
   std::cout << "-- pchunkedseq -- " << std::endl;
   {
-    pchunkedseq::pchunkedseq<int> xs = { 3, 2, 100, 1, 0, -1, -3 };
+    pchunkedseq<int> xs = { 3, 2, 100, 1, 0, -1, -3 };
     std::cout << "xs\t\t\t=\t" << xs << std::endl;
     std::cout << "mergesort(xs)\t=\t" << sort::mergesort(xs) << std::endl;
   }

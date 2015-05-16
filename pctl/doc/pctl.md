@@ -62,12 +62,11 @@ Table: Template parameters for the `parray` class.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 namespace pasl {
 namespace data {
-namespace parray {
 
 template <class Item, class Alloc = std::allocator<Item>>
 class parray;
 
-} } }
+} }
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 +-----------------------------------+-----------------------------------+
@@ -368,12 +367,11 @@ Table: Template parameters for the `pchunkedseq` class.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 namespace pasl {
 namespace data {
-namespace parray {
 
 template <class Item, class Alloc = std::allocator<Item>>
 class pchunkedseq;
 
-} } }
+} }
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 +-----------------------------------+-----------------------------------+
@@ -1970,7 +1968,6 @@ pieces, returning an array which stores the new pieces.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 namespace pasl {
 namespace pctl {
-namespace parray {
 namespace level4 {
 
 template <class Input_iter>
@@ -2017,7 +2014,7 @@ public:
     
 };
 
-} } } }
+} } }
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 #### Convert-reduce complexity function {#r4-i-w}

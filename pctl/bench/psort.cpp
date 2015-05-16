@@ -10,42 +10,17 @@
 
 #include <math.h>
 #include "benchmark.hpp"
-#include "sequencedata.hpp"
 #include "psort.hpp"
+#include "prandgen.hpp"
 
 /***********************************************************************/
-
-namespace pasl {
-namespace pctl {
-
-template <class Number>
-parray::parray<Number> random_parray(Number s, Number e, Number m) {
-  Number n = e - s;
-  parray::parray<Number> result((long)n);
-  parallel_for(Number(0), n, [&] (Number i) {
-    result[i] = pbbs::dataGen::hash<Number>(i+s)%m;
-  });
-  return result;
-}
-
-template <class Number>
-pchunkedseq::pchunkedseq<Number> random_pchunkedseq(Number s, Number e, Number m) {
-  parray::parray<Number> tmp = random_parray(s, e, m);
-  pchunkedseq::pchunkedseq<Number> result(tmp.size(), [&] (long i) {
-    return tmp[i];
-  });
-  return result;
-}
-
-}
-}
 
 /*---------------------------------------------------------------------*/
 
 template <class Item>
-using pchunkedseq = pasl::pctl::pchunkedseq::pchunkedseq<Item>;
+using pchunkedseq = pasl::pctl::pchunkedseq<Item>;
 template <class Item>
-using parray = pasl::pctl::parray::parray<Item>;
+using parray = pasl::pctl::parray<Item>;
 
 int main(int argc, char** argv) {
   pchunkedseq<int>* xsp = nullptr;
@@ -58,10 +33,10 @@ int main(int argc, char** argv) {
     std::string datastruct = pasl::util::cmdline::parse_or_default_string("datastruct", "pchunkedseq");
     if (datastruct == "pchunkedseq") {
       xsp = new pchunkedseq<int>();
-      *xsp = pasl::pctl::random_pchunkedseq((int)0, (int)n, (int)m);
+      *xsp = pasl::pctl::prandgen::gen_integ_pchunkedseq(n, 0, (int)m);
     } else if (datastruct == "parray") {
       pap = new parray<int>();
-      *pap = pasl::pctl::random_parray((int)0, (int)n, (int)m);
+      *pap = pasl::pctl::prandgen::gen_integ_parray(n, 0, (int)m);
     } else {
       pasl::util::atomic::die("bogus datastruct");
     }

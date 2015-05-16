@@ -23,8 +23,8 @@ namespace pctl {
 
 using value_type = int;
 
-using pchunkedseq_type = pchunkedseq::pchunkedseq<value_type>;
-using parray_type = parray::parray<value_type>;
+using pchunkedseq_type = pchunkedseq<value_type>;
+using parray_type = parray<value_type>;
 
 template <class Container>
 std::ostream& operator<<(std::ostream& out, const container_wrapper<Container>& c) {
@@ -40,7 +40,7 @@ value_type random_value() {
 }
 
 template <class Item>
-void generate(size_t nb, parray::parray<Item>& dst) {
+void generate(size_t nb, parray<Item>& dst) {
   dst.resize(nb, loval);
   for (size_t i = 0; i < nb; i++) {
     dst[i] = random_value();
@@ -48,7 +48,7 @@ void generate(size_t nb, parray::parray<Item>& dst) {
 }
 
 template <class Item>
-void generate(size_t nb, pchunkedseq::pchunkedseq<Item>& dst) {
+void generate(size_t nb, pchunkedseq<Item>& dst) {
   dst.clear();
   for (size_t i = 0; i < nb; i++) {
     dst.seq.push_back(random_value());

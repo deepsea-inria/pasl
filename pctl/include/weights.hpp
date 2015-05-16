@@ -39,16 +39,16 @@ long seq(const long* lo, const long* hi, long id, long* dst) {
   return x;
 }
   
-parray::parray<long> rec(const parray::parray<long>& xs) {
+parray<long> rec(const parray<long>& xs) {
   const long k = 1024;
   long n = xs.size();
   long m = 1 + ((n - 1) / k);
-  parray::parray<long> rs(n);
+  parray<long> rs(n);
   par::cstmt(contr, [&] { return n; }, [&] {
     if (n <= k) {
       seq(xs.cbegin(), xs.cend(), 0, rs.begin());
     } else {
-      parray::parray<long> sums(m);
+      parray<long> sums(m);
       parallel_for(0l, m, [&] (long i) {
         long lo = i * k;
         long hi = std::min(lo + k, n);
@@ -57,7 +57,7 @@ parray::parray<long> rec(const parray::parray<long>& xs) {
           sums[i] += xs[j];
         }
       });
-      parray::parray<long> scans = rec(sums);
+      parray<long> scans = rec(sums);
       parallel_for(0l, m, [&] (long i) {
         long lo = i * k;
         long hi = std::min(lo + k, n);
@@ -88,16 +88,16 @@ controller_type weights("weights");
 }
 
 template <class Weight>
-parray::parray<long> weights(long n, const Weight& weight) {
+parray<long> weights(long n, const Weight& weight) {
   const long k = 1024;
   long m = 1 + ((n - 1) / k);
   long tot;
-  parray::parray<long> rs(n + 1);
+  parray<long> rs(n + 1);
   par::cstmt(contr::weights, [&] { return n; }, [&] {
     if (n <= k) {
       tot = weights_seq(weight, 0, n, 0, rs.begin());
     } else {
-      parray::parray<long> sums(m);
+      parray<long> sums(m);
       parallel_for(0l, m, [&] (long i) {
         long lo = i * k;
         long hi = std::min(lo + k, n);
@@ -106,7 +106,7 @@ parray::parray<long> weights(long n, const Weight& weight) {
           sums[i] += weight(j);
         }
       });
-      parray::parray<long> scans = partial_sums::rec(sums);
+      parray<long> scans = partial_sums::rec(sums);
       parallel_for(0l, m, [&] (long i) {
         long lo = i * k;
         long hi = std::min(lo + k, n);
@@ -123,7 +123,7 @@ parray::parray<long> weights(long n, const Weight& weight) {
 
 template <class Iter, class Body, class Comp>
 void parallel_for(Iter lo, Iter hi, const Comp& comp, const Body& body) {
-  parray::parray<long> w = weights(hi - lo, comp);
+  parray<long> w = weights(hi - lo, comp);
   auto comp_rng = [&] (long lo, long hi) {
     return w[hi] - w[lo];
   };

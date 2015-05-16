@@ -18,7 +18,6 @@
 
 namespace pasl {
 namespace pctl {
-namespace pchunkedseq {
 
 /***********************************************************************/
  
@@ -48,16 +47,16 @@ private:
                         const Body_comp_rng& body_comp_rng,
                         seq_type& dst,
                         const Body_idx_dst& body_idx_dst) {
-    using input_type = level4::tabulate_input<Body_idx_dst>;
+    using input_type = level4::tabulate_input;
     using output_type = level3::chunkedseq_output<seq_type>;
-    input_type in(0, n, body_idx_dst);
+    input_type in(0, n);
     output_type out;
     seq_type id;
     auto convert_comp = [&] (input_type& in) {
       return body_comp_rng(in.lo, in.hi);
     };
     long chunk_capacity = dst.chunk_capacity;
-    parray::parray<value_type> tmp(chunk_capacity);
+    parray<value_type> tmp(chunk_capacity);
     auto convert = [&] (input_type& in, seq_type& dst) {
       dst.stream_pushn_back([&] (long i, long n) {
         for (long k = 0; k < n; k++) {
@@ -76,7 +75,7 @@ private:
                     const Body_comp& body_comp,
                     seq_type& dst,
                     const Body_idx_dst& body_idx_dst) {
-    parray::parray<long> w = weights(n, [&] (long i) {
+    parray<long> w = weights(n, [&] (long i) {
       return body_comp(i);
     });
     auto body_comp_rng = [&] (long lo, long hi) {
@@ -181,7 +180,6 @@ public:
 
 /***********************************************************************/
 
-} // end namespace
 } // end namespace
 } // end namespace
 

@@ -18,9 +18,6 @@ namespace sort {
 
 /***********************************************************************/
   
-template <class Item>
-using pchunkedseq = pchunkedseq::pchunkedseq<Item>;
-  
 /*---------------------------------------------------------------------*/
 /* Mergesort */
   
@@ -135,7 +132,7 @@ pchunkedseq<Item> sort_seq(pchunkedseq<Item>& xs) {
   long n = xs.seq.size();
   if (n <= 1)
     return result;
-  parray::parray<Item> tmp(n);
+  parray<Item> tmp(n);
   xs.seq.backn(&tmp[0], n);
   xs.seq.clear();
   sort_seq(&tmp[0], 0, n);
@@ -274,11 +271,11 @@ void mergesort_rec(Item* xs, Item* tmp, long lo, long hi) {
 }
   
 template <class Item>
-void mergesort(parray::parray<Item>& xs) {
+void mergesort(parray<Item>& xs) {
   long n = xs.size();
   if (n == 0)
     return;
-  parray::parray<Item> tmp(n);
+  parray<Item> tmp(n);
   mergesort_rec(&xs[0], &tmp[0], 0, n);
 }
 

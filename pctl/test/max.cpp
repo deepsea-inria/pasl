@@ -40,21 +40,21 @@ value_type random_value() {
   return quickcheck::generateInRange(loval, hival);
 }
 
-void generate(size_t nb, parray::parray<value_type>& dst) {
+void generate(size_t nb, parray<value_type>& dst) {
   dst.resize(nb, loval);
   for (size_t i = 0; i < nb; i++) {
     dst[i] = random_value();
   }
 }
 
-void generate(size_t nb, pchunkedseq::pchunkedseq<value_type>& dst) {
+void generate(size_t nb, pchunkedseq<value_type>& dst) {
   dst.clear();
   for (size_t i = 0; i < nb; i++) {
     dst.seq.push_back(random_value());
   }
 }
 
-void generate(size_t nb, container_wrapper<parray::parray<long>>& c) {
+void generate(size_t nb, container_wrapper<parray<long>>& c) {
   generate(nb, c.c);
 }
   
@@ -63,7 +63,7 @@ void generate(size_t nb, container_wrapper<parray::parray<long>>& c) {
   
 namespace trusted {
 
-value_type max(const parray::parray<value_type>& xs) {
+value_type max(const parray<value_type>& xs) {
   value_type m = LONG_MIN;
   for (long i = 0; i < xs.size(); i++) {
     m = std::max(m, xs[i]);
@@ -76,7 +76,7 @@ value_type max(const parray::parray<value_type>& xs) {
 /*---------------------------------------------------------------------*/
 /* Quickcheck properties */
   
-using parray_wrapper = container_wrapper<parray::parray<value_type>>;
+using parray_wrapper = container_wrapper<parray<value_type>>;
   
 class flat_max_property : public quickcheck::Property<parray_wrapper> {
 public:

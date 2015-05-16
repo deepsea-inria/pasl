@@ -17,7 +17,7 @@
 /***********************************************************************/
 
 template <class Item>
-using parray = pasl::pctl::parray::parray<Item>;
+using parray = pasl::pctl::parray<Item>;
 
 long max(const parray<long>& xs) {
   return pasl::pctl::reduce(xs.cbegin(), xs.cend(), LONG_MIN, [&] (long x, long y) {

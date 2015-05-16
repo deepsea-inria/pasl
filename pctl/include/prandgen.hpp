@@ -36,16 +36,16 @@ inline unsigned int hashu(unsigned int a) {
 /* General-purpose container generators */
   
 template <class Item, class Generator>
-parray::parray<Item> gen_parray(long n, const Generator& g) {
-  parray::parray<Item> tmp(n, [&] (long i) {
+parray<Item> gen_parray(long n, const Generator& g) {
+  parray<Item> tmp(n, [&] (long i) {
     return g(i, hashu((unsigned int)i));
   });
   return tmp;
 }
   
 template <class Item, class Generator>
-pchunkedseq::pchunkedseq<Item> gen_pchunkedseq(long n, const Generator& g) {
-  pchunkedseq::pchunkedseq<Item> tmp(n, [&] (long i) {
+pchunkedseq<Item> gen_pchunkedseq(long n, const Generator& g) {
+  pchunkedseq<Item> tmp(n, [&] (long i) {
     return g(i, hashu((unsigned int)i));
   });
   return tmp;
@@ -62,14 +62,14 @@ Integ in_range(Integ val, Integ lo, Integ hi) {
 }
 
 template <class Integ>
-parray::parray<Integ> gen_integ_parray(long n, Integ lo, Integ hi) {
+parray<Integ> gen_integ_parray(long n, Integ lo, Integ hi) {
   return gen_parray<Integ>(n, [&] (long, int hash) {
     return in_range((Integ)hash, lo, hi);
   });
 }
 
 template <class Integ>
-pchunkedseq::pchunkedseq<Integ> gen_integ_pchunkedseq(long n, Integ lo, Integ hi) {
+pchunkedseq<Integ> gen_integ_pchunkedseq(long n, Integ lo, Integ hi) {
   return gen_pchunkedseq<Integ>(n, [&] (long, int hash) {
     return in_range((Integ)hash, lo, hi);
   });

@@ -25,7 +25,7 @@ namespace pctl {
 /***********************************************************************/
   
 using scan_type = enum { inclusive_scan, exclusive_scan };
-  
+    
 /*---------------------------------------------------------------------*/
 /* Level 4 reduction */
   
@@ -167,8 +167,8 @@ void scan_seq(In_iter in_lo,
 }
 
 template <class Result, class Output>
-void scan_seq(const parray::parray<Result>& ins,
-              typename parray::parray<Result>::iterator outs_lo,
+void scan_seq(const parray<Result>& ins,
+              typename parray<Result>::iterator outs_lo,
               const Output& out,
               const Result& id,
               scan_type st) {
@@ -231,8 +231,8 @@ std::pair<long,long> get_rng(long k, long n, long i) {
 }
   
 template <class Result, class Output, class Merge_comp>
-void scan_rec(const parray::parray<Result>& ins,
-              typename parray::parray<Result>::iterator outs_lo,
+void scan_rec(const parray<Result>& ins,
+              typename parray<Result>::iterator outs_lo,
               const Output& out,
               const Result& id,
               const Merge_comp& merge_comp,
@@ -251,14 +251,14 @@ void scan_rec(const parray::parray<Result>& ins,
     if (n <= k) {
       scan_seq(ins, outs_lo, out, id, st);
     } else {
-      parray::parray<Result> partials(m);
+      parray<Result> partials(m);
       parallel_for(0l, m, loop_comp, [&] (long i) {
         auto beg = ins.cbegin();
         long lo = get_rng(k, n, i).first;
         long hi = get_rng(k, n, i).second;
         out.merge(beg+lo, beg+hi, partials[i]);
       });
-      parray::parray<Result> scans(m);
+      parray<Result> scans(m);
       scan_rec(partials, scans.begin(), out, id, merge_comp, exclusive_scan);
       parallel_for(0l, m, loop_comp, [&] (long i) {
         auto ins_beg = ins.cbegin();
@@ -308,15 +308,15 @@ void scan(Input& in,
     if (n <= k) {
       convert_scan(id, in, outs_lo);
     } else {
-      parray::parray<Input> splits = in.split(m);
-      parray::parray<Result> partials(m);
+      parray<Input> splits = in.split(m);
+      parray<Result> partials(m);
       parallel_for(0l, m, loop_comp, [&] (long i) {
         long lo = get_rng(k, n, i).first;
         long hi = get_rng(k, n, i).second;
         Input in2 = in.slice(splits, lo, hi);
         convert_reduce(in2, partials[i]);
       });
-      parray::parray<Result> scans(m);
+      parray<Result> scans(m);
       scan_rec(partials, scans.begin(), out, id, merge_comp, exclusive_scan);
       parallel_for(0l, m, loop_comp, [&] (long i) {
         long lo = get_rng(k, n, i).first;
@@ -335,7 +335,7 @@ class random_access_iterator_input {
 public:
   
   using self_type = random_access_iterator_input;
-  using array_type = parray::parray<self_type>;
+  using array_type = parray<self_type>;
   
   Input_iter lo;
   Input_iter hi;
@@ -374,12 +374,11 @@ public:
   
 };
 
-template <class Body>
 class tabulate_input {
 public:
   
   using self_type = tabulate_input;
-  using array_type = parray::parray<self_type>;
+  using array_type = parray<self_type>;
   
   long lo;
   long hi;
@@ -544,7 +543,7 @@ class cell_output {
 public:
   
   using result_type = Result;
-  using array_type = parray::parray<result_type>;
+  using array_type = parray<result_type>;
   using const_iterator = typename array_type::const_iterator;
   
   result_type id;
@@ -664,7 +663,7 @@ template <
   class Lift_idx,
   class Seq_lift
 >
-parray::parray<Result> scan(Iter lo,
+parray<Result> scan(Iter lo,
                             Iter hi,
                             Result id,
                             const Combine& combine,
@@ -674,7 +673,7 @@ parray::parray<Result> scan(Iter lo,
                             scan_type st) {
   using output_type = level3::cell_output<Result, Combine>;
   output_type out(id, combine);
-  parray::parray<Result> results(hi-lo);
+  parray<Result> results(hi-lo);
   auto outs_lo = results.begin();
   level3::scan(lo, hi, out, id, outs_lo, lift_comp_rng, lift_idx, seq_lift, st);
   return results;
@@ -742,7 +741,7 @@ Result reducei(Iter lo,
                const Combine& combine,
                const Lift_comp_idx& lift_comp_idx,
                const Lift_idx& lift_idx) {
-  parray::parray<long> w = weights(hi - lo, [&] (long pos) {
+  parray<long> w = weights(hi - lo, [&] (long pos) {
     return lift_comp_idx(pos, lo+pos);
   });
   auto lift_comp_rng = [&] (Iter _lo, Iter _hi) {
@@ -790,7 +789,7 @@ template <
   class Combine,
   class Lift_idx
 >
-parray::parray<Result> scani(Iter lo,
+parray<Result> scani(Iter lo,
                              Iter hi,
                              Result id,
                              const Combine& combine,
@@ -801,7 +800,7 @@ parray::parray<Result> scani(Iter lo,
   auto lift_comp_rng = [&] (Iter lo, Iter hi) {
     return hi - lo;
   };
-  auto seq_lift = [&] (Result _id, Iter _lo, Iter _hi, typename parray::parray<Result>::iterator outs_lo) {
+  auto seq_lift = [&] (Result _id, Iter _lo, Iter _hi, typename parray<Result>::iterator outs_lo) {
     level4::scan_seq(_lo, _hi, outs_lo, out, _id, [&] (Iter src, Result& dst) {
       dst = lift_idx(src - lo, src);
     }, st);
@@ -815,7 +814,7 @@ template <
   class Combine,
   class Lift
 >
-parray::parray<Result> scan(Iter lo,
+parray<Result> scan(Iter lo,
                             Iter hi,
                             Result id,
                             const Combine& combine,
@@ -834,7 +833,7 @@ template <
   class Lift_comp_idx,
   class Lift_idx
 >
-parray::parray<Result> scani(Iter lo,
+parray<Result> scani(Iter lo,
                              Iter hi,
                              Result id,
                              const Combine& combine,
@@ -843,7 +842,7 @@ parray::parray<Result> scani(Iter lo,
                              scan_type st) {
   using output_type = level3::cell_output<Result, Combine>;
   output_type out(id, combine);
-  parray::parray<long> w = weights(hi-lo, [&] (long pos) {
+  parray<long> w = weights(hi-lo, [&] (long pos) {
     return lift_comp_idx(pos, lo+pos);
   });
   auto lift_comp_rng = [&] (Iter _lo, Iter _hi) {
@@ -852,7 +851,7 @@ parray::parray<Result> scani(Iter lo,
     long wrng = w[l] - w[h];
     return (long)(log(wrng) * wrng);
   };
-  auto seq_lift = [&] (Result _id, Iter _lo, Iter _hi, typename parray::parray<Result>::iterator outs_lo) {
+  auto seq_lift = [&] (Result _id, Iter _lo, Iter _hi, typename parray<Result>::iterator outs_lo) {
     level4::scan_seq(_lo, _hi, outs_lo, out, _id, [&] (Iter src, Result& dst) {
       dst = lift_idx(src - lo, src);
     }, st);
@@ -867,7 +866,7 @@ template <
   class Lift_comp,
   class Lift
 >
-parray::parray<Result> scan(Iter lo,
+parray<Result> scan(Iter lo,
                             Iter hi,
                             Result id,
                             const Combine& combine,
@@ -890,7 +889,7 @@ template <
   class Lift
 >
 Result total_of_scan(Iter hi,
-                     const parray::parray<Result>& scans,
+                     const parray<Result>& scans,
                      const Combine& combine,
                      const Lift& lift) {
   return combine(scans[scans.size()-1], lift(hi-1));
@@ -934,7 +933,7 @@ template <
   class Item,
   class Combine
 >
-parray::parray<Item> scan(Iter lo,
+parray<Item> scan(Iter lo,
                           Iter hi,
                           Item id,
                           const Combine& combine, scan_type st) {
@@ -950,7 +949,7 @@ template <
   class Weight,
   class Combine
 >
-parray::parray<Item> scan(Iter lo,
+parray<Item> scan(Iter lo,
                           Iter hi,
                           Item id,
                           const Weight& weight,
@@ -979,7 +978,7 @@ long max_index(long n, const Item& id, const Comp& comp, const Get& get) {
   }
   using result_type = std::pair<long, Item>;
   result_type res(0, id);
-  using input_type = level4::tabulate_input<typeof(get)>;
+  using input_type = level4::tabulate_input;
   input_type in(0, n);
   auto combine = [&] (result_type x, result_type y) {
     if (comp(x.second, y.second)) { // x > y
@@ -1061,46 +1060,40 @@ long max_index(Iter lo, Iter hi, const Item& id, const Comp& comp) {
   
 namespace level1 {
   
-namespace __internal {
-  
-  template <
-    class Input_iter,
-    class Item,
-    class Output
-  >
-  long pack(parray::parray<bool>& flags, Input_iter lo, Input_iter hi, Item&, const Output& out) {
-    long n = hi - lo;
-    auto combine = [&] (long x, long y) {
-      return x + y;
-    };
-    auto lift = [&] (parray::parray<bool>::const_iterator it) {
-      return (long)*it;
-    };
-    parray::parray<long> offsets = level1::scan(flags.cbegin(), flags.cend(), 0L, combine, lift, exclusive_scan);
-    long m = total_of_scan(flags.cend(), offsets, combine, lift);
-    auto dst_lo = out(m);
-    parallel_for(0L, n, [&] (long i) {
-      if (flags[i]) {
-        long offset = offsets[i];
-        *(dst_lo+offset) = *(lo+i);
-      }
-    });
-    return m;
+template <
+  class Input_iter,
+  class Item,
+  class Output
+>
+long pack(parray<bool>& flags, Input_iter lo, Input_iter hi, Item&, const Output& out) {
+  long n = hi - lo;
+  if (n < 1) {
+    return 0;
   }
-  
+  auto combine = [&] (long x, long y) {
+    return x + y;
+  };
+  auto lift = [&] (parray<bool>::const_iterator it) {
+    return (long)*it;
+  };
+  parray<long> offsets = level1::scan(flags.cbegin(), flags.cend(), 0L, combine, lift, exclusive_scan);
+  long m = level1::total_of_scan(flags.cend(), offsets, combine, lift);
+  auto dst_lo = out(m);
+  parallel_for(0L, n, [&] (long i) {
+    if (flags[i]) {
+      long offset = offsets[i];
+      *(dst_lo+offset) = *(lo+i);
+    }
+  });
+  return m;
 }
   
 template <
   class Input_iter,
   class Output_iter
 >
-long pack(parray::parray<bool>& flags, Input_iter lo, Input_iter hi, Output_iter dst_lo) {
-  long n = hi - lo;
-  if (n < 1) {
-    return 0;
-  }
-  auto dummy = *lo;
-  return __internal::pack(flags, lo, hi, dummy, [&] (long) {
+long pack(parray<bool>& flags, Input_iter lo, Input_iter hi, Output_iter dst_lo) {
+  return pack(flags, lo, hi, *lo, [&] (long) {
     return dst_lo;
   });
 }
@@ -1112,7 +1105,7 @@ template <
 >
 long filter(Input_iter lo, Input_iter hi, Output_iter dst_lo, const Pred& p) {
   long n = hi - lo;
-  parray::parray<bool> flags(n, [&] (long i) {
+  parray<bool> flags(n, [&] (long i) {
     return p(*(lo+i));
   });
   return pack(flags, lo, hi, dst_lo);
@@ -1124,18 +1117,13 @@ template <
   class Item,
   class Pred
 >
-parray::parray<Item> filter(const parray::parray<Item>& xs, const Pred& p) {
-  long n = xs.size();
-  if (n < 1) {
-    parray::parray<Item> tmp = { };
-    return tmp;
-  }
-  parray::parray<bool> flags(n, [&] (long i) {
+parray<Item> filter(const parray<Item>& xs, const Pred& p) {
+  parray<bool> flags(xs.size(), [&] (long i) {
     return p(xs[i]);
   });
   Item dummy;
-  parray::parray<Item> dst;
-  level1::__internal::pack(flags, xs.cbegin(), xs.cend(), dummy, [&] (long m) {
+  parray<Item> dst;
+  level1::pack(flags, xs.cbegin(), xs.cend(), dummy, [&] (long m) {
     dst.resize(m);
     return dst.begin();
   });

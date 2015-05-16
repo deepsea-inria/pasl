@@ -18,8 +18,6 @@ namespace pctl {
 
 /***********************************************************************/
 
-namespace parray {
-  
 template <class Item>
 std::ostream& operator<<(std::ostream& out, const parray<Item>& xs) {
   out << "{ ";
@@ -33,10 +31,6 @@ std::ostream& operator<<(std::ostream& out, const parray<Item>& xs) {
   return out;
 }
   
-} // end namespace
-
-namespace pchunkedseq {
-  
 template <class Item>
 std::ostream& operator<<(std::ostream& out, const pchunkedseq<Item>& xs) {
   out << "{ ";
@@ -49,8 +43,6 @@ std::ostream& operator<<(std::ostream& out, const pchunkedseq<Item>& xs) {
   out << " }";
   return out;
 }
-  
-} // end namespace
 
 /***********************************************************************/
 

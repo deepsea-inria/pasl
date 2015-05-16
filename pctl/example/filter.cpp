@@ -19,9 +19,9 @@ namespace pctl {
 void ex() {
   
   {
-    parray::parray<long> xs = { 444, 1, 3, 9, 6, 33, 2, 1, 234, 99 };
+    parray<long> xs = { 444, 1, 3, 9, 6, 33, 2, 1, 234, 99 };
     std::cout << "xs\t\t= " << xs << std::endl;
-    parray::parray<long> dst(xs.size(), -1);
+    parray<long> dst(xs.size(), -1);
     long nb_evens = level1::filter(xs.cbegin(), xs.cend(), dst.begin(), [&] (long x) { return x%2==0; });
     std::cout << "evens(xs) ++ { -1 ... } =" << dst << std::endl;
     std::cout << "nb_evens(xs) = " << nb_evens << std::endl;

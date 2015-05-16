@@ -16,7 +16,6 @@
 
 namespace pasl {
 namespace pctl {
-namespace parray {
 
 /***********************************************************************/
 
@@ -48,7 +47,7 @@ private:
   };
   
   std::unique_ptr<value_type[], Deleter> ptr;
-  long sz = -1l;
+  long sz = 0L;
   
   void alloc(long n) {
     sz = n;
@@ -59,18 +58,14 @@ private:
   }
   
   void destroy() {
-    if (sz <= 0)
-      return;
-    pmem::pdelete<Item, Alloc>(&operator[](0), &operator[](sz-1)+1);
+    pmem::pdelete<Item, Alloc>(begin(), end());
     sz = 0;
   }
   
   void fill(long n, const value_type& val) {
     destroy();
     alloc(n);
-    if (sz <= 0)
-      return;
-    pmem::fill(&operator[](0), &operator[](sz-1)+1, val);
+    pmem::fill(begin(), end(), val);
   }
   
   void check(long i) const {
@@ -123,9 +118,7 @@ public:
   
   parray(const parray& other) {
     alloc(other.size());
-    if(sz!=0) { 
-      pmem::copy(&other[0], &other[sz - 1] + 1, &ptr[0]);
-    }
+    pmem::copy(other.cbegin(), other.cend(), begin());
   }
   
   parray& operator=(const parray& other) {
@@ -133,9 +126,7 @@ public:
       return *this;
     }
     alloc(other.size());
-    if(sz!=0) {
-      pmem::copy(&other[0], &other[sz - 1] + 1, &ptr[0]);
-    }
+    pmem::copy(other.cbegin(), other.cend(), begin());
     return *this;
   }
   
@@ -166,7 +157,14 @@ public:
   }
   
   void resize(long n, const value_type& val) {
+    if (n == sz) {
+      return;
+    }
+    parray<Item> tmp;
+    swap(tmp);
     fill(n, val);
+    long m = std::min(tmp.size(), size());
+    pmem::copy(tmp.cbegin(), tmp.cbegin()+m, begin());
   }
   
   void resize(long n) {
@@ -205,18 +203,17 @@ public:
   }
   
   iterator end() const {
-    return &ptr[size() - 1] + 1;
+    return &ptr[size()];
   }
   
   const_iterator cend() const {
-    return &ptr[size() - 1] + 1;
+    return &ptr[size()];
   }
   
 };
 
 /***********************************************************************/
 
-} // end namespace
 } // end namespace
 } // end namespace
 
