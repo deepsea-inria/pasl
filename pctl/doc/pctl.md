@@ -624,17 +624,22 @@ The contents of the current container are removed and replaced by the
 ### Resize {#cs-rsz}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-void resize(long n, const value_type& val);
-void resize(long n) {
+void resize(long n, const value_type& val);  // (1)
+void resize(long n) {                        // (2)
   value_type val;
   resize(n, val);
 }
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Resizes the container so that it contains `n` items.
+Resizes the container to contain `n` items.
 
-The contents of the current container are removed and replaced by `n`
-copies of the item referenced by `val`.
+If the current size is greater than `n`, the container is reduced to
+its first `n` elements.
+
+If the current size is less than `n`,
+
+1. additional copies of `val` are appended
+2. additional default-inserted elements are appended
 
 ***Complexity.*** Let $m$ be the size of the container just before and
    $n$ just after the resize operation. Then, the work and span are
