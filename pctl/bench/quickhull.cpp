@@ -36,6 +36,8 @@
 #include "parray.hpp"
 #include "datapar.hpp"
 #include "geometry.hpp"
+#include "geometrydata.hpp"
+#include "io.hpp"
 
 /***********************************************************************/
 
@@ -45,10 +47,13 @@ using namespace pasl::pctl;
 using intT = int;
 
 template <class Item>
-using parrayiter = typename parray<Item>::iterator;
+using iter = typename parray<Item>::iterator;
+
+template <class Item>
+using citer = typename parray<Item>::const_iterator;
 
 template <class F1, class F2>
-pair<intT,intT> split(parrayiter<intT> A, intT n, F1 lf, F2 rf) {
+pair<intT,intT> split(iter<intT> A, intT n, F1 lf, F2 rf) {
   intT ll = 0, lm = 0;
   intT rm = n-1, rr = n-1;
   while (1) {
@@ -70,7 +75,7 @@ pair<intT,intT> split(parrayiter<intT> A, intT n, F1 lf, F2 rf) {
   return pair<intT,intT>(n1,n2);
 }
 
-intT serialQuickHull(parrayiter<intT> I, point2d* P, intT n, intT l, intT r) {
+intT serialQuickHull(iter<intT> I, point2d* P, intT n, intT l, intT r) {
   if (n < 2) return n;
   intT maxP = I[0];
   double maxArea = triArea(P[l],P[r],P[maxP]);
@@ -101,7 +106,7 @@ intT serialQuickHull(parrayiter<intT> I, point2d* P, intT n, intT l, intT r) {
 
 controller_type quickhull_contr("quickhull");
 
-intT quickHull(parrayiter<intT> I, parrayiter<intT> Itmp, point2d* P, intT n, intT l, intT r, intT depth) {
+intT quickHull(iter<intT> I, iter<intT> Itmp, iter<point2d> P, intT n, intT l, intT r, intT depth) {
   intT result;
   par::cstmt(quickhull_contr, [&] { return n; }, [&] { //later: really, complexity should be n*log(n)
     if (n < 2) {
@@ -130,13 +135,9 @@ intT quickHull(parrayiter<intT> I, parrayiter<intT> Itmp, point2d* P, intT n, in
         m2 = quickHull(Itmp+n1, I+n1, P, n2, maxP, r, depth-1);
       });
       
-      parallel_for((intT)0, m1, [&] (intT i) {
-        I[i] = Itmp[i];
-      });
+      pmem::copy(Itmp, Itmp+m1, I);
       I[m1] = maxP;
-      parallel_for((intT)0, m2, [&] (intT i) {
-        I[i+m1+1] = Itmp[i+n1];
-      });
+      pmem::copy(Itmp+n1, Itmp+n1+m2, I+m1+1);
       result = m1+1+m2;
     }
   }, [&] {
@@ -145,7 +146,8 @@ intT quickHull(parrayiter<intT> I, parrayiter<intT> Itmp, point2d* P, intT n, in
   return result;
 }
 
-parray<intT> hull(point2d* P, intT n) {
+parray<intT> hull(parray<point2d>& P) {
+  intT n = P.size();
   auto combine = [&] (pair<intT,intT> l, pair<intT,intT> r) {
     intT minIndex =
     (P[l.first].x < P[r.first].x) ? l.first :
@@ -154,7 +156,8 @@ parray<intT> hull(point2d* P, intT n) {
     intT maxIndex = (P[l.second].x > P[r.second].x) ? l.second : r.second;
     return pair<intT,intT>(minIndex, maxIndex);
   };
-  pair<intT, intT> minMax = level1::reducei(P, P+n, make_pair(0,0), combine, [&] (long i, point2d*) {
+  auto id = make_pair(0,0);
+  pair<intT, intT> minMax = level1::reducei(P.cbegin(), P.cend(), id, combine, [&] (long i, citer<point2d>) {
     return make_pair(i, i);
   });
   intT l = minMax.first;
@@ -175,17 +178,13 @@ parray<intT> hull(point2d* P, intT n) {
   
   intT m1; intT m2;
   par::fork2([&] {
-    m1 = quickHull(I.begin(), Itmp.begin(), P, n1, l, r, 5);
+    m1 = quickHull(I.begin(), Itmp.begin(), P.begin(), n1, l, r, 5);
   }, [&] {
-    m2 = quickHull(I.begin()+n1, Itmp.begin()+n1, P, n2, r, l, 5);
+    m2 = quickHull(I.begin()+n1, Itmp.begin()+n1, P.begin(), n2, r, l, 5);
   });
   
-  parallel_for((intT)0, m1, [&] (intT i) {
-    Itmp[i+1] = I[i];
-  });
-  parallel_for((intT)0, m2, [&] (intT i) {
-    Itmp[i+m1+2] = I[i+n1];
-  });
+  pmem::copy(I.cbegin(), I.cbegin()+m1, Itmp.begin()+1);
+  pmem::copy(I.cbegin()+n1, I.cbegin()+n1+m2, Itmp.begin()+m1+2);
 
   Itmp[0] = l;
   Itmp[m1+1] = r;
@@ -197,26 +196,41 @@ parray<intT> hull(point2d* P, intT n) {
 
 /*---------------------------------------------------------------------*/
 
-template <class Item>
-using parray = pasl::pctl::parray<Item>;
-
 int main(int argc, char** argv) {
-  long n;
-  
-  auto init = [&] {
-    n = pasl::util::cmdline::parse_or_default_long("n", 100000);
+  pasl::sched::launch(argc, argv, [&] (pasl::sched::experiment exp) {
+    intT n;
+    parray<point2d> points;
+    parray<intT> hull_idxs;
     
-  };
-  auto run = [&] (bool sequential) {
+    // load experiment data
+    n = (intT)pasl::util::cmdline::parse_or_default_long("n", 10);
+    pasl::util::cmdline::argmap_dispatch d;
+    d.add("from_file", [&] {
+      pasl::util::atomic::die("todo");
+    });
+    d.add("by_generator", [&] {
+      pasl::util::cmdline::argmap_dispatch d;
+      d.add("plummer", [&] {
+        points = plummer2d(n);
+      });
+      d.add("uniform", [&] {
+        bool inSphere = pasl::util::cmdline::parse_or_default_bool("in_sphere", false);
+        bool onSphere = pasl::util::cmdline::parse_or_default_bool("on_sphere", false);
+        points = uniform2d(inSphere, onSphere, n);
+      });
+      d.find_by_arg_or_default_key("generator", "plummer")();
+    });
+    d.find_by_arg_or_default_key("load", "by_generator")();
+
+    // run the experiment
+    exp([&] {
+      hull_idxs = hull(points);
+    });
     
-  };
-  auto output = [&] {
-    
-  };
-  auto destroy = [&] {
-    ;
-  };
-  pasl::sched::launch(argc, argv, init, run, output, destroy);
+    // output the results
+    std::cout << "|points| = " << points.size() << std::endl;
+    std::cout << "|hull| = " << hull_idxs.size() << std::endl;
+  });
   return 0;
 }
 

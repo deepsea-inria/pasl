@@ -14,6 +14,8 @@
 #include <numa.h>
 #endif
 
+#include <tuple>
+
 #include "cmdline.hpp"
 #include "threaddag.hpp"
 #include "native.hpp"
@@ -75,6 +77,33 @@ void launch(const Init& init, const Run& run, const Output& output,
 #endif
   launch(output);
   launch(destroy);
+  threaddag::destroy();
+}
+  
+using thunk = std::function<void()>;
+using experiment = std::function<void(thunk)>;
+
+template <class Run>
+void launch(int argc, char** argv, const Run& t) {
+  util::cmdline::set(argc, argv);
+  threaddag::init();
+  auto w = [&] (thunk run) {
+    STAT_IDLE(reset());
+    // TODO: LOG_ONLY(reset());
+    LOG_BASIC(ENTER_ALGO);
+    uint64_t start_time = util::microtime::now();
+    run();
+    double exec_time = util::microtime::seconds_since(start_time);
+    LOG_BASIC(EXIT_ALGO);
+    printf ("exectime %.3lf\n", exec_time);
+    STAT_IDLE(sum());
+    STAT(dump(stdout));
+    STAT_IDLE(print_idle(stdout));
+  };
+  
+  launch([&] {
+    t(w);
+  });
   threaddag::destroy();
 }
 

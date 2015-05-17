@@ -32,6 +32,27 @@ inline unsigned int hashu(unsigned int a) {
   return a;
 }
   
+#define HASH_MAX_INT ((unsigned) 1 << 31)
+
+static inline int hashi(int i) {
+  return hashu(i) & (HASH_MAX_INT-1);}
+
+static inline double hashd(int i) {
+  return ((double) hashi(i)/((double) HASH_MAX_INT));}
+
+template <class T> T hash(int i) {
+  if (typeid(T) == typeid(int)) {
+    return hashi(i);
+  } else if (typeid(T) == typeid(unsigned int)) {
+    return hashu(i);
+  } else if (typeid(T) == typeid(double)) {
+    return hashd(i);
+  } else {
+    pasl::util::atomic::die("bogus");
+    return 0;
+  }
+}
+  
 /*---------------------------------------------------------------------*/
 /* General-purpose container generators */
   
