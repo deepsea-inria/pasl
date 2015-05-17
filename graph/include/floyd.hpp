@@ -429,9 +429,10 @@ namespace pasl {
           int layer_vertex_index = layer_index_for_vertex(handle_vertices[i], 0, dists, big_vertex, nb_vertices);
           if (check_index(layer_vertex_index)) {
             masks[handle_vertices[i]][layer_vertex_index].set_bit(i);
-            masks_calculated[handle_vertices[i]][layer_vertex_index].set_bit(i);            
+            masks_calculated[handle_vertices[i]][layer_vertex_index].set_bit(i);  
+            dists[(long long) handle_vertices[i] * nb_vertices + handle_vertices[i]] = 0;             
           }
-        }        
+        }          
 
         for (int layer = 1; layer <= max_level; layer++) {
 	  			std::cout << "Processing layer " << layer << std::endl;
@@ -442,7 +443,9 @@ namespace pasl {
           }
           process_layer_par_lazy(graph_alias, frontier, masks, frontier_level, dists, big_vertex, nb_vertices);
 
-          for (int i = level_offset[layer]; i < level_offset[layer] + num_vertices_at_level[layer]; i++) {
+//          for (int i = level_offset[layer]; i < level_offset[layer] + num_vertices_at_level[layer]; i++) {
+          sched::native::parallel_for(level_offset[layer], level_offset[layer] + num_vertices_at_level[layer], [&] (int i) {
+
             int vertex = vertices_at_level[i];
             int layer_vertex_index = layer_index_for_vertex(vertex, layer, dists, big_vertex, nb_vertices);
             masks_calculated[vertex][layer_vertex_index] = masks[vertex][layer_vertex_index];   
@@ -452,20 +455,14 @@ namespace pasl {
               masks_calculated[vertex][layer_vertex_index - 1].not_this();            
 					    masks_calculated[vertex][layer_vertex_index] |= masks_calculated[vertex][layer_vertex_index - 1];
             }   
-          }
-        }     
-
-        std::cout << "Finished processing" << std::endl;
-        sched::native::parallel_for(0, nb_vertices, [&] (int i) {            
-          const int dist_to_i = dists[big_vertex * nb_vertices + i];
-          for (int j = std::max(-deep, -dist_to_i); j <= deep; ++j) {
+            
             sched::native::parallel_for(0, handle_vertices_num, [&] (int bit_position) {
-                if (masks[i][j + deep].get_bit(bit_position) != 0) {
-                  dists[(long long) handle_vertices[bit_position] * nb_vertices + i] = dist_to_i + j; 
-                }
-            });          
-          };
-				});
+              if (masks[vertex][layer_vertex_index].get_bit(bit_position) != 0) {
+                dists[(long long) handle_vertices[bit_position] * nb_vertices + vertex] = layer; 
+              }
+            });  
+          });
+        }             
         
         free(data_masks);
         free(data_masks_calculated);
