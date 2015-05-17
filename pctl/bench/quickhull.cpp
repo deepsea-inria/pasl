@@ -106,7 +106,7 @@ intT serialQuickHull(iter<intT> I, point2d* P, intT n, intT l, intT r) {
 
 controller_type quickhull_contr("quickhull");
 
-intT quickHull(iter<intT> I, iter<intT> Itmp, iter<point2d> P, intT n, intT l, intT r, intT depth) {
+intT quickHull(iter<intT> I, iter<intT> Itmp, iter<point2d> P, intT n, intT l, intT r) {
   intT result;
   par::cstmt(quickhull_contr, [&] { return n; }, [&] { //later: really, complexity should be n*log(n)
     if (n < 2) {
@@ -130,9 +130,9 @@ intT quickHull(iter<intT> I, iter<intT> Itmp, iter<point2d> P, intT n, intT l, i
       
       intT m1, m2;
       par::fork2([&] {
-        m1 = quickHull(Itmp, I ,P, n1, l, maxP, depth-1);
+        m1 = quickHull(Itmp, I ,P, n1, l, maxP);
       }, [&] {
-        m2 = quickHull(Itmp+n1, I+n1, P, n2, maxP, r, depth-1);
+        m2 = quickHull(Itmp+n1, I+n1, P, n2, maxP, r);
       });
       
       pmem::copy(Itmp, Itmp+m1, I);
@@ -178,9 +178,9 @@ parray<intT> hull(parray<point2d>& P) {
   
   intT m1; intT m2;
   par::fork2([&] {
-    m1 = quickHull(I.begin(), Itmp.begin(), P.begin(), n1, l, r, 5);
+    m1 = quickHull(I.begin(), Itmp.begin(), P.begin(), n1, l, r);
   }, [&] {
-    m2 = quickHull(I.begin()+n1, Itmp.begin()+n1, P.begin(), n2, r, l, 5);
+    m2 = quickHull(I.begin()+n1, Itmp.begin()+n1, P.begin(), n2, r, l);
   });
   
   pmem::copy(I.cbegin(), I.cbegin()+m1, Itmp.begin()+1);
