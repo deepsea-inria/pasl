@@ -20,8 +20,14 @@ namespace pctl {
 /*---------------------------------------------------------------------*/
 
 namespace par = sched::granularity;
-using controller_type = par::control_by_prediction;
-//using controller_type = par::control_by_force_parallel;
+  
+#if defined(CONTROL_BY_FORCE_SEQUENTIAL)
+  using controller_type = par::control_by_force_sequential;
+#elif defined(CONTROL_BY_FORCE_PARALLEL)
+  using controller_type = par::control_by_force_parallel;
+#else
+  using controller_type = par::control_by_prediction;
+#endif
 
 template <class T>
 std::string string_of_template_arg() {

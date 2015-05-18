@@ -15,6 +15,7 @@
 #endif
 
 #include "weights.hpp"
+#include "atomic.hpp"
 
 #ifndef _PCTL_DATAPAR_H_
 #define _PCTL_DATAPAR_H_
@@ -24,8 +25,20 @@ namespace pctl {
 
 /***********************************************************************/
   
-using scan_type = enum { inclusive_scan, exclusive_scan };
-    
+/*---------------------------------------------------------------------*/
+/* Scan types */
+  
+using scan_type = enum {
+  forward_inclusive_scan,
+  forward_exclusive_scan,
+  backward_inclusive_scan,
+  backward_exclusive_scan
+};
+  
+bool is_backward_scan(scan_type st) {
+  return (st == backward_inclusive_scan) || (st == backward_exclusive_scan);
+}
+  
 /*---------------------------------------------------------------------*/
 /* Level 4 reduction */
   
@@ -134,7 +147,9 @@ void scan_seq(In_iter in_lo,
   out.copy(id, x);
   In_iter in_it = in_lo;
   Out_iter out_it = out_lo;
-  if (st == exclusive_scan) {
+  if (st == forward_exclusive_scan) {
+    in_it = in_lo;
+    out_it = out_lo;
     for (; in_it != in_hi; in_it++, out_it++) {
       Result tmp1; // required because input and output ranges can overlap
       out.copy(x, tmp1);
@@ -143,13 +158,41 @@ void scan_seq(In_iter in_lo,
       out.merge(tmp2, x);
       out.copy(tmp1, *out_it);
     }
-  } else { // (st == inclusive_scan)
+  } else if (st == forward_inclusive_scan) {
+    in_it = in_lo;
+    out_it = out_lo;
     for (; in_it != in_hi; in_it++, out_it++) {
       Result tmp;
       convert(in_it, tmp);
       out.merge(tmp, x);
       out.copy(x, *out_it);
     }
+  } else if (st == backward_exclusive_scan) {
+    long n = in_hi - in_lo;
+    long m = n - 1;
+    in_it = in_lo + m;
+    out_it = out_lo + m;
+    for (; in_it >= in_lo; in_it--, out_it--) {
+      Result tmp1; // required because input and output ranges can overlap
+      out.copy(x, tmp1);
+      Result tmp2;
+      convert(in_it, tmp2);
+      out.merge(tmp2, x);
+      out.copy(tmp1, *out_it);
+    }
+  } else if (st == backward_inclusive_scan) {
+    long n = in_hi - in_lo;
+    long m = n - 1;
+    in_it = in_lo + m;
+    out_it = out_lo + m;
+    for (; in_it >= in_lo; in_it--, out_it--) {
+      Result tmp;
+      convert(in_it, tmp);
+      out.merge(tmp, x);
+      out.copy(x, *out_it);
+    }
+  } else {
+    util::atomic::die("Bogus scan type passed to scan");
   }
 }
   
@@ -218,7 +261,11 @@ controller_type scan<Input,Output,Result,Output_iter,Convert_reduce_comp,Convert
   
 } // end namespace
 
+#ifdef CONTROL_BY_FORCE_PARALLEL
+const long Scan_branching_factor = 2;
+#else
 const long Scan_branching_factor = 1024;
+#endif
 
 long get_nb_blocks(long k, long n) {
   return 1 + ((n - 1) / k);
@@ -259,7 +306,8 @@ void scan_rec(const parray<Result>& ins,
         out.merge(beg+lo, beg+hi, partials[i]);
       });
       parray<Result> scans(m);
-      scan_rec(partials, scans.begin(), out, id, merge_comp, exclusive_scan);
+      auto st2 = (is_backward_scan(st)) ? backward_exclusive_scan : forward_exclusive_scan;
+      scan_rec(partials, scans.begin(), out, id, merge_comp, st2);
       parallel_for(0l, m, loop_comp, [&] (long i) {
         auto ins_beg = ins.cbegin();
         long lo = get_rng(k, n, i).first;
@@ -317,7 +365,7 @@ void scan(Input& in,
         convert_reduce(in2, partials[i]);
       });
       parray<Result> scans(m);
-      scan_rec(partials, scans.begin(), out, id, merge_comp, exclusive_scan);
+      scan_rec(partials, scans.begin(), out, id, merge_comp, forward_exclusive_scan);
       parallel_for(0l, m, loop_comp, [&] (long i) {
         long lo = get_rng(k, n, i).first;
         long hi = get_rng(k, n, i).second;
@@ -1076,7 +1124,7 @@ long pack(parray<bool>& flags, Input_iter lo, Input_iter hi, Item&, const Output
   auto lift = [&] (parray<bool>::const_iterator it) {
     return (long)*it;
   };
-  parray<long> offsets = level1::scan(flags.cbegin(), flags.cend(), 0L, combine, lift, exclusive_scan);
+  parray<long> offsets = level1::scan(flags.cbegin(), flags.cend(), 0L, combine, lift, forward_exclusive_scan);
   long m = level1::total_of_scan(flags.cend(), offsets, combine, lift);
   auto dst_lo = out(m);
   parallel_for(0L, n, [&] (long i) {

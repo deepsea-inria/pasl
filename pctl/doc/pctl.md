@@ -836,7 +836,12 @@ Table: Abstraction layers used by pctl for reduction operators.
 namespace pasl {
 namespace pctl {
 
-using scan_type = enum { inclusive_scan, exclusive_scan };
+using scan_type = enum {
+  forward_inclusive_scan,
+  forward_exclusive_scan,
+  backward_inclusive_scan,
+  backward_exclusive_scan
+};
 
 } }
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
