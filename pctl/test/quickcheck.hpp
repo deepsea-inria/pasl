@@ -30,6 +30,8 @@ std::ostream& operator<<(std::ostream& out, const container_wrapper<Container>& 
 template <class Container>
 void generate(size_t nb, container_wrapper<Container>& c);
   
+void generate(size_t, scan_type& st);
+  
 template <class Iter>
 bool same_sequence(Iter xs_lo, Iter xs_hi, Iter ys_lo, Iter ys_hi) {
   if (xs_hi-xs_lo != ys_hi-ys_lo) {
