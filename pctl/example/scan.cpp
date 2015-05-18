@@ -16,6 +16,35 @@
 namespace pasl {
   namespace pctl {
     
+    template <
+      class Input_iter,
+      class Combine,
+      class Result,
+      class Output_iter
+    >
+    void in_place_scan(Input_iter lo,
+                        Input_iter hi,
+                        const Combine& combine,
+                        Result& id,
+                        Output_iter outs_lo,
+                        scan_type st) {
+      using output_type = level3::cell_output<Result, Combine>;
+      output_type out(id, combine);
+      auto lift_idx_dst = [&] (long pos, Input_iter it, Result& dst) {
+        dst = *it;
+      };
+      auto lift_comp_rng = [&] (Input_iter lo, Input_iter hi) {
+        return hi - lo;
+      };
+      using iterator = typename parray<Result>::iterator;
+      auto seq_scan_rng_dst = [&] (Result _id, Input_iter _lo, Input_iter _hi, iterator outs_lo) {
+        level4::scan_seq(_lo, _hi, outs_lo, out, _id, [&] (Input_iter src, Result& dst) {
+          dst = *src;
+        }, st);
+      };
+      level3::scan(lo, hi, out, id, outs_lo, lift_comp_rng, lift_idx_dst, seq_scan_rng_dst, st);
+    }
+    
     void ex() {
       
       {
@@ -36,6 +65,12 @@ namespace pasl {
         
         parray<long> ys4 = scan(xs.cbegin(), xs.cend(), 0L, combine, backward_inclusive_scan);
         std::cout << "ys4\t= " << ys4 << std::endl;
+        
+        // in-place scan
+        
+        long id = 0;
+        in_place_scan(xs.begin(), xs.end(), combine, id, xs.begin(), forward_exclusive_scan);
+        std::cout << "xs = " << xs << std::endl;
       }
       
     }

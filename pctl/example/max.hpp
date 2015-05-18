@@ -83,12 +83,12 @@ long max2(const parray<parray<long>>& xss) {
   auto lift = [&] (long, iterator it_xs) {
     return max(*it_xs);
   };
-  auto seq_lift = [&] (iterator lo_xs, iterator hi_xs) {
+  auto seq_reduce_rng = [&] (iterator lo_xs, iterator hi_xs) {
     return max_seq(lo_xs, hi_xs);
   };
   iterator lo_xs = xss.cbegin();
   iterator hi_xs = xss.cend();
-  return pasl::pctl::level2::reduce(lo_xs, hi_xs, 0, combine, lift_comp_rng, lift, seq_lift);
+  return pasl::pctl::level2::reduce(lo_xs, hi_xs, 0, combine, lift_comp_rng, lift, seq_reduce_rng);
 }
 
 /***********************************************************************/

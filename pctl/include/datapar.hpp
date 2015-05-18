@@ -497,8 +497,8 @@ template <
   class Output,
   class Result,
   class Lift_comp_rng,
-  class Lift_idx,
-  class Seq_lift
+  class Lift_idx_dst,
+  class Seq_reduce_rng_dst
 >
 void reduce(Input_iter lo,
             Input_iter hi,
@@ -506,8 +506,8 @@ void reduce(Input_iter lo,
             Result& id,
             Result& dst,
             const Lift_comp_rng& lift_comp_rng,
-            const Lift_idx& lift_idx,
-            const Seq_lift& seq_lift) {
+            const Lift_idx_dst& lift_idx_dst,
+            const Seq_reduce_rng_dst& seq_reduce_rng_dst) {
   using input_type = level4::random_access_iterator_input<Input_iter>;
   input_type in(lo, hi);
   auto convert_reduce_comp = [&] (input_type& in) {
@@ -517,11 +517,13 @@ void reduce(Input_iter lo,
     long i = in.lo - lo;
     dst = id;
     for (Input_iter it = in.lo; it != in.hi; it++, i++) {
-      out.merge(lift_idx(i, it), dst);
+      Result tmp;
+      lift_idx_dst(i, it, tmp);
+      out.merge(tmp, dst);
     }
   };
   auto seq_convert_reduce = [&] (input_type& in, Result& dst) {
-    dst = seq_lift(in.lo, in.hi);
+    seq_reduce_rng_dst(in.lo, in.hi, dst);
   };
   level4::reduce(in, out, id, dst, convert_reduce_comp, convert_reduce, seq_convert_reduce);
 }
@@ -532,17 +534,17 @@ template <
   class Result,
   class Output_iter,
   class Lift_comp_rng,
-  class Lift_idx,
-  class Seq_lift
+  class Lift_idx_dst,
+  class Seq_scan_rng_dst
 >
 void scan(Input_iter lo,
           Input_iter hi,
           const Output& out,
           Result& id,
           Output_iter outs_lo,
-          Lift_comp_rng lift_comp_rng,
-          Lift_idx& lift_idx,
-          Seq_lift& seq_lift,
+          const Lift_comp_rng& lift_comp_rng,
+          const Lift_idx_dst& lift_idx_dst,
+          const Seq_scan_rng_dst& seq_scan_rng_dst,
           scan_type st) {
   using input_type = level4::random_access_iterator_input<Input_iter>;
   input_type in(lo, hi);
@@ -553,16 +555,18 @@ void scan(Input_iter lo,
     long i = in.lo - lo;
     dst = id;
     for (Input_iter it = in.lo; it != in.hi; it++, i++) {
-      out.merge(lift_idx(i, it), dst);
+      Result tmp;
+      lift_idx_dst(i, it, tmp);
+      out.merge(tmp, dst);
     }
   };
   auto convert_scan = [&] (Result _id, input_type& in, Output_iter outs_lo) {
     level4::scan_seq(in.lo, in.hi, outs_lo, out, _id, [&] (Input_iter src, Result& dst) {
-      dst = lift_idx(src - lo, src);
+      lift_idx_dst(src - lo, src, dst);
     }, st);
   };
   auto seq_convert_scan = [&] (Result _id, input_type& in, Output_iter outs_lo) {
-    seq_lift(_id, in.lo, in.hi, outs_lo);
+    seq_scan_rng_dst(_id, in.lo, in.hi, outs_lo);
   };
   auto merge_comp = [&] (const Result* lo, const Result* hi) {
     return hi-lo; // later: generalize
@@ -687,7 +691,7 @@ template <
   class Combine,
   class Lift_comp_rng,
   class Lift_idx,
-  class Seq_lift
+  class Seq_reduce_rng
 >
 Result reduce(Iter lo,
               Iter hi,
@@ -695,11 +699,17 @@ Result reduce(Iter lo,
               const Combine& combine,
               const Lift_comp_rng& lift_comp_rng,
               const Lift_idx& lift_idx,
-              const Seq_lift& seq_lift) {
+              const Seq_reduce_rng& seq_reduce_rng) {
   using output_type = level3::cell_output<Result, Combine>;
   output_type out(id, combine);
   Result result;
-  level3::reduce(lo, hi, out, id, result, lift_comp_rng, lift_idx, seq_lift);
+  auto lift_idx_dst = [&] (long pos, Iter it, Result& dst) {
+    dst = lift_idx(pos, it);
+  };
+  auto seq_reduce_rng_dst = [&] (Iter lo, Iter hi, Result& dst) {
+    dst = seq_reduce_rng(lo, hi);
+  };
+  level3::reduce(lo, hi, out, id, result, lift_comp_rng, lift_idx_dst, seq_reduce_rng_dst);
   return result;
 }
   
@@ -709,21 +719,24 @@ template <
   class Combine,
   class Lift_comp_rng,
   class Lift_idx,
-  class Seq_lift
+  class Seq_scan_rng_dst
 >
 parray<Result> scan(Iter lo,
-                            Iter hi,
-                            Result id,
-                            const Combine& combine,
-                            const Lift_comp_rng& lift_comp_rng,
-                            const Lift_idx& lift_idx,
-                            const Seq_lift& seq_lift,
-                            scan_type st) {
+                    Iter hi,
+                    Result id,
+                    const Combine& combine,
+                    const Lift_comp_rng& lift_comp_rng,
+                    const Lift_idx& lift_idx,
+                    const Seq_scan_rng_dst& seq_scan_rng_dst,
+                    scan_type st) {
   using output_type = level3::cell_output<Result, Combine>;
   output_type out(id, combine);
   parray<Result> results(hi-lo);
   auto outs_lo = results.begin();
-  level3::scan(lo, hi, out, id, outs_lo, lift_comp_rng, lift_idx, seq_lift, st);
+  auto lift_idx_dst = [&] (long pos, Iter it, Result& dst) {
+    dst = lift_idx(pos, it);
+  };
+  level3::scan(lo, hi, out, id, outs_lo, lift_comp_rng, lift_idx_dst, seq_scan_rng_dst, st);
   return results;
 }
   
@@ -748,7 +761,7 @@ Result reducei(Iter lo,
   auto lift_comp_rng = [&] (Iter lo, Iter hi) {
     return hi - lo;
   };
-  auto seq_lift = [&] (Iter _lo, Iter _hi) {
+  auto seq_reduce_rng = [&] (Iter _lo, Iter _hi) {
     Result r = id;
     long i = _lo - lo;
     for (Iter it = _lo; it != _hi; it++, i++) {
@@ -756,7 +769,7 @@ Result reducei(Iter lo,
     }
     return r;
   };
-  return level2::reduce(lo, hi, id, combine, lift_comp_rng, lift_idx, seq_lift);
+  return level2::reduce(lo, hi, id, combine, lift_comp_rng, lift_idx, seq_reduce_rng);
 }
   
 template <
@@ -798,7 +811,7 @@ Result reducei(Iter lo,
     long wrng = w[h] - w[l];
     return (long)(log(wrng) * wrng);
   };
-  auto seq_lift = [&] (Iter _lo, Iter _hi) {
+  auto seq_reduce_rng = [&] (Iter _lo, Iter _hi) {
     Result r = id;
     long i = _lo - lo;
     for (Iter it = _lo; it != _hi; it++, i++) {
@@ -806,7 +819,7 @@ Result reducei(Iter lo,
     }
     return r;
   };
-  return level2::reduce(lo, hi, id, combine, lift_comp_rng, lift_idx, seq_lift);
+  return level2::reduce(lo, hi, id, combine, lift_comp_rng, lift_idx, seq_reduce_rng);
 }
 
 template <
@@ -838,22 +851,24 @@ template <
   class Lift_idx
 >
 parray<Result> scani(Iter lo,
-                             Iter hi,
-                             Result id,
-                             const Combine& combine,
-                             const Lift_idx& lift_idx,
-                             scan_type st) {
+                     Iter hi,
+                     Result id,
+                     const Combine& combine,
+                     const Lift_idx& lift_idx,
+                     scan_type st) {
   using output_type = level3::cell_output<Result, Combine>;
   output_type out(id, combine);
   auto lift_comp_rng = [&] (Iter lo, Iter hi) {
     return hi - lo;
   };
-  auto seq_lift = [&] (Result _id, Iter _lo, Iter _hi, typename parray<Result>::iterator outs_lo) {
+  using iterator = typename parray<Result>::iterator;
+  auto seq_scan_rng_dst = [&] (Result _id, Iter _lo, Iter _hi, iterator outs_lo) {
     level4::scan_seq(_lo, _hi, outs_lo, out, _id, [&] (Iter src, Result& dst) {
-      dst = lift_idx(src - lo, src);
+      long pos = src - lo;
+      dst = lift_idx(pos, src);
     }, st);
   };
-  return level2::scan(lo, hi, id, combine, lift_comp_rng, lift_idx, seq_lift, st);
+  return level2::scan(lo, hi, id, combine, lift_comp_rng, lift_idx, seq_scan_rng_dst, st);
 }
 
 template <
@@ -882,12 +897,12 @@ template <
   class Lift_idx
 >
 parray<Result> scani(Iter lo,
-                             Iter hi,
-                             Result id,
-                             const Combine& combine,
-                             const Lift_comp_idx& lift_comp_idx,
-                             const Lift_idx& lift_idx,
-                             scan_type st) {
+                     Iter hi,
+                     Result id,
+                     const Combine& combine,
+                     const Lift_comp_idx& lift_comp_idx,
+                     const Lift_idx& lift_idx,
+                     scan_type st) {
   using output_type = level3::cell_output<Result, Combine>;
   output_type out(id, combine);
   parray<long> w = weights(hi-lo, [&] (long pos) {
@@ -899,12 +914,14 @@ parray<Result> scani(Iter lo,
     long wrng = w[l] - w[h];
     return (long)(log(wrng) * wrng);
   };
-  auto seq_lift = [&] (Result _id, Iter _lo, Iter _hi, typename parray<Result>::iterator outs_lo) {
+  using iterator = typename parray<Result>::iterator;
+  auto seq_scan_rng_dst = [&] (Result _id, Iter _lo, Iter _hi, iterator outs_lo) {
     level4::scan_seq(_lo, _hi, outs_lo, out, _id, [&] (Iter src, Result& dst) {
-      dst = lift_idx(src - lo, src);
+      long pos = src - lo;
+      dst = lift_idx(pos, src);
     }, st);
   };
-  return level2::scan(lo, hi, id, combine, lift_comp_rng, lift_idx, seq_lift, st);
+  return level2::scan(lo, hi, id, combine, lift_comp_rng, lift_idx, seq_scan_rng_dst, st);
 }
 
 template <
@@ -998,11 +1015,11 @@ template <
   class Combine
 >
 parray<Item> scan(Iter lo,
-                          Iter hi,
-                          Item id,
-                          const Weight& weight,
-                          const Combine& combine,
-                          scan_type st) {
+                  Iter hi,
+                  Item id,
+                  const Weight& weight,
+                  const Combine& combine,
+                  scan_type st) {
   auto lift = [&] (Iter it) {
     return *it;
   };
@@ -1078,7 +1095,7 @@ long max_index(Iter lo, Iter hi, const Item& id, const Comp& comp, const Lift& l
   auto lift_idx = [&] (long i, Iter it) {
     return result_type(i, lift(*it));
   };
-  auto seq_lift = [&] (Iter _lo, Iter _hi) {
+  auto seq_reduce_rng = [&] (Iter _lo, Iter _hi) {
     long i = _lo - lo;
     result_type res(0, id);
     for (Iter it = _lo; it != _hi; it++, i++) {
@@ -1089,7 +1106,7 @@ long max_index(Iter lo, Iter hi, const Item& id, const Comp& comp, const Lift& l
     }
     return res;
   };
-  return level2::reduce(lo, hi, id2, combine, lift_comp_rng, lift_idx, seq_lift).first;
+  return level2::reduce(lo, hi, id2, combine, lift_comp_rng, lift_idx, seq_reduce_rng).first;
 }
   
 template <

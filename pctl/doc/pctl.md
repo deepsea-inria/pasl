@@ -1388,15 +1388,18 @@ Example source code in [max.hpp] and [max.cpp].
 
 ### Level 2 {#red-l-2}
 
-+---------------------------+-----------------------------------+
-| Template parameter        | Description                       |
-+===========================+===================================+
-| [`Seq_lift`](#r2-l)       | Sequential alternative body for   |
-|                           |the lift function                  |
-+---------------------------+-----------------------------------+
-| [`Lift_comp_rng`](#r2-w)  | Range-based lift complexity       |
-|                           |function                           |
-+---------------------------+-----------------------------------+
++----------------------------+-----------------------------------+
+| Template parameter         | Description                       |
++============================+===================================+
+| [`Seq_reduce_rng`](#r2-l)  | Sequential alternative body for   |
+|                            |the reduce operation               |
++----------------------------+-----------------------------------+
+| [`Lift_comp_rng`](#r2-w)   | Range-based lift complexity       |
+|                            |function                           |
++----------------------------+-----------------------------------+
+|[`Seq_scan_rng_dst`](#r2-ss)| Sequential alternative body for   |
+|                            |the scan operation                 |
++----------------------------+-----------------------------------+
 
 Table: Template parameters that are introduced in level 2.
 
@@ -1411,7 +1414,7 @@ template <
   class Combine,
   class Lift_comp_rng,
   class Lift_idx,
-  class Seq_lift
+  class Seq_reduce_rng
 >
 Result reduce(Iter lo,
               Iter hi,
@@ -1419,7 +1422,7 @@ Result reduce(Iter lo,
               Combine combine,
               Lift_comp_rng lift_comp_rng,
               Lift_idx lift_idx,
-              Seq_lift seq_lift);
+              Seq_reduce_rng seq_reduce_rng);
 
 } } }
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1435,7 +1438,7 @@ template <
   class Combine,
   class Lift_comp_rng,
   class Lift_idx,
-  class Seq_lift
+  class Seq_reduce_rng
 >
 parray<Result> scan(Iter lo,
                     Iter hi,
@@ -1443,7 +1446,7 @@ parray<Result> scan(Iter lo,
                     Combine combine,
                     Lift_comp_rng lift_comp_rng,
                     Lift_idx lift_idx,
-                    Seq_lift seq_lift,
+                    Seq_reduce_rng seq_reduce_rng,
                     scan_type st);
 
 } } }
@@ -1452,12 +1455,12 @@ parray<Result> scan(Iter lo,
 #### Sequential alternative body for the lifting operator {#r2-l}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-class Seq_lift;
+class Seq_reduce_rng;
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The sequential-lift function is a C++ functor that takes a pair of
-iterators and returns a result value. The `Seq_lift` class should
-provide a call operator with the following type.
+The sequential-reduce function is a C++ functor that takes a pair of
+iterators and returns a result value. The `Seq_reduce_rng` class
+should provide a call operator with the following type.
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 Result operator()(Iter lo, Iter hi);
@@ -1477,6 +1480,21 @@ hi)` of the input sequence.
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 long operator()(Iter lo, Iter hi);
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+#### Sequential alternative body for the scan operation {#r2-ss}
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+class Seq_scan_rng_dst;
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The sequential-scan function is a C++ functor that takes a pair of
+iterators, namely `lo` and `hi`, and writes its result to a range in
+memory that is pointed to by `dst_lo`. The `Seq_scan_rng_dst` class should
+provide a call operator with the following type.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+Result operator()(Iter lo, Iter hi, typename parray<Result>::iterator dst_lo);
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 #### Examples            
@@ -1529,12 +1547,12 @@ long max2(const parray<parray<long>>& xss) {
   auto lift = [&] (long, iterator it_xs) {
     return max(*it_xs);
   };
-  auto seq_lift = [&] (iterator lo_xs, iterator hi_xs) {
+  auto seq_reduce_rng = [&] (iterator lo_xs, iterator hi_xs) {
     return max_seq(lo_xs, hi_xs);
   };
   iterator lo_xs = xss.cbegin();
   iterator hi_xs = xss.cend();
-  return level2::reduce(lo_xs, hi_xs, 0, combine, lift_comp_rng, lift, seq_lift);
+  return level2::reduce(lo_xs, hi_xs, 0, combine, lift_comp_rng, lift, seq_reduce_rng);
 }
 
 template <class Iter>
@@ -1554,24 +1572,24 @@ Example source code in [max.hpp] and [max.cpp].
 
 ### Level 3 {#red-l-3}
 
-+----------------------------------+--------------------------------+
-| Template parameter               | Description                    |
-+==================================+================================+
-| [`Input_iter`](#r3-iit)          | Type of an iterator for input  |
-|                                  |values                          |
-+----------------------------------+--------------------------------+
-| [`Output_iter`](#r3-oit)         | Type of an iterator for output |
-|                                  |values                          |
-+----------------------------------+--------------------------------+
-| [`Output`](#r3-o)                | Type of the object to manage   |
-|                                  |the output of the reduction     |
-+----------------------------------+--------------------------------+
-| [`Lift_idx_dst`](#r3-dpl)        | Lift function in               |
-|                                  |destination-passing style       |
-+----------------------------------+--------------------------------+
-| [`Seq_lift_dst`](#r3-dpl-seq)    | Sequential lift function in    |
-|                                  |destination-passing style       |
-+----------------------------------+--------------------------------+
++------------------------------------+--------------------------------+
+| Template parameter                 | Description                    |
++====================================+================================+
+| [`Input_iter`](#r3-iit)            | Type of an iterator for input  |
+|                                    |values                          |
++------------------------------------+--------------------------------+
+| [`Output_iter`](#r3-oit)           | Type of an iterator for output |
+|                                    |values                          |
++------------------------------------+--------------------------------+
+| [`Output`](#r3-o)                  | Type of the object to manage   |
+|                                    |the output of the reduction     |
++------------------------------------+--------------------------------+
+| [`Lift_idx_dst`](#r3-dpl)          | Lift function in               |
+|                                    |destination-passing style       |
++------------------------------------+--------------------------------+
+| [`Seq_reduce_rng_dst`](#r3-dpl-seq)| Sequential reduce function in  |
+|                                    |destination-passing style       |
++------------------------------------+--------------------------------+
 
 Table: Template parameters that are introduced in level 3.
 
@@ -1586,7 +1604,7 @@ template <
   class Result,
   class Lift_comp_rng,
   class Lift_idx_dst,
-  class Seq_lift_dst
+  class Seq_reduce_rng_dst
 >
 void reduce(Input_iter lo,
             Input_iter hi,
@@ -1595,7 +1613,7 @@ void reduce(Input_iter lo,
             Result& dst,
             Lift_comp_rng lift_comp_rng,
             Lift_idx_dst lift_idx_dst,
-            Seq_lift_dst seq_lift_dst);
+            Seq_reduce_rng_dst seq_reduce_rng_dst);
 
 } } }
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1612,7 +1630,7 @@ template <
   class Output_iter,
   class Lift_comp_rng,
   class Lift_idx_dst,
-  class Seq_lift_dst
+  class Seq_scan_rng_dst
 >
 void scan(Input_iter lo,
           Input_iter hi,
@@ -1621,8 +1639,8 @@ void scan(Input_iter lo,
           Output_iter outs_lo,
           Lift_comp_rng lift_comp_rng,
           Lift_idx_dst lift_idx_dst,
-          Seq_lift_dst seq_lift_dst,
-          scan_type st)
+          Seq_scan_rng_dst seq_scan_rng_dst,
+          scan_type st);
 
 } } }
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1792,12 +1810,12 @@ to receive the result of the lift function.
 #### Destination-passing-style sequential lift {#r3-dpl-seq}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-class Seq_lift_dst;
+class Seq_reduce_rng_dst;
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The destination-passing-style sequential lift function is a C++
 functor that takes a pair of iterators and a reference on an output
-object. The call operator for the `Seq_lift_dst` class should have the
+object. The call operator for the `Seq_reduce_dst` class should have the
 following type.
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
