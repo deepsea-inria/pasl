@@ -29,7 +29,7 @@ struct transpose {
         for (intT j=cStart; j < cStart + cCount; j++)
           B[j*cLength + i] = A[i*rLength + j];
     };
-    par::cstmt(controller_type::contr, [&] {
+    par::cstmt(controller_type::contr, [&] { return rCount + cCount; }, [&] {
       if (cCount < 2 && rCount < 2) {
         seq();
       } else if (cCount > rCount) {
@@ -84,7 +84,7 @@ struct blockTrans {
           for (intT k=0; k < l; k++) *(pb++) = *(pa++);
         }
     };
-    par::cstmt(controller_type::contr, [&] {
+    par::cstmt(controller_type::contr, [&] { return rCount + cCount; }, [&] {
       if (cCount < 2 && rCount < 2) {
         seq();
       } else if (cCount > rCount) {

@@ -1,7 +1,7 @@
 #include <atomic>
 
-#ifndef _PBBS_UTIL_H_
-#define _PBBS_UTIL_H_
+#ifndef _PCTL_PBBS_UTIL_H_
+#define _PCTL_PBBS_UTIL_H_
 
 namespace pasl {
 namespace pctl {
@@ -34,4 +34,4 @@ namespace utils {
 } // end namespace
 } // end namespace
 
-#endif /*! _PBBS_UTIL_H_ */
+#endif /*! _PCTL_PBBS_UTIL_H_ */

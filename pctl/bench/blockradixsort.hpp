@@ -2,6 +2,7 @@
 
 #include "transpose.hpp"
 #include "utils.hpp"
+#include "dpsdatapar.hpp"
 
 #ifndef _PBBS_BLOCKRADIXSORT_H_
 #define _PBBS_BLOCKRADIXSORT_H_
@@ -89,11 +90,15 @@ namespace pctl {
       
       transpose<intT,intT>(cnts, oA).trans(blocks, m);
       
-      intT ss;
+//      intT ss;
+      intT id = 0;
+      dps::scan(oA, oA+blocks*m, [&] (intT x, intT y) { return x+y; }, id, oA, forward_exclusive_scan);
+      /*
       if (top)
         ss = sequence::scan(oA, oA, blocks*m, utils::addF<intT>(),(intT)0);
       else
         ss = sequence::scanSerial(oA, oA, blocks*m, utils::addF<intT>(),(intT)0);
+       */
       //utils::myAssert(ss == n, "radixStep: sizes don't match");
       
       blockTrans<E,intT>(B, A, oB, oA, cnts).trans(blocks, m);
@@ -175,7 +180,7 @@ namespace pctl {
       typedef intT bucketsT[BUCKETS];
       
       
-      int bits = utils::log2Up(m);
+      int bits = pasl::pctl::utils::log2Up(m);
       intT numBK = 1+n/(BUCKETS*8);
       
       // the temporary space is broken into 3 parts: B, Tmp and BK
@@ -204,8 +209,9 @@ namespace pctl {
           if (v != vn) bucketOffsets[vn] = i+1;
         }); }
         bucketOffsets[f(A[0])] = 0;
-        sequence::scanIBack(bucketOffsets, bucketOffsets, (intT) m,
-                            utils::minF<intT>(), (intT) n);
+        dps::scan(bucketOffsets, bucketOffsets+m, [&] (intT x, intT y) { return std::min(x, y); }, n, bucketOffsets, backward_inclusive_scan);
+/*        sequence::scanIBack(bucketOffsets, bucketOffsets, (intT) m,
+                            utils::minF<intT>(), (intT) n); */
       }
     }
     

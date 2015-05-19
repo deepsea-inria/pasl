@@ -11,8 +11,8 @@
 #include "prandgen.hpp"
 #include "geometry.hpp"
 
-#ifndef _GEOMETRY_DATA_H_
-#define _GEOMETRY_DATA_H_
+#ifndef _PCTL_GEOMETRY_DATA_H_
+#define _PCTL_GEOMETRY_DATA_H_
 
 /***********************************************************************/
 
@@ -115,8 +115,8 @@ parray<point3d> plummer3d(intT n) {
 template <class intT, class uintT>
 parray<point3d> uniform3d(bool inSphere, bool onSphere, intT n) {
   return parray<point3d>(n, [&] (intT i) {
-    if (inSphere) return randInUnitSphere3d(i);
-    else if (onSphere) return randOnUnitSphere3d(i);
+    if (inSphere) return randInUnitSphere3d<intT,uintT>(i);
+    else if (onSphere) return randOnUnitSphere3d<intT,uintT>(i);
     else return rand3d<intT, uintT>(i);
   });
 }
@@ -127,4 +127,4 @@ parray<point3d> uniform3d(bool inSphere, bool onSphere, intT n) {
 /***********************************************************************/
 
 
-#endif /*! _GEOMETRY_DATA_H_ */
+#endif /*! _PCTL_GEOMETRY_DATA_H_ */

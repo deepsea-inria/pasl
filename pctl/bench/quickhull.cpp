@@ -34,9 +34,9 @@
 #include <math.h>
 #include "benchmark.hpp"
 #include "parray.hpp"
-#include "datapar.hpp"
+#include "dpsdatapar.hpp"
 #include "geometry.hpp"
-#include "geometrydata.hpp"
+#include "geometryio.hpp"
 #include "io.hpp"
 
 /***********************************************************************/
@@ -45,6 +45,7 @@ using namespace std;
 using namespace pasl::pctl;
 
 using intT = int;
+using uintT = unsigned int;
 
 template <class Item>
 using iter = typename parray<Item>::iterator;
@@ -121,10 +122,10 @@ intT quickHull(iter<intT> I, iter<intT> Itmp, iter<point2d> P, intT n, intT l, i
       });
       intT maxP = I[idx];
       
-      long n1 = level1::filter(I, I+n, Itmp, [&] (intT i) {
+      long n1 = dps::filter(I, I+n, Itmp, [&] (intT i) {
         return triArea(P[l], P[maxP], P[i]) > 0.0;
       });
-      long n2 = level1::filter(I, I+n, Itmp+n1, [&] (intT i) {
+      long n2 = dps::filter(I, I+n, Itmp+n1, [&] (intT i) {
         return triArea(P[maxP], P[r], P[i]) > 0.0;
       });
       
@@ -173,8 +174,8 @@ parray<intT> hull(parray<point2d>& P) {
     fBot[i] = a < 0;
   });
   
-  long n1 = level1::pack(fTop, Itmp.cbegin(), Itmp.cend(), I.begin());
-  long n2 = level1::pack(fBot, Itmp.cbegin(), Itmp.cend(), I.begin()+n1);
+  long n1 = dps::pack(fTop, Itmp.cbegin(), Itmp.cend(), I.begin());
+  long n2 = dps::pack(fBot, Itmp.cbegin(), Itmp.cend(), I.begin()+n1);
   
   intT m1; intT m2;
   par::fork2([&] {
@@ -198,30 +199,9 @@ parray<intT> hull(parray<point2d>& P) {
 
 int main(int argc, char** argv) {
   pasl::sched::launch(argc, argv, [&] (pasl::sched::experiment exp) {
-    intT n;
-    parray<point2d> points;
+    parray<point2d> points = pasl::pctl::load_points2d<intT>();
     parray<intT> hull_idxs;
     
-    // load experiment data
-    n = (intT)pasl::util::cmdline::parse_or_default_long("n", 10);
-    pasl::util::cmdline::argmap_dispatch d;
-    d.add("from_file", [&] {
-      pasl::util::atomic::die("todo");
-    });
-    d.add("by_generator", [&] {
-      pasl::util::cmdline::argmap_dispatch d;
-      d.add("plummer", [&] {
-        points = plummer2d(n);
-      });
-      d.add("uniform", [&] {
-        bool inSphere = pasl::util::cmdline::parse_or_default_bool("in_sphere", false);
-        bool onSphere = pasl::util::cmdline::parse_or_default_bool("on_sphere", false);
-        points = uniform2d(inSphere, onSphere, n);
-      });
-      d.find_by_arg_or_default_key("generator", "plummer")();
-    });
-    d.find_by_arg_or_default_key("load", "by_generator")();
-
     // run the experiment
     exp([&] {
       hull_idxs = hull(points);

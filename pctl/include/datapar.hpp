@@ -932,12 +932,12 @@ template <
   class Lift
 >
 parray<Result> scan(Iter lo,
-                            Iter hi,
-                            Result id,
-                            const Combine& combine,
-                            const Lift_comp& lift_comp,
-                            const Lift& lift,
-                            scan_type st) {
+                    Iter hi,
+                    Result id,
+                    const Combine& combine,
+                    const Lift_comp& lift_comp,
+                    const Lift& lift,
+                    scan_type st) {
   auto lift_comp_idx = [&] (long pos, Iter it) {
     return lift_comp(it);
   };
@@ -1123,14 +1123,14 @@ long max_index(Iter lo, Iter hi, const Item& id, const Comp& comp) {
 /*---------------------------------------------------------------------*/
 /* Pack and filter */
   
-namespace level1 {
-  
+namespace __priv {
+    
 template <
-  class Input_iter,
+  class Iter,
   class Item,
   class Output
 >
-long pack(parray<bool>& flags, Input_iter lo, Input_iter hi, Item&, const Output& out) {
+long pack(parray<bool>& flags, Iter lo, Iter hi, Item&, const Output& out) {
   long n = hi - lo;
   if (n < 1) {
     return 0;
@@ -1152,30 +1152,7 @@ long pack(parray<bool>& flags, Input_iter lo, Input_iter hi, Item&, const Output
   });
   return m;
 }
-  
-template <
-  class Input_iter,
-  class Output_iter
->
-long pack(parray<bool>& flags, Input_iter lo, Input_iter hi, Output_iter dst_lo) {
-  return pack(flags, lo, hi, *lo, [&] (long) {
-    return dst_lo;
-  });
-}
-  
-template <
-  class Input_iter,
-  class Output_iter,
-  class Pred
->
-long filter(Input_iter lo, Input_iter hi, Output_iter dst_lo, const Pred& p) {
-  long n = hi - lo;
-  parray<bool> flags(n, [&] (long i) {
-    return p(*(lo+i));
-  });
-  return pack(flags, lo, hi, dst_lo);
-}
-  
+
 } // end namespace
   
 template <
@@ -1188,13 +1165,12 @@ parray<Item> filter(const parray<Item>& xs, const Pred& p) {
   });
   Item dummy;
   parray<Item> dst;
-  level1::pack(flags, xs.cbegin(), xs.cend(), dummy, [&] (long m) {
+  __priv::pack(flags, xs.cbegin(), xs.cend(), dummy, [&] (long m) {
     dst.resize(m);
     return dst.begin();
   });
   return dst;
 }
-
   
 /***********************************************************************/
 
