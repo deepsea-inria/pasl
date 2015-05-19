@@ -121,6 +121,15 @@ public:
     pmem::copy(other.cbegin(), other.cend(), begin());
   }
   
+  parray(iterator lo, iterator hi) {
+    long n = hi - lo;
+    if (n < 0) {
+      return;
+    }
+    alloc(n);
+    pmem::copy(lo, hi, begin());
+  }
+  
   parray& operator=(const parray& other) {
     if (&other == this) {
       return *this;

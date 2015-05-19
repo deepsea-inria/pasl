@@ -57,11 +57,6 @@ namespace pctl {
     typedef pointT point;
     typedef vectT fvect;
     typedef vertexT vertex;
-//    struct getPoint {point operator() (vertex* v) {return v->pt;}};
-    /*
-    struct minpt {point operator() (point a, point b) {return a.minCoords(b);}};
-    struct maxpt {point operator() (point a, point b) {return a.maxCoords(b);}};
-    */
     
     point center; // center of the box
     double size;   // width of each dimension, which have to be the same
@@ -75,16 +70,12 @@ namespace pctl {
     static gTreeNode* gTree(vertex** vv, intT n) {
       
       // calculate bounding box
-      parray<point> pt(n);
-//      point* pt = newA(point, n);
+      
       // copying to an array of points to make reduce more efficient
-      parallel_for(intT(0), n, [&] (intT i) {
-        pt[i] = vv[i]->pt;
+      parray<point> pt(n, [&] (intT i) {
+        return vv[i]->pt;
       });
-      /*
-      point minPt = sequence::reduce(pt, n, minpt());
-      point maxPt = sequence::reduce(pt, n, maxpt());
-       */
+
       assert(n >= 1);  // later: relax this constraint?
       point id = pt[0];
       point minPt = reduce(pt.cbegin(), pt.cend(), id, [&] (point a, point b) {
@@ -93,22 +84,19 @@ namespace pctl {
       point maxPt = reduce(pt.cbegin(), pt.cend(), id, [&] (point a, point b) {
         return a.maxCoords(b);
       });
-  //    free(pt);
+
       //cout << "min "; minPt.print(); cout << endl;
       //cout << "max "; maxPt.print(); cout << endl;
       fvect box = maxPt-minPt;
       point center = minPt+(box/2.0);
       
       // copy before calling recursive routine since recursive routine is destructive
-//      vertex** v = newA(vertex*,n);
-      parray<vertex*> v(n);
-      parallel_for(intT(0), n, [&] (intT i) {
-        v[i] = vv[i];
-      });
+
+      parray<vertex*> v(vv, vv+n);
       //cout << "about to build tree" << endl;
       
       gTreeNode* result = new gTreeNode(v.begin(), n, center, box.maxDim());
-//      free(v);
+
       return result;
     }
     
@@ -160,7 +148,6 @@ namespace pctl {
       else {
         intT ss = s;
         int nb = (1 << center.dimension());
-//        intT* pss = newA(intT, nb);
         parray<intT> pss(nb);
         for (int i=0 ; i < nb; i++) {
           pss[i] = ss;
@@ -169,7 +156,6 @@ namespace pctl {
         parallel_for(int(0), nb, [&] (int i) {
           children[i]->applyIndex(pss[i],f);
         });
-  //      free(pss);
       }
     }
     
