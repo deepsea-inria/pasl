@@ -23,11 +23,11 @@ namespace pasl {
       class Output_iter
     >
     void in_place_scan(Input_iter lo,
-                        Input_iter hi,
-                        const Combine& combine,
-                        Result& id,
-                        Output_iter outs_lo,
-                        scan_type st) {
+                       Input_iter hi,
+                       const Combine& combine,
+                       Result& id,
+                       Output_iter outs_lo,
+                       scan_type st) {
       using output_type = level3::cell_output<Result, Combine>;
       output_type out(id, combine);
       auto lift_idx_dst = [&] (long pos, Input_iter it, Result& dst) {

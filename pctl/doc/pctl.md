@@ -901,10 +901,10 @@ template <
   class Combine
 >
 parray<Item> scan(Iter lo,
-                          Iter hi,
-                          Item id,
-                          Combine combine,
-                          scan_type st);
+                  Iter hi,
+                  Item id,
+                  Combine combine,
+                  scan_type st);
 
 template <
   class Iter,
@@ -913,11 +913,11 @@ template <
   class Combine
 >
 parray<Item> scan(Iter lo,
-                          Iter hi,
-                          Item id,
-                          Weight weight,
-                          Combine combine,
-                          scan_type st)
+                  Iter hi,
+                  Item id,
+                  Weight weight,
+                  Combine combine,
+                  scan_type st)
 
 } }
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
