@@ -26,6 +26,9 @@ namespace pctl {
   
 namespace dps {
   
+/*---------------------------------------------------------------------*/
+/* Reduction level 2 */
+  
 namespace level2 {
 
 template <
@@ -55,6 +58,9 @@ void scan(Input_iter lo,
 }
   
 } // end namespace
+  
+/*---------------------------------------------------------------------*/
+/* Reduction level 1 */
   
 namespace level1 {
   
@@ -123,6 +129,9 @@ void scani(Input_iter lo,
 }
 
 } // end namespace
+  
+/*---------------------------------------------------------------------*/
+/* Reduction level 0 */
 
 template <
   class Iter,
@@ -162,6 +171,9 @@ void scan(Iter lo,
   };
   level1::scani(lo, hi, combine, id, outs_lo, lift_idx, st);
 }
+  
+/*---------------------------------------------------------------------*/
+/* Pack and filter */
   
 template <
   class Input_iter,
