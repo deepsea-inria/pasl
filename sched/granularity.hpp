@@ -216,13 +216,11 @@ void cstmt(control_by_force_sequential&, const Seq_body_fct& seq_body_fct) {
 
 // same as above but accepts all arguments to support general case
 template <
-class Cutoff_fct,
 class Complexity_measure_fct,
 class Par_body_fct,
 class Seq_body_fct
 >
 void cstmt(control_by_force_sequential& contr,
-           const Cutoff_fct&,
            const Complexity_measure_fct&,
            const Par_body_fct&,
            const Seq_body_fct& seq_body_fct) {

@@ -12,8 +12,6 @@
 #include "io.hpp"
 #include "dpsdatapar.hpp"
 
-#include "nearestneighbors.hpp"
-
 /***********************************************************************/
 
 namespace pasl {
@@ -23,12 +21,13 @@ namespace pasl {
     
     void ex() {
       
+      auto combine = [&] (long x, long y) {
+        return x + y;
+      };
+      
       {
         parray<long> xs = { 1, 3, 9, 0, 33, 1, 1 };
         std::cout << "xs\t= " << xs << std::endl;
-        auto combine = [&] (long x, long y) {
-          return x + y;
-        };
         
         parray<long> ys1 = scan(xs.cbegin(), xs.cend(), 0L, combine, forward_exclusive_scan);
         std::cout << "ys1\t= " << ys1 << std::endl;

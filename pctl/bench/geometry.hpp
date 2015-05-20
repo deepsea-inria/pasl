@@ -1,5 +1,5 @@
-#ifndef _BENCH_GEOM_INCLUDED
-#define _BENCH_GEOM_INCLUDED
+#ifndef _PCTL_BENCH_GEOM_INCLUDED
+#define _PCTL_BENCH_GEOM_INCLUDED
 #include <iostream>
 #include <algorithm>
 #include <math.h>
@@ -303,5 +303,5 @@ inline point2d triangleCircumcenter(point2d a, point2d b, point2d c) {
   return  a + vect2d(v22.y - v11.y, v11.x - v22.x)/(2.0 * v1.cross(v2));
 }
 
-#endif // _BENCH_GEOM_INCLUDED
+#endif // _PCTL_BENCH_GEOM_INCLUDED
 

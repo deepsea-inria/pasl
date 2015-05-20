@@ -4,8 +4,8 @@
 #include "utils.hpp"
 #include "dpsdatapar.hpp"
 
-#ifndef _PBBS_BLOCKRADIXSORT_H_
-#define _PBBS_BLOCKRADIXSORT_H_
+#ifndef _PCTL_PBBS_BLOCKRADIXSORT_H_
+#define _PCTL_PBBS_BLOCKRADIXSORT_H_
 
 namespace pasl {
 namespace pctl {
@@ -241,4 +241,4 @@ namespace pctl {
 } // end namespace
 
 
-#endif /*! _PBBS_BLOCKRADIXSORT_H_ */
+#endif /*! _PCTL_PBBS_BLOCKRADIXSORT_H_ */

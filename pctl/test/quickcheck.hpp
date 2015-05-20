@@ -46,6 +46,13 @@ bool same_sequence(Iter xs_lo, Iter xs_hi, Iter ys_lo, Iter ys_hi) {
   return  true;
 }
   
+template <class Iter>
+bool same_set(Iter xs_lo, Iter xs_hi, Iter ys_lo, Iter ys_hi) {
+  std::sort(xs_lo, xs_hi);
+  std::sort(ys_lo, ys_hi);
+  return same_sequence(xs_lo, xs_hi, ys_lo, ys_hi);
+}
+  
 } // end namespace
 } // end namespace
 

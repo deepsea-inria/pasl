@@ -169,10 +169,10 @@ public:
     if (n == sz) {
       return;
     }
-    parray<Item> tmp;
+    parray<Item> tmp(n, val);
     swap(tmp);
-    fill(n, val);
     long m = std::min(tmp.size(), size());
+    assert(size() >= m);
     pmem::copy(tmp.cbegin(), tmp.cbegin()+m, begin());
   }
   

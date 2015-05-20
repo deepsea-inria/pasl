@@ -1094,7 +1094,7 @@ long max_index(Iter lo, Iter hi, const Item& id, const Comp& comp, const Lift& l
     return hi - lo;
   };
   auto lift_idx = [&] (long i, Iter it) {
-    return result_type(i, lift(*it));
+    return result_type(i, lift(i, *it));
   };
   auto seq_reduce_rng = [&] (Iter _lo, Iter _hi) {
     long i = _lo - lo;
@@ -1116,7 +1116,7 @@ template <
   class Comp
 >
 long max_index(Iter lo, Iter hi, const Item& id, const Comp& comp) {
-  return max_index(lo, hi, id, comp, [&] (const Item& x) {
+  return max_index(lo, hi, id, comp, [&] (long, const Item& x) {
     return x;
   });
 }

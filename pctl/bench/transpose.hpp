@@ -1,8 +1,8 @@
 
 #include "parray.hpp"
 
-#ifndef _PBBS_TRANSPOSE_H_
-#define _PBBS_TRANSPOSE_H_
+#ifndef _PCTL_PBBS_TRANSPOSE_H_
+#define _PCTL_PBBS_TRANSPOSE_H_
 
 namespace pasl {
 namespace pctl {
@@ -112,4 +112,4 @@ struct blockTrans {
 } // end namespace
 } // end namespace
 
-#endif /*! _PBBS_TRANSPOSE_H_ */
+#endif /*! _PCTL_PBBS_TRANSPOSE_H_ */

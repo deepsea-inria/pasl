@@ -7,29 +7,31 @@ namespace pasl {
 namespace pctl {
 namespace utils {
   
-  // returns the log base 2 rounded up (works on ints or longs or unsigned versions)
-  template <class T>
-  static int log2Up(T i) {
-    int a=0;
-    T b=i-1;
-    while (b > 0) {b = b >> 1; a++;}
-    return a;
-  }
-  
-  static int logUp(unsigned int i) {
-    int a=0;
-    int b=i-1;
-    while (b > 0) {b = b >> 1; a++;}
-    return a;
-  }
-  
-  static int logUpLong(unsigned long i) {
-    int a=0;
-    long b=i-1;
-    while (b > 0) {b = b >> 1; a++;}
-    return a;
-  }
+// returns the log base 2 rounded up (works on ints or longs or unsigned versions)
+template <class T>
+static int log2Up(T i) {
+  int a=0;
+  T b=i-1;
+  while (b > 0) {b = b >> 1; a++;}
+  return a;
+}
 
+static int logUp(unsigned int i) {
+  int a=0;
+  int b=i-1;
+  while (b > 0) {b = b >> 1; a++;}
+  return a;
+}
+
+static int logUpLong(unsigned long i) {
+  int a=0;
+  long b=i-1;
+  while (b > 0) {b = b >> 1; a++;}
+  return a;
+}
+
+#define newA(__E,__n) (__E*) malloc((__n)*sizeof(__E))
+  
 } // end namespace
 } // end namespace
 } // end namespace

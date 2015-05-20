@@ -65,6 +65,16 @@ parray<point3d> load_points3d() {
   d.find_by_arg_or_default_key("load", "by_generator")();
   return points;
 }
+  
+std::ostream& operator<<(std::ostream& out, const point2d& point) {
+  out << "point2d(" << point.x << ", " << point.y << ")";
+  return out;
+}
+  
+std::ostream& operator<<(std::ostream& out, const point3d& point) {
+  out << "point3d(" << point.x << ", " << point.y << ", " << point.z << ")";
+  return out;
+}
 
 } // end namespace
 } // end namespace
