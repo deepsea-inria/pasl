@@ -81,7 +81,9 @@ void parallel_for(Iter lo,
   using controller_type = contr::parallel_for<Iter, Body, Comp_rng, Seq_body_rng>;
   par::cstmt(controller_type::contr, [&] { return comp_rng(lo, hi); }, [&] {
     long n = hi - lo;
-    if (n <= 1) {
+    if (n <= 0) {
+      
+    } else if (n == 1) {
       body(lo);
     } else {
       Iter mid = lo + (n / 2);
