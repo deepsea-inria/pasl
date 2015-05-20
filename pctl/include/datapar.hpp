@@ -267,11 +267,11 @@ const long Scan_branching_factor = 2;
 const long Scan_branching_factor = 1024;
 #endif
 
-long get_nb_blocks(long k, long n) {
+static inline long get_nb_blocks(long k, long n) {
   return 1 + ((n - 1) / k);
 } 
   
-std::pair<long,long> get_rng(long k, long n, long i) {
+static inline std::pair<long,long> get_rng(long k, long n, long i) {
   long lo = i * k;
   long hi = std::min(lo + k, n);
   return std::make_pair(lo, hi);

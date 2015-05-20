@@ -29,7 +29,7 @@ namespace partial_sums {
   
 controller_type contr("partial_sums");
 
-long seq(const long* lo, const long* hi, long id, long* dst) {
+static inline long seq(const long* lo, const long* hi, long id, long* dst) {
   long x = id;
   for (const long* i = lo; i != hi; i++) {
     *dst = x;
@@ -69,7 +69,7 @@ parray<long> rec(const parray<long>& xs) {
   });
   return rs;
 }
-  
+
 } // end namespace
   
 template <class Weight>
