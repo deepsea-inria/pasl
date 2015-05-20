@@ -66,10 +66,10 @@ void doit(const Load_points& load_points, const Exp& exp) {
   parray<vertex> vv(n);
   int k;
   k = pasl::util::cmdline::parse_or_default_int("k", 1);
-  dimensions = points[0].dimension();
   
   parallel_for(intT(0), n, [&] (intT i) {
-    v[i] = new (&vv[i]) vertex(points[i],i); });
+    v[i] = new (&vv[i]) vertex(points[i],i);
+  });
 
   exp([&] {
     ANN<intT,maxK>(v.begin(), n, k);

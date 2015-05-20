@@ -22,7 +22,6 @@
 
 #include <iostream>
 #include <limits>
-#include "sequence.hpp"
 #include "octtree.hpp"
 
 #ifndef _PCTL_PBBS_NEAREST_NEIGHBORS_H_
