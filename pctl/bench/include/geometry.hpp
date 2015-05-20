@@ -4,7 +4,7 @@
 #include <algorithm>
 #include <math.h>
 #include <iomanip>
-//#include "parallel.h"
+
 using namespace std;
 
 // *************************************************************

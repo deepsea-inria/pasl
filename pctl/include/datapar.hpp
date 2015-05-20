@@ -1053,7 +1053,7 @@ long max_index(long n, const Item& id, const Comp& comp, const Get& get) {
       return y;
     }
   };
-  using output_type = level3::cell_output<result_type, typeof(combine)>;
+  using output_type = level3::cell_output<result_type, decltype(combine)>;
   output_type out(res, combine);
   auto convert_reduce_comp = [&] (input_type& in) {
     return in.size();
