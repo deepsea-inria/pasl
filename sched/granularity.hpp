@@ -22,7 +22,7 @@ namespace granularity {
 /*---------------------------------------------------------------------*/
 /* Granularity controller */
   
-void todo() {
+static inline void todo() {
   util::atomic::fatal([] { std::cerr << "todo" << std::endl; });
 }
 
