@@ -365,7 +365,8 @@ void scan(Input& in,
         convert_reduce(in2, partials[i]);
       });
       parray<Result> scans(m);
-      scan_rec(partials, scans.begin(), out, id, merge_comp, forward_exclusive_scan);
+      auto st2 = (is_backward_scan(st)) ? backward_exclusive_scan : forward_exclusive_scan;
+      scan_rec(partials, scans.begin(), out, id, merge_comp, st2);
       parallel_for(0l, m, loop_comp, [&] (long i) {
         long lo = get_rng(k, n, i).first;
         long hi = get_rng(k, n, i).second;
