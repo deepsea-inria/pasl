@@ -35,7 +35,7 @@ using scan_type = enum {
   backward_exclusive_scan
 };
   
-bool is_backward_scan(scan_type st) {
+static inline bool is_backward_scan(scan_type st) {
   return (st == backward_inclusive_scan) || (st == backward_exclusive_scan);
 }
   

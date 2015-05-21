@@ -27,7 +27,18 @@ namespace pctl {
   
 namespace partial_sums {
   
-controller_type contr("partial_sums");
+/* Template struct used to avoid compilation errors when including this file in
+ * several cpp files.
+ * It's a dirty "hack" (it probably won't hurt performance or cause bugs, but
+ * still, a cpp file should eventually be created instead)
+ */
+template<class = void>
+struct dummy {
+  static controller_type contr;
+};
+  
+template<class Dummy>
+controller_type dummy<Dummy>::contr("partial_sums");
 
 static inline long seq(const long* lo, const long* hi, long id, long* dst) {
   long x = id;
@@ -39,12 +50,12 @@ static inline long seq(const long* lo, const long* hi, long id, long* dst) {
   return x;
 }
   
-parray<long> rec(const parray<long>& xs) {
+static inline parray<long> rec(const parray<long>& xs) {
   const long k = 1024;
   long n = xs.size();
   long m = 1 + ((n - 1) / k);
   parray<long> rs(n);
-  par::cstmt(contr, [&] { return n; }, [&] {
+  par::cstmt(dummy<>::contr, [&] { return n; }, [&] {
     if (n <= k) {
       seq(xs.cbegin(), xs.cend(), 0, rs.begin());
     } else {
@@ -84,7 +95,14 @@ long weights_seq(const Weight& weight, long lo, long hi, long id, long* dst) {
 }
 
 namespace contr {
-controller_type weights("weights");
+// same than pasl::pctl::dummy::contr
+template<class = void>
+struct dummy {
+  static controller_type weights;
+};
+
+template<class Dummy>
+controller_type dummy<Dummy>::weights("weights");
 }
 
 template <class Weight>
@@ -93,7 +111,7 @@ parray<long> weights(long n, const Weight& weight) {
   long m = 1 + ((n - 1) / k);
   long tot;
   parray<long> rs(n + 1);
-  par::cstmt(contr::weights, [&] { return n; }, [&] {
+  par::cstmt(contr::dummy<>::weights, [&] { return n; }, [&] {
     if (n <= k) {
       tot = weights_seq(weight, 0, n, 0, rs.begin());
     } else {
