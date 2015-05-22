@@ -1,4 +1,4 @@
-/* COPYRIGHT (c) 2015 Umut Acar, Arthur Chargueraud, and Michael
+             /* COPYRIGHT (c) 2015 Umut Acar, Arthur Chargueraud, and Michael
  * Rainey
  * All rights reserved.
  *

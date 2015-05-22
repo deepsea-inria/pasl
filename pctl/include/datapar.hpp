@@ -1160,6 +1160,26 @@ template <
   class Item,
   class Pred
 >
+parray<Item> filter(typename parray<Item>::const_iterator lo,
+                    typename parray<Item>::const_iterator hi,
+                    const Pred& p) {
+  long n = hi - lo;
+  parray<bool> flags(n, [&] (long i) {
+    return p(*(lo+i));
+  });
+  Item dummy;
+  parray<Item> dst;
+  __priv::pack(flags, lo, hi, dummy, [&] (long m) {
+    dst.resize(m);
+    return dst.begin();
+  });
+  return dst;
+}
+  
+template <
+  class Item,
+  class Pred
+>
 parray<Item> filter(const parray<Item>& xs, const Pred& p) {
   parray<bool> flags(xs.size(), [&] (long i) {
     return p(xs[i]);

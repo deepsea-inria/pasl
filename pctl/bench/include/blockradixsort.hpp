@@ -91,11 +91,9 @@ void radixStep(E* A, E* B, bIndexT *Tmp, intT (*BK)[BUCKETS],
   
 //      intT ss;
   intT id = 0;
-  parray<intT> foo1(oA, oA+blocks*m);
-  dps::scan(oA, oA+blocks*m, [&] (intT x, intT y) { return x+y; }, id, oA, forward_exclusive_scan);
-  parray<intT> foo2(oA, oA+blocks*m);
-  std::cout << "foo1=" << foo1 << std::endl;
-  std::cout << "foo2=" << foo2 << std::endl;
+  dps::scan(oA, oA+blocks*m, [&] (intT x, intT y) {
+    return x+y;
+  }, id, oA, forward_exclusive_scan);
   /*
   if (top)
     ss = sequence::scan(oA, oA, blocks*m, utils::addF<intT>(),(intT)0);
@@ -195,9 +193,11 @@ void iSort(E *A, intT* bucketOffsets, intT n, intT m, bool bottomUp,
   if (bits <= MAX_RADIX) {
     radixStep(A, B, Tmp, BK, numBK, n, (intT) 1 << bits, true, eBits<intT,E,F>(bits,0,f));
     if (bucketOffsets != NULL) {
+      pmem::copy(bucketOffsets, bucketOffsets+m, &(BK[0][0]));
+      /*
       parallel_for(intT(0), m, [&] (intT i) {
         bucketOffsets[i] = BK[0][i];
-      });
+      }); */
     }
     return;
   } else if (bottomUp)
@@ -213,7 +213,9 @@ void iSort(E *A, intT* bucketOffsets, intT n, intT m, bool bottomUp,
       if (v != vn) bucketOffsets[vn] = i+1;
     }); }
     bucketOffsets[f(A[0])] = 0;
-    dps::scan(bucketOffsets, bucketOffsets+m, [&] (intT x, intT y) { return std::min(x, y); }, n, bucketOffsets, backward_inclusive_scan);
+    dps::scan(bucketOffsets, bucketOffsets+m, [&] (intT x, intT y) {
+      return std::min(x, y);
+    }, n, bucketOffsets, backward_inclusive_scan);
 /*        sequence::scanIBack(bucketOffsets, bucketOffsets, (intT) m,
                         utils::minF<intT>(), (intT) n); */
   }

@@ -37,6 +37,9 @@ using value_type = unsigned int;
 
 void generate(size_t _nb, parray<value_type>& dst) {
   long n = _nb;
+  if (quickcheck::generateInRange(0, 4) == 0) {
+    n *= 5000;
+  }
   //int r = quickcheck::generateInRange(0, 3);
   int r = quickcheck::generateInRange(0, 2); // currently something is wrong with exp_dist
   if (r == 0) {
