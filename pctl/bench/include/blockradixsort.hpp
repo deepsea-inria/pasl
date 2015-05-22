@@ -87,7 +87,8 @@ void radixStep(E* A, E* B, bIndexT *Tmp, intT (*BK)[BUCKETS],
     radixBlock(A+od, B, Tmp+od, cnts + m*i, oB + m*i, od, nni, m, extract);
   });
   
-  transpose<intT,intT>(cnts, oA).trans(blocks, m);
+  //transpose<intT,intT>(cnts, oA).trans(blocks, m);
+  transpose(cnts, oA, blocks, m);
   
 //      intT ss;
   intT id = 0;
@@ -102,7 +103,8 @@ void radixStep(E* A, E* B, bIndexT *Tmp, intT (*BK)[BUCKETS],
    */
   //utils::myAssert(ss == n, "radixStep: sizes don't match");
   
-  blockTrans<E,intT>(B, A, oB, oA, cnts).trans(blocks, m);
+  //blockTrans<E,intT>(B, A, oB, oA, cnts).trans(blocks, m);
+  block_transpose(B, A, oB, oA, cnts, blocks, m);
   
   // put the offsets for each bucket in the first bucket set of BK
   for (intT j = 0; j < m; j++) BK[0][j] = oA[j*blocks];
