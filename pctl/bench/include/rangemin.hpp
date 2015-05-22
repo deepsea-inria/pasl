@@ -25,7 +25,7 @@
 #define _myRMQ_hpp_
 
 #include <iostream>
-#include "math.h"
+#include <math.h>
 #include "merge.hpp"
 #define BSIZE 16
 

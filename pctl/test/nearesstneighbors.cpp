@@ -10,7 +10,7 @@
 
 #include <limits>
 
-#include "float.h"
+#include <float.h>
 #include "pasl.hpp"
 #include "prandgen.hpp"
 #include "quickcheck.hpp"
