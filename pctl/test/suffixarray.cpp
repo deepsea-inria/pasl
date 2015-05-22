@@ -38,7 +38,8 @@ using value_type = unsigned char;
 void generate(size_t nb, parray<value_type>& str) {
   str.resize(nb+1, 0);
   for (int i = 0; i < nb; i++) {
-    quickcheck::generate(nb, str[i]);
+    int x = quickcheck::generateInRange(0, 255);
+    str[i] = (value_type)x;
   }
 }
   
@@ -70,10 +71,7 @@ bool isPermutation(intT *SA, intT n) {
   intT nseen = reduce(seen.cbegin(), seen.cend(), 0, [&] (intT x, intT y) {
     return x + y;
   });
-  if (nseen != n) {
-    std::cout << "hi" << std::endl;
-  }
-  return (nseen == n || nseen+1==n);
+  return (nseen == n);
 }
 
 bool isSorted(intT *SA, uchar *s, intT n) {

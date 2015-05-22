@@ -195,15 +195,15 @@ void suffixArrayRec(intT* s, intT n, intT K, bool findLCPs,
     D[i+n0-x].second = s0[i]-1;
   });
   radixSortPair(D.begin(),n0, K);
-  intT* SA0  = s0.begin(); // reuse memory since not overlapping
-  parallel_for((intT)0, n0, [&] (intT i) {
-    SA0[i] = D[i].second;
+//  intT* SA0  = s0.begin(); // reuse memory since not overlapping
+  parray<intT> SA0(n0, [&] (intT i) {
+    return D[i].second;
   });
   
   compS comp(s,rank.begin());
   intT o = (n%3 == 1) ? 1 : 0;
   SA.resize(n);
-  merge(SA0+o,n0-o,SA12.begin()+1-o,n12+o-1,SA.begin(),comp);
+  merge(SA0.begin()+o,n0-o,SA12.begin()+1-o,n12+o-1,SA.begin(),comp);
   
   //get LCP from LCP12
   if(findLCPs){
