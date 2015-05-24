@@ -12,6 +12,7 @@
 #include "psort.hpp"
 #include "io.hpp"
 #include "quickcheck.hpp"
+#include "samplesort.hpp"
 
 /***********************************************************************/
 
@@ -41,6 +42,9 @@ value_type random_value() {
 
 template <class Item>
 void generate(size_t nb, parray<Item>& dst) {
+  if (quickcheck::generateInRange(0, 2) == 0) {
+    nb *= quickcheck::generateInRange(1, 100);
+  }
   dst.resize(nb, loval);
   for (size_t i = 0; i < nb; i++) {
     dst[i] = random_value();
@@ -108,14 +112,21 @@ public:
   }
   
 };
-
-using pchunkedseq_mergesort_property = sort_property<pchunkedseq_type, pchunkedseq_trusted_sort, pchunkedseq_mergesort>;
   
 class parray_mergesort {
 public:
   
   void operator()(parray_type& xs) {
     sort::mergesort(xs);
+  }
+  
+};
+  
+class pbbs_samplesort {
+public:
+  
+  void operator()(parray_type& xs) {
+    sampleSort(xs.begin(), (int)xs.size(), std::less<value_type>());
   }
   
 };
@@ -129,7 +140,9 @@ public:
   
 };
 
+using pchunkedseq_mergesort_property = sort_property<pchunkedseq_type, pchunkedseq_trusted_sort, pchunkedseq_mergesort>;
 using parray_mergesort_property = sort_property<parray_type, parray_trusted_sort, parray_mergesort>;
+using pbbs_samplesort_property = sort_property<parray_type, parray_trusted_sort, pbbs_samplesort>;
 
 int nb_tests = 1000;
 
@@ -147,6 +160,7 @@ void checkit(std::string msg) {
 int main(int argc, char** argv) {
   pasl::sched::launch(argc, argv, [&] (bool sequential) {
     int nb_tests = pasl::util::cmdline::parse_or_default_int("n", 1000);
+    checkit<pasl::pctl::pbbs_samplesort_property>(nb_tests, "pbbs samplesort is correct");
     checkit<pasl::pctl::parray_mergesort_property>(nb_tests, "parray mergesort is correct");
   });
   return 0;

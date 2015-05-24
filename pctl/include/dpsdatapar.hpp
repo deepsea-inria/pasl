@@ -165,7 +165,7 @@ template <
 >
 Item scan(Iter lo,
           Iter hi,
-          Item& id,
+          Item id,
           const Combine& combine,
           Iter outs_lo,
           scan_type st) {
