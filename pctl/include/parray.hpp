@@ -87,7 +87,7 @@ public:
   
   parray(long sz, const std::function<value_type(long)>& body)
   : sz(0) {
-    rebuild(sz, body);
+    tabulate(sz, body);
   }
   
   parray(long sz,
@@ -186,7 +186,7 @@ public:
   }
   
   template <class Body>
-  void rebuild(long n, const Body& body) {
+  void tabulate(long n, const Body& body) {
     clear();
     alloc(n);
     parallel_for(0l, n, [&] (long i) {
@@ -194,11 +194,11 @@ public:
     });
   }
   
-  template <class Body, class Body_comp>
-  void rebuild(long n, const Body_comp& body_comp, const Body& body) {
+  template <class Body, class Body_comp_rng>
+  void tabulate(long n, const Body_comp_rng& body_comp_rng, const Body& body) {
     clear();
     alloc(n);
-    parallel_for(0l, n, body_comp, [&] (long i) {
+    parallel_for(0l, n, body_comp_rng, [&] (long i) {
       ptr[i] = body(i);
     });
   }

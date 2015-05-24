@@ -595,20 +595,20 @@ not invoke any move, copy, or swap operations on individual items.
 +------------------------+--------------------------------------+
 | Operation              | Description                          |
 +========================+======================================+
-| [`rebuild`](#cs-rbld)  | Repopulate container changing size   |
+| [`tabulate`](#cs-rbld) | Repopulate container changing size   |
 +------------------------+--------------------------------------+
 | [`resize`](#cs-rsz)    | Change size                          |
 +------------------------+--------------------------------------+
 
 Table: Parallel operations of the parallel chunked sequence.
 
-### Rebuild {#cs-rbld}
+### Tabulate {#cs-rbld}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-void rebuild(long n, std::function<value_type(long)> body);
-void rebuild(long n,
-             std::function<long(long)> body_comp,
-             std::function<value_type(long)> body);
+void tabulate(long n, std::function<value_type(long)> body);
+void tabulate(long n,
+              std::function<long(long)> body_comp_rng,
+              std::function<value_type(long)> body);
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Resizes the container so that it contains `n` items.

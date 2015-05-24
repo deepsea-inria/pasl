@@ -92,9 +92,9 @@ void radixStep(E* A, E* B, bIndexT *Tmp, intT (*BK)[BUCKETS],
   
 //      intT ss;
   intT id = 0;
-  dps::scan(oA, oA+blocks*m, [&] (intT x, intT y) {
+  dps::scan(oA, oA+blocks*m, id, [&] (intT x, intT y) {
     return x+y;
-  }, id, oA, forward_exclusive_scan);
+  }, oA, forward_exclusive_scan);
   /*
   if (top)
     ss = sequence::scan(oA, oA, blocks*m, utils::addF<intT>(),(intT)0);
@@ -215,9 +215,9 @@ void iSort(E *A, intT* bucketOffsets, intT n, intT m, bool bottomUp,
       if (v != vn) bucketOffsets[vn] = i+1;
     }); }
     bucketOffsets[f(A[0])] = 0;
-    dps::scan(bucketOffsets, bucketOffsets+m, [&] (intT x, intT y) {
+    dps::scan(bucketOffsets, bucketOffsets+m, n, [&] (intT x, intT y) {
       return std::min(x, y);
-    }, n, bucketOffsets, backward_inclusive_scan);
+    }, bucketOffsets, backward_inclusive_scan);
 /*        sequence::scanIBack(bucketOffsets, bucketOffsets, (intT) m,
                         utils::minF<intT>(), (intT) n); */
   }

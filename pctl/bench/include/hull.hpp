@@ -110,11 +110,11 @@ intT quickHull(iter<intT> I, iter<intT> Itmp, iter<point2d> P, intT n, intT l, i
       });
       intT maxP = I[idx];
       
-      intT n1 = (intT)dps::filter(I, I+n, Itmp, [&] (intT i) {
-        return triArea(P[l], P[maxP], P[i]) > 0.0;
+      intT n1 = (intT)dps::filter(I, I+n, Itmp, [&] (const intT* i) {
+        return triArea(P[l], P[maxP], P[*i]) > 0.0;
       });
-      intT n2 = (intT)dps::filter(I, I+n, Itmp+n1, [&] (intT i) {
-        return triArea(P[maxP], P[r], P[i]) > 0.0;
+      intT n2 = (intT)dps::filter(I, I+n, Itmp+n1, [&] (const intT* i) {
+        return triArea(P[maxP], P[r], P[*i]) > 0.0;
       });
       
       intT m1, m2;
@@ -162,8 +162,8 @@ parray<intT> hull(parray<point2d>& P) {
     fBot[i] = a < 0;
   });
   
-  intT n1 = (intT)dps::pack(fTop, Itmp.cbegin(), Itmp.cend(), I.begin());
-  intT n2 = (intT)dps::pack(fBot, Itmp.cbegin(), Itmp.cend(), I.begin()+n1);
+  intT n1 = (intT)dps::pack(fTop.cbegin(), Itmp.cbegin(), Itmp.cend(), I.begin());
+  intT n2 = (intT)dps::pack(fBot.cbegin(), Itmp.cbegin(), Itmp.cend(), I.begin()+n1);
   
   intT m1; intT m2;
   par::fork2([&] {

@@ -12,6 +12,8 @@
 #include "io.hpp"
 #include "dpsdatapar.hpp"
 
+#include "pstring.hpp"
+
 /***********************************************************************/
 
 namespace pasl {
@@ -42,7 +44,7 @@ namespace pasl {
         // in-place scan
         
         long id = 0;
-        dps::scan(xs.begin(), xs.end(), combine, id, xs.begin(), forward_exclusive_scan);
+        dps::scan(xs.begin(), xs.end(), id, combine, xs.begin(), forward_exclusive_scan);
         std::cout << "xs\t= " << xs << std::endl;
       }
       

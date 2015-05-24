@@ -142,9 +142,9 @@ void suffixArrayRec(intT* s, intT n, intT K, bool findLCPs,
     else return 0;
   });
   intT id = 0;
-  dps::scan(name12.begin(), name12.end(), [&] (intT x, intT y) {
+  dps::scan(name12.begin(), name12.end(), id, [&] (intT x, intT y) {
     return x + y;
-  }, id, name12.begin(), forward_inclusive_scan);
+  }, name12.begin(), forward_inclusive_scan);
   intT names = name12[n12-1];
   
   parray<intT> SA12;
@@ -184,8 +184,8 @@ void suffixArrayRec(intT* s, intT n, intT K, bool findLCPs,
   
   // stably sort the mod 0 suffixes
   // uses the fact that we already have the tails sorted in SA12
-  parray<intT> s0 = filter<intT>(SA12.cbegin(), SA12.cbegin()+n12, [&] (intT i) {
-    return i%3 == 1;
+  parray<intT> s0 = filter<intT>(SA12.cbegin(), SA12.cbegin()+n12, [&] (const intT* i) {
+    return *i%3 == 1;
   });
   intT x = (intT)s0.size();
   parray<pair<intT,intT>> D(n0);

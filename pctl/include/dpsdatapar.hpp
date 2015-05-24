@@ -42,8 +42,8 @@ template <
   >
 void scan(Input_iter lo,
           Input_iter hi,
-          const Combine& combine,
           Result& id,
+          const Combine& combine,
           Output_iter outs_lo,
           const Lift_comp_rng& lift_comp_rng,
           const Lift_idx& lift_idx,
@@ -72,10 +72,10 @@ template <
   class Lift_comp_idx,
   class Lift_idx
 >
-void scani(Input_iter lo,
+Result scani(Input_iter lo,
            Input_iter hi,
-           const Combine& combine,
            Result& id,
+           const Combine& combine,
            Output_iter outs_lo,
            const Lift_comp_idx& lift_comp_idx,
            const Lift_idx& lift_idx,
@@ -97,7 +97,8 @@ void scani(Input_iter lo,
       dst = *src;
     }, st);
   };
-  level2::scan(lo, hi, combine, id, outs_lo, lift_comp_rng, lift_idx, seq_scan_rng_dst, st);
+  level2::scan(lo, hi, id, combine, outs_lo, lift_comp_rng, lift_idx, seq_scan_rng_dst, st);
+  return total_of_exclusive_scan(lo, outs_lo, hi-lo, id, combine, lift_idx);
 }
   
 template <
@@ -107,13 +108,13 @@ template <
   class Combine,
   class Lift_idx
 >
-void scani(Input_iter lo,
-           Input_iter hi,
-           const Combine& combine,
-           Result& id,
-           Output_iter outs_lo,
-           const Lift_idx& lift_idx,
-           scan_type st) {
+Result scani(Input_iter lo,
+             Input_iter hi,
+             Result& id,
+             const Combine& combine,
+             Output_iter outs_lo,
+             const Lift_idx& lift_idx,
+             scan_type st) {
   auto lift_comp_rng = [&] (Input_iter lo, Input_iter hi) {
     return hi - lo;
   };
@@ -125,7 +126,9 @@ void scani(Input_iter lo,
       dst = *src;
     }, st);
   };
-  level2::scan(lo, hi, combine, id, outs_lo, lift_comp_rng, lift_idx, seq_scan_rng_dst, st);
+  level2::scan(lo, hi, id, combine, outs_lo, lift_comp_rng, lift_idx, seq_scan_rng_dst, st);
+
+  return pasl::pctl::level1::total_from_exclusive_scani(lo, hi, outs_lo, id, combine, lift_idx);
 }
 
 } // end namespace
@@ -139,10 +142,10 @@ template <
   class Combine,
   class Weight
 >
-void scan(Iter lo,
+Item scan(Iter lo,
           Iter hi,
+          Item id,
           const Combine& combine,
-          Item& id,
           Iter outs_lo,
           const Weight& weight,
           scan_type st) {
@@ -152,7 +155,7 @@ void scan(Iter lo,
   auto lift_comp_idx = [&] (long, Iter it) {
     return weight(*it);
   };
-  level1::scani(lo, hi, combine, id, outs_lo, lift_comp_idx, lift_idx, st);
+  return level1::scani(lo, hi, id, combine, outs_lo, lift_comp_idx, lift_idx, st);
 }
   
 template <
@@ -160,28 +163,31 @@ template <
   class Item,
   class Combine
 >
-void scan(Iter lo,
+Item scan(Iter lo,
           Iter hi,
-          const Combine& combine,
           Item& id,
+          const Combine& combine,
           Iter outs_lo,
           scan_type st) {
   auto lift_idx = [&] (long, Iter it) {
     return *it;
   };
-  level1::scani(lo, hi, combine, id, outs_lo, lift_idx, st);
+  return level1::scani(lo, hi, id, combine, outs_lo, lift_idx, st);
 }
   
 /*---------------------------------------------------------------------*/
 /* Pack and filter */
   
 template <
+  class Flags_iter,
   class Input_iter,
   class Output_iter
 >
-long pack(parray<bool>& flags, Input_iter lo, Input_iter hi, Output_iter dst_lo) {
-  return __priv::pack(flags, lo, hi, *lo, [&] (long) {
+long pack(Flags_iter flags_lo, Input_iter lo, Input_iter hi, Output_iter dst_lo) {
+  return __priv::pack(flags_lo, lo, hi, *lo, [&] (long) {
     return dst_lo;
+  }, [&] (long, Input_iter it) {
+    return *it;
   });
 }
 
@@ -193,9 +199,9 @@ template <
 long filter(Input_iter lo, Input_iter hi, Output_iter dst_lo, const Pred& p) {
   long n = hi - lo;
   parray<bool> flags(n, [&] (long i) {
-    return p(*(lo+i));
+    return p(lo+i);
   });
-  return pack(flags, lo, hi, dst_lo);
+  return pack(flags.cbegin(), lo, hi, dst_lo);
 }
   
 } // end namespace

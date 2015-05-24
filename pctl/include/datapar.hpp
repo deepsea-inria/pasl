@@ -879,11 +879,11 @@ template <
   class Lift
 >
 parray<Result> scan(Iter lo,
-                            Iter hi,
-                            Result id,
-                            const Combine& combine,
-                            const Lift& lift,
-                            scan_type st) {
+                    Iter hi,
+                    Result id,
+                    const Combine& combine,
+                    const Lift& lift,
+                    scan_type st) {
   auto lift_idx = [&] (long pos, Iter it) {
     return lift(it);
   };
@@ -949,16 +949,25 @@ parray<Result> scan(Iter lo,
 }
   
 template <
-  class Iter,
+  class Input_iter,
+  class Result_iter,
   class Result,
   class Combine,
-  class Lift
+  class Lift_idx
 >
-Result total_of_scan(Iter hi,
-                     const parray<Result>& scans,
-                     const Combine& combine,
-                     const Lift& lift) {
-  return combine(scans[scans.size()-1], lift(hi-1));
+Result total_from_exclusive_scani(Input_iter in_lo,
+                                  Input_iter in_hi,
+                                  Result_iter scan_lo,
+                                  Result id,
+                                  const Combine& combine,
+                                  const Lift_idx& lift_idx) {
+  long n = in_hi - in_lo;
+  if (n < 1) {
+    return id;
+  } else {
+    long last = n - 1;
+    return combine(*(scan_lo+last), lift_idx(last, in_lo+last));
+  }
 }
   
 } // end namespace
@@ -1127,11 +1136,14 @@ long max_index(Iter lo, Iter hi, const Item& id, const Comp& comp) {
 namespace __priv {
     
 template <
+  class Flags_iter,
   class Iter,
   class Item,
-  class Output
+  class Output,
+  class F
 >
-long pack(parray<bool>& flags, Iter lo, Iter hi, Item&, const Output& out) {
+long pack(Flags_iter flags_lo,
+          Iter lo, Iter hi, Item&, const Output& out, const F f) {
   long n = hi - lo;
   if (n < 1) {
     return 0;
@@ -1142,19 +1154,49 @@ long pack(parray<bool>& flags, Iter lo, Iter hi, Item&, const Output& out) {
   auto lift = [&] (parray<bool>::const_iterator it) {
     return (long)*it;
   };
-  parray<long> offsets = level1::scan(flags.cbegin(), flags.cend(), 0L, combine, lift, forward_exclusive_scan);
-  long m = level1::total_of_scan(flags.cend(), offsets, combine, lift);
+  parray<long> offsets = level1::scan(flags_lo, flags_lo+n, 0L, combine, lift, forward_exclusive_scan);
+  long last = n - 1;
+  auto lift_idx = [&] (long, Flags_iter b) {
+    return lift(b);
+  };
+  long m = level1::total_from_exclusive_scani(flags_lo, flags_lo+n, offsets.begin(), 0L, combine, lift_idx);
   auto dst_lo = out(m);
   parallel_for(0L, n, [&] (long i) {
-    if (flags[i]) {
+    if (flags_lo[i]) {
       long offset = offsets[i];
-      *(dst_lo+offset) = *(lo+i);
+      *(dst_lo+offset) = f(i, lo+i);
     }
   });
   return m;
 }
 
 } // end namespace
+  
+template <class Item>
+parray<Item> pack(typename parray<Item>::const_iterator lo,
+                  typename parray<Item>::const_iterator hi,
+                  typename parray<bool>::const_iterator flags_lo) {
+  parray<Item> result;
+  __priv::pack(flags_lo, lo, hi,  [&] (long m) {
+    result.resize(m);
+    return result.begin();
+  });
+  return result;
+}
+  
+static inline
+parray<long> pack_index(typename parray<bool>::const_iterator lo,
+                        typename parray<bool>::const_iterator hi) {
+  parray<long> result;
+  long dummy;
+  __priv::pack(lo, lo, hi, dummy, [&] (long m) {
+    result.resize(m);
+    return result.begin();
+  }, [&] (long offset, typename parray<bool>::const_iterator) {
+    return offset;
+  });
+  return result;
+}
   
 template <
   class Item,
@@ -1165,13 +1207,15 @@ parray<Item> filter(typename parray<Item>::const_iterator lo,
                     const Pred& p) {
   long n = hi - lo;
   parray<bool> flags(n, [&] (long i) {
-    return p(*(lo+i));
+    return p(lo+i);
   });
   Item dummy;
   parray<Item> dst;
-  __priv::pack(flags, lo, hi, dummy, [&] (long m) {
+  __priv::pack(flags.cbegin(), lo, hi, dummy, [&] (long m) {
     dst.resize(m);
     return dst.begin();
+  }, [&] (long, typename parray<Item>::const_iterator it) {
+    return *it;
   });
   return dst;
 }
@@ -1182,13 +1226,15 @@ template <
 >
 parray<Item> filter(const parray<Item>& xs, const Pred& p) {
   parray<bool> flags(xs.size(), [&] (long i) {
-    return p(xs[i]);
+    return p(&xs[i]);
   });
   Item dummy;
   parray<Item> dst;
-  __priv::pack(flags, xs.cbegin(), xs.cend(), dummy, [&] (long m) {
+  __priv::pack(flags.cbegin(), xs.cbegin(), xs.cend(), dummy, [&] (long m) {
     dst.resize(m);
     return dst.begin();
+  }, [&] (long, typename parray<Item>::const_iterator it) {
+    return *it;
   });
   return dst;
 }
