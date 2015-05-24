@@ -141,6 +141,8 @@ void sampleSort (E* A, intT n, BinPred f) {
       });
       //nextTime("last sort");
     }
+  }, [&] {
+    compSort(A, n, f);
   });
 }
   
