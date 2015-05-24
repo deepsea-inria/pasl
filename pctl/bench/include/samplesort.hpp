@@ -98,7 +98,7 @@ void sampleSort (E* A, intT n, BinPred f) {
       parray<intT> offsetB(numR*numSegs);
       
       // sort each row and merge with samples to get counts
-      parallel_for((intT)0, numR, [&] (intT r) {
+      range::parallel_for((intT)0, numR, [&] (intT lo, intT hi) { return (hi-lo)*rowSize; }, [&] (intT r) {
         intT offset = r * rowSize;
         intT size =  (r < numR - 1) ? rowSize : n - offset;
         sampleSort(A+offset, size, f);
@@ -118,7 +118,16 @@ void sampleSort (E* A, intT n, BinPred f) {
       //nextTime("transpose");
       
       // sort the columns
-      parallel_for((intT)0, numSegs, [&] (intT i) {
+      auto complexity_fct = [&] (intT lo, intT hi) {
+        if (lo == hi) {
+          return 0;
+        } else if (hi < numSegs-1) {
+          return offsetB[hi*numR] - offsetB[lo*numR];
+        } else {
+          return n - offsetB[lo*numR];
+        }
+      };
+      range::parallel_for((intT)0, numSegs, complexity_fct, [&] (intT i) {
         intT offset = offsetB[i*numR];
         if (i == 0) {
           sampleSort(A, offsetB[numR], f); // first segment
