@@ -64,7 +64,7 @@ pair<intT,intT> split(iter<intT> A, intT n, F1 lf, F2 rf) {
   return pair<intT,intT>(n1,n2);
 }
 
-intT serialQuickHull(iter<intT> I, point2d* P, intT n, intT l, intT r) {
+intT seqQuickhull(iter<intT> I, point2d* P, intT n, intT l, intT r) {
   if (n < 2) return n;
   intT maxP = I[0];
   double maxArea = triArea(P[l],P[r],P[maxP]);
@@ -86,8 +86,8 @@ intT serialQuickHull(iter<intT> I, point2d* P, intT n, intT l, intT r) {
   intT n2 = nn.second;
   
   intT m1, m2;
-  m1 = serialQuickHull(I,      P, n1, l,   maxP);
-  m2 = serialQuickHull(I+n-n2, P, n2, maxP,r);
+  m1 = seqQuickhull(I,      P, n1, l,   maxP);
+  m2 = seqQuickhull(I+n-n2, P, n2, maxP,r);
   for (intT i=0; i < m2; i++) I[i+m1+1] = I[i+n-n2];
   I[m1] = maxP;
   return m1+1+m2;
@@ -99,7 +99,7 @@ intT quickHull(iter<intT> I, iter<intT> Itmp, iter<point2d> P, intT n, intT l, i
   intT result;
   par::cstmt(quickhull_contr, [&] { return n; }, [&] {
     if (n < 2) {
-      result = serialQuickHull(I, P, n, l, r);
+      result = seqQuickhull(I, P, n, l, r);
     } else {
       
       auto greater = [&] (double x, double y) {
@@ -130,7 +130,7 @@ intT quickHull(iter<intT> I, iter<intT> Itmp, iter<point2d> P, intT n, intT l, i
       result = m1+1+m2;
     }
   }, [&] {
-    result = serialQuickHull(I, P, n, l, r);
+    result = seqQuickhull(I, P, n, l, r);
   }); 
   return result;
 }

@@ -194,14 +194,26 @@ long pack(Flags_iter flags_lo, Input_iter lo, Input_iter hi, Output_iter dst_lo)
 template <
   class Input_iter,
   class Output_iter,
-  class Pred
+  class Pred_idx
 >
-long filter(Input_iter lo, Input_iter hi, Output_iter dst_lo, const Pred& p) {
+long filteri(Input_iter lo, Input_iter hi, Output_iter dst_lo, const Pred_idx& pred_idx) {
   long n = hi - lo;
   parray<bool> flags(n, [&] (long i) {
-    return p(lo+i);
+    return pred_idx(i, lo+i);
   });
   return pack(flags.cbegin(), lo, hi, dst_lo);
+}
+  
+template <
+class Input_iter,
+class Output_iter,
+class Pred
+>
+long filter(Input_iter lo, Input_iter hi, Output_iter dst_lo, const Pred& pred) {
+  auto pred_idx = [&] (long, Input_iter it) {
+    return pred(it);
+  };
+  return filteri(lo, hi, dst_lo, pred_idx);
 }
   
 } // end namespace

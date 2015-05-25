@@ -5,6 +5,7 @@
 #include <math.h>
 #include <iomanip>
 
+
 using namespace std;
 
 // *************************************************************
@@ -302,6 +303,6 @@ inline point2d triangleCircumcenter(point2d a, point2d b, point2d c) {
   vect2d v22 = v2 * v1.dot(v1);
   return  a + vect2d(v22.y - v11.y, v11.x - v22.x)/(2.0 * v1.cross(v2));
 }
-
+    
 #endif // _PCTL_BENCH_GEOM_INCLUDED
 

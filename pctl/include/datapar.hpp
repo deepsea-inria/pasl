@@ -1202,14 +1202,14 @@ parray<long> pack_index(typename parray<bool>::const_iterator lo,
   
 template <
   class Item,
-  class Pred
+  class Pred_idx
 >
-parray<Item> filter(typename parray<Item>::const_iterator lo,
-                    typename parray<Item>::const_iterator hi,
-                    const Pred& p) {
+parray<Item> filteri(typename parray<Item>::const_iterator lo,
+                     typename parray<Item>::const_iterator hi,
+                     const Pred_idx& pred_idx) {
   long n = hi - lo;
   parray<bool> flags(n, [&] (long i) {
-    return p(lo+i);
+    return pred_idx(i, lo+i);
   });
   Item dummy;
   parray<Item> dst;
@@ -1226,19 +1226,13 @@ template <
   class Item,
   class Pred
 >
-parray<Item> filter(const parray<Item>& xs, const Pred& p) {
-  parray<bool> flags(xs.size(), [&] (long i) {
-    return p(&xs[i]);
-  });
-  Item dummy;
-  parray<Item> dst;
-  __priv::pack(flags.cbegin(), xs.cbegin(), xs.cend(), dummy, [&] (long m) {
-    dst.resize(m);
-    return dst.begin();
-  }, [&] (long, typename parray<Item>::const_iterator it) {
-    return *it;
-  });
-  return dst;
+parray<Item> filter(typename parray<Item>::const_iterator lo,
+                    typename parray<Item>::const_iterator hi,
+                    const Pred& pred) {
+  auto pred_idx = [&] (long, typename parray<Item>::const_iterator it) {
+    return pred(it);
+  };
+  return filteri(lo, hi, pred_idx);
 }
   
 /***********************************************************************/

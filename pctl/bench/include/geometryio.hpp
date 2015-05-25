@@ -10,6 +10,7 @@
 #include "geometrydata.hpp"
 #include "cmdline.hpp"
 #include "pbbsio.hpp"
+#include "utils.hpp"
 
 #ifndef _PCTL_GEOMETRY_IO_H_
 #define _PCTL_GEOMETRY_IO_H_
