@@ -26,11 +26,13 @@
 
 #include <iostream>
 #include <math.h>
-#include "merge.hpp"
+//#include "merge.hpp"
 #define BSIZE 16
 
 namespace pasl {
 namespace pctl {
+  
+using intT = int;
     
 using namespace std;
 

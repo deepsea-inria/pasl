@@ -29,7 +29,8 @@
 
 #include <iostream>
 #include "blockradixsort.hpp"
-#include "merge.hpp"
+//#include "merge.hpp"
+#include "psort.hpp"
 #include "utils.hpp"
 #include "rangemin.hpp"
 
@@ -203,7 +204,9 @@ void suffixArrayRec(intT* s, intT n, intT K, bool findLCPs,
   compS comp(s,rank.begin());
   intT o = (n%3 == 1) ? 1 : 0;
   SA.resize(n);
-  merge(SA0.begin()+o,n0-o,SA12.begin()+1-o,n12+o-1,SA.begin(),comp);
+  auto SA0beg = SA0.begin()+o;
+  auto SA12beg = SA12.begin()+1-o;
+  merge(SA0beg, SA0beg+(n0-o), SA12beg, SA12beg+(n12+o-1), SA.begin(), comp);
   
   //get LCP from LCP12
   if(findLCPs){
