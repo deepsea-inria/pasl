@@ -93,7 +93,7 @@ class pchunkedseq_mergesort {
 public:
   
   void operator()(pchunkedseq_type& xs) {
-    pchunkedseq_type tmp = sort::mergesort(xs);
+    pchunkedseq_type tmp = sort::mergesort(xs, std::less<value_type>());
     tmp.seq.swap(xs.seq);
   }
   
@@ -113,11 +113,15 @@ public:
   
 };
   
+auto compare = [] (value_type x, value_type y) {
+  return x < y;
+};
+  
 class parray_mergesort {
 public:
   
   void operator()(parray_type& xs) {
-    sort::mergesort(xs);
+    sort::mergesort(xs, compare);
   }
   
 };
@@ -126,7 +130,7 @@ class pbbs_samplesort {
 public:
   
   void operator()(parray_type& xs) {
-    sampleSort(xs.begin(), (int)xs.size(), std::less<value_type>());
+    sampleSort(xs.begin(), (int)xs.size(), compare);
   }
   
 };
@@ -135,7 +139,7 @@ class parray_trusted_sort {
 public:
   
   void operator()(parray_type& xs) {
-    std::sort(xs.begin(), xs.end());
+    std::sort(xs.begin(), xs.end(), compare);
   }
   
 };
