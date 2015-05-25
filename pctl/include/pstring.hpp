@@ -20,7 +20,7 @@ namespace pctl {
 /***********************************************************************/
 
 /*---------------------------------------------------------------------*/
-/* Parallel array */
+/* Parallel string */
 
 class pstring {
 private:
@@ -97,7 +97,7 @@ public:
   
   pstring(std::initializer_list<value_type> xs)
   : chars(xs.size()+1) {
-      long i = 0;
+    long i = 0;
     for (auto it = xs.begin(); it != xs.end(); it++) {
       new (&chars[i++]) value_type(*it);
     }

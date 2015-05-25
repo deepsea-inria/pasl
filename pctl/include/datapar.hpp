@@ -1155,7 +1155,6 @@ long pack(Flags_iter flags_lo,
     return (long)*it;
   };
   parray<long> offsets = level1::scan(flags_lo, flags_lo+n, 0L, combine, lift, forward_exclusive_scan);
-  long last = n - 1;
   auto lift_idx = [&] (long, Flags_iter b) {
     return lift(b);
   };
@@ -1177,9 +1176,12 @@ parray<Item> pack(typename parray<Item>::const_iterator lo,
                   typename parray<Item>::const_iterator hi,
                   typename parray<bool>::const_iterator flags_lo) {
   parray<Item> result;
-  __priv::pack(flags_lo, lo, hi,  [&] (long m) {
+  Item tmp;
+  __priv::pack(flags_lo, lo, hi, tmp, [&] (long m) {
     result.resize(m);
     return result.begin();
+  }, [&] (long, typename parray<Item>::const_iterator it) {
+    return *it;
   });
   return result;
 }
