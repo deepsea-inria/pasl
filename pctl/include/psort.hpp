@@ -21,28 +21,26 @@ namespace sort {
 /*---------------------------------------------------------------------*/
 /* Mergesort */
   
-namespace contr {
-
-template <class Item>
-class merge_pchunkedseq {
-public:
-  static controller_type contr;
-};
-
-template <class Item>
-controller_type merge_pchunkedseq<Item>::contr("merge"+sota<Item>());
-
-template <class Item>
-class merge_parray {
-public:
-  static controller_type contr;
-};
-
-template <class Item>
-controller_type merge_parray<Item>::contr("merge"+sota<Item>());
+namespace {
   
-} // end namespace
+template <class Item>
+class merge_pchunkedseq_contr {
+public:
+  static controller_type contr;
+};
 
+template <class Item>
+controller_type merge_pchunkedseq_contr<Item>::contr("merge"+sota<Item>());
+
+template <class Item>
+class merge_parray_contr {
+public:
+  static controller_type contr;
+};
+
+template <class Item>
+controller_type merge_parray_contr<Item>::contr("merge"+sota<Item>());
+  
 template <class Item, class Compare>
 pchunkedseq<Item> merge_seq(pchunkedseq<Item>& xs, pchunkedseq<Item>& ys, const Compare& compare) {
   pchunkedseq<Item> result;
@@ -71,10 +69,12 @@ pchunkedseq<Item> merge_seq(pchunkedseq<Item>& xs, pchunkedseq<Item>& ys, const 
   }
   return result;
 }
+  
+} // end namespace
 
 template <class Item, class Compare>
 pchunkedseq<Item> merge(pchunkedseq<Item>& xs, pchunkedseq<Item>& ys, const Compare& compare) {
-  using controller_type = contr::merge_pchunkedseq<Item>;
+  using controller_type = merge_pchunkedseq_contr<Item>;
   long n = xs.seq.size();
   long m = ys.seq.size();
   pchunkedseq<Item> result;
@@ -109,6 +109,8 @@ pchunkedseq<Item> merge(pchunkedseq<Item>& xs, pchunkedseq<Item>& ys, const Comp
   return result;
 }
   
+namespace {
+  
 template <class Item, class Compare>
 void sort_seq(Item* xs, long lo, long hi, const Compare& compare) {
   long n = hi-lo;
@@ -131,6 +133,15 @@ pchunkedseq<Item> sort_seq(pchunkedseq<Item>& xs, const Compare& compare) {
   return result;
 }
   
+template <class Combine, class Container>
+level3::mergeable_output<Combine, Container> create_mergeable_output(const Container& id,
+                                                             const Combine& combine) {
+  level3::mergeable_output<Combine, Container> out(combine);
+  return out;
+}
+  
+} // end namespace
+  
 template <class Item, class Compare>
 pchunkedseq<Item> mergesort(pchunkedseq<Item>& xs, const Compare& compare) {
   using pchunkedseq_type = pchunkedseq<Item>;
@@ -138,7 +149,7 @@ pchunkedseq<Item> mergesort(pchunkedseq<Item>& xs, const Compare& compare) {
   using input_type = level4::chunked_sequence_input<chunkedseq_type>;
   pchunkedseq_type id;
   input_type in(xs.seq);
-  auto out = level3::create_mergeable_output(id, [&] (pchunkedseq_type& xs, pchunkedseq_type& ys) {
+  auto out = create_mergeable_output(id, [&] (pchunkedseq_type& xs, pchunkedseq_type& ys) {
     return merge(xs, ys, compare);
   });
   pchunkedseq_type result;
@@ -146,10 +157,6 @@ pchunkedseq<Item> mergesort(pchunkedseq<Item>& xs, const Compare& compare) {
     return in.seq.size(); // later: use correct value
   };
   auto convert_reduce = [&] (input_type& in, pchunkedseq_type& dst) {
-    /*
-    in.seq.swap(dst.seq);
-    std::sort(dst.seq.begin(), dst.seq.end());
-     */
     pchunkedseq_type tmp;
     tmp.seq.swap(in.seq);
     dst = sort_seq(tmp, compare);
@@ -158,6 +165,8 @@ pchunkedseq<Item> mergesort(pchunkedseq<Item>& xs, const Compare& compare) {
   level4::reduce(in, out, id, result, convert_reduce_comp, convert_reduce, seq_convert_reduce);
   return result;
 }
+  
+namespace {
 
 template <class Item>
 void copy(const Item* src, Item* dst,
@@ -174,13 +183,6 @@ void merge_seq(const Item* xs, const Item* ys, Item* tmp,
                const Compare& compare) {
   std::merge(&xs[lo_xs], &xs[hi_xs], &ys[lo_ys], &ys[hi_ys], &tmp[lo_tmp], compare);
 }
-
-template <class Item, class Compare>
-void merge_seq(Item* xs, Item* tmp, long lo, long mid, long hi, const Compare& compare) {
-  merge_seq(xs, xs, tmp, lo, mid, mid, hi, lo, compare);
-  // copy back to source array
-  copy(&tmp[0], &xs[0], lo, hi, lo);
-}
   
 template <class Item, class Compare>
 long lower_bound(const Item* xs, long lo, long hi, const Item& val, const Compare& compare) {
@@ -194,12 +196,9 @@ void merge_par(const Item* xs, const Item* ys, Item* tmp,
                long lo_ys, long hi_ys,
                long lo_tmp,
                const Compare& compare) {
-  using controller_type = contr::merge_parray<Item>;
+  using controller_type = merge_parray_contr<Item>;
   long n1 = hi_xs-lo_xs;
   long n2 = hi_ys-lo_ys;
-  auto seq = [&] {
-    merge_seq(xs, ys, tmp, lo_xs, hi_xs, lo_ys, hi_ys, lo_tmp, compare);
-  };
   par::cstmt(controller_type::contr, [&] { return n1+n2; }, [&] {
     if (n1 < n2) {
       // to ensure that the first subarray being sorted is the larger or the two
@@ -225,17 +224,12 @@ void merge_par(const Item* xs, const Item* ys, Item* tmp,
         merge_par(xs, ys, tmp, mid_xs, hi_xs, mid_ys, hi_ys, lo_tmp+k, compare);
       });
     }
-  }, seq);
+  }, [&] {
+    merge_seq(xs, ys, tmp, lo_xs, hi_xs, lo_ys, hi_ys, lo_tmp, compare);
+  });
 }
- 
-template <class Item, class Compare>
-void merge_par(Item* xs, Item* tmp,
-               long lo, long mid, long hi,
-               const Compare& compare) {
-  merge_par(xs, xs, tmp, lo, mid, mid, hi, lo, compare);
-  // copy back to source array
-  pmem::copy(&tmp[lo], &tmp[hi], &xs[lo]);
-}
+  
+} // end namespace
   
 template <
   class Input_iter,
@@ -256,8 +250,9 @@ void merge(Input_iter first1,
   merge_par(first1, first2, d_first, lo_xs, hi_xs, lo_ys, hi_ys, lo_tmp, compare);
 }
   
-namespace level3 {
+namespace {
   
+ 
 template <class Merge_fct>
 class merge_output {
 public:
@@ -286,15 +281,15 @@ public:
   
 };
   
-} // end namespace
-  
 template <class Item, class Compare>
 void mergesort_by_reduce(Item* xs, Item* tmp, long lo, long hi, const Compare& compare) {
   using input_type = level4::tabulate_input;
   auto merge_fct = [&] (long lo, long mid, long hi) {
-    merge_par(xs, tmp, lo, mid, hi, compare);
+    merge_par(xs, xs, tmp, lo, mid, mid, hi, lo, compare);
+    // copy back to source array
+    pmem::copy(&tmp[lo], &tmp[hi], &xs[lo]);
   };
-  using output_type = level3::merge_output<decltype(merge_fct)>;
+  using output_type = merge_output<decltype(merge_fct)>;
   using result_type = typename output_type::result_type;
   input_type in(lo, hi);
   output_type out(merge_fct);
@@ -312,6 +307,8 @@ void mergesort_by_reduce(Item* xs, Item* tmp, long lo, long hi, const Compare& c
   assert(dst.first == lo);
   assert(dst.second == hi);
 }
+  
+} // end namespace
   
 template <class Iter, class Compare>
 void mergesort(Iter lo, Iter hi, const Compare& compare) {

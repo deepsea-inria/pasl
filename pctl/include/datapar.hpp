@@ -44,6 +44,8 @@ static inline bool is_backward_scan(scan_type st) {
   
 namespace level4 {
 
+namespace {
+  
 template <
   class Input,
   class Output,
@@ -81,8 +83,6 @@ void reduce_rec(Input& in,
   });
 }
 
-namespace contr {
-
 template <
   class Input,
   class Output,
@@ -91,7 +91,7 @@ template <
   class Convert_reduce,
   class Seq_convert_reduce
 >
-class reduce {
+class reduce_contr {
 public:
   static controller_type contr;
 };
@@ -104,7 +104,7 @@ template <
   class Convert_reduce,
   class Seq_convert_reduce
 >
-controller_type reduce<Input,Output,Result,Convert_reduce_comp,Convert_reduce,Seq_convert_reduce>::contr(
+controller_type reduce_contr<Input,Output,Result,Convert_reduce_comp,Convert_reduce,Seq_convert_reduce>::contr(
   "reduce"+sota<Input>()+sota<Output>()+sota<Result>()+sota<Convert_reduce_comp>()+
            sota<Convert_reduce>()+sota<Seq_convert_reduce>());
 
@@ -125,10 +125,12 @@ void reduce(Input& in,
             const Convert_reduce_comp& convert_reduce_comp,
             const Convert_reduce& convert_reduce,
             const Seq_convert_reduce& seq_convert_reduce) {
-  using controller_type = contr::reduce<Input, Output, Result, Convert_reduce_comp, Convert_reduce, Seq_convert_reduce>;
+  using controller_type = reduce_contr<Input, Output, Result, Convert_reduce_comp, Convert_reduce, Seq_convert_reduce>;
   reduce_rec(in, out, id, dst, convert_reduce_comp, convert_reduce, seq_convert_reduce, controller_type::contr);
 }
 
+namespace {
+  
 template <
   class In_iter,
   class Out_iter,
@@ -218,16 +220,14 @@ void scan_seq(const parray<Result>& ins,
   scan_seq(ins.cbegin(), ins.cend(), outs_lo, out, id, st);
 }
 
-namespace contr {
-  
 template <class Result, class Output, class Merge_comp>
-class scan_rec {
+class scan_rec_contr {
 public:
   static controller_type contr;
 };
 
 template <class Result, class Output, class Merge_comp>
-controller_type scan_rec<Result, Output, Merge_comp>::contr(
+controller_type scan_rec_contr<Result, Output, Merge_comp>::contr(
   "scan_rec"+sota<Result>()+sota<Output>()+sota<Merge_comp>());
 
 template <
@@ -240,7 +240,7 @@ template <
   class Convert_scan,
   class Seq_convert_scan
 >
-class scan {
+class scan_contr {
 public:
   static controller_type contr;
 };
@@ -255,11 +255,9 @@ template <
   class Convert_scan,
   class Seq_convert_scan
 >
-controller_type scan<Input,Output,Result,Output_iter,Convert_reduce_comp,Convert_reduce,Convert_scan,Seq_convert_scan>::contr(
+controller_type scan_contr<Input,Output,Result,Output_iter,Convert_reduce_comp,Convert_reduce,Convert_scan,Seq_convert_scan>::contr(
   "scan"+sota<Input>()+sota<Output>()+sota<Result>()+sota<Output_iter>()+sota<Convert_reduce_comp>()+
          sota<Convert_reduce>()+sota<Convert_scan>()+sota<Seq_convert_scan>());
-  
-} // end namespace
 
 #ifdef CONTROL_BY_FORCE_PARALLEL
 const long Scan_branching_factor = 2;
@@ -284,7 +282,7 @@ void scan_rec(const parray<Result>& ins,
               const Result& id,
               const Merge_comp& merge_comp,
               scan_type st) {
-  using controller_type = contr::scan_rec<Result, Output, Merge_comp>;
+  using controller_type = scan_rec_contr<Result, Output, Merge_comp>;
   const long k = Scan_branching_factor;
   long n = ins.size();
   long m = get_nb_blocks(k, n);
@@ -319,6 +317,8 @@ void scan_rec(const parray<Result>& ins,
     scan_seq(ins, outs_lo, out, id, st);
   });
 }
+  
+} // end namespace
 
 template <
   class Input,
@@ -341,9 +341,9 @@ void scan(Input& in,
           const Convert_scan& convert_scan,
           const Seq_convert_scan& seq_convert_scan,
           scan_type st) {
-  using controller_type = contr::scan<Input, Output, Result, Output_iter,
-                                      Convert_reduce_comp, Convert_reduce,
-                                      Convert_scan, Seq_convert_scan>;
+  using controller_type = scan_contr<Input, Output, Result, Output_iter,
+                                     Convert_reduce_comp, Convert_reduce,
+                                     Convert_scan, Seq_convert_scan>;
   const long k = Scan_branching_factor;
   long n = in.size();
   long m = get_nb_blocks(k, n);
@@ -670,14 +670,6 @@ public:
   }
   
 };
-
-
-template <class Combine, class Container>
-mergeable_output<Combine, Container> create_mergeable_output(const Container& id,
-                                                             const Combine& combine) {
-  mergeable_output<Combine, Container> out(combine);
-  return out;
-}
 
 } // end namespace
   

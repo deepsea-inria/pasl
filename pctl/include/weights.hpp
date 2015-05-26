@@ -25,20 +25,15 @@ namespace pctl {
 
 /***********************************************************************/
   
-namespace partial_sums {
+namespace {
   
-/* Template struct used to avoid compilation errors when including this file in
- * several cpp files.
- * It's a dirty "hack" (it probably won't hurt performance or cause bugs, but
- * still, a cpp file should eventually be created instead)
- */
 template<class = void>
-struct dummy {
+struct partial_sums_contr {
   static controller_type contr;
 };
   
 template<class Dummy>
-controller_type dummy<Dummy>::contr("partial_sums");
+controller_type partial_sums_contr<Dummy>::contr("partial_sums");
 
 static inline long seq(const long* lo, const long* hi, long id, long* dst) {
   long x = id;
@@ -55,7 +50,7 @@ static inline parray<long> rec(const parray<long>& xs) {
   long n = xs.size();
   long m = 1 + ((n - 1) / k);
   parray<long> rs(n);
-  par::cstmt(dummy<>::contr, [&] { return n; }, [&] {
+  par::cstmt(partial_sums_contr<>::contr, [&] { return n; }, [&] {
     if (n <= k) {
       seq(xs.cbegin(), xs.cend(), 0, rs.begin());
     } else {
@@ -80,8 +75,6 @@ static inline parray<long> rec(const parray<long>& xs) {
   });
   return rs;
 }
-
-} // end namespace
   
 template <class Weight>
 long weights_seq(const Weight& weight, long lo, long hi, long id, long* dst) {
@@ -94,16 +87,15 @@ long weights_seq(const Weight& weight, long lo, long hi, long id, long* dst) {
   return x;
 }
 
-namespace contr {
-// same than pasl::pctl::dummy::contr
 template<class = void>
-struct dummy {
+struct weights_contr {
   static controller_type weights;
 };
 
 template<class Dummy>
-controller_type dummy<Dummy>::weights("weights");
-}
+controller_type weights_contr<Dummy>::weights("weights");
+  
+} // end namespace
 
 template <class Weight>
 parray<long> weights(long n, const Weight& weight) {
@@ -111,7 +103,7 @@ parray<long> weights(long n, const Weight& weight) {
   long m = 1 + ((n - 1) / k);
   long tot;
   parray<long> rs(n + 1);
-  par::cstmt(contr::dummy<>::weights, [&] { return n; }, [&] {
+  par::cstmt(weights_contr<>::weights, [&] { return n; }, [&] {
     if (n <= k) {
       tot = weights_seq(weight, 0, n, 0, rs.begin());
     } else {
@@ -124,7 +116,7 @@ parray<long> weights(long n, const Weight& weight) {
           sums[i] += weight(j);
         }
       });
-      parray<long> scans = partial_sums::rec(sums);
+      parray<long> scans = rec(sums);
       parallel_for(0l, m, [&] (long i) {
         long lo = i * k;
         long hi = std::min(lo + k, n);
