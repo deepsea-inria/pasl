@@ -18,7 +18,17 @@ A *functor* is a C++ class which defines a call operator.
 
 A *right-open range* is ...
 
-*work* *span* 
+*work* *span*
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+namespace pasl {
+namespace pctl {
+
+template <class Iter>
+using value_type_of = typename std::iterator_traits<Iter>::value_type;
+
+} }
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Containers
 ==========
@@ -38,20 +48,20 @@ Associative containers
 
 Class name          | Description
 --------------------|-------------------------
-set                 | Set class
-map                 | Associative map class
+[`pset`](#pset)     | Set class
+[`pmap`](#pmap)     | Associative map class
 
 Table: Associative containers that are provided by pctl.
 
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-namespace pasl {
-namespace pctl {
+String containers
+-----------------
 
-template <class Iter>
-using value_type_of = typename std::iterator_traits<Iter>::value_type;
+Class name                           | Description
+-------------------------------------|-------------------------------------
+[`pstring`](#pstring)                | Array-based string class
+[`prope`](#prope)                    | Chunked-sequence-based string class
 
-} }
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Table: String containers that are provided by pctl.
 
 Parallel array {#parray}
 ==============
@@ -654,6 +664,18 @@ If the current size is less than `n`,
 ***Complexity.*** Let $m$ be the size of the container just before and
    $n$ just after the resize operation. Then, the work and span are
    linear and logarithmic in $\max(m, n)$, respectively.
+
+Parallel set {#pset}
+============
+
+Parallel map {#pmap}
+============
+
+Parallel string {#pstring}
+===============
+
+Parallel rope {#prope}
+=============
 
 Data-parallel operations
 ========================
@@ -2248,8 +2270,24 @@ class Compare;
 bool operator()(const Item& x, const Item& y);
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Merge
------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+class Weight;
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+long operator()(const Item& x);
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+class Weight_rng;
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+long operator()(const Item& lo, const Item* hi);
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Comparison-based merge
+----------------------
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 namespace pasl {
@@ -2264,47 +2302,65 @@ void merge(Input_iter first1, Input_iter last1,
            Input_iter first2, Input_iter last2,
            Output_iter d_first, Compare compare);
 
+template <
+  class Input_iter,
+  class Output_iter,
+  class Weight,
+  class Compare
+>
+void merge(Input_iter first1, Input_iter last1,
+           Input_iter first2, Input_iter last2,
+           Output_iter d_first, Weight weight,
+           Compare compare);
+
 } }
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Merge sort
-----------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+namespace pasl {
+namespace pctl {
+namespace range {
+
+template <
+  class Input_iter,
+  class Output_iter,
+  class Weight_rng,
+  class Compare
+>
+void merge(Input_iter first1, Input_iter last1,
+           Input_iter first2, Input_iter last2,
+           Output_iter d_first, Weight_rng weight_rng,
+           Compare compare);
+
+} } }
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Comparison-based sort
+---------------------
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 namespace pasl {
 namespace pctl {
 
 template <class Iter, class Compare>
-void mergesort(Iter lo, Iter hi, Compare compare);
+void sort(Iter lo, Iter hi, Compare compare);
+
+template <class Iter, class Weight, class Compare>
+void sort(Iter lo, Iter hi, Weight weight, Compare compare);
 
 } }
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Quick sort
-----------
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 namespace pasl {
 namespace pctl {
+namespace range {
 
-template <class Iter, class Compare>
-void quicksort(Iter lo, Iter hi, Compare compare);
+template <class Iter, class Weight_rng, class Compare>
+void sort(Iter lo, Iter hi, Weight_rng weight_rng, Compare compare);
 
-} }
+} } }
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Sample sort
------------
-
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-namespace pasl {
-namespace pctl {
-
-template <class Iter, class Compare>
-void samplesort(Iter lo, Iter hi, Compare compare);
-
-} }
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Radix sort
-----------
+Integer sort
+------------

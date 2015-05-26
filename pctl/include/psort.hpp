@@ -286,7 +286,7 @@ public:
   
 };
   
-}
+} // end namespace
   
 template <class Item, class Compare>
 void mergesort_by_reduce(Item* xs, Item* tmp, long lo, long hi, const Compare& compare) {
@@ -319,6 +319,11 @@ void mergesort(Iter lo, Iter hi, const Compare& compare) {
   long n = hi - lo;
   parray<value_type> tmp(n);
   mergesort_by_reduce(lo, tmp.begin(), 0L, n, compare);
+}
+  
+template <class Iter, class Compare>
+void sort(Iter lo, Iter hi, const Compare& compare) {
+  mergesort(lo, hi, compare);
 }
 
 /***********************************************************************/
