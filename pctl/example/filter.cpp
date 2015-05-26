@@ -28,7 +28,7 @@ void ex() {
     });
     std::cout << "evens(xs) ++ { -1 ... } =" << dst << std::endl;
     std::cout << "nb_evens(xs) = " << nb_evens << std::endl;
-    std::cout << "odds(xs)\t\t= " << filter(xs, [&] (const long* x) { return *x%2==1; }) << std::endl;
+    std::cout << "odds(xs)\t\t= " << filter(xs.cbegin(), xs.cend(), [&] (const long* x) { return *x%2==1; }) << std::endl;
 
   }
   

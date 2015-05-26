@@ -67,7 +67,7 @@ public:
 int main(int argc, char** argv) {
   pasl::sched::launch(argc, argv, [&] (bool sequential) {
     int nb_tests = pasl::util::cmdline::parse_or_default_int("n", 1000);
-    checkit<pasl::pctl::prop>(nb_tests, "nbody is correct");
+    checkit<pasl::pctl::prop>(nb_tests, "ray cast is correct");
   });
   return 0;
 }

@@ -236,7 +236,7 @@ public:
   
   // returns all the current entries compacted into a sequence
   parray<eType> entries() {
-    return filter<eType>(TA, TA+m, [&] (const eType* x) {
+    return filter(TA, TA+m, [&] (const eType* x) {
       return *x != empty;
     });
   }

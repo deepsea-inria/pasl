@@ -43,6 +43,16 @@ map                 | Associative map class
 
 Table: Associative containers that are provided by pctl.
 
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+namespace pasl {
+namespace pctl {
+
+template <class Iter>
+using value_type_of = typename std::iterator_traits<Iter>::value_type;
+
+} }
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
 Parallel array {#parray}
 ==============
 
@@ -61,7 +71,7 @@ Table: Template parameters for the `parray` class.
                                                            
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 namespace pasl {
-namespace data {
+namespace pctl {
 
 template <class Item, class Alloc = std::allocator<Item>>
 class parray;
@@ -371,7 +381,7 @@ Table: Template parameters for the `pchunkedseq` class.
                                                            
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 namespace pasl {
-namespace data {
+namespace pctl {
 
 template <class Item, class Alloc = std::allocator<Item>>
 class pchunkedseq;
@@ -1210,7 +1220,7 @@ parray<Result> scani(Iter lo,
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 namespace pasl {
-namespace data {
+namespace pctl {
 namespace level1 {
 
 template <
@@ -1244,7 +1254,7 @@ Result reducei(Iter lo,
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 namespace pasl {
-namespace data {
+namespace pctl {
 namespace level1 {
 
 template <
@@ -2144,8 +2154,10 @@ Derived operations
 namespace pasl {
 namespace pctl {
 
-template <class Item, class Iter>
-parray<Item> pack(Iter lo, Iter hi, const bool* flags_lo);
+template <class Item_iter, class Flags_iter>
+parray<value_type_of<Item_iter>> pack(Item_iter lo,
+                                      Item_iter hi,
+                                      Flags_iter flags_lo);
 
 } }
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -2157,19 +2169,11 @@ parray<Item> pack(Iter lo, Iter hi, const bool* flags_lo);
 namespace pasl {
 namespace pctl {
 
-template <
-  class Item,
-  class Iter,
-  class Pred
->
-parray<Item> filter(Iter lo, Iter hi, Pred pred);
+template <class Iter, class Pred_idx>
+parray<value_type_of<Iter>> filteri(Iter lo, Iter hi, Pred_idx pred_idx);
 
-template <
-  class Item,
-  class Iter,
-  class Pred_idx
->
-parray<Item> filteri(Iter lo, Iter hi, Pred_idx pred_idx);
+template <class Iter, class Pred>
+parray<value_type_of<Iter>> filter(Iter lo, Iter hi, Pred pred);
 
 } }
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -2241,7 +2245,7 @@ class Compare;
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-bool operator()(Item x, Item y);
+bool operator()(const Item& x, const Item& y);
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Merge
@@ -2270,13 +2274,8 @@ Merge sort
 namespace pasl {
 namespace pctl {
 
-template <
-  class Input_iter,
-  class Output_iter,
-  class Compare
->
-void mergesort(Input_iter lo, Input_iter hi,
-               Output_iter d_first, Compare compare);
+template <class Iter, class Compare>
+void mergesort(Iter lo, Iter hi, Compare compare);
 
 } }
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -2288,13 +2287,8 @@ Quick sort
 namespace pasl {
 namespace pctl {
 
-template <
-  class Input_iter,
-  class Output_iter,
-  class Compare
->
-void quicksort(Input_iter lo, Input_iter hi,
-               Output_iter d_first, Compare compare);
+template <class Iter, class Compare>
+void quicksort(Iter lo, Iter hi, Compare compare);
 
 } }
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -2306,13 +2300,8 @@ Sample sort
 namespace pasl {
 namespace pctl {
 
-template <
-  class Input_iter,
-  class Output_iter,
-  class Compare
->
-void samplesort(Input_iter lo, Input_iter hi,
-                Output_iter d_first, Compare compare);
+template <class Iter, class Compare>
+void samplesort(Iter lo, Iter hi, Compare compare);
 
 } }
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

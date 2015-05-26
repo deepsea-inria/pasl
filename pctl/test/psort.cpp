@@ -121,7 +121,8 @@ class parray_mergesort {
 public:
   
   void operator()(parray_type& xs) {
-    sort::mergesort(xs, compare);
+    //sort::mergesort(xs, compare);
+    sort::mergesort(xs.begin(), xs.end(), compare);
   }
   
 };
@@ -164,7 +165,7 @@ void checkit(std::string msg) {
 int main(int argc, char** argv) {
   pasl::sched::launch(argc, argv, [&] (bool sequential) {
     int nb_tests = pasl::util::cmdline::parse_or_default_int("n", 1000);
-    checkit<pasl::pctl::pbbs_samplesort_property>(nb_tests, "pbbs samplesort is correct");
+    //checkit<pasl::pctl::pbbs_samplesort_property>(nb_tests, "pbbs samplesort is correct");
     checkit<pasl::pctl::parray_mergesort_property>(nb_tests, "parray mergesort is correct");
   });
   return 0;

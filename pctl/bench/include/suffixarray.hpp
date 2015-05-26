@@ -185,7 +185,7 @@ void suffixArrayRec(intT* s, intT n, intT K, bool findLCPs,
   
   // stably sort the mod 0 suffixes
   // uses the fact that we already have the tails sorted in SA12
-  parray<intT> s0 = filter<intT>(SA12.cbegin(), SA12.cbegin()+n12, [&] (const intT* i) {
+  parray<intT> s0 = filter(SA12.cbegin(), SA12.cbegin()+n12, [&] (const intT* i) {
     return *i%3 == 1;
   });
   intT x = (intT)s0.size();

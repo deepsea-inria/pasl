@@ -39,6 +39,9 @@ std::string sota() {
   return string_of_template_arg<T>();
 }
   
+template <class Iter>
+using value_type_of = typename std::iterator_traits<Iter>::value_type;
+  
 /*---------------------------------------------------------------------*/
 /* Parallel-for loops */
 

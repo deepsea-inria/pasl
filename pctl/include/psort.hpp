@@ -41,15 +41,6 @@ public:
 template <class Item>
 controller_type merge_parray<Item>::contr("merge"+sota<Item>());
   
-template <class Item>
-class mergesort_parray {
-public:
-  static controller_type contr;
-};
-
-template <class Item>
-controller_type mergesort_parray<Item>::contr("mergesort"+sota<Item>());
-
 } // end namespace
 
 template <class Item, class Compare>
@@ -246,12 +237,16 @@ void merge_par(Item* xs, Item* tmp,
   pmem::copy(&tmp[lo], &tmp[hi], &xs[lo]);
 }
   
-template <class Item, class Compare>
-void merge(typename parray<Item>::const_iterator first1,
-           typename parray<Item>::const_iterator last1,
-           typename parray<Item>::const_iterator first2,
-           typename parray<Item>::const_iterator last2,
-           typename parray<Item>::iterator d_first,
+template <
+  class Input_iter,
+  class Output_iter,
+  class Compare
+>
+void merge(Input_iter first1,
+           Input_iter last1,
+           Input_iter first2,
+           Input_iter last2,
+           Output_iter d_first,
            const Compare& compare) {
   long lo_xs = 0;
   long hi_xs = last1 - first1;
@@ -261,36 +256,69 @@ void merge(typename parray<Item>::const_iterator first1,
   merge_par(first1, first2, d_first, lo_xs, hi_xs, lo_ys, hi_ys, lo_tmp, compare);
 }
   
-// later: encode this function as an application of the reduce function
-template <class Item, class Compare>
-void mergesort_rec(Item* xs, Item* tmp, long lo, long hi, const Compare& compare) {
-  using controller_type = contr::mergesort_parray<Item>;
-  long n = hi - lo;
-  auto seq = [&] {
-    sort_seq(xs, lo, hi, compare);
-  };
-  par::cstmt(controller_type::contr, [&] { return n; }, [&] {
-    if (n <= 2) {
-      seq();
-      return;
-    }
-    long mid = (lo + hi) / 2;
-    par::fork2([&] {
-      mergesort_rec(xs, tmp, lo, mid, compare);
-    }, [&] {
-      mergesort_rec(xs, tmp, mid, hi, compare);
-    });
-    merge_par(xs, tmp, lo, mid, hi, compare);
-  }, seq);
+namespace level3 {
+  
+template <class Merge_fct>
+class merge_output {
+public:
+  
+  using result_type = std::pair<long, long>;
+
+  Merge_fct merge_fct;
+  
+  merge_output(const Merge_fct& merge_fct)
+  : merge_fct(merge_fct) { }
+  
+  void init(result_type& rng) const {
+    rng = std::make_pair(0L, 0L);
+  }
+  
+  void copy(const result_type& src, result_type& dst) const {
+    dst = src;
+  }
+  
+  // dst, src represent left, right range to be merged, respectively
+  void merge(const result_type& src, result_type& dst) const {
+    assert(dst.second == src.first);
+    merge_fct(dst.first, dst.second, src.second);
+    dst.second = src.second;
+  }
+  
+};
+  
 }
   
 template <class Item, class Compare>
-void mergesort(parray<Item>& xs, const Compare& compare) {
-  long n = xs.size();
-  if (n == 0)
-    return;
-  parray<Item> tmp(n);
-  mergesort_rec(&xs[0], &tmp[0], 0, n, compare);
+void mergesort_by_reduce(Item* xs, Item* tmp, long lo, long hi, const Compare& compare) {
+  using input_type = level4::tabulate_input;
+  auto merge_fct = [&] (long lo, long mid, long hi) {
+    merge_par(xs, tmp, lo, mid, hi, compare);
+  };
+  using output_type = level3::merge_output<decltype(merge_fct)>;
+  using result_type = typename output_type::result_type;
+  input_type in(lo, hi);
+  output_type out(merge_fct);
+  result_type id = std::make_pair(0L, 0L);
+  result_type dst = id;
+  auto convert_reduce_comp = [&] (input_type& in) {
+    return in.hi - in.lo;
+  };
+  auto convert_reduce = [&] (input_type& in, result_type& dst) {
+    sort_seq(xs, in.lo, in.hi, compare);
+    dst = std::make_pair(in.lo, in.hi);
+  };
+  auto seq_convert_reduce = convert_reduce;
+  level4::reduce(in, out, id, dst, convert_reduce_comp, convert_reduce, seq_convert_reduce);
+  assert(dst.first == lo);
+  assert(dst.second == hi);
+}
+  
+template <class Iter, class Compare>
+void mergesort(Iter lo, Iter hi, const Compare& compare) {
+  using value_type = typename std::iterator_traits<Iter>::value_type;
+  long n = hi - lo;
+  parray<value_type> tmp(n);
+  mergesort_by_reduce(lo, tmp.begin(), 0L, n, compare);
 }
 
 /***********************************************************************/

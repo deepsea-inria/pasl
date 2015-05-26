@@ -288,8 +288,8 @@ void splitEvents(range* boxes, event* events, float cutOff, intT n,
     return boxes[b].max > cutOff;
   });
   const event* events2 = (const event*)events;
-  left =  pack<event>(events2, events2+n, lower.cbegin());
-  right = pack<event>(events2, events2+n, upper.cbegin());
+  left =  pack(events2, events2+n, lower.cbegin());
+  right = pack(events2, events2+n, upper.cbegin());
 }
   
 template <class T>
