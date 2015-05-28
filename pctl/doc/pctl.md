@@ -1052,7 +1052,8 @@ functor.
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 long max(const parray<long>& xs) {
-  return reduce(xs.cbegin(), xs.cend(), LONG_MIN, Max_combine());
+  long id = std::numeric_limits<long>::lowest();
+  return reduce(xs.cbegin(), xs.cend(), id, Max_combine());
 }
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -1061,7 +1062,8 @@ same algorithm.
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 long max(const parray<long>& xs) {
-  return reduce(xs.cbegin(), xs.cend(), LONG_MIN, [&] (long x, long y) {
+  long id = std::numeric_limits<long>::lowest();
+  return pasl::pctl::reduce(xs.cbegin(), xs.cend(), id, [&] (long x, long y) {
     return std::max(x, y);
   });
 }
@@ -1109,7 +1111,7 @@ function, which examines a given array of arrays.
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 long max0(const parray<parray<long>>& xss) {
-  parray<long> id = { LONG_MIN };
+  parray<long> id = { std::numeric_limits<long>::lowest() };
   auto weight = [&] (const parray<long>& xs) {
     return xs.size();
   };
@@ -1119,7 +1121,7 @@ long max0(const parray<parray<long>>& xss) {
     return r;
   };
   parray<long> a =
-    reduce(xss.cbegin(), xcc.cend(), id, weight, combine);
+    reduce(xss.cbegin(), xss.cend(), id, weight, combine);
   return a[0];
 }
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1419,7 +1421,8 @@ long max1(const parray<parray<long>>& xss) {
   };
   auto lo = xss.cbegin();
   auto hi = xss.cend();
-  return level1::reduce(lo, hi, 0, combine, lift_comp, lift);
+  long id = std::numeric_limits<long>::lowest();
+  return level1::reduce(lo, hi, id, combine, lift_comp, lift);
 }
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -1591,13 +1594,14 @@ long max2(const parray<parray<long>>& xss) {
   };
   iterator lo_xs = xss.cbegin();
   iterator hi_xs = xss.cend();
-  return level2::reduce(lo_xs, hi_xs, 0, combine, lift_comp_rng,
+  long id = std::numeric_limits<long>::lowest();
+  return level2::reduce(lo_xs, hi_xs, id, combine, lift_comp_rng,
                         lift, seq_reduce_rng);
 }
 
 template <class Iter>
 long max_seq(Iter lo_xs, Iter hi_xs) {
-  long m = LONG_MIN;
+  long m = std::numeric_limits<long>::lowest();
   for (Iter it_xs = lo_xs; it_xs != hi_xs; it_xs++) {
     const parray<long>& xs = *it_xs;
     for (auto it_x = xs.cbegin(); it_x != xs.cend(); it_x++) {

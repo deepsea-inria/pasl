@@ -7,6 +7,8 @@
  *
  */
 
+#include <limits>
+
 #include "datapar.hpp"
 
 #ifndef _PCTL_MAX_EXAMPLE_H_
@@ -14,17 +16,20 @@
 
 /***********************************************************************/
 
+namespace max_ex {
+  
 template <class Item>
 using parray = pasl::pctl::parray<Item>;
 
 long max(const parray<long>& xs) {
-  return pasl::pctl::reduce(xs.cbegin(), xs.cend(), LONG_MIN, [&] (long x, long y) {
+  long id = std::numeric_limits<long>::lowest();
+  return pasl::pctl::reduce(xs.cbegin(), xs.cend(), id, [&] (long x, long y) {
     return std::max(x, y);
   });
 }
 
 long max0(const parray<parray<long>>& xss) {
-  parray<long> id = { LONG_MIN };
+  parray<long> id = { std::numeric_limits<long>::lowest() };
   auto weight = [&] (const parray<long>& xs) {
     return xs.size();
   };
@@ -51,12 +56,13 @@ long max1(const parray<parray<long>>& xss) {
   };
   auto lo = xss.cbegin();
   auto hi = xss.cend();
-  return pasl::pctl::level1::reduce(lo, hi, 0, combine, lift_comp, lift);
+  long id = std::numeric_limits<long>::lowest();
+  return pasl::pctl::level1::reduce(lo, hi, id, combine, lift_comp, lift);
 }
 
 template <class Iter>
 long max_seq(Iter lo_xs, Iter hi_xs) {
-  long m = LONG_MIN;
+  long m = std::numeric_limits<long>::lowest();
   for (Iter it_xs = lo_xs; it_xs != hi_xs; it_xs++) {
     const parray<long>& xs = *it_xs;
     for (auto it_x = xs.cbegin(); it_x != xs.cend(); it_x++) {
@@ -87,8 +93,12 @@ long max2(const parray<parray<long>>& xss) {
   };
   iterator lo_xs = xss.cbegin();
   iterator hi_xs = xss.cend();
-  return pasl::pctl::level2::reduce(lo_xs, hi_xs, 0, combine, lift_comp_rng, lift, seq_reduce_rng);
+  long id = std::numeric_limits<long>::lowest();
+  return pasl::pctl::level2::reduce(lo_xs, hi_xs, id, combine, lift_comp_rng,
+                                    lift, seq_reduce_rng);
 }
+  
+} // end namespace
 
 /***********************************************************************/
 

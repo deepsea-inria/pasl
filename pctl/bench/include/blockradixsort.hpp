@@ -69,8 +69,8 @@ void radixStep(E* A, E* B, bIndexT *Tmp, intT (*BK)[BUCKETS],
   
   
   // need 3 bucket sets per block
-  int expand = (sizeof(E)<=4) ? 64 : 32;
-  intT blocks = min(numBK/3,(1+n/(BUCKETS*expand)));
+  intT expand = (intT)(sizeof(E)<=4) ? 64 : 32;
+  intT blocks = std::min(numBK/3,(1+n/(BUCKETS*expand)));
   
   if (blocks < 2) {
     radixStepSerial(A, B, Tmp, BK[0], n, m, extract);
@@ -83,7 +83,7 @@ void radixStep(E* A, E* B, bIndexT *Tmp, intT (*BK)[BUCKETS],
   
   parallel_for(intT(0), blocks, [&] (intT i) {
     intT od = i*nn;
-    intT nni = min(max<intT>(n-od,0),nn);
+    intT nni = std::min(std::max<intT>(n-od,0),nn);
     radixBlock(A+od, B, Tmp+od, cnts + m*i, oB + m*i, od, nni, m, extract);
   });
   
@@ -226,9 +226,8 @@ void iSort(E *A, intT* bucketOffsets, intT n, intT m, bool bottomUp,
 template <class E, class F, class intT>
 void iSort(E *A, intT* bucketOffsets, intT n, intT m, bool bottomUp, F f) {
   long x = iSortSpace<E,intT>(n);
-  char* s = (char*) malloc(x);
-  iSort(A, bucketOffsets, n, m, bottomUp, s, f);
-  free(s);
+  parray<char> s(x);
+  iSort(A, bucketOffsets, n, m, bottomUp, s.begin(), f);
 }
 
 template <class E, class F, class intT>

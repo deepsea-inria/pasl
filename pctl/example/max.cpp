@@ -16,13 +16,15 @@
 
 namespace pasl {
 namespace pctl {
+  
+using namespace max_ex;
 
 void ex() {
   
   {
     parray<long> xs = { 1, 3, 9, 0, 33, 1, 1 };
     std::cout << "xs\t\t= " << xs << std::endl;
-    std::cout << "max(xs)\t= " << max(xs) << std::endl;
+    std::cout << "max(xs)\t= " << max_ex::max(xs) << std::endl;
   }
   
   parray<parray<long>> xss = { {23, 1, 3}, { 19, 3, 3 }, { 100 } };
@@ -44,8 +46,8 @@ void ex() {
   
 }
 
-}
-}
+} // end namespace
+} // end namespace
 
 /*---------------------------------------------------------------------*/
 

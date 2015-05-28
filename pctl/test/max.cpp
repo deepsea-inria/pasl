@@ -82,7 +82,7 @@ class flat_max_property : public quickcheck::Property<parray_wrapper> {
 public:
   
   bool holdsFor(const parray_wrapper& in) {
-    return trusted::max(in.c) == max(in.c);
+    return trusted::max(in.c) == max_ex::max(in.c);
   }
   
 };

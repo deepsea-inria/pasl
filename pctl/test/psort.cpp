@@ -171,10 +171,9 @@ int main(int argc, char** argv) {
     m.add("pbbs_samplesort", [&] {
       checkit<pasl::pctl::pbbs_samplesort_property>(nb_tests, "pbbs samplesort is correct");
     });
-    /*
     m.add("pchunkedseq_mergesort", [&] {
       checkit<pasl::pctl::pchunkedseq_mergesort_property>(nb_tests, "pchunkedseq mergesort is correct");
-    }); */
+    });
     pasl::util::cmdline::dispatch_by_argmap_with_default_all(m, "test");
   });
   return 0;

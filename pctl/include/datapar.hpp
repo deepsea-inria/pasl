@@ -13,6 +13,7 @@
 #ifndef TARGET_MAC_OS
 #include <malloc.h>
 #endif
+#include <type_traits>
 
 #include "weights.hpp"
 #include "atomic.hpp"
@@ -1271,6 +1272,35 @@ parray<value_type_of<Iter>> filter(Iter lo, Iter hi, const Pred& pred) {
     return pred(x);
   };
   return filteri(lo, hi, pred_idx);
+}
+  
+/*---------------------------------------------------------------------*/
+/* Array-sum and max */
+  
+template <class Iter>
+value_type_of<Iter> sum(Iter lo, Iter hi) {
+  using number = value_type_of<Iter>;
+  return reduce(lo, hi, (number)0, [&] (number x, number y) {
+    return x + y;
+  });
+}
+
+template <class Iter>
+value_type_of<Iter> max(Iter lo, Iter hi) {
+  using number = value_type_of<Iter>;
+  number id = std::numeric_limits<number>::lowest();
+  return reduce(lo, hi, id, [&] (number x, number y) {
+    return std::max(x, y);
+  });
+}
+  
+template <class Iter>
+value_type_of<Iter> min(Iter lo, Iter hi) {
+  using number = value_type_of<Iter>;
+  number id = std::numeric_limits<number>::max();
+  return reduce(lo, hi, id, [&] (number x, number y) {
+    return std::min(x, y);
+  });
 }
   
 /***********************************************************************/
