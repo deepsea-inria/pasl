@@ -104,6 +104,7 @@ public:
   using pointer = value_type*;
   using const_pointer = const value_type*;
   using segment_type = typename queue_type::segment_type;
+  using const_segment_type = typename queue_type::const_segment_type;
   ///@}
 
   /*---------------------------------------------------------------------*/
@@ -298,6 +299,10 @@ public:
   
   segment_type segment_by_index(size_type i) const {
     return items.segment_by_index(int(i));
+  }
+  
+  const_segment_type csegment_by_index(size_type i) const {
+    return items.csegment_by_index(int(i));
   }
   
   size_type index_of_pointer(const value_type* p) const {

@@ -51,8 +51,8 @@ void scan(Input_iter lo,
           scan_type st) {
   using output_type = level3::cell_output<Result, Combine>;
   output_type out(id, combine);
-  auto lift_idx_dst = [&] (long pos, Input_iter it, Result& dst) {
-    dst = lift_idx(pos, it);
+  auto lift_idx_dst = [&] (long pos, reference_of<Input_iter> x, Result& dst) {
+    dst = lift_idx(pos, x);
   };
   level3::scan(lo, hi, out, id, outs_lo, lift_comp_rng, lift_idx_dst, seq_scan_rng_dst, st);
 }
@@ -73,13 +73,13 @@ template <
   class Lift_idx
 >
 Result scani(Input_iter lo,
-           Input_iter hi,
-           Result& id,
-           const Combine& combine,
-           Output_iter outs_lo,
-           const Lift_comp_idx& lift_comp_idx,
-           const Lift_idx& lift_idx,
-           scan_type st) {
+             Input_iter hi,
+             Result& id,
+             const Combine& combine,
+             Output_iter outs_lo,
+             const Lift_comp_idx& lift_comp_idx,
+             const Lift_idx& lift_idx,
+             scan_type st) {
   parray<long> w = weights(hi-lo, [&] (long pos) {
     return lift_comp_idx(pos, lo+pos);
   });
@@ -93,8 +93,8 @@ Result scani(Input_iter lo,
   output_type out(id, combine);
   using iterator = typename parray<Result>::iterator;
   auto seq_scan_rng_dst = [&] (Result _id, Input_iter _lo, Input_iter _hi, iterator outs_lo) {
-    level4::scan_seq(_lo, _hi, outs_lo, out, _id, [&] (Input_iter src, Result& dst) {
-      dst = *src;
+    level4::scan_seq(_lo, _hi, outs_lo, out, _id, [&] (reference_of<Input_iter> src, Result& dst) {
+      dst = src;
     }, st);
   };
   level2::scan(lo, hi, id, combine, outs_lo, lift_comp_rng, lift_idx, seq_scan_rng_dst, st);
@@ -122,8 +122,8 @@ Result scani(Input_iter lo,
   output_type out(id, combine);
   using iterator = typename parray<Result>::iterator;
   auto seq_scan_rng_dst = [&] (Result id, Input_iter lo, Input_iter hi, iterator outs_lo) {
-    level4::scan_seq(lo, hi, outs_lo, out, id, [&] (Input_iter src, Result& dst) {
-      dst = *src;
+    level4::scan_seq(lo, hi, outs_lo, out, id, [&] (reference_of<Input_iter> src, Result& dst) {
+      dst = src;
     }, st);
   };
   level2::scan(lo, hi, id, combine, outs_lo, lift_comp_rng, lift_idx, seq_scan_rng_dst, st);
@@ -149,11 +149,11 @@ Item scan(Iter lo,
           Iter outs_lo,
           const Weight& weight,
           scan_type st) {
-  auto lift_idx = [&] (long, Iter it) {
-    return *it;
+  auto lift_idx = [&] (long, reference_of<Iter> x) {
+    return x;
   };
-  auto lift_comp_idx = [&] (long, Iter it) {
-    return weight(*it);
+  auto lift_comp_idx = [&] (long, reference_of<Iter>x ) {
+    return weight(x);
   };
   return level1::scani(lo, hi, id, combine, outs_lo, lift_comp_idx, lift_idx, st);
 }
@@ -169,8 +169,8 @@ Item scan(Iter lo,
           const Combine& combine,
           Iter outs_lo,
           scan_type st) {
-  auto lift_idx = [&] (long, Iter it) {
-    return *it;
+  auto lift_idx = [&] (long, reference_of<Iter> x) {
+    return x;
   };
   return level1::scani(lo, hi, id, combine, outs_lo, lift_idx, st);
 }
@@ -186,8 +186,8 @@ template <
 long pack(Flags_iter flags_lo, Input_iter lo, Input_iter hi, Output_iter dst_lo) {
   return __priv::pack(flags_lo, lo, hi, *lo, [&] (long) {
     return dst_lo;
-  }, [&] (long, Input_iter it) {
-    return *it;
+  }, [&] (long, reference_of<Input_iter> x) {
+    return x;
   });
 }
 
@@ -199,19 +199,19 @@ template <
 long filteri(Input_iter lo, Input_iter hi, Output_iter dst_lo, const Pred_idx& pred_idx) {
   long n = hi - lo;
   parray<bool> flags(n, [&] (long i) {
-    return pred_idx(i, lo+i);
+    return pred_idx(i, *(lo+i));
   });
   return pack(flags.cbegin(), lo, hi, dst_lo);
 }
   
 template <
-class Input_iter,
-class Output_iter,
-class Pred
+  class Input_iter,
+  class Output_iter,
+  class Pred
 >
 long filter(Input_iter lo, Input_iter hi, Output_iter dst_lo, const Pred& pred) {
-  auto pred_idx = [&] (long, Input_iter it) {
-    return pred(it);
+  auto pred_idx = [&] (long, reference_of<Input_iter> x) {
+    return pred(x);
   };
   return filteri(lo, hi, dst_lo, pred_idx);
 }

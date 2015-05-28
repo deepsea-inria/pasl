@@ -7,6 +7,8 @@
  *
  */
 
+#include "datapar.hpp"
+
 #ifndef _PCTL_QUICKCHECK_H_
 #define _PCTL_QUICKCHECK_H_
 

@@ -7,7 +7,7 @@
  *
  */
 
-#include "pchunkedseq.hpp"
+#include "datapar.hpp"
 
 #ifndef _PCTL_PSORT_H_
 #define _PCTL_PSORT_H_
@@ -135,7 +135,7 @@ pchunkedseq<Item> sort_seq(pchunkedseq<Item>& xs, const Compare& compare) {
   
 template <class Combine, class Container>
 level3::mergeable_output<Combine, Container> create_mergeable_output(const Container& id,
-                                                             const Combine& combine) {
+                                                                     const Combine& combine) {
   level3::mergeable_output<Combine, Container> out(combine);
   return out;
 }

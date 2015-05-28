@@ -41,7 +41,8 @@ template <
   class Configuration,
   template <
     class Chunkedseq,
-    class Configuration1
+    class Configuration1,
+    class Pointer, class Reference, class Segment
   >
   class Iterator=iterator::random_access
 >
@@ -90,6 +91,7 @@ public:
   using pointer = value_type*;
   using const_pointer = const value_type*;
   using segment_type = typename config_type::segment_type;
+  using const_segment_type = typename config_type::const_segment_type;
   ///@}
 
   /*---------------------------------------------------------------------*/
@@ -102,8 +104,12 @@ public:
   using measure_type = typename cache_type::measure_type;
   ///@}
   
-  using iterator = Iterator<self_type, config_type>;
+  using iterator = Iterator<self_type, config_type, pointer, reference, segment_type>;
   friend iterator;
+  
+  using const_iterator = Iterator<self_type, config_type,
+                                  const_pointer, const_reference, const_segment_type>;
+  friend const_iterator;
 
 protected:
 
@@ -824,6 +830,7 @@ public:
   
   using value_type = Item;
   using segment_type = segment<value_type*>;
+  using const_segment_type = segment<const value_type*>;
   
   static constexpr size_type chunk_capacity = size_type(Chunk_capacity);
   

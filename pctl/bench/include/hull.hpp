@@ -110,11 +110,11 @@ intT quickHull(iter<intT> I, iter<intT> Itmp, iter<point2d> P, intT n, intT l, i
       });
       intT maxP = I[idx];
       
-      intT n1 = (intT)dps::filter(I, I+n, Itmp, [&] (const intT* i) {
-        return triArea(P[l], P[maxP], P[*i]) > 0.0;
+      intT n1 = (intT)dps::filter(I, I+n, Itmp, [&] (intT i) {
+        return triArea(P[l], P[maxP], P[i]) > 0.0;
       });
-      intT n2 = (intT)dps::filter(I, I+n, Itmp+n1, [&] (const intT* i) {
-        return triArea(P[maxP], P[r], P[*i]) > 0.0;
+      intT n2 = (intT)dps::filter(I, I+n, Itmp+n1, [&] (intT i) {
+        return triArea(P[maxP], P[r], P[i]) > 0.0;
       });
       
       intT m1, m2;
@@ -146,7 +146,7 @@ parray<intT> hull(parray<point2d>& P) {
     return make_pair(minIndex, maxIndex);
   };
   auto id = make_pair(0,0);
-  auto minMax = level1::reducei(P.cbegin(), P.cend(), id, combine, [&] (long i, citer<point2d>) {
+  auto minMax = level1::reducei(P.cbegin(), P.cend(), id, combine, [&] (long i, point2d) {
     return make_pair(i, i);
   });
   intT l = minMax.first;

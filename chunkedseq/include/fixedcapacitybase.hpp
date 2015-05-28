@@ -126,8 +126,8 @@ public:
 
 template <class Alloc>
 void copy(typename Alloc::pointer destination,
-             typename Alloc::const_pointer source,
-             typename Alloc::size_type num) {
+          typename Alloc::const_pointer source,
+          typename Alloc::size_type num) {
   // ranges must not intersect
   assert(! (source+num >= destination+1 && destination+num >= source+1));
   std::copy(source, source+num, destination);
@@ -416,10 +416,11 @@ class Item_alloc = std::allocator<typename Array_alloc::value_type> >
 class ringbuffer_idx {
 public:
   
-  typedef int size_type;
-  typedef typename Array_alloc::value_type value_type;
-  typedef Item_alloc allocator_type;
-  typedef segment<value_type*> segment_type;
+  using size_type = int;
+  using value_type = typename Array_alloc::value_type;
+  using allocator_type = Item_alloc;
+  using segment_type = segment<value_type*>;
+  using const_segment_type = segment<const value_type*>;
   
   static constexpr int capacity = Array_alloc::capacity;
   
@@ -675,6 +676,10 @@ public:
     return segment_of_ringbuffer(p, fr_ptr, bk_ptr, &array[0], capacity);
   }
   
+  const_segment_type csegment_by_index(int i) const {
+    return make_const_segment(segment_by_index(i));
+  }
+  
   int index_of_pointer(const value_type* p) const {
     assert(p >= &array[0]);
     assert(p <= &array[capacity-1]);
@@ -831,10 +836,11 @@ private:
   
 public:
   
-  typedef int size_type;
-  typedef Item_alloc allocator_type;
-  typedef segment<value_type*> segment_type;
-  typedef ringbuffer_ptr self_type;
+  using size_type = int;
+  using allocator_type = Item_alloc;
+  using segment_type = segment<value_type*>;
+  using const_segment_type = segment<const value_type*>;
+  using self_type = ringbuffer_ptr;
   
   ringbuffer_ptr() {
     init();
@@ -1062,6 +1068,10 @@ public:
     return segment_of_ringbuffer(p, fr, bk, beg(), nb_cells);
   }
   
+  const_segment_type csegment_by_index(int i) const {
+    return make_const_segment(segment_by_index(i));
+  }
+  
   //! \todo: comment on the signature of body
   template <class Body>
   void for_each(const Body& body) const {
@@ -1283,10 +1293,11 @@ private:
   
 public:
   
-  typedef int size_type;
-  typedef Item_alloc allocator_type;
-  typedef segment<value_type*> segment_type;
-  typedef ringbuffer_ptrx self_type;
+  using size_type = int;
+  using allocator_type = Item_alloc;
+  using segment_type = segment<value_type*>;
+  using const_segment_type = segment<const value_type*>;
+  using self_type = ringbuffer_ptrx;
   
   ringbuffer_ptrx() {
     init();
@@ -1491,6 +1502,10 @@ public:
     return segment_of_ringbuffer(p, on_fr, on_bk, beg(), nbcells);
   }
   
+  const_segment_type csegment_by_index(int i) const {
+    return make_const_segment(segment_by_index(i));
+  }
+  
   int index_of_pointer(const value_type* p) const {
     assert(p >= beg());
     assert(p <= end());
@@ -1585,6 +1600,7 @@ public:
   using value_type = typename Array_alloc::value_type;
   using allocator_type = Item_alloc;
   using segment_type = segment<value_type*>;
+  using const_segment_type = segment<const value_type*>;
   
   static constexpr int capacity = Array_alloc::capacity;
   
@@ -1774,6 +1790,10 @@ public:
     seg.middle = &array[ix];
     seg.end = &array[index_of_last_item()] + 1;
     return seg;
+  }
+  
+  const_segment_type csegment_by_index(int i) const {
+    return make_const_segment(segment_by_index(i));
   }
   
   size_type index_of_pointer(const value_type* p) const {

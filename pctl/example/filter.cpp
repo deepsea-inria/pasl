@@ -23,12 +23,12 @@ void ex() {
     parray<long> xs = { 444, 1, 3, 9, 6, 33, 2, 1, 234, 99 };
     std::cout << "xs\t\t= " << xs << std::endl;
     parray<long> dst(xs.size(), -1);
-    long nb_evens = dps::filter(xs.cbegin(), xs.cend(), dst.begin(), [&] (const long* x) {
-      return *x%2==0;
+    long nb_evens = dps::filter(xs.cbegin(), xs.cend(), dst.begin(), [&] (long x) {
+      return x%2==0;
     });
     std::cout << "evens(xs) ++ { -1 ... } =" << dst << std::endl;
     std::cout << "nb_evens(xs) = " << nb_evens << std::endl;
-    std::cout << "odds(xs)\t\t= " << filter(xs.cbegin(), xs.cend(), [&] (const long* x) { return *x%2==1; }) << std::endl;
+    std::cout << "odds(xs)\t\t= " << filter(xs.cbegin(), xs.cend(), [&] (long x) { return x%2==1; }) << std::endl;
 
   }
   

@@ -52,7 +52,8 @@ template <
   class Configuration,
   template <
     class Chunkedseq,
-    class Configuration1
+    class Configuration1,
+    class Pointer, class Reference, class Segment
   >
   class Iterator=iterator::random_access
 >
@@ -101,6 +102,7 @@ public:
   using pointer = value_type*;
   using const_pointer = const value_type*;
   using segment_type = typename config_type::segment_type;
+  using const_segment_type = typename config_type::const_segment_type;
   ///@}
 
   /*---------------------------------------------------------------------*/
@@ -113,8 +115,12 @@ public:
   using measure_type = typename cache_type::measure_type;
   ///@}
 
-  using iterator = Iterator<self_type, config_type>;
+  using iterator = Iterator<self_type, config_type, pointer, reference, segment_type>;
   friend iterator;
+  
+  using const_iterator = Iterator<self_type, config_type,
+                                  const_pointer, const_reference, const_segment_type>;
+  friend const_iterator;
 
 private:
 
@@ -1439,6 +1445,10 @@ public:
     return iterator(this, middle_meas, chunkedseq::iterator::begin);
   }
 
+  const_iterator cbegin() const {
+    return const_iterator(this, middle_meas, chunkedseq::iterator::begin);
+  }
+  
   /*!
    * \brief Returns iterator to end
    *
@@ -1466,6 +1476,10 @@ public:
    */
   iterator end() const {
     return iterator(this, middle_meas, chunkedseq::iterator::end);
+  }
+  
+  const_iterator cend() const {
+    return const_iterator(this, middle_meas, chunkedseq::iterator::end);
   }
 
   /*!

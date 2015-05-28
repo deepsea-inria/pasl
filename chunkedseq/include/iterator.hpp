@@ -12,6 +12,7 @@
 
 #include <assert.h>
 #include <iterator>
+#include <type_traits>
 
 #include "itemsearch.hpp"
 
@@ -135,7 +136,13 @@ public:
  * Library.
  *
  */
-template <class Chunkedseq, class Configuration>
+template <
+  class Chunkedseq,
+  class Configuration,
+  class Pointer,
+  class Reference,
+  class Segment
+>
 class random_access {
 private:
   
@@ -159,13 +166,12 @@ public:
   /** @name Container-specific types
    */
   ///@{
-  using self_type = random_access<chunkedseq_type, config_type>;
+  using self_type = random_access<chunkedseq_type, config_type,
+                                  Pointer, Reference, Segment>;
   using value_type = typename config_type::value_type;
-  using pointer = value_type*;
-  using const_pointer = const value_type*;
-  using reference = value_type&;
-  using const_reference = const value_type&;
-  using segment_type = typename config_type::segment_type;
+  using pointer = Pointer;
+  using reference = Reference;
+  using segment_type = Segment;
   ///@}
   
   /*---------------------------------------------------------------------*/
@@ -192,6 +198,19 @@ private:
 
   measure_type meas_fct;
   
+  segment_type segment_by_index(const_chunk_pointer p, long pos) {
+    segment_type result;
+    /* Perform the coercion below because the segment type returned
+     * by p->segment_by_index() might not match the segment type
+     * of the iterator. In particular, the segment type of the
+     * iterator could be instantiated at "const value_type*", while
+     * the p->segment_by_index() function returns a segment type
+     * that is instantiated at "value_type*".
+     */
+    coerce_segment(p->segment_by_index(pos), result);
+    return result;
+  }
+  
   /*---------------------------------------------------------------------*/
   
   void check() {
@@ -214,7 +233,7 @@ private:
     auto res = chunk_search(*cur, meas_fct, prefix, p);
     size_type pos = res.position;
     prefix = res.prefix;
-    seg = cur->segment_by_index(pos - 1);
+    seg = segment_by_index(cur, pos - 1);
     if (seg.middle - seg.begin > cur->size())
       cur->segment_by_index(pos - 1);
     assert(seg.middle - seg.begin <= cur->size());
@@ -242,7 +261,7 @@ private:
       if (sz_cur == 0)
         seg.begin = seg.end = nullptr;
       else
-        seg = cur->segment_by_index(sz_cur - 1);
+        seg = segment_by_index(cur, sz_cur - 1);
       seg.middle = seg.end;
     }
     check();

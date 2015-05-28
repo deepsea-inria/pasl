@@ -93,7 +93,17 @@ segment<const Item*> make_const_segment(segment<Item*> seg) {
   res.end = seg.end;
   return res;
 }
-
+  
+template <class Item>
+void coerce_segment(segment<Item*> src, segment<const Item*>& dst) {
+  dst = make_const_segment(src);
+}
+  
+template <class Item>
+void coerce_segment(segment<Item*> src, segment<Item*>& dst) {
+  dst = src;
+}
+  
 /***********************************************************************/
 
 } // end namespace

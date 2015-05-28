@@ -18,6 +18,7 @@ namespace pctl {
 /***********************************************************************/
   
 /*---------------------------------------------------------------------*/
+/* pctl global configuration */
 
 namespace par = sched::granularity;
   
@@ -41,6 +42,12 @@ std::string sota() {
   
 template <class Iter>
 using value_type_of = typename std::iterator_traits<Iter>::value_type;
+
+template <class Iter>
+using reference_of = typename std::iterator_traits<Iter>::reference;
+
+template <class Iter>
+using pointer_of = typename std::iterator_traits<Iter>::pointer;
   
 /*---------------------------------------------------------------------*/
 /* Parallel-for loops */

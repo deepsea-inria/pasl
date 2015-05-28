@@ -7,8 +7,7 @@
  *
  */
 
-#include "pchunkedseq.hpp"
-#include "parray.hpp"
+#include "datapar.hpp"
 
 #ifndef _PCTL_MAX_EXAMPLE_H_
 #define _PCTL_MAX_EXAMPLE_H_
@@ -44,11 +43,11 @@ long max1(const parray<parray<long>>& xss) {
   auto combine = [&] (long x, long y) {
     return std::max(x, y);
   };
-  auto lift_comp = [&] (iterator it_xs) {
-    return it_xs->size();
+  auto lift_comp = [&] (const parray<long>& xs) {
+    return xs.size();
   };
-  auto lift = [&] (iterator it_xs) {
-    return max(*it_xs);
+  auto lift = [&] (const parray<long>& xs) {
+    return max(xs);
   };
   auto lo = xss.cbegin();
   auto hi = xss.cend();
@@ -80,8 +79,8 @@ long max2(const parray<parray<long>>& xss) {
   auto combine = [&] (long x, long y) {
     return std::max(x, y);
   };
-  auto lift = [&] (long, iterator it_xs) {
-    return max(*it_xs);
+  auto lift = [&] (long, const parray<long>& xs) {
+    return max(xs);
   };
   auto seq_reduce_rng = [&] (iterator lo_xs, iterator hi_xs) {
     return max_seq(lo_xs, hi_xs);

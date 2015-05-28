@@ -68,6 +68,7 @@ public:
 
   using value_type = Item;
   using segment_type = segment<value_type*>;
+  using const_segment_type = segment<const value_type*>;
 
   static constexpr size_type chunk_capacity = size_type(Chunk_capacity);
 

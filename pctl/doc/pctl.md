@@ -27,6 +27,12 @@ namespace pctl {
 template <class Iter>
 using value_type_of = typename std::iterator_traits<Iter>::value_type;
 
+template <class Iter>
+using reference_of = typename std::iterator_traits<Iter>::reference;
+
+template <class Iter>
+using pointer_of = typename std::iterator_traits<Iter>::pointer;
+
 } }
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -1333,7 +1339,7 @@ a value of type `Result`. The call operator for the `Lift` class
 should have the following type.
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-Result operator()(Iter it);
+Result operator()(const Item& x);
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 #### Index-passing lift {#r1-li}
@@ -1347,11 +1353,11 @@ corresponding iterator and returns a value of type `Result`. The call
 operator for the `Lift` class should have the following type.
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-Result operator()(long pos, Iter it);
+Result operator()(long pos, const Item& x);
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The value passed in the `pos` parameter is the index corresponding to
-the position of iterator `it`.
+the position of item `x`.
 
 #### Associative combining operator {#r1-comb}
 
@@ -1373,12 +1379,13 @@ Result operator()(const Result& x, const Result& y);
 class Lift_comp;
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The lift-complexity function is a C++ functor that takes an iterator
-and returns a non-negative number of type `long`. The `Lift_comp`
-class should provide a call operator of the following type.
+The lift-complexity function is a C++ functor that takes a reference
+on an item and returns a non-negative number of type `long`. The
+`Lift_comp` class should provide a call operator of the following
+type.
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-long operator()(Iter it);
+long operator()(const Item& x);
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 #### Index-passing lift-complexity function {#r1-l-c-i}
@@ -1388,12 +1395,12 @@ class Lift_comp_idx;
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The lift-complexity function is a C++ functor that takes an index and
-an iterator and returns a non-negative number of type `long`. The
-`Lift_comp_idx` class should provide a call operator of the following
-type.
+an reference on an item and returns a non-negative number of type
+`long`. The `Lift_comp_idx` class should provide a call operator of
+the following type.
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-long operator()(long pos, Iter it);
+long operator()(long pos, const Item& x);
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 #### Examples
@@ -1404,11 +1411,11 @@ long max1(const parray<parray<long>>& xss) {
   auto combine = [&] (long x, long y) {
     return std::max(x, y);
   };
-  auto lift_comp = [&] (iterator it_xs) {
-    return it_xs->size();
+  auto lift_comp = [&] (const parray<long>& xs) {
+    return xs.size();
   };
-  auto lift = [&] (iterator it_xs) {
-    return max(*it_xs);
+  auto lift = [&] (const parray<long>& xs) {
+    return max(xs);
   };
   auto lo = xss.cbegin();
   auto hi = xss.cend();
@@ -1576,15 +1583,16 @@ long max2(const parray<parray<long>>& xss) {
   auto combine = [&] (long x, long y) {
     return std::max(x, y);
   };
-  auto lift = [&] (long, iterator it_xs) {
-    return max(*it_xs);
+  auto lift = [&] (long, const parray<long>& xs) {
+    return max(xs);
   };
   auto seq_reduce_rng = [&] (iterator lo_xs, iterator hi_xs) {
     return max_seq(lo_xs, hi_xs);
   };
   iterator lo_xs = xss.cbegin();
   iterator hi_xs = xss.cend();
-  return level2::reduce(lo_xs, hi_xs, 0, combine, lift_comp_rng, lift, seq_reduce_rng);
+  return level2::reduce(lo_xs, hi_xs, 0, combine, lift_comp_rng,
+                        lift, seq_reduce_rng);
 }
 
 template <class Iter>
@@ -1832,7 +1840,7 @@ call operator for the `Lift_idx_dst` class should have the following
 type.
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-void operator()(long pos, Input_iter it, Result& dst);
+void operator()(long pos, const Item& xs, Result& dst);
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The value that is passed in for `pos` is the index in the input
@@ -2208,11 +2216,11 @@ class Pred_idx; // (2)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-bool operator()(Iter it);
+bool operator()(const Item& x);
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-bool operator()(long pos, Iter it);
+bool operator()(long pos, const Item& x);
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 ### Max index
@@ -2246,7 +2254,7 @@ class Lift;
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-Item operator()(Iter it);
+Item operator()(const Item& x);
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 #### Comparison function
@@ -2258,6 +2266,11 @@ class Compare;
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 bool operator()(Item x, Item y);
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+In-place operators
+------------------
+
+Here, document the functions which are exported by `dpsdatapar.hpp`.
 
 Merging and sorting
 ===================

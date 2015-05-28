@@ -227,8 +227,7 @@ node* buildTree(particle** particles, particle** Tmp, bool* Tflags, intT n, intT
     ppair R = level1::reduce(particles, particles+n, id, [&] (ppair a, ppair b) {
       return ppair((a.first).minCoords(b.first),
                    (a.second).maxCoords(b.second));
-    }, [&] (particle** pa) {
-      particle* a = *pa;
+    }, [&] (particle* a) {
       return ppair(a->pt,a->pt);
     });
     minPt = R.first;
