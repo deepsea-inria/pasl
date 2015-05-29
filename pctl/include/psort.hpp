@@ -42,7 +42,7 @@ template <class Item>
 controller_type merge_parray_contr<Item>::contr("merge"+sota<Item>());
   
 template <class Item, class Compare>
-pchunkedseq<Item> merge_seq(pchunkedseq<Item>& xs, pchunkedseq<Item>& ys, const Compare& compare) {
+pchunkedseq<Item> pcmerge_seq(pchunkedseq<Item>& xs, pchunkedseq<Item>& ys, const Compare& compare) {
   pchunkedseq<Item> result;
   long n = xs.seq.size();
   long m = ys.seq.size();
@@ -73,14 +73,14 @@ pchunkedseq<Item> merge_seq(pchunkedseq<Item>& xs, pchunkedseq<Item>& ys, const 
 } // end namespace
 
 template <class Item, class Compare>
-pchunkedseq<Item> merge(pchunkedseq<Item>& xs, pchunkedseq<Item>& ys, const Compare& compare) {
+pchunkedseq<Item> pcmerge(pchunkedseq<Item>& xs, pchunkedseq<Item>& ys, const Compare& compare) {
   using controller_type = merge_pchunkedseq_contr<Item>;
   long n = xs.seq.size();
   long m = ys.seq.size();
   pchunkedseq<Item> result;
   par::cstmt(controller_type::contr, [&] { return n + m; }, [&] {
     if (n < m) {
-      result = merge(ys, xs, compare);
+      result = pcmerge(ys, xs, compare);
     } else if (n == 1) {
       if (m == 0) {
         result.seq.push_back(xs.seq.back());
@@ -97,14 +97,14 @@ pchunkedseq<Item> merge(pchunkedseq<Item>& xs, pchunkedseq<Item>& ys, const Comp
       ys.seq.split(pivot, ys2.seq);
       pchunkedseq<Item> result2;
       par::fork2([&] {
-        result = merge(xs, ys, compare);
+        result = pcmerge(xs, ys, compare);
       }, [&] {
-        result2 = merge(xs2, ys2, compare);
+        result2 = pcmerge(xs2, ys2, compare);
       });
       result.seq.concat(result2.seq);
     }
   }, [&] {
-    result = merge_seq(xs, ys, compare);
+    result = pcmerge_seq(xs, ys, compare);
   });
   return result;
 }
@@ -143,14 +143,14 @@ level3::mergeable_output<Combine, Container> create_mergeable_output(const Conta
 } // end namespace
   
 template <class Item, class Compare>
-pchunkedseq<Item> mergesort(pchunkedseq<Item>& xs, const Compare& compare) {
+pchunkedseq<Item> pcmergesort(pchunkedseq<Item>& xs, const Compare& compare) {
   using pchunkedseq_type = pchunkedseq<Item>;
   using chunkedseq_type = typename pchunkedseq_type::seq_type;
   using input_type = level4::chunked_sequence_input<chunkedseq_type>;
   pchunkedseq_type id;
   input_type in(xs.seq);
   auto out = create_mergeable_output(id, [&] (pchunkedseq_type& xs, pchunkedseq_type& ys) {
-    return merge(xs, ys, compare);
+    return pcmerge(xs, ys, compare);
   });
   pchunkedseq_type result;
   auto convert_reduce_comp = [&] (input_type& in) {
@@ -164,6 +164,11 @@ pchunkedseq<Item> mergesort(pchunkedseq<Item>& xs, const Compare& compare) {
   auto seq_convert_reduce = convert_reduce;
   level4::reduce(in, out, id, result, convert_reduce_comp, convert_reduce, seq_convert_reduce);
   return result;
+}
+  
+template <class Item, class Compare>
+pchunkedseq<Item> pcsort(pchunkedseq<Item>& xs, const Compare& compare) {
+  return mergesort(xs, compare);
 }
   
 namespace {

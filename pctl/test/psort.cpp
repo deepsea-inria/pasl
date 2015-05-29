@@ -93,7 +93,7 @@ class pchunkedseq_mergesort {
 public:
   
   void operator()(pchunkedseq_type& xs) {
-    pchunkedseq_type tmp = sort::mergesort(xs, std::less<value_type>());
+    pchunkedseq_type tmp = sort::pcmergesort(xs, std::less<value_type>());
     tmp.seq.swap(xs.seq);
   }
   

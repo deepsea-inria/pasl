@@ -5,37 +5,77 @@
 Introduction
 ============
 
-The purpose of this document is to serve as a working draft of the
-design and implementation of the Parallel Container Template Library
-(PCTL).
+The parallel-container template library (pctl) is a C++ library that
+is currently under development by the [Deepsea
+Project](http://deepsea.inria.fr). The goal of the pctl is to provide
+a rich set of parallel data structures, along with efficient
+data-parallel algorithms, such as merging, sorting, reduction, etc. We
+are designing the pctl implementation to target shared-memory,
+parallel (i.e., multicore) platforms.
 
-A *function call operator* (or, just "call operator") is a member
-function of a C++ class that is specified by the name `operator()`.
+Our design borrows to a large extent the conventions used by the
+[Standard Template
+Library](http://www.cplusplus.com/reference/stl/). However, when these
+conventions come into conflict with parallelism, we break with the STL
+convention.
 
-A *functor* is a C++ class which defines a call operator.
+The pctl provides a rigorous framework for reasoning about the cost of
+pctl operations. The cost model employed by pctl is the *work*/*span*
+model, which is provided by systems, such as [Cilk
+Plus](https://software.intel.com/en-us/intel-cilk-plus) and
+[pasl](http://deepsea.inria.fr). Moreover, pctl implements a
+[granularity-control technique](http://deepsea.inria.fr/oracular/)
+that is helpful for taming overheads that relate to parallel
+execution.
 
-A *right-open range* is ...
+Preliminaries
+=============
 
-*work* *span*
+Platform
+--------
 
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-namespace pasl {
-namespace pctl {
+We have implemented pctl to be compatible with the C++11
+standard. Earlier version of the C++ standard may be incompatible with
+pctl.
 
-template <class Iter>
-using value_type_of = typename std::iterator_traits<Iter>::value_type;
+Cost model
+----------
 
-template <class Iter>
-using reference_of = typename std::iterator_traits<Iter>::reference;
+Define *work* and *span* here.
 
-template <class Iter>
-using pointer_of = typename std::iterator_traits<Iter>::pointer;
+Granularity control
+-------------------
 
-} }
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Define *cost function* here.
 
 Containers
 ==========
+
+Our definition of a conainer is the same as that of STL: a *container*
+is a holder object that stores a collection of other objects (its
+elements). Elements are implemented as class templates, which allows
+flexibility to specify at compile time the type of the elements to be
+stored in any given container.
+
+The container manages the storage space for its elements and provides
+member functions to access them, either directly or through iterators
+(reference objects with similar properties to pointers).
+
+The particular containers defined by pctl fill what we believe are
+important gaps in the current state-of-the-art C++ container
+libraries. In specific, the gaps relate to data structures that can
+always be resized and accessed efficiently in parallel. Note that,
+although we designed the pctl containers to useful for *parallel
+programming*, we have not designed them to be useful for *concurrent
+programming*.  A discussion of the difference between parallel and
+concurrent programming is out of the scope of this manual, but can be
+found
+[here](https://wiki.haskell.org/Parallelism_vs._Concurrency). What
+this property means for clients of pctl is that the container
+operations that modify the container (e.g., `push` or `pop`) generally
+are not thread safe. Parallelism is achieved instead by operating in
+parallel on disjoint range of, say, the same sequence, or by splitting
+and merging sequences in a fork-join fashion.
 
 Sequence containers
 -------------------
@@ -43,7 +83,7 @@ Sequence containers
 Class name                           | Description
 -------------------------------------|---------------------------------
 [`parray`](#parray)                  | Array class
-[`pchunkedseq`](#pchunkedseq)        | Parallel chunked sequence class
+[`pchunkedseq`](#pchunkedseq)        | Chunked-sequence class
 
 Table: Sequence containers that are provided by pctl.
 
@@ -53,7 +93,7 @@ Associative containers
 Class name          | Description
 --------------------|-------------------------
 [`pset`](#pset)     | Set class
-[`pmap`](#pmap)     | Associative map class
+[`pmap`](#pmap)     | Associative-map class
 
 Table: Associative containers that are provided by pctl.
 
@@ -70,6 +110,29 @@ Table: String containers that are provided by pctl.
 Parallel array {#parray}
 ==============
 
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+namespace pasl {
+namespace pctl {
+
+template <class Item, class Alloc = std::allocator<Item>>
+class parray;
+
+} }
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Parallel arrays are containers representing arrays that are populated
+with their elements in parallel. Although they can be resized, the
+work cost of resizing a parallel array is linear. In other words,
+parallel arrays are good for bulk-parallel processing, but not so good
+for incremental updates.
+
+Just like traditional C++ arrays (i.e., raw memory allocated by, say,
+`malloc`), parallel arrays use contiguous storage to hold their
+elements. As such, elements can be accessed as efficiently as C arrays
+by using offsets or by using pointer values. Unlike C arrays, storage
+is managed automatically by the container. Moreover, unlike C arrays,
+parallel arrays initialize and de-initialize their cells in parallel.
+
 +-----------------------------------+-----------------------------------+
 | Template parameter                | Description                       |
 +===================================+===================================+
@@ -83,16 +146,6 @@ Parallel array {#parray}
 
 Table: Template parameters for the `parray` class.
                                                            
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-namespace pasl {
-namespace pctl {
-
-template <class Item, class Alloc = std::allocator<Item>>
-class parray;
-
-} }
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
 +-----------------------------------+-----------------------------------+
 | Type                              | Description                       |
 +===================================+===================================+
@@ -112,7 +165,7 @@ class parray;
 | [`const_iterator`](#pa-iter)      | Const iterator                    |
 +-----------------------------------+-----------------------------------+
 
-Table: Parallel-array type definitions.
+Table: Parallel-array member types.
 
 +-----------------------------------+-----------------------------------+
 | Constructor                       | Description                       |
@@ -154,9 +207,10 @@ Table: Parallel-array constructors and destructors.
 class Item;
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Type of the items to be stored in the container.
-
-Objects of type `Item` should be default constructable.
+Type of the elements.  Only if `Item` is guaranteed to not throw while
+moving, implementations can optimize to move elements instead of
+copying them during reallocations.  Aliased as member type
+`parray::value_type`.
 
 ### Allocator {#pa-alloc}
 
@@ -164,7 +218,10 @@ Objects of type `Item` should be default constructable.
 class Alloc;
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Allocator class.
+Type of the allocator object used to define the storage allocation
+model. By default, the allocator class template is used, which defines
+the simplest memory allocation model and is value-independent.
+Aliased as member type `parray::allocator_type`.
 
 ## Iterator {#pa-iter}
 
@@ -222,7 +279,10 @@ In the third version, the value returned by `body_comp(lo, hi)` is
 used by the constructor as the complexity estimate for the calls
 `body(lo)`, `body(lo+1)`, ... `body(hi-1)`.
 
-***Complexity.*** TODO
+***Complexity.*** The work and span cost are $(\sum_{0 \leq i < n}
+w(i))$ and $(\log n + \max_{0 \leq i < n} s(i))$, respectively, where
+$w(i)$ represents the work cost of computing $\mathtt{body}(i)$ and
+$s(i)$ the corresponding span cost.
 
 ### Copy constructor {#pa-e-cp-c}
 
@@ -337,6 +397,9 @@ If the current size is less than `n`,
    $n$ just after the resize operation. Then, the work and span are
    linear and logarithmic in $\max(m, n)$, respectively.
 
+***Iterator validity*** Invalidates all iterators, if the size before
+   the operation differs from the size after.
+
 ### Exchange operation {#pa-sw}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
@@ -380,6 +443,40 @@ undefined behavior.
 Parallel chunked sequence {#pchunkedseq}
 =========================
 
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+namespace pasl {
+namespace pctl {
+
+template <class Item, class Alloc = std::allocator<Item>>
+class pchunkedseq;
+
+} }
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Parallel chunked sequences are containers representing
+sequences. Elements of the container are populated with their elements
+in parallel. The container itself can be resized in an incremental
+fashion in amortized constant time and can be split at a specified
+position and concatenated in logarithmic time.
+
+Unlike parallel arrays, parallel chunked sequences use small chunks,
+usually sized to contain between 512 and 1024 items. Internally, the
+chunks are stored at the leaves of a self-balancing tree. The tree is,
+for all practical purposes, no more than eight levels deep. The space
+usage of the sequence is, in practice, never more than 20% greater
+than the space of a corresponding array.
+
+The parallel chunked sequence class is a wrapper class whose sole
+member object is a sequential chunked sequence. The wrapper function
+ensures that, when accessed in bulk fashion, the sequential chunked
+sequence is processed in parallel. The parallel chunked sequence class
+defines wrapper methods for many of the methods of the sequential
+chunked sequence class. However, additional methods can be accessed by
+directly calling methods of the sequential chunked sequence
+object. The complete interface of the sequential chunked sequence
+class is documented
+[here](http://deepsea.inria.fr/chunkedseq/doc/html/group__deque.html).
+
 +-----------------------------------+-----------------------------------+
 | Template parameter                | Description                       |
 +===================================+===================================+
@@ -392,29 +489,39 @@ Parallel chunked sequence {#pchunkedseq}
 +-----------------------------------+-----------------------------------+
 
 Table: Template parameters for the `pchunkedseq` class.
-                                                           
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-namespace pasl {
-namespace pctl {
 
-template <class Item, class Alloc = std::allocator<Item>>
-class pchunkedseq;
++-----------------------------------+---------------------------------------------+
+| Type                              | Description                                 |
++===================================+=============================================+
+| `value_type`                      | Alias for template parameter                |
+|                                   |`Item`                                       |
++-----------------------------------+---------------------------------------------+
+| `reference`                       | Alias for `value_type&`                     |
++-----------------------------------+---------------------------------------------+
+| `const_reference`                 | Alias for `const value_type&`               |
++-----------------------------------+---------------------------------------------+
+| `pointer`                         | Alias for `value_type*`                     |
++-----------------------------------+---------------------------------------------+
+| `const_pointer`                   | Alias for `const value_type*`               |
++-----------------------------------+---------------------------------------------+
+| [`iterator`](#pc-iter)            | Iterator                                    |
++-----------------------------------+---------------------------------------------+
+| [`const_iterator`](#pc-iter)      | Const iterator                              |
++-----------------------------------+---------------------------------------------+
+| [`seq_type`](#pc-seq-type)        | Alias for                                   |
+|                                   |`data::chunkedseq::bootstrapped::deque<Item>`|
++-----------------------------------+---------------------------------------------+
 
-} }
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Table: Parallel chunked sequence member types.
 
 +-----------------------------------+-----------------------------------+
-| Type                              | Description                       |
+| Member objects                    | Description                       |
 +===================================+===================================+
-| `value_type`                      | Alias for template parameter      |
-|                                   |`Item`                             |
-+-----------------------------------+-----------------------------------+
-| `reference`                       | Alias for `value_type&`           |
-+-----------------------------------+-----------------------------------+
-| `const_reference`                 | Alias for `const value_type&`     |
+| [`seq`](#cs-seq)                  | Sequential chunked sequence       |
+|                                   |                                   |
 +-----------------------------------+-----------------------------------+
 
-Table: Parallel chunked sequence type definitions.
+Table: Parallel chunked sequence member objects.
 
 +-----------------------------------+-----------------------------------+
 | Constructor                       | Description                       |
@@ -472,6 +579,27 @@ Allocator class.
 
 TODO
 
+## Member types
+
+### Iterator {#pc-iter}
+
+TODO
+
+### Sequential chunked sequence type {#pc-seq-type}
+
+TODO
+
+## Member objects
+
+### Sequential chunked sequence {#cs-seq}
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+seq_type seq;
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+This object provides the storage for all the elements in the
+container.
+
 ## Constructors and destructors
 
 ### Empty container constructor {#cs-e-c-c}
@@ -521,7 +649,10 @@ In the third version, the value returned by `body_comp(lo, hi)` is
 used by the constructor as the complexity estimate for the calls
 `body(lo)`, `body(lo+1)`, ... `body(hi-1)`.
 
-***Complexity.*** TODO
+***Complexity.*** The work and span cost are $(\sum_{0 \leq i < n}
+w(i))$ and $(\log n + \max_{0 \leq i < n} s(i))$, respectively, where
+$w(i)$ represents the work cost of computing $\mathtt{body}(i)$ and
+$s(i)$ the corresponding span cost.
 
 ### Copy constructor {#cs-e-cp-c}
 
@@ -591,7 +722,10 @@ const_reference operator[](long i) const;
 Returns a reference at the specified location `i`. No bounds check is
 performed.
 
-***Complexity.*** Constant time.
+***Complexity.*** Logarithmic time. The complexity is, however, for
+practical purposes, constant time, because thanks to the high
+branching factor the height of the tree is, in practice, never more
+than eight.
 
 ### Size operator {#cs-si}
 
@@ -2454,6 +2588,32 @@ TODO
 Derived operations
 ------------------
 
+### Type-level operators
+
+Sometimes, as we will see in this section, the pctl defines a function
+that both takes as template parameter an iterator class and extracts
+from that iterator class the type of the items that are referenced by
+the iterator.  For this purpose, the pctl defines a few type-level
+functions whose purpose is to extract from the iterator the
+corresponding value, reference and pointer types.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+namespace pasl {
+namespace pctl {
+
+template <class Iter>
+using value_type_of = typename std::iterator_traits<Iter>::value_type;
+
+template <class Iter>
+using reference_of = typename std::iterator_traits<Iter>::reference;
+
+template <class Iter>
+using pointer_of = typename std::iterator_traits<Iter>::pointer;
+
+} }
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
 ### Pack
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
@@ -2578,6 +2738,8 @@ long operator()(const Item& lo, const Item* hi);
 Comparison-based merge
 ----------------------
 
+### Iterator based
+
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 namespace pasl {
 namespace pctl {
@@ -2624,8 +2786,40 @@ void merge(Input_iter first1, Input_iter last1,
 } } }
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+### Parallel chunked sequence
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+namespace pasl {
+namespace pctl {
+
+template <class Item, class Compare>
+pchunkedseq<Item> pcmerge(pchunkedseq<Item>& xs, pchunkedseq<Item>& ys,
+                          Compare compare);
+
+template <class Item, class Weight, class Compare>
+pchunkedseq<Item> pcmerge(pchunkedseq<Item>& xs, pchunkedseq<Item>& ys,
+                          Weight weight, Compare compare);
+
+} }
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+namespace pasl {
+namespace pctl {
+namespace range {
+
+template <class Item, class Weight_rng, class Compare>
+pchunkedseq<Item> pcmerge(pchunkedseq<Item>& xs, pchunkedseq<Item>& ys,
+                          Weight_rng weight_rng, Compare compare);
+
+} } }
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
 Comparison-based sort
 ---------------------
+
+### Iterator based
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 namespace pasl {
@@ -2651,8 +2845,42 @@ void sort(Iter lo, Iter hi, Weight_rng weight_rng, Compare compare);
 } } }
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+### Parallel chunked sequence
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+namespace pasl {
+namespace pctl {
+
+template <class Item, class Compare>
+pchunkedseq<Item> pcmergesort(pchunkedseq<Item>& xs, Compare compare);
+
+template <class Item, class Weight, class Compare>
+pchunkedseq<Item> pcmergesort(pchunkedseq<Item>& xs,
+                              Weight weight,
+                              Compare compare);
+
+
+} }
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+namespace pasl {
+namespace pctl {
+namespace range {
+
+template <class Item, class Weight_rng, class Compare>
+pchunkedseq<Item> pcmergesort(pchunkedseq<Item>& xs,
+                              Weight_rng weight_rng,
+                              Compare compare);
+
+} } }
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
 Integer sort
 ------------
+
+### Iterator based
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 namespace pasl {
@@ -2660,6 +2888,18 @@ namespace pctl {
 
 template <class Iter>
 void integersort(Iter lo, Iter hi);
+
+} }
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+### Parallel chunked sequence
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+namespace pasl {
+namespace pctl {
+
+template <class Integer>
+pchunkedseq<Integer> integersort(pchunekdseq<Integer>& xs);
 
 } }
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
