@@ -368,6 +368,63 @@ triangles<point2d> delaunay(point2d* P, intT n) {
   return triangles<point2d>(numVertices, numTriangles, rp, rt);
 }
   
+// Note that this is not currently a complete test of correctness
+// For example it would allow a set of disconnected triangles, or even no
+// triangles
+bool checkDelaunay(tri *triangs, intT n, intT boundarySize) {
+  parray<intT> bcount(n, 0);
+  intT insideOutError = n;
+  intT inCircleError = n;
+  parallel_for((intT)0, n, [&] (intT i) {
+    if (triangs[i].initialized) {
+      simplex t = simplex(&triangs[i],0);
+      for (int j=0; j < 3; j++) {
+        simplex a = t.across();
+        if (a.valid()) {
+          vertex* v = a.rotClockwise().firstVertex();
+          
+          // Check that the neighbor is outside the triangle
+          if (!t.outside(v)) {
+            double vz = triAreaNormalized(t.t->vtx[(t.o+2)%3]->pt,
+                                          v->pt, t.t->vtx[t.o]->pt);
+            //cout << "i=" << i << " vz=" << vz << endl;
+            // allow for small error
+            if (vz < -1e-10)  utils::writeMin(&insideOutError,i);
+          }
+          
+          // Check that the neighbor is not in circumcircle of the triangle
+          if (t.inCirc(v)) {
+            double vz = inCircleNormalized(t.t->vtx[0]->pt, t.t->vtx[1]->pt,
+                                           t.t->vtx[2]->pt, v->pt);
+            //cout << "i=" << i << " vz=" << vz << endl;
+            // allow for small error
+            if (vz > 1e-10) utils::writeMin(&inCircleError,i);
+          }
+        } else bcount[i]++;
+        t = t.rotClockwise();
+      }
+    }
+  });
+  //intT cnt = sum(bcount.cbegin(), bcount.cend());
+  //if (boundarySize != cnt) {
+  //cout << "delaunayCheck: wrong boundary size, should be " << boundarySize
+  //<< " is " << cnt << endl;
+  //return 1;
+  //}
+  
+  if (insideOutError < n) {
+    cout << "delaunayCheck: neighbor inside triangle at triangle "
+    << inCircleError << endl;
+    return 1;
+  }
+  if (inCircleError < n) {
+    cout << "In Circle Violation at triangle " << inCircleError << endl;
+    return 1;
+  }
+  
+  return 0;
+}
+  
 } // end namespace
 } // end namespace
 

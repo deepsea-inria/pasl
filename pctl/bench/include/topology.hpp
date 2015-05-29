@@ -253,21 +253,25 @@ struct hashEdges {
 typedef Table<hashEdges,intT> EdgeTable;
 EdgeTable makeEdgeTable(intT m) {return EdgeTable(m,hashEdges());}
   
-void topologyFromTriangles(triangles<point2d> Tri, vertex** vr, tri** tr) {
+void topologyFromTriangles(triangles<point2d> Tri, parray<vertex>& vr, parray<tri>& tr) {
   intT n = Tri.numPoints;
   point2d* P = Tri.P;
   
   intT m = Tri.numTriangles;
   triangle* T = Tri.T;
   
-  if (*vr == NULL) *vr = newA(vertex,n);
-  vertex* v = *vr;
+  if (vr.size() == 0) {
+    vr.resize(n);
+  }//*vr = newA(vertex,n);
+  vertex* v = vr.begin();
   parallel_for((intT)0, n, [&] (intT i) {
     v[i] = vertex(P[i],i);
   });
   
-  if (*tr == NULL) *tr = newA(tri,m);
-  tri* Triangs = *tr;
+  if (tr.size() == 0) {
+    tr.resize(m);
+  }//*tr = newA(tri,m);
+  tri* Triangs = tr.begin();
   parray<edge> E(m*3);
   EdgeTable ET = makeEdgeTable(m*6);
   parallel_for((intT)0, m, [&] (intT i) {
