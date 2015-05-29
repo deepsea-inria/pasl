@@ -9,8 +9,6 @@ The purpose of this document is to serve as a working draft of the
 design and implementation of the Parallel Container Template Library
 (PCTL).
 
-***Essential terminology.***
-
 A *function call operator* (or, just "call operator") is a member
 function of a C++ class that is specified by the name `operator()`.
 
@@ -679,6 +677,280 @@ Parallel map {#pmap}
 
 Parallel string {#pstring}
 ===============
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+namespace pasl {
+namespace pctl {
+
+template <class Alloc = std::allocator<Item>>
+class pstring;
+
+} }
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
++-----------------------------------+-----------------------------------+
+| Type                              | Description                       |
++===================================+===================================+
+| `value_type`                      | Alias for type `char`             |
+|                                   |                                   |
++-----------------------------------+-----------------------------------+
+| `reference`                       | Alias for `value_type&`           |
++-----------------------------------+-----------------------------------+
+| `const_reference`                 | Alias for `const value_type&`     |
++-----------------------------------+-----------------------------------+
+| `pointer`                         | Alias for `value_type*`           |
++-----------------------------------+-----------------------------------+
+| `const_pointer`                   | Alias for `const value_type*`     |
++-----------------------------------+-----------------------------------+
+| [`iterator`](#ps-iter)            | Iterator                          |
++-----------------------------------+-----------------------------------+
+| [`const_iterator`](#ps-iter)      | Const iterator                    |
++-----------------------------------+-----------------------------------+
+
+Table: Parallel string type definitions.
+
++-----------------------------------+-----------------------------------+
+| Constructor                       | Description                       |
++===================================+===================================+
+| [empty container                  | constructs an empty container with|
+|constructor](#ps-e-c-c) (default   |no items                           |
+|constructor)                       |                                   |
++-----------------------------------+-----------------------------------+
+| [fill constructor](#ps-e-f-c)     | constructs a container with a     |
+|                                   |specified number of copies of a    |
+|                                   |given item                         |
++-----------------------------------+-----------------------------------+
+| [populate constructor](#ps-e-p-c) | constructs a container with a     |
+|                                   |specified number of values that are|
+|                                   |computed by a specified function   |
++-----------------------------------+-----------------------------------+
+| [copy constructor](#ps-e-cp-c)    | constructs a container with a copy|
+|                                   |of each of the items in the given  |
+|                                   |container, in the same order       |
++-----------------------------------+-----------------------------------+
+| [initializer list](#ps-i-l-c)     | constructs a container with the   |
+|                                   |items specified in a given         |
+|                                   |initializer list                   |
++-----------------------------------+-----------------------------------+
+| [move constructor](#ps-m-c)       | constructs a container that       |
+|                                   |acquires the items of a given      |
+|                                   |parallelstring                     |
++-----------------------------------+-----------------------------------+
+| [destructor](#ps-destr)           | destructs a container             |
++-----------------------------------+-----------------------------------+
+
+Table: Parallel-string constructors and destructors.
+
+## Iterator {#ps-iter}
+
+The type `iterator` and `const_iterator` are instances of the
+[random-access
+iterator](http://en.cppreference.com/w/cpp/concept/RandomAccessIterator)
+concept.
+
+## Constructors and destructors
+
+### Empty container constructor {#ps-e-c-c}
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+pstring();
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+***Complexity.*** Constant time.
+
+Constructs an empty container with no items;
+
+### Fill container {#ps-e-f-c}
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+pstring(long n, char val);
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Constructs a container with `n` copies of `val`.
+
+***Complexity.*** Work and span are linear and logarithmic in the size
+   of the resulting container, respectively.
+
+### Populate constructor {#ps-e-p-c}
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+// (1) Constant-time body
+pstring(long n, std::function<char(long)> body);
+// (2) Non-constant-time body
+pstring(long n,
+        std::function<long(long)> body_comp,
+        std::function<char(long)> body);
+// (3) Non-constant-time body along with range-based complexity function
+pstring(long n,
+        std::function<long(long,long)> body_comp_rng,
+        std::function<char(long)> body);
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Constructs a container with `n` cells, populating those cells with
+values returned by the `n` calls, `body(0)`, `body(1)`, ...,
+`body(n-1)`, in that order.
+
+In the second version, the value returned by `body_comp(i)` is used by
+the constructor as the complexity estimate for the call `body(i)`.
+
+In the third version, the value returned by `body_comp(lo, hi)` is
+used by the constructor as the complexity estimate for the calls
+`body(lo)`, `body(lo+1)`, ... `body(hi-1)`.
+
+***Complexity.*** TODO
+
+### Copy constructor {#ps-e-cp-c}
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+pstring(const pstring& other);
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Constructs a container with a copy of each of the items in `other`, in
+the same order.
+
+***Complexity.*** Work and span are linear and logarithmic in the size
+   of the resulting container, respectively.
+
+### Initializer-list constructor {#ps-i-l-c}
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+pstring(initializer_list<value_type> il);
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Constructs a container with the items in `il`.
+
+***Complexity.*** Work and span are linear in the size of the resulting
+   container.
+
+### Move constructor {#ps-m-c}
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+pstring(pstring&& x);
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Constructs a container that acquires the items of `other`.
+
+***Complexity.*** Constant time.
+
+### Destructor {#ps-destr}
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+~pstring();
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Destructs the container.
+
+***Complexity.*** Work and span are linear and logarithmic in the size
+   of the container, respectively.
+
+## Operations
+
++------------------------+--------------------------------------+
+| Operation              | Description                          |
++========================+======================================+
+| [`operator[]`](#ps-i-o)| Access member item                   |
+|                        |                                      |
++------------------------+--------------------------------------+
+| [`size`](#ps-si)       | Return size                          |
++------------------------+--------------------------------------+
+| [`resize`](#ps-rsz)    | Change size                          |
++------------------------+--------------------------------------+
+| [`swap`](#ps-sw)       | Exchange contents                    |
++------------------------+--------------------------------------+
+| [`begin`](#ps-beg)     | Returns an iterator to the beginning |
+| [`cbegin`](#ps-beg)    |                                      |
++------------------------+--------------------------------------+
+| [`end`](#ps-end)       | Returns an iterator to the end       |
+| [`cend`](#ps-end)      |                                      |
++------------------------+--------------------------------------+
+
+Table: Parallel-array member functions.
+
+### Indexing operator {#ps-i-o}
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+reference operator[](long i);
+const_reference operator[](long i) const;
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Returns a reference at the specified location `i`. No bounds check is
+performed.
+
+***Complexity.*** Constant time.
+
+### Size operator {#ps-si}
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+long size() const;
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Returns the size of the container.
+
+***Complexity.*** Constant time.
+
+### Resize {#ps-rsz}
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+void resize(long n, char val); // (1)
+void resize(long n) {                       // (2)
+  char val;
+  resize(n, val);
+}
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Resizes the container to contain `n` items.
+
+If the current size is greater than `n`, the container is reduced to
+its first `n` elements.
+
+If the current size is less than `n`,
+
+1. additional copies of `val` are appended
+2. additional default-inserted elements are appended
+
+***Complexity.*** Let $m$ be the size of the container just before and
+   $n$ just after the resize operation. Then, the work and span are
+   linear and logarithmic in $\max(m, n)$, respectively.
+
+### Exchange operation {#ps-sw}
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+void swap(pstring& other);
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Exchanges the contents of the container with those of `other`. Does
+not invoke any move, copy, or swap operations on individual items.
+
+***Complexity.*** Constant time.
+
+### Iterator begin {#ps-beg}
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+iterator begin() const;
+const_iterator cbegin() const;
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Returns an iterator to the first item of the container.
+
+If the container is empty, the returned iterator will be equal to
+end().
+
+***Complexity.*** Constant time.
+
+### Iterator end {#ps-end}
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+iterator end() const;
+const_iterator cend() const;
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Returns an iterator to the element following the last item of the
+container.
+
+This element acts as a placeholder; attempting to access it results in
+undefined behavior.
+
+***Complexity.*** Constant time.
 
 Parallel rope {#prope}
 =============
@@ -2271,8 +2543,8 @@ class Compare;
 bool operator()(Item x, Item y);
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-In-place operators
-------------------
+In-place operations
+-------------------
 
 Here, document the functions which are exported by `dpsdatapar.hpp`.
 
@@ -2381,3 +2653,13 @@ void sort(Iter lo, Iter hi, Weight_rng weight_rng, Compare compare);
 
 Integer sort
 ------------
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+namespace pasl {
+namespace pctl {
+
+template <class Iter>
+void integersort(Iter lo, Iter hi);
+
+} }
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
