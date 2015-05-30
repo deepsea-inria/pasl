@@ -87,7 +87,7 @@ void stats_t::sum() {
   double cumulated_time = launch_duration * nb_workers;
   total_idle_time = total_data.waiting_time;
   total_spinning_time = total_data.spinning_time;
-  relative_idle = total_idle_time / cumulated_time; 
+  relative_idle = total_idle_time / cumulated_time;
   utilization = 1.0 - relative_idle;
   relative_non_seq = 1.0 - total_data.sequential_time / cumulated_time; 
   uint64_t nb_measured_run = total_data.counters[MEASURED_RUN];
