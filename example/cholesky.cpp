@@ -1449,7 +1449,7 @@ void cholesky(double * RESTRICT A, int order, int processors)
   
   isParallel = (0 <            (depth - baseOrderLg - soloCommitLg));
 //  parallelBound = (3 * (1<<(2* (depth - baseOrderLg - soloCommitLg))));
-  parallelBound = (3 * (1<<(2* (depth - baseOrderLg - 1))));
+  parallelBound = (3 * (1<<(2* (depth - baseOrderLg))));
 //  std::cout << "leafbound = " << leafBound << " par = " << parallelBound << std::endl;
 //  assert(false);
   /*Square matrix=> row and col bounds on Ahnentafel.*/
