@@ -159,7 +159,7 @@ namespace benchIO {
     while (offset < n) {
       // Generates a string for a sequence of size at most BSIZE
       // and then wrties it to the output stream
-      pstring S = arrayToString(A+offset,min(BSIZE,n-offset));
+      pstring S = arrayToString(A+offset,std::min(BSIZE,n-offset));
       os.write(S.begin(), S.chars.size());
       offset += BSIZE;
     }

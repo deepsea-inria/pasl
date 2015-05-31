@@ -490,27 +490,33 @@ class is documented
 
 Table: Template parameters for the `pchunkedseq` class.
 
-+-----------------------------------+---------------------------------------------+
-| Type                              | Description                                 |
-+===================================+=============================================+
-| `value_type`                      | Alias for template parameter                |
-|                                   |`Item`                                       |
-+-----------------------------------+---------------------------------------------+
-| `reference`                       | Alias for `value_type&`                     |
-+-----------------------------------+---------------------------------------------+
-| `const_reference`                 | Alias for `const value_type&`               |
-+-----------------------------------+---------------------------------------------+
-| `pointer`                         | Alias for `value_type*`                     |
-+-----------------------------------+---------------------------------------------+
-| `const_pointer`                   | Alias for `const value_type*`               |
-+-----------------------------------+---------------------------------------------+
-| [`iterator`](#pc-iter)            | Iterator                                    |
-+-----------------------------------+---------------------------------------------+
-| [`const_iterator`](#pc-iter)      | Const iterator                              |
-+-----------------------------------+---------------------------------------------+
-| [`seq_type`](#pc-seq-type)        | Alias for                                   |
-|                                   |`data::chunkedseq::bootstrapped::deque<Item>`|
-+-----------------------------------+---------------------------------------------+
++--------------------------------------+---------------------------------------------+
+| Type                                 | Description                                 |
++======================================+=============================================+
+| `value_type`                         | Alias for template parameter                |
+|                                      |`Item`                                       |
++--------------------------------------+---------------------------------------------+
+| `reference`                          | Alias for `value_type&`                     |
++--------------------------------------+---------------------------------------------+
+| `const_reference`                    | Alias for `const value_type&`               |
++--------------------------------------+---------------------------------------------+
+| `pointer`                            | Alias for `value_type*`                     |
++--------------------------------------+---------------------------------------------+
+| `const_pointer`                      | Alias for `const value_type*`               |
++--------------------------------------+---------------------------------------------+
+| [`iterator`](#pc-iter)               | Iterator                                    |
++--------------------------------------+---------------------------------------------+
+| [`const_iterator`](#pc-iter)         | Const iterator                              |
++--------------------------------------+---------------------------------------------+
+| [`seq_type`](#pc-seq-type)           | Alias for                                   |
+|                                      |`data::chunkedseq::bootstrapped::deque<Item>`|
++--------------------------------------+---------------------------------------------+
+| [`segment_type`](#pc-seg-type)       | Alias for `typename seq_type::segment_type` |
+|                                      |                                             |
++--------------------------------------+---------------------------------------------+
+| [`const_segment_type`](#pc-cseg-type)| Alias for `typename                         |
+|                                      |seq_type::const_segment_type`                |
++--------------------------------------+---------------------------------------------+
 
 Table: Parallel chunked sequence member types.
 
@@ -563,9 +569,10 @@ Table: Parallel chunked sequence constructors and destructors.
 class Item;
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Type of the items to be stored in the container.
-
-Objects of type `Item` should be default constructable.
+Type of the elements.  Only if `Item` is guaranteed to not throw while
+moving, implementations can optimize to move elements instead of
+copying them during reallocations.  Aliased as member type
+`parray::value_type`.
 
 ### Allocator {#cs-alloc}
 
@@ -573,21 +580,65 @@ Objects of type `Item` should be default constructable.
 class Alloc;
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Allocator class.
-
-## Iterator
-
-TODO
+Type of the allocator object used to define the storage allocation
+model. By default, the allocator class template is used, which defines
+the simplest memory allocation model and is value-independent.
+Aliased as member type `parray::allocator_type`.
 
 ## Member types
 
 ### Iterator {#pc-iter}
 
-TODO
+The type `iterator` and `const_iterator` are instances of the
+[random-access
+iterator](http://en.cppreference.com/w/cpp/concept/RandomAccessIterator)
+concept.
+
+Additionally, the iterator supports *segment-wise access*, which
+allows the client of the iterator to query an iterator value to
+discover the contiguous region of memory in the same chunk that stores
+nearby items.  The
+[documentation](http://deepsea.inria.fr/chunkedseq/doc/html/group__stl__iterator.html)
+on chunked sequences describes this interface in detail.
 
 ### Sequential chunked sequence type {#pc-seq-type}
 
-TODO
+The class which implements this type is described in detail
+[here](http://deepsea.inria.fr/chunkedseq/doc/html/group__deque.html).
+
+### Segment type {#pc-seg-type}
+
+The segment type, when instantiated by the paralle chunked sequence
+class, looks like the following class.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+class segment {
+public:
+  
+  pointer begin;
+  pointer middle;
+  pointer end;
+  
+  segment()
+  : begin(nullptr), middle(nullptr), end(nullptr) { }
+  
+  segment(pointer begin, pointer middle, pointer end)
+  : begin(begin), middle(middle), end(end) { }
+  
+};
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The value `begin` points to the first item in the segment, the value
+`middle` to the item of interest in the segment, and `end` to the
+address one past the end of the sequence.
+
+Segments are described in detail
+[here](http://deepsea.inria.fr/chunkedseq/doc/html/group__segments.html).
+
+### Const segment type {#pc-cseg-type}
+
+The const segment type looks the same as the segment class above,
+except that `pointer` types are replaced by `const_pointer` types.
 
 ## Member objects
 
@@ -698,19 +749,46 @@ Destructs the container.
 ***Complexity.*** Work and span are linear and logarithmic in the size
    of the container, respectively.
 
-## Sequential operations
++-------------------------------------+--------------------------------------+
+| Operation                           | Description                          |
++=====================================+======================================+
+|   [`operator[]`](#cs-i-o)           | Access member item                   |
++-------------------------------------+--------------------------------------+
+| [`size`](#cs-si)                    | Return size                          |
++-------------------------------------+--------------------------------------+
+| [`swap`](#cs-sw)                    | Exchange contents                    |
++-------------------------------------+--------------------------------------+
+| [`begin`](#cs-beg)                  | Returns an iterator to the beginning |
+| [`cbegin`](#cs-beg)                 |                                      |
++-------------------------------------+--------------------------------------+
+| [`end`](#cs-end)                    | Returns an iterator the end          |
+| [`cend`](#cs-end)                   |                                      |
++-------------------------------------+--------------------------------------+
+| [`clear`](#cs-clear)                | Erases contents of the container     |
+|                                     |                                      |
++-------------------------------------+--------------------------------------+
+| [`tabulate`](#cs-rbld)              | Repopulate container changing size   |
+|                                     |                                      |
++-------------------------------------+--------------------------------------+
+| [`resize`](#cs-rsz)                 | Change size                          |
+|                                     |                                      |
++-------------------------------------+--------------------------------------+
+                 
+Table: Operations of the parallel chunked sequence.
 
-+-----------------------------+--------------------------------------+
-| Operation                   | Description                          |
-+=============================+======================================+
-| [`seq.operator[]`](#cs-i-o) | Access member item                   |
-+-----------------------------+--------------------------------------+
-| [`seq.size`](#cs-si)        | Return size                          |
-+-----------------------------+--------------------------------------+
-| [`seq.swap`](#cs-sw)        | Exchange contents                    |
-+-----------------------------+--------------------------------------+
++-------------------------------------+--------------------------------------+
+| Function                            | Description                          |
++=====================================+======================================+
+| [`for_each`](#cs-foreach)           | Applies a given function to each item|
+|                                     |in the container                      |
++-------------------------------------+--------------------------------------+
+| [`for_each_segment`](#cs-foreachseg)| Applies a given function to each     |
+|                                     |segment in the container              |
++-------------------------------------+--------------------------------------+
 
-Table: Sequential operations of the parallel chunked sequence.
+Table: Functions relating to the parallel chunked sequence.
+
+## Operations
 
 ### Indexing operator {#cs-i-o}
 
@@ -748,17 +826,45 @@ not invoke any move, copy, or swap operations on individual items.
 
 ***Complexity.*** Constant time.
 
-## Parallel operations
+### Iterator begin {#cs-beg}
 
-+------------------------+--------------------------------------+
-| Operation              | Description                          |
-+========================+======================================+
-| [`tabulate`](#cs-rbld) | Repopulate container changing size   |
-+------------------------+--------------------------------------+
-| [`resize`](#cs-rsz)    | Change size                          |
-+------------------------+--------------------------------------+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+iterator begin() const;
+const_iterator cbegin() const;
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Table: Parallel operations of the parallel chunked sequence.
+Returns an iterator to the first item of the container.
+
+If the container is empty, the returned iterator will be equal to
+end().
+
+***Complexity.*** Constant time.
+
+### Iterator end {#cs-end}
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+iterator end() const;
+const_iterator cend() const;
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Returns an iterator to the element following the last item of the
+container.
+
+This element acts as a placeholder; attempting to access it results in
+undefined behavior.
+
+***Complexity.*** Constant time.
+
+### Clear {#cs-clear}
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+void clear();
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Erases the contents of the container, which becomes an empty
+container.
+
+***Complexity.*** Linear and logarithmic work and span, respectively.
 
 ### Tabulate {#cs-rbld}
 
@@ -775,9 +881,13 @@ The contents of the current container are removed and replaced by the
 `n` items returned by the `n` calls, `body(0)`, `body(1)`, ...,
 `body(n-1)`, in that order.
 
-***Complexity.*** Let $m$ be the size of the container just before and
-   $n$ just after the resize operation. Then, the work and span are
-   linear and logarithmic in $\max(m, n)$, respectively.
+***Complexity.*** The work and span cost are $(\sum_{0 \leq i < n}
+w(i))$ and $(\log n + \max_{0 \leq i < n} s(i))$, respectively, where
+$w(i)$ represents the work cost of computing $\mathtt{body}(i)$ and
+$s(i)$ the corresponding span cost.
+
+***Iterator validity*** Invalidates all iterators, if the size before
+   the operation differs from the size after.
 
 ### Resize {#cs-rsz}
 
@@ -802,6 +912,66 @@ If the current size is less than `n`,
 ***Complexity.*** Let $m$ be the size of the container just before and
    $n$ just after the resize operation. Then, the work and span are
    linear and logarithmic in $\max(m, n)$, respectively.
+
+***Iterator validity*** Invalidates all iterators, if the size before
+   the operation differs from the size after.
+
+### For each {#cs-foreach}
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+namespace pasl {
+namespace pctl {
+namespace segmented {
+
+template <class Body>
+void for_each(Body body);
+
+} } }
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Performs the calls `body(x1)`, ..., `body(xn)` for each item `xi` in
+the container.
+
+The class `Body` should provide a call operator of the following
+type. The reference `xi` points to the $i^{th}$ item in the container.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+void operator()(Item& xi);
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+***Complexity.*** The work and span cost are $(\sum_{0 \leq i < n}
+w(i))$ and $(\log n + \max_{0 \leq i < n} s(i))$, respectively, where
+$w(i)$ represents the work cost of computing $\mathtt{body}(i)$ and
+$s(i)$ the corresponding span cost.
+
+### For each segment {#cs-foreachseg}
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+namespace pasl {
+namespace pctl {
+namespace segmented {
+
+template <class Body_seg>
+void for_each_segment(Body_seg body_seg);
+
+} } }
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Performs the calls `body_seg(lo1, hi1)`, ..., `body(lon, hin)` for
+each segment of items (`loi`, `hii`) in the container.
+
+The class `Body_seg` should provide a call operator of the following
+type. The `lo` value points to the first item in the segment and `hi`
+one past the end of the segment.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+void operator()(pointer lo, pointer hi);
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+***Complexity.*** The work and span cost are $(\sum_{0 \leq i < n}
+w(i))$ and $(\log n + \max_{0 \leq i < n} s(i))$, respectively, where
+$w(i)$ represents the work cost of computing
+$\mathtt{body\_seg}(i,i+1)$ and $s(i)$ the corresponding span cost.
 
 Parallel set {#pset}
 ============
@@ -875,7 +1045,9 @@ Table: Parallel string type definitions.
 
 Table: Parallel-string constructors and destructors.
 
-## Iterator {#ps-iter}
+## Member types
+
+### Iterator {#ps-iter}
 
 The type `iterator` and `const_iterator` are instances of the
 [random-access
@@ -931,7 +1103,10 @@ In the third version, the value returned by `body_comp(lo, hi)` is
 used by the constructor as the complexity estimate for the calls
 `body(lo)`, `body(lo+1)`, ... `body(hi-1)`.
 
-***Complexity.*** TODO
+***Complexity.*** The work and span cost are $(\sum_{0 \leq i < n}
+w(i))$ and $(\log n + \max_{0 \leq i < n} s(i))$, respectively, where
+$w(i)$ represents the work cost of computing $\mathtt{body}(i)$ and
+$s(i)$ the corresponding span cost.
 
 ### Copy constructor {#ps-e-cp-c}
 
@@ -979,24 +1154,35 @@ Destructs the container.
 
 ## Operations
 
-+------------------------+--------------------------------------+
-| Operation              | Description                          |
-+========================+======================================+
-| [`operator[]`](#ps-i-o)| Access member item                   |
-|                        |                                      |
-+------------------------+--------------------------------------+
-| [`size`](#ps-si)       | Return size                          |
-+------------------------+--------------------------------------+
-| [`resize`](#ps-rsz)    | Change size                          |
-+------------------------+--------------------------------------+
-| [`swap`](#ps-sw)       | Exchange contents                    |
-+------------------------+--------------------------------------+
-| [`begin`](#ps-beg)     | Returns an iterator to the beginning |
-| [`cbegin`](#ps-beg)    |                                      |
-+------------------------+--------------------------------------+
-| [`end`](#ps-end)       | Returns an iterator to the end       |
-| [`cend`](#ps-end)      |                                      |
-+------------------------+--------------------------------------+
++---------------------------+--------------------------------------+
+| Operation                 | Description                          |
++===========================+======================================+
+| [`operator[]`](#ps-i-o)   | Access member item                   |
+|                           |                                      |
++---------------------------+--------------------------------------+
+| [`size`](#ps-si)          | Return size                          |
++---------------------------+--------------------------------------+
+| [`clear`](#ps-clear)      | Erase contents                       |
++---------------------------+--------------------------------------+
+| [`resize`](#ps-rsz)       | Change size                          |
++---------------------------+--------------------------------------+
+| [`swap`](#ps-sw)          | Exchange contents                    |
++---------------------------+--------------------------------------+
+| [`begin`](#ps-beg)        | Returns an iterator to the beginning |
+| [`cbegin`](#ps-beg)       |                                      |
++---------------------------+--------------------------------------+
+| [`end`](#ps-end)          | Returns an iterator to the end       |
+| [`cend`](#ps-end)         |                                      |
++---------------------------+--------------------------------------+
+| [`operator+=`](#ps-append)| Append to string                     |
+|                           |                                      |
++---------------------------+--------------------------------------+
+| [`operator+`](#ps-concat) | Concatenates strings                 |
+|                           |                                      |
++---------------------------+--------------------------------------+
+| [`c_str`](#ps-cstr)       | Get C string equivalent              |
+|                           |                                      |
++---------------------------+--------------------------------------+
 
 Table: Parallel-array member functions.
 
@@ -1021,6 +1207,17 @@ long size() const;
 Returns the size of the container.
 
 ***Complexity.*** Constant time.
+
+### Clear {#ps-clear}
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+void clear();
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Erases the contents of the container, which becomes an empty
+container.
+
+***Complexity.*** Linear and logarithmic work and span, respectively.
 
 ### Resize {#ps-rsz}
 
@@ -1086,28 +1283,264 @@ undefined behavior.
 
 ***Complexity.*** Constant time.
 
+### Append to string {#ps-append}
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+pstring& operator+=(const pstring& str);
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Extends the string by appending additional characters at the end of
+its current value.
+
+***Complexity.*** Linear and logarithmic in the size of the resulting
+   string, respectively.
+
+***Iterator validity*** Invalidates all iterators, if the size before
+   the operation differs from the size after.
+
+### Concatenate strings {#ps-concat}
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+pstring operator+(const pstring& rhs);
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Returns a newly constructed string object with its value being the
+concatenation of the characters in `this` followed by those of `rhs`.
+
+***Complexity.*** Linear and logarithmic in the size of the resulting
+   string, respectively.
+
+### Get C string equivalent {#ps-cstring}
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+const char* c_str();
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Returns a pointer to an array that contains a null-terminated sequence
+of characters (i.e., a C-string) representing the current value of the
+string object.
+
+This array includes the same sequence of characters that make up the
+value of the string object plus an additional terminating
+null-character (`'\0'`) at the end.
+
+***Complexity.*** Constant time.
+
 Parallel rope {#prope}
 =============
 
 Data-parallel operations
 ========================
 
-Indexed-based for loop
-----------------------
+This section introduces a collection of data-parallel operations that
+are useful for processing over pctl containers.
+
+Parallel-for loop
+-----------------
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+namespace pasl {
+namespace pctl {
+
+template <class Iter, class Body>
+void parallel_for(Iter lo, Iter hi, Body body);
+
+} }
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The first of data-parallel operations we are going to consider is a
+looping construct that is useful for making changes to memory. For
+now, we are going to assume that each iterate of our loops take
+constant time. In the next section, we show how we can handle in an
+effective manner loop bodies that are not constant time.
+
+Let us begin by considering example code. The following program uses a
+parallel-for loop to assign each position `i` in `xs` to the value
+`i+1`.
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 parray<long> xs = { 0, 0, 0, 0 };
-parallel_for(0, xs.size(), [&] (long i) {
+parallel_for((long)0, xs.size(), [&] (long i) {
   xs[i] = i+1;
 });
 
 std::cout << "xs = " << xs << std::endl;
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+It's output is the following.
+
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 xs = { 1, 2, 3, 4 }
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+We can just as easily configure our parallel-for loop to iterate with
+respect to a specified range of iterator values. In this case, we are
+instead just incrementing the value in each cell of our parallel
+array.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+parray<long> xs = { 0, 1, 2, 3 };
+parallel_for(xs.begin(), xs.end(), [&] (long* p) {
+  long& xs_i = *p;
+  xs_i = xs_i + 1;
+});
+
+std::cout << "xs = " << xs << std::endl;
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The output of this program is the same as that of the one just above.
+
+By exchanging the type `parray` for `pchunkedseq` and the iterator
+type `long*` for `typename pchunkedseq<long>::iterator`, we can
+iterate over a parallel chunked sequence in a similar manner.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+pchunkedseq<long> xs = { 0, 1, 2, 3 };
+parallel_for(xs.begin(), xs.end(), [&] (typename pchunkedseq<long>::iterator p) {
+  long& xs_i = *p;
+  xs_i = xs_i + 1;
+});
+
+std::cout << "xs = " << xs << std::endl;
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The output of this program is the same as that of the one just
+above. All of the examples presented here can be found in the source
+file `pctl/examples/parallelfor.cpp`.
+
+### Non-constant-time loop bodies
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+namespace pasl {
+namespace pctl {
+
+template <class Iter, class Body>
+void parallel_for(Iter lo, Iter hi, Body body);
+
+template <class Iter, class Body, class Comp>
+void parallel_for(Iter lo, Iter hi, Comp comp, Body body);
+
+} }
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+When the loop body does not take constant time, that is, the loop body
+takes time in proportion to a known quantity, our code needs to report
+that quantity to the looping construct in order for the loop to find
+an efficient schedule for the loop iterations. To see how this
+reporting is done, let us consider a program that computes the product
+of a dense matrix by a dense vector. Our matrix is $\mathtt{n} \times
+\mathtt{n}$ and is laid out in memory in row major format. In the
+following example, we call `dmdmult1` to compute the vector resulting
+from the multiplication of matrix `mtx` and vector `vec`.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+parray<double> mtx = { 1.1, 2.1, 0.3, 5.8,
+                       8.1, 9.3, 3.1, 3.2,
+                       5.3, 3.5, 7.9, 2.3,
+                       4.5, 5.5, 3.4, 4.5 };
+
+parray<double> vec = { 4.3, 0.3, 2.1, 3.3 };
+
+parray<double> result = dmdvmult1(mtx, vec);
+std::cout << "result = " << result << std::endl;
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The output of the program is the following.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+result = { 25.13, 54.69, 48.02, 42.99 }
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+In the body of `dmdvmult1`, we need to compute the dot product of a
+given row by our vector `vec`. Let us just assume that we have such a
+function already. In particular, the `ddotprod` function takes the
+dimension value, a pointer to the start of a row in the matrix, a
+pointer to the vector. The function returns the corresponding dot
+product, taking time $O(\mathtt{n})$.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+double ddotprod(long n, const double* row, const double* vec);
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Now, we see that the body of our `dmdvmult1` function uses a
+parallel-for loop to fill each cell in the result vector. The
+complexity function `comp` describes the approximate cost of
+performing one loop iterate, which is the same as performing one dot
+product operation on a specified row.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+parray<double> dmdvmult1(const parray<double>& mtx, const parray<double>& vec) {
+  long n = vec.size();
+  parray<double> result(n);
+  auto comp = [&] (long i) {
+    return n;
+  };
+  parallel_for(0L, n, comp, [&] (long i) {
+    result[i] = ddotprod(n, mtx.cbegin()+(i*n), vec.begin());
+  });
+  return result;
+}
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The above code is perfectly fine for most purposes, because the
+granularity-control algorithm of pctl should be able to use the
+complexity function to schedule loop iterations efficiently. However,
+it is important to know that, inside the implementation of the above
+parallel-for loop, there is a linear-time (and logarithmic-span)
+operation that is being performed to precompute the cost of computing
+any subrange of iterations. Sometimes, significant efficienty can be
+gained by bypassing this prefix-sum calculation. To do so, we need to
+consider the *range-based* parallel-for loop.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+namespace pasl {
+namespace pctl {
+namespace range {
+
+template <
+  class Iter,
+  class Body,
+  class Comp_rng
+>
+void parallel_for(Iter lo,
+                  Iter hi, Comp_rng comp_rng,
+                  Body body);
+
+template <
+  class Iter,
+  class Body,
+  class Comp_rng,
+  class Seq_body_rng
+>
+void parallel_for(Iter lo,
+                  Iter hi,
+                  Comp_rng comp_rng,
+                  Body body,
+                  Seq_body_rng seq_body_rng);
+
+} } }
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The idea here is that, instead of reporting the cost of computing an
+individual iterate, we report the cost of a given range. The function
+`comp_rng` returns exactly this value.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+parray<double> dmdvmult2(const parray<double>& mtx, const parray<double>& vec) {
+  long n = vec.size();
+  parray<double> result(n);
+  auto comp_rng = [&] (long lo, long hi) {
+    return (hi - lo) * n;
+  };
+  range::parallel_for(0L, n, comp_rng, [&] (long i) {
+    result[i] = ddotprod(n, mtx.cbegin()+(i*n), vec.begin());
+  });
+  return result;
+}
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The output of this code is exactly the same as for `dmdvmult1`. These
+code examples can be found in the file `pctl/examples/dmdvmult.cpp`.
 
 ### Template parameters
 
@@ -1194,51 +1627,6 @@ class Comp_rng;
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 long operator()(Iter lo, Iter hi);
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-### Instances
-
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-namespace pasl {
-namespace pctl {
-
-template <class Iter, class Body>
-void parallel_for(Iter lo, Iter hi, Body body);
-
-template <class Iter, class Body, class Comp>
-void parallel_for(Iter lo, Iter hi, Comp comp, Body body);
-
-} }
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-namespace pasl {
-namespace pctl {
-namespace range {
-
-template <
-  class Iter,
-  class Body,
-  class Comp_rng
->
-void parallel_for(Iter lo,
-                  Iter hi, Comp_rng comp_rng,
-                  Body body);
-
-template <
-  class Iter,
-  class Body,
-  class Comp_rng,
-  class Seq_body_rng
->
-void parallel_for(Iter lo,
-                  Iter hi,
-                  Comp_rng comp_rng,
-                  Body body,
-                  Seq_body_rng seq_body_rng);
-
-} } }
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
 
 Reduction
 ---------

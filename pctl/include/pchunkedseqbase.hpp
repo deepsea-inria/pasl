@@ -162,27 +162,6 @@ public:
     seq.swap(other.seq);
   }
   
-  template <class Iter, class Visit_segment_idx>
-  void for_each_segmenti(Iter lo, Iter hi, const Visit_segment_idx& visit_segment_idx) {
-    segmented::for_each_segmenti(lo, hi, visit_segment_idx);
-  }
-  
-  template <class Iter, class Visit_segment>
-  void for_each_segment(Iter lo, Iter hi, const Visit_segment& visit_segment) {
-    for_each_segmenti(lo, hi, [&] (long, pointer lo, pointer hi) {
-      visit_segment(lo, hi);
-    });
-  }
-  
-  template <class Iter, class Visit_item>
-  void for_each(Iter lo, Iter hi, const Visit_item& visit_item) {
-    for_each_segment(lo, hi, [&] (pointer lo, pointer hi) {
-      for (auto it = lo; it != hi; it++) {
-        visit_item(*it);
-      }
-    });
-  }
-  
 };
 
 /***********************************************************************/

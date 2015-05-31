@@ -1526,6 +1526,8 @@ double *mkMortonSPDMatrix(int order) {
   return temp;
 }
 
+// TODO: fix race condition on updates to `level`
+
 int main(int argc, char** argv) {
   pasl::sched::launch(argc, argv, [&] (pasl::sched::experiment exp) {
     int order = pasl::util::cmdline::parse_or_default_int("order", 1000);
@@ -1535,5 +1537,6 @@ int main(int argc, char** argv) {
     });
     free(mtx);
   });
+  std::cout << level << std::endl;
   return 0;
 }

@@ -124,6 +124,24 @@ void for_each_segmenti(Iter lo, Iter hi, const Visit_segment_idx& visit_segment_
   auto seq_rng_dst = lift_rng_dst;
   reduce(lo, hi, out, id, result, lift_comp_rng, lift_rng_dst, seq_rng_dst);
 }
+ 
+template <class Iter, class Visit_segment>
+void for_each_segment(Iter lo, Iter hi, const Visit_segment& visit_segment) {
+  using pointer = pointer_of<Iter>;
+  for_each_segmenti(lo, hi, [&] (long, pointer lo, pointer hi) {
+    visit_segment(lo, hi);
+  });
+}
+
+template <class Iter, class Visit_item>
+void for_each(Iter lo, Iter hi, const Visit_item& visit_item) {
+  using pointer = pointer_of<Iter>;
+  for_each_segment(lo, hi, [&] (pointer lo, pointer hi) {
+    for (auto it = lo; it != hi; it++) {
+      visit_item(*it);
+    }
+  });
+}
 
 template <class Item>
 void clear(pchunkedseq<Item>& pc) {

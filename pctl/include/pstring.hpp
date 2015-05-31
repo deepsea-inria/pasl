@@ -175,7 +175,7 @@ public:
     return chars.cend();
   }
   
-  pstring& operator+= (const pstring& str) {
+  pstring& operator+=(const pstring& str) {
     long n1 = size();
     long n2 = str.size();
     long n = n1 + n2;
