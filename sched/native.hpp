@@ -111,6 +111,14 @@ public:
     threaddag::continue_with(this);
     prepare_and_swap_with_scheduler();
   }
+  
+  void wait(outstrategy::one_to_one_future* out) {
+    instrategy_p in = instrategy::unary_new();
+    threaddag::join_with(this, in);
+    threaddag::add_thread(this);
+    out->add(this);
+    prepare_and_swap_with_scheduler();
+  }
 
   void async(multishot_p thread, multishot_p join) {
     threaddag::fork(thread, join);

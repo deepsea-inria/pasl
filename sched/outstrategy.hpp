@@ -11,6 +11,7 @@
 #define _OUTSTRATEGY_H_
 
 #include <list>
+#include <atomic>
 
 #include "classes.hpp"
 #include "thread.hpp"
@@ -258,6 +259,42 @@ protected:
 public:
   future(bool lazy) : lazy(lazy) { }
   virtual bool thread_finished() = 0;
+};
+  
+/*---------------------------------------------------------------------*/
+
+class one_to_one_future : public common {
+protected:
+  
+  std::atomic<thread_p> state;
+  
+  static constexpr thread_p init = nullptr;
+  const thread_p ready = init + 1;
+  
+public:
+  
+  one_to_one_future()
+  : state(init) { }
+  
+  virtual void add(thread_p t) {
+    thread_p old = init;
+    if (state.compare_exchange_strong(old, t)) {
+      return;
+    }
+    assert(old == ready);
+    finished();
+  }
+  
+  virtual void finished() {
+    thread_p old = init;
+    if (! state.compare_exchange_strong(old, ready)) {
+      bool b = state.compare_exchange_strong(old, ready);
+      assert(b);
+      decr_dependencies(old);
+    }
+    common::finished();
+  }
+  
 };
   
 /*---------------------------------------------------------------------*/
