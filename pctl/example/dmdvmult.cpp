@@ -49,6 +49,26 @@ namespace pasl {
       return result;
     }
     
+    parray<double> dmdvmult3(const parray<double>& mtx, const parray<double>& vec) {
+      long n = vec.size();
+      parray<double> result(n);
+      auto comp_rng = [&] (long lo, long hi) {
+        return (hi - lo) * n;
+      };
+      range::parallel_for(0L, n, comp_rng, [&] (long i) {
+        result[i] = ddotprod(n, mtx.cbegin()+(i*n), vec.begin());
+      }, [&] (long lo, long hi) {
+        for (long i = lo; i < hi; i++) {
+          double dotp = 0.0;
+          for (long j = 0; j < n; j++) {
+            dotp += mtx[i*n+j] * vec[j];
+          }
+          result[i] = dotp;
+        }
+      });
+      return result;
+    }
+    
     void ex() {
       
       parray<double> mtx = { 1.1, 2.1, 0.3, 5.8,
@@ -68,6 +88,10 @@ namespace pasl {
         std::cout << "result = " << result << std::endl;
       }
       
+      {
+        parray<double> result = dmdvmult3(mtx, vec);
+        std::cout << "result = " << result << std::endl;
+      }
     }
     
   }

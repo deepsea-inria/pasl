@@ -103,9 +103,10 @@ struct vertex {
   intT* Neighbors;
   intT degree;
   void del() {free(Neighbors);}
+  vertex() { }
   vertex(intT* N, intT d) : Neighbors(N), degree(d) {}
 };
-
+  
 template <class intT>
 struct graph {
   vertex<intT> *V;
@@ -135,6 +136,16 @@ struct graph {
     free(V);
   }
 };
+  
+template <class intT>
+std::ostream& operator<<(std::ostream& out, const vertex<intT>& v) {
+  out << "{";
+  for (long i = 0; i < v.degree; i++) {
+    out << " " << v.Neighbors[i] << ", ";
+  }
+  out << "}";
+  return out;
+}
 
 } // end namespace
 } // end namespace

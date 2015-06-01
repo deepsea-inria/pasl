@@ -24,6 +24,7 @@
 #include "dpsdatapar.hpp"
 #include "graph.hpp"
 #include "speculativefor.hpp"
+#include "graphutils.hpp"
 
 #ifndef MIS_H_
 #define MIS_H_
