@@ -133,6 +133,8 @@ by using offsets or by using pointer values. Unlike C arrays, storage
 is managed automatically by the container. Moreover, unlike C arrays,
 parallel arrays initialize and de-initialize their cells in parallel.
 
+## Template parameters
+
 +-----------------------------------+-----------------------------------+
 | Template parameter                | Description                       |
 +===================================+===================================+
@@ -145,7 +147,31 @@ parallel arrays initialize and de-initialize their cells in parallel.
 +-----------------------------------+-----------------------------------+
 
 Table: Template parameters for the `parray` class.
-                                                           
+
+### Item type {#pa-item}
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+class Item;
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Type of the elements.  Only if `Item` is guaranteed to not throw while
+moving, implementations can optimize to move elements instead of
+copying them during reallocations.  Aliased as member type
+`parray::value_type`.
+
+### Allocator {#pa-alloc}
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+class Alloc;
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Type of the allocator object used to define the storage allocation
+model. By default, the allocator class template is used, which defines
+the simplest memory allocation model and is value-independent.
+Aliased as member type `parray::allocator_type`.
+
+## Member types
+
 +-----------------------------------+-----------------------------------+
 | Type                              | Description                       |
 +===================================+===================================+
@@ -166,6 +192,15 @@ Table: Template parameters for the `parray` class.
 +-----------------------------------+-----------------------------------+
 
 Table: Parallel-array member types.
+
+### Iterator {#pa-iter}
+
+The type `iterator` and `const_iterator` are instances of the
+[random-access
+iterator](http://en.cppreference.com/w/cpp/concept/RandomAccessIterator)
+concept.
+
+## Constructors and destructors
 
 +-----------------------------------+-----------------------------------+
 | Constructor                       | Description                       |
@@ -198,39 +233,6 @@ Table: Parallel-array member types.
 +-----------------------------------+-----------------------------------+
 
 Table: Parallel-array constructors and destructors.
-
-## Template parameters
-
-### Item type {#pa-item}
-
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-class Item;
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Type of the elements.  Only if `Item` is guaranteed to not throw while
-moving, implementations can optimize to move elements instead of
-copying them during reallocations.  Aliased as member type
-`parray::value_type`.
-
-### Allocator {#pa-alloc}
-
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-class Alloc;
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Type of the allocator object used to define the storage allocation
-model. By default, the allocator class template is used, which defines
-the simplest memory allocation model and is value-independent.
-Aliased as member type `parray::allocator_type`.
-
-## Iterator {#pa-iter}
-
-The type `iterator` and `const_iterator` are instances of the
-[random-access
-iterator](http://en.cppreference.com/w/cpp/concept/RandomAccessIterator)
-concept.
-
-## Constructors and destructors
 
 ### Empty container constructor {#pa-e-c-c}
 
@@ -328,7 +330,7 @@ Destructs the container.
 ***Complexity.*** Work and span are linear and logarithmic in the size
    of the container, respectively.
 
-## Operations
+## Member functions
 
 +------------------------+--------------------------------------+
 | Operation              | Description                          |
@@ -477,6 +479,8 @@ object. The complete interface of the sequential chunked sequence
 class is documented
 [here](http://deepsea.inria.fr/chunkedseq/doc/html/group__deque.html).
 
+## Template parameters
+
 +-----------------------------------+-----------------------------------+
 | Template parameter                | Description                       |
 +===================================+===================================+
@@ -489,6 +493,30 @@ class is documented
 +-----------------------------------+-----------------------------------+
 
 Table: Template parameters for the `pchunkedseq` class.
+
+### Item type {#cs-item}
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+class Item;
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Type of the elements.  Only if `Item` is guaranteed to not throw while
+moving, implementations can optimize to move elements instead of
+copying them during reallocations.  Aliased as member type
+`parray::value_type`.
+
+### Allocator {#cs-alloc}
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+class Alloc;
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Type of the allocator object used to define the storage allocation
+model. By default, the allocator class template is used, which defines
+the simplest memory allocation model and is value-independent.
+Aliased as member type `parray::allocator_type`.
+
+## Member types
 
 +--------------------------------------+---------------------------------------------+
 | Type                                 | Description                                 |
@@ -519,73 +547,6 @@ Table: Template parameters for the `pchunkedseq` class.
 +--------------------------------------+---------------------------------------------+
 
 Table: Parallel chunked sequence member types.
-
-+-----------------------------------+-----------------------------------+
-| Member objects                    | Description                       |
-+===================================+===================================+
-| [`seq`](#cs-seq)                  | Sequential chunked sequence       |
-|                                   |                                   |
-+-----------------------------------+-----------------------------------+
-
-Table: Parallel chunked sequence member objects.
-
-+-----------------------------------+-----------------------------------+
-| Constructor                       | Description                       |
-+===================================+===================================+
-| [empty container                  | constructs an empty container with|
-|constructor](#cs-e-c-c) (default   |no items                           |
-|constructor)                       |                                   |
-+-----------------------------------+-----------------------------------+
-| [fill constructor](#cs-e-f-c)     | constructs a container with a     |
-|                                   |specified number of copies of a    |
-|                                   |given item                         |
-+-----------------------------------+-----------------------------------+
-| [populate constructor](#cs-e-p-c) | constructs a container with a     |
-|                                   |specified number of values that are|
-|                                   |computed by a specified function   |
-+-----------------------------------+-----------------------------------+
-| [copy constructor](#cs-e-cp-c)    | constructs a container with a copy|
-|                                   |of each of the items in the given  |
-|                                   |container, in the same order       |
-+-----------------------------------+-----------------------------------+
-| [initializer list](#cs-i-l-c)     | constructs a container with the   |
-|                                   |items specified in a given         |
-|                                   |initializer list                   |
-+-----------------------------------+-----------------------------------+
-| [move constructor](#cs-m-c)       | constructs a container that       |
-|                                   |acquires the items of a given      |
-|                                   |parallel array                     |
-+-----------------------------------+-----------------------------------+
-| [destructor](#cs-destr)           | destructs a container             |
-+-----------------------------------+-----------------------------------+
-
-Table: Parallel chunked sequence constructors and destructors.
-
-## Template parameters
-
-### Item type {#cs-item}
-
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-class Item;
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Type of the elements.  Only if `Item` is guaranteed to not throw while
-moving, implementations can optimize to move elements instead of
-copying them during reallocations.  Aliased as member type
-`parray::value_type`.
-
-### Allocator {#cs-alloc}
-
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-class Alloc;
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Type of the allocator object used to define the storage allocation
-model. By default, the allocator class template is used, which defines
-the simplest memory allocation model and is value-independent.
-Aliased as member type `parray::allocator_type`.
-
-## Member types
 
 ### Iterator {#pc-iter}
 
@@ -642,6 +603,15 @@ except that `pointer` types are replaced by `const_pointer` types.
 
 ## Member objects
 
++-----------------------------------+-----------------------------------+
+| Member objects                    | Description                       |
++===================================+===================================+
+| [`seq`](#cs-seq)                  | Sequential chunked sequence       |
+|                                   |                                   |
++-----------------------------------+-----------------------------------+
+
+Table: Parallel chunked sequence member objects.
+
 ### Sequential chunked sequence {#cs-seq}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
@@ -652,6 +622,38 @@ This object provides the storage for all the elements in the
 container.
 
 ## Constructors and destructors
+
++-----------------------------------+-----------------------------------+
+| Constructor                       | Description                       |
++===================================+===================================+
+| [empty container                  | constructs an empty container with|
+|constructor](#cs-e-c-c) (default   |no items                           |
+|constructor)                       |                                   |
++-----------------------------------+-----------------------------------+
+| [fill constructor](#cs-e-f-c)     | constructs a container with a     |
+|                                   |specified number of copies of a    |
+|                                   |given item                         |
++-----------------------------------+-----------------------------------+
+| [populate constructor](#cs-e-p-c) | constructs a container with a     |
+|                                   |specified number of values that are|
+|                                   |computed by a specified function   |
++-----------------------------------+-----------------------------------+
+| [copy constructor](#cs-e-cp-c)    | constructs a container with a copy|
+|                                   |of each of the items in the given  |
+|                                   |container, in the same order       |
++-----------------------------------+-----------------------------------+
+| [initializer list](#cs-i-l-c)     | constructs a container with the   |
+|                                   |items specified in a given         |
+|                                   |initializer list                   |
++-----------------------------------+-----------------------------------+
+| [move constructor](#cs-m-c)       | constructs a container that       |
+|                                   |acquires the items of a given      |
+|                                   |parallel array                     |
++-----------------------------------+-----------------------------------+
+| [destructor](#cs-destr)           | destructs a container             |
++-----------------------------------+-----------------------------------+
+
+Table: Parallel chunked sequence constructors and destructors.
 
 ### Empty container constructor {#cs-e-c-c}
 
@@ -749,6 +751,8 @@ Destructs the container.
 ***Complexity.*** Work and span are linear and logarithmic in the size
    of the container, respectively.
 
+## Member functions
+
 +-------------------------------------+--------------------------------------+
 | Operation                           | Description                          |
 +=====================================+======================================+
@@ -775,20 +779,6 @@ Destructs the container.
 +-------------------------------------+--------------------------------------+
                  
 Table: Operations of the parallel chunked sequence.
-
-+-------------------------------------+--------------------------------------+
-| Function                            | Description                          |
-+=====================================+======================================+
-| [`for_each`](#cs-foreach)           | Applies a given function to each item|
-|                                     |in the container                      |
-+-------------------------------------+--------------------------------------+
-| [`for_each_segment`](#cs-foreachseg)| Applies a given function to each     |
-|                                     |segment in the container              |
-+-------------------------------------+--------------------------------------+
-
-Table: Functions relating to the parallel chunked sequence.
-
-## Operations
 
 ### Indexing operator {#cs-i-o}
 
@@ -916,6 +906,20 @@ If the current size is less than `n`,
 ***Iterator validity*** Invalidates all iterators, if the size before
    the operation differs from the size after.
 
+## Non-member functions
+
++-------------------------------------+--------------------------------------+
+| Function                            | Description                          |
++=====================================+======================================+
+| [`for_each`](#cs-foreach)           | Applies a given function to each item|
+|                                     |in the container                      |
++-------------------------------------+--------------------------------------+
+| [`for_each_segment`](#cs-foreachseg)| Applies a given function to each     |
+|                                     |segment in the container              |
++-------------------------------------+--------------------------------------+
+
+Table: Functions relating to the parallel chunked sequence.
+
 ### For each {#cs-foreach}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
@@ -992,6 +996,8 @@ class pstring;
 } }
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+## Member types
+
 +-----------------------------------+-----------------------------------+
 | Type                              | Description                       |
 +===================================+===================================+
@@ -1011,7 +1017,16 @@ class pstring;
 | [`const_iterator`](#ps-iter)      | Const iterator                    |
 +-----------------------------------+-----------------------------------+
 
-Table: Parallel string type definitions.
+Table: Parallel string member types.
+
+### Iterator {#ps-iter}
+
+The type `iterator` and `const_iterator` are instances of the
+[random-access
+iterator](http://en.cppreference.com/w/cpp/concept/RandomAccessIterator)
+concept.
+
+## Constructors and destructors
 
 +-----------------------------------+-----------------------------------+
 | Constructor                       | Description                       |
@@ -1044,17 +1059,6 @@ Table: Parallel string type definitions.
 +-----------------------------------+-----------------------------------+
 
 Table: Parallel-string constructors and destructors.
-
-## Member types
-
-### Iterator {#ps-iter}
-
-The type `iterator` and `const_iterator` are instances of the
-[random-access
-iterator](http://en.cppreference.com/w/cpp/concept/RandomAccessIterator)
-concept.
-
-## Constructors and destructors
 
 ### Empty container constructor {#ps-e-c-c}
 
@@ -1414,9 +1418,6 @@ file `pctl/examples/parallelfor.cpp`.
 namespace pasl {
 namespace pctl {
 
-template <class Iter, class Body>
-void parallel_for(Iter lo, Iter hi, Body body);
-
 template <class Iter, class Body, class Comp>
 void parallel_for(Iter lo, Iter hi, Comp comp, Body body);
 
@@ -1482,15 +1483,7 @@ parray<double> dmdvmult1(const parray<double>& mtx, const parray<double>& vec) {
 }
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The above code is perfectly fine for most purposes, because the
-granularity-control algorithm of pctl should be able to use the
-complexity function to schedule loop iterations efficiently. However,
-it is important to know that, inside the implementation of the above
-parallel-for loop, there is a linear-time (and logarithmic-span)
-operation that is being performed to precompute the cost of computing
-any subrange of iterations. Sometimes, significant efficienty can be
-gained by bypassing this prefix-sum calculation. To do so, we need to
-consider the *range-based* parallel-for loop.
+### Range-based complexity functions for non-constant-time loop bodies
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 namespace pasl {
@@ -1506,20 +1499,18 @@ void parallel_for(Iter lo,
                   Iter hi, Comp_rng comp_rng,
                   Body body);
 
-template <
-  class Iter,
-  class Body,
-  class Comp_rng,
-  class Seq_body_rng
->
-void parallel_for(Iter lo,
-                  Iter hi,
-                  Comp_rng comp_rng,
-                  Body body,
-                  Seq_body_rng seq_body_rng);
-
 } } }
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The above code is perfectly fine for most purposes, because the
+granularity-control algorithm of pctl should be able to use the
+complexity function to schedule loop iterations efficiently. However,
+it is important to know that, inside the implementation of the above
+parallel-for loop, there is a linear-time (and logarithmic-span)
+operation that is being performed to precompute the cost of computing
+any subrange of iterations. Sometimes, significant efficienty can be
+gained by bypassing this prefix-sum calculation. To do so, we need to
+consider the *range-based* parallel-for loop.
 
 The idea here is that, instead of reporting the cost of computing an
 individual iterate, we report the cost of a given range. The function
@@ -1539,8 +1530,84 @@ parray<double> dmdvmult2(const parray<double>& mtx, const parray<double>& vec) {
 }
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The output of this code is exactly the same as for `dmdvmult1`. These
-code examples can be found in the file `pctl/examples/dmdvmult.cpp`.
+The output of this code is exactly the same as for `dmdvmult1`.
+
+### Sequential-alternative loop bodies
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+namespace pasl {
+namespace pctl {
+namespace range {
+
+template <
+  class Iter,
+  class Body,
+  class Comp_rng,
+  class Seq_body_rng
+>
+void parallel_for(Iter lo,
+                  Iter hi,
+                  Comp_rng comp_rng,
+                  Body body,
+                  Seq_body_rng seq_body_rng);
+
+} } }
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Let us suppose that we have some highly optimized sequential algorithm
+that we wish to use along with our parallel-for loop. How can we
+inject such code into a parallel-for computation? For this purpose, we
+have another form of parallel-for loop that takes a sequential-body
+function as its last argument.
+
+Now, we can see from the following example code how we can use the new
+parallel-for loop. Just after the parallel body, we see a sequential
+body, which consists of two ordinary, sequential for loops. When the
+scheduler determines that a loop range is too small to benefit from
+parallelism, the body that is applied is the sequential body.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+parray<double> dmdvmult3(const parray<double>& mtx, const parray<double>& vec) {
+  long n = vec.size();
+  parray<double> result(n);
+  auto comp_rng = [&] (long lo, long hi) {
+    return (hi - lo) * n;
+  };
+  range::parallel_for(0L, n, comp_rng, [&] (long i) {
+    result[i] = ddotprod(n, mtx.cbegin()+(i*n), vec.begin());
+  }, [&] (long lo, long hi) {
+    for (long i = lo; i < hi; i++) {
+      double dotp = 0.0;
+      for (long j = 0; j < n; j++) {
+        dotp += mtx[i*n+j] * vec[j];
+      }
+      result[i] = dotp;
+    }
+  });
+  return result;
+}
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+At first glance, our optimization of injecting a sequential body might
+seem artificial, given that, for a large enough matrix, the sequential
+body may never get applied. The reason is that the work involved in
+processing just a single, large row may be plenty to warrant parallel
+execution. However, if we consider rectangular matrices, or sparce
+matrices, it should be clear that the sequential body can improve
+performance in certain cases.
+
+To summarize, we started with a basic parallel-for loop, showing that
+the basic version is flexible enough to handle various indexing
+formats (e.g., integers, iterators of various kinds). We then saw
+that, when the body of the loop is not constant time, we need to
+define a complexity function and pass the complexity function to the
+parallel-for function. We then saw that we can potentially reduce the
+scheduling overhead by instead using a range-based version of parallel
+for, where we pass a range-based complexity function. Then, we saw
+that we can potentially optimize further by providing a sequential
+alternative body to the parallel for. Finally, all of the code
+examples presented in this section can be found in the file
+`pctl/examples/dmdvmult.cpp`.
 
 ### Template parameters
 
@@ -1593,8 +1660,12 @@ the parallel-for loop and therefore not required.
 class Body;
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+The loop body class must provide a call operator of the following
+type. The iterator parameter is to receive the value of the current
+iterate.
+
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-void operator()(Iter i);
+void operator()(Iter it);
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 #### Sequentialized loop body {#lp-s-i}
@@ -1603,9 +1674,17 @@ void operator()(Iter i);
 class Seq_body_rng;
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+The sequential loop body class must provide a call operator of the
+following type.
+
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 void operator()(Iter lo, Iter hi);
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+This method is called by the scheduler when a given range of loop
+iterates is determined to be too small to benefit from parallel
+execution. This range to be executed sequentially is the right-open
+range [`lo`, `hi`).
 
 #### Complexity function {#lp-c}
 
@@ -1613,10 +1692,17 @@ void operator()(Iter lo, Iter hi);
 class Comp;
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+The complexity-function class must provide a call operator of the
+following type.
+
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-long operator()(Iter i);
+long operator()(Iter it);
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+This method is called by the scheduler to determine the cost of
+executing a given iterate, specified by `it`. The return value should
+be a positive number that represents an approximate (i.e., asymptotic)
+cost required to execute the loop body at the iterate `it`.
 
 #### Range-based compelxity function {#lp-c-r}
 
@@ -1624,12 +1710,31 @@ long operator()(Iter i);
 class Comp_rng;
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+The range-based complexity-function class must provide a call operator
+of the following type.
+
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 long operator()(Iter lo, Iter hi);
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Reduction
----------
+This method is called by the scheduler to determine the cost of a
+*range* of loop iterates. The range is specified by the right-open
+range [`lo`, `hi`). Like the above function, the return value should
+be a positive number that represents an approximate (i.e., asymptotic)
+cost required to execute specified range.
+
+Reductions and scans
+--------------------
+
+Parallel-for loops give us the ability to process a given range of
+iterates in parallel. However, often we want to, say, take the sum of
+a given sequence of numbers. The problem is that the parallel-for loop
+is a poor tool for this job, because each iterate in the parallel-for
+computation is processed independently in parallel. In general, when
+we have a collection of values that we want to combine in a certain
+fashion, we can usually obtain an efficient and clean solution by
+using a *reduction*, which is an operation that combines the items in
+a specified range according to a given *monoid*.
 
 +-----------------------------------+-----------------------------------+
 | Abstraction layer                 | Description                       |
