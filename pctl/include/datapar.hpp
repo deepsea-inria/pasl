@@ -652,27 +652,6 @@ public:
   
 };
   
-
-template <class Pchunked_sequence>
-class pchunkedseq_output {
-public:
-  
-  using result_type = Pchunked_sequence;
-  
-  result_type id;
-  
-  pchunkedseq_output() { }
-  
-  void init(result_type& dst) const {
-    
-  }
-  
-  void merge(result_type& src, result_type& dst) const {
-    dst.seq.concat(src.seq);
-  }
-  
-};
-  
 template <class Combine, class Container>
 class mergeable_output {
 public:

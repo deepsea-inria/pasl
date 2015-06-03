@@ -25,12 +25,12 @@ namespace pctl {
 namespace segmented {
 
 template <
-class Input_iter,
-class Output,
-class Result,
-class Lift_comp_rng,
-class Lift_rng_dst,
-class Seq_reduce_rng_dst
+  class Input_iter,
+  class Output,
+  class Result,
+  class Lift_comp_rng,
+  class Lift_rng_dst,
+  class Seq_reduce_rng_dst
 >
 void reduce(Input_iter lo,
             Input_iter hi,
@@ -71,18 +71,19 @@ template <class Iter>
 pchunkedseq<value_type_of<Iter>> copy(Iter lo, Iter hi) {
   using value_type = value_type_of<Iter>;
   using pointer = pointer_of<Iter>;
+  using seq_type = typename pchunkedseq<value_type>::seq_type;
+  using output_type = level3::chunkedseq_output<seq_type>;
   pchunkedseq<value_type> result;
   pchunkedseq<value_type> id;
-  using output_type = level3::pchunkedseq_output<pchunkedseq<value_type>>;
   output_type out;
   auto lift_comp_rng = [&] (Iter lo, Iter hi) {
     return hi - lo;
   };
-  auto lift_rng_dst = [&] (long i, pointer lo, pointer hi, pchunkedseq<value_type>& dst) {
-    dst.seq.pushn_back(lo, hi - lo);
+  auto lift_rng_dst = [&] (long i, pointer lo, pointer hi, seq_type& dst) {
+    dst.pushn_back(lo, hi - lo);
   };
   auto seq_rng_dst = lift_rng_dst;
-  reduce(lo, hi, out, id, result, lift_comp_rng, lift_rng_dst, seq_rng_dst);
+  reduce(lo, hi, out, id.seq, result.seq, lift_comp_rng, lift_rng_dst, seq_rng_dst);
   return result;
 }
   
@@ -90,22 +91,22 @@ template <class Item>
 pchunkedseq<Item> fill(long n, const Item& x) {
   using value_type = Item;
   using seq_type = typename pchunkedseq<Item>::seq_type;
+  using output_type = level3::chunkedseq_output<seq_type>;
+  using input_type = level4::tabulate_input;
   pchunkedseq<value_type> result;
   pchunkedseq<value_type> id;
-  using output_type = level3::pchunkedseq_output<pchunkedseq<value_type>>;
   output_type out;
-  using input_type = level4::tabulate_input;
   input_type in(0, n);
   auto convert_reduce_comp = [&] (input_type& in) {
     return in.hi - in.lo;
   };
-  auto convert_reduce = [&] (input_type& in, pchunkedseq<Item>& dst) {
+  auto convert_reduce = [&] (input_type& in, seq_type& dst) {
     for (auto i = in.lo; i != in.hi; i++) {
-      dst.seq.push_back(x);
+      dst.push_back(x);
     }
   };
   auto seq_convert_reduce = convert_reduce;
-  level4::reduce(in, out, id, result, convert_reduce_comp, convert_reduce, seq_convert_reduce);
+  level4::reduce(in, out, id.seq, result.seq, convert_reduce_comp, convert_reduce, seq_convert_reduce);
   return result;
 }
  
@@ -186,14 +187,14 @@ void tabulate_rng_dst(long n,
       return std::make_pair(lo, hi);
     }, in.hi - in.lo);
   };
-  level4::reduce(in, out, id, dst.seq, convert_comp, convert, convert);
+  level4::reduce(in, out, id.seq, dst.seq, convert_comp, convert, convert);
 }
 
 template <class Item, class Body_comp, class Body_idx_dst>
 void tabulate_dst(long n,
-                         const Body_comp& body_comp,
-                         pchunkedseq<Item>& dst,
-                         const Body_idx_dst& body_idx_dst) {
+                  const Body_comp& body_comp,
+                  pchunkedseq<Item>& dst,
+                  const Body_idx_dst& body_idx_dst) {
   parray<long> w = weights(n, [&] (long i) {
     return body_comp(i);
   });

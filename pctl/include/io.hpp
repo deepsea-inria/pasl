@@ -9,6 +9,7 @@
 
 #include "pchunkedseq.hpp"
 #include "parray.hpp"
+#include "pset.hpp"
 
 #ifndef _PCTL_IO_H_
 #define _PCTL_IO_H_
@@ -38,6 +39,19 @@ std::ostream& operator<<(std::ostream& out, const pchunkedseq<Item>& xs) {
   for (long i = 0; i < sz; i++) {
     out << xs.seq[i];
     if (i+1 < sz)
+      out << ", ";
+  }
+  out << " }";
+  return out;
+}
+  
+template <class Item>
+std::ostream& operator<<(std::ostream& out, const pset<Item>& xs) {
+  out << "{ ";
+  for (auto it = xs.cbegin(); it != xs.cend(); it++) {
+    Item x = *it;
+    out << x;
+    if (it+1 != xs.cend())
       out << ", ";
   }
   out << " }";
