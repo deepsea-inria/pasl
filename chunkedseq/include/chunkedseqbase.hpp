@@ -115,12 +115,16 @@ public:
   using measure_type = typename cache_type::measure_type;
   ///@}
 
+  // apparently, we need this seeminly redundant declaration to build with GCC, but not llvm...
+  template <class T1,class T2, class T3, class T4, class T5>
+  friend class iterator::random_access;
+
   using iterator = Iterator<self_type, config_type, pointer, reference, segment_type>;
   friend iterator;
   
   using const_iterator = Iterator<self_type, config_type,
                                   const_pointer, const_reference, const_segment_type>;
-  friend const_iterator;
+  friend const_iterator; 
 
 private:
 

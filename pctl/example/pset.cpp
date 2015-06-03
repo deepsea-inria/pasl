@@ -24,7 +24,7 @@ namespace pasl {
       s.insert(3);
       s.insert(1);
       s.insert(3);
-      s.check();
+      //      s.check();
       std::cout << "s = " << s << std::endl;
       
     }
