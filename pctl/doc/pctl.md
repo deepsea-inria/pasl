@@ -103,7 +103,6 @@ String containers
 Class name                           | Description
 -------------------------------------|-------------------------------------
 [`pstring`](#pstring)                | Array-based string class
-[`prope`](#prope)                    | Chunked-sequence-based string class
 
 Table: String containers that are provided by pctl.
 
@@ -1330,9 +1329,6 @@ null-character (`'\0'`) at the end.
 
 ***Complexity.*** Constant time.
 
-Parallel rope {#prope}
-=============
-
 Data-parallel operations
 ========================
 
@@ -1408,9 +1404,11 @@ parallel_for(xs.begin(), xs.end(), [&] (typename pchunkedseq<long>::iterator p) 
 std::cout << "xs = " << xs << std::endl;
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+[parallelfor.cpp]: ../example/parallelfor.cpp
+
 The output of this program is the same as that of the one just
 above. All of the examples presented here can be found in the source
-file `pctl/examples/parallelfor.cpp`.
+file [parallelfor.cpp].
 
 ### Non-constant-time loop bodies
 
@@ -1425,14 +1423,15 @@ void parallel_for(Iter lo, Iter hi, Comp comp, Body body);
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 When the loop body does not take constant time, that is, the loop body
-takes time in proportion to a known quantity, our code needs to report
-that quantity to the looping construct in order for the loop to find
-an efficient schedule for the loop iterations. To see how this
-reporting is done, let us consider a program that computes the product
-of a dense matrix by a dense vector. Our matrix is $\mathtt{n} \times
-\mathtt{n}$ and is laid out in memory in row major format. In the
-following example, we call `dmdmult1` to compute the vector resulting
-from the multiplication of matrix `mtx` and vector `vec`.
+takes time in proportion to a known quantity, our code needs to
+provide a runction of that quantity to the looping construct in order
+for the loop to find an efficient schedule for the loop iterations. To
+see how this reporting is done, let us consider a program that
+computes the product of a dense matrix by a dense vector. Our matrix
+is $\mathtt{n} \times \mathtt{n}$ and is laid out in memory in row
+major format. In the following example, we call `dmdmult1` to compute
+the vector resulting from the multiplication of matrix `mtx` and
+vector `vec`.
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 parray<double> mtx = { 1.1, 2.1, 0.3, 5.8,
@@ -1483,6 +1482,75 @@ parray<double> dmdvmult1(const parray<double>& mtx, const parray<double>& vec) {
 }
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+The above code is perfectly fine for most purposes, because the
+granularity-control algorithm of pctl should be able to use the
+complexity function to schedule loop iterations efficiently. However,
+this particular type of parallel-for loop imposes scheduling-related
+overhead that is important to be aware of. In particular, inside the
+implementation of this particular parallel-for loop, there is an
+operation that is being called to precompute the cost of computing any
+subrange of the parallel-for loop iterations.
+
+### The `weights` operation
+
+This operation is a function which takes a number `n` and a weight
+function `w` and returns a *weight table*.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+template <class Weight>
+parray<long> weights(long n, Weight weight);
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The result returned by the call `weights(n, w)` is the sequence `[0,
+w(0), w(0)+w(1), w(0)+w(1)+w(2), ..., w(0)+...+w(n-1)]`. Notice that
+the size of the value returned by the `weights` function is always
+`n+1`. The work and span cost of this operation are linear and
+logarithmic in `n`, respectively.
+
+Let us consider how the range-based parallel-for loop in `dmdvmult2`
+would call the weights function. Suppose that `n` = 4. Now,
+internally, the parallel-for loop is going to compute a weight table
+that looks the same as `w` in the code below.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+parray<long> w = weights(4, comp);
+
+std::cout << "w = " << w << std::endl;
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The output is going to be as shown below.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+w = { 0, 4, 8, 12, 16 }
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+For one more example, let us consider an application of the `weights`
+function where the given weight function is one that returns the value
+of its current position.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+parray<long> w = weights(4, [&] (long i) {
+  return i;
+});
+
+std::cout << "w = " << w << std::endl;
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The output is the following.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+w = { 0, 0, 1, 3, 6 }
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Returning to our `dmdvmult2` example, we can now see that the work and
+span cost of calculating the weights table are linear and logarithmic
+in `n`, respectively. Since the total cost of the multiplication is
+$O(\mathtt{n}^2)$, the cost of calculating the weights table is
+relatively negligible and can therefore be disregarded in this
+case. Nevertheless, in other cases, we may want to avoid the cost of
+calculating the weights table. To do so, we need to consider the
+*range-based* parallel-for loop.
+
 ### Range-based complexity functions for non-constant-time loop bodies
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
@@ -1502,19 +1570,11 @@ void parallel_for(Iter lo,
 } } }
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The above code is perfectly fine for most purposes, because the
-granularity-control algorithm of pctl should be able to use the
-complexity function to schedule loop iterations efficiently. However,
-it is important to know that, inside the implementation of the above
-parallel-for loop, there is a linear-time (and logarithmic-span)
-operation that is being performed to precompute the cost of computing
-any subrange of iterations. Sometimes, significant efficienty can be
-gained by bypassing this prefix-sum calculation. To do so, we need to
-consider the *range-based* parallel-for loop.
-
 The idea here is that, instead of reporting the cost of computing an
 individual iterate, we report the cost of a given range. The function
-`comp_rng` returns exactly this value.
+`comp_rng` is going to calculate and return exactly this value. The
+code below shows one way that we can make this modification to our
+`dmdvmult2` function.
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 parray<double> dmdvmult2(const parray<double>& mtx, const parray<double>& vec) {
@@ -1530,7 +1590,12 @@ parray<double> dmdvmult2(const parray<double>& mtx, const parray<double>& vec) {
 }
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The output of this code is exactly the same as for `dmdvmult1`.
+The idea is that instead of reporting the cost of computing the dot
+product on an individual row, we instead report the cost of performing
+a sequence of dot products on a specified range. In particular, the
+`comp_rng` function calculates the cost of performing `hi-lo` dot
+products. In this way, we have bypassed having to calculate the
+weights table by providing such a range-based complexity function.
 
 ### Sequential-alternative loop bodies
 
@@ -1596,6 +1661,8 @@ execution. However, if we consider rectangular matrices, or sparce
 matrices, it should be clear that the sequential body can improve
 performance in certain cases.
 
+[dmdvmult.cpp]: ../example/dmdvmult.cpp
+
 To summarize, we started with a basic parallel-for loop, showing that
 the basic version is flexible enough to handle various indexing
 formats (e.g., integers, iterators of various kinds). We then saw
@@ -1607,7 +1674,7 @@ for, where we pass a range-based complexity function. Then, we saw
 that we can potentially optimize further by providing a sequential
 alternative body to the parallel for. Finally, all of the code
 examples presented in this section can be found in the file
-`pctl/examples/dmdvmult.cpp`.
+[dmdvmult.cpp].
 
 ### Template parameters
 
@@ -1726,85 +1793,40 @@ cost required to execute specified range.
 Reductions and scans
 --------------------
 
-Parallel-for loops give us the ability to process a given range of
-iterates in parallel. However, often we want to, say, take the sum of
-a given sequence of numbers. The problem is that the parallel-for loop
-is a poor tool for this job, because each iterate in the parallel-for
-computation is processed independently in parallel. In general, when
-we have a collection of values that we want to combine in a certain
-fashion, we can usually obtain an efficient and clean solution by
-using a *reduction*, which is an operation that combines the items in
-a specified range according to a given *monoid*.
+Parallel-for loops give us the ability to process a specified range of
+iterates in parallel. However, often, we want to, say, take the sum of
+a given sequence of numbers, or find the lowest point in a given set
+of points in two-dimensional space. The problem is that the
+parallel-for loop is a poor tool for this job, because each iterate in
+the parallel-for computation is processed independently in
+parallel. In general, when we have a collection of values that we want
+to combine in a certain fashion, we can usually obtain an efficient
+and clean solution by using a *reduction*, which is an operation that
+combines the items in a specified range in a certain fashion.
 
-+-----------------------------------+-----------------------------------+
-| Abstraction layer                 | Description                       |
-+===================================+===================================+
-| [Level 0](#red-l-0)               | Apply a specified monoid to       |
-|                                   |combine the items of a range in    |
-|                                   |memory that is specified by a pair |
-|                                   |of iterator pointer values         |
-+-----------------------------------+-----------------------------------+
-| [Level 1](#red-l-1)               | Introduces to the above a lift    |
-|                                   |operator that allows the client to |
-|                                   |perform along with a reduction a   |
-|                                   |specified tabulation, where the    |
-|                                   |tabulation is injected into the    |
-|                                   |leaves of the reduction tree       |
-+-----------------------------------+-----------------------------------+
-| [Level 2](#red-l-2)               | Introduces to the above an        |
-|                                   |operator that provides a           |
-|                                   |sequentialized alternative for the |
-|                                   |lift operator                      |
-+-----------------------------------+-----------------------------------+
-| [Level 3](#red-l-3)               | Introduces to the above a         |
-|                                   |"mergeable output" type that       |
-|                                   |enables destination-passing style  |
-|                                   |reduction                          |
-+-----------------------------------+-----------------------------------+
-| [Level 4](#red-l-4)               | Introduces to the above a         |
-|                                   |"splittlable input" type that      |
-|                                   |replaces the iterator pointer      |
-|                                   |values                             |
-+-----------------------------------+-----------------------------------+
+The mechanism that a reduction uses to combine a given collection of
+items is a mathematical object called a *monoid*. Recall that a monoid
+is an algebraic structure that consists of a set $T$, an associative
+binary operation $\oplus$ and an identity element $\mathbf{I}$. That
+is, $(T, \oplus, \mathbf{I})$ is a monoid if:
 
-Table: Abstraction layers used by pctl for reduction operators.
+- $\oplus$ is associative: for every $x$, $y$ and $z$ in $T$, 
+  $x \oplus (y \oplus z) = (x \oplus y) \oplus z$.
+- $\mathbf{I}$ is the identity for $\oplus$: for every $x$ in $T$,
+  $x \oplus \mathbf{I} = \mathbf{I} \oplus x$.
 
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-namespace pasl {
-namespace pctl {
+Examples of monoids include the following:
 
-using scan_type = enum {
-  forward_inclusive_scan,
-  forward_exclusive_scan,
-  backward_inclusive_scan,
-  backward_exclusive_scan
-};
+- $T$ = the set of all integers; $\oplus$ = addition; $\mathbf{I}$
+  = 0
+- $T$ = the set of 32-bit unsigned integers; $\oplus$ = addition
+  modulo $2^{32}$; $\mathbf{I}$ = 0
+- $T$ = the set of all strings; $\oplus$ = concatenation;
+  $\mathbf{I}$ = the empty string
+- $T$ = the set of 64-bit signed integers; $\oplus$ = `std::max`;
+  $\mathbf{I}$ = $-2^{63}+1$
 
-} }
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-
-### Level 0 {#red-l-0}
-
-+---------------------------------+-----------------------------------+
-| Template parameter              | Description                       |
-+=================================+===================================+
-| [`Iter`](#r0-iter)              | Type of the iterator to be used to|
-|                                 |access items in the input container|
-+---------------------------------+-----------------------------------+
-| [`Item`](#r0-i)                 | Type of the items in the input    |
-|                                 | container                         |
-+---------------------------------+-----------------------------------+
-| [`Combine`](#r0-a)              | Associative combining operator    |
-+---------------------------------+-----------------------------------+
-| [`Weight`](#r0-w)               | Weight function (optional)        |
-+---------------------------------+-----------------------------------+
-
-Table: Shared template parameters for all level-0 reduce operations.
-
-At this level, we have two types of reduction for parallel arrays. The
-first one assumes that the combining operator takes constant time and
-the second does not.
+### Basic reduction
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 namespace pasl {
@@ -1812,6 +1834,22 @@ namespace pctl {
 
 template <class Iter, class Item, class Combine>
 Item reduce(Iter lo, Iter hi, Item id, Combine combine);
+
+} }
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+long max(const parray<long>& xs) {
+  long id = std::numeric_limits<long>::lowest();
+  return reduce(xs.cbegin(), xs.cend(), id, [&] (long x, long y) {
+    return std::max(x, y);
+  });
+}
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+namespace pasl {
+namespace pctl {
 
 template <
   class Iter,
@@ -1829,6 +1867,30 @@ Item reduce(Iter lo,
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+long max0(const parray<parray<long>>& xss) {
+  parray<long> id = { std::numeric_limits<long>::lowest() };
+  auto weight = [&] (const parray<long>& xs) {
+    return xs.size();
+  };
+  auto combine = [&] (const parray<long>& xs1,
+                      const parray<long>& xs2) {
+    parray<long> r = { std::max(max(xs1), max(xs2)) };
+    return r;
+  };
+  parray<long> a =
+    reduce(xss.cbegin(), xss.cend(), id, weight, combine);
+  return a[0];
+}
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+[max.hpp]: ../example/max.hpp
+[max.cpp]: ../example/max.cpp
+
+Example source code in [max.hpp] and [max.cpp].
+
+### Basic scan
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 namespace pasl {
 namespace pctl {
 
@@ -1842,6 +1904,27 @@ parray<Item> scan(Iter lo,
                   Item id,
                   Combine combine,
                   scan_type st);
+
+} }
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+namespace pasl {
+namespace pctl {
+
+using scan_type = enum {
+  forward_inclusive_scan,
+  forward_exclusive_scan,
+  backward_inclusive_scan,
+  backward_exclusive_scan
+};
+
+} }
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+namespace pasl {
+namespace pctl {
 
 template <
   class Iter,
@@ -1858,6 +1941,24 @@ parray<Item> scan(Iter lo,
 
 } }
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+### Template parameters
+
++---------------------------------+-----------------------------------+
+| Template parameter              | Description                       |
++=================================+===================================+
+| [`Iter`](#r0-iter)              | Type of the iterator to be used to|
+|                                 |access items in the input container|
++---------------------------------+-----------------------------------+
+| [`Item`](#r0-i)                 | Type of the items in the input    |
+|                                 | container                         |
++---------------------------------+-----------------------------------+
+| [`Combine`](#r0-a)              | Associative combining operator    |
++---------------------------------+-----------------------------------+
+| [`Weight`](#r0-w)               | Weight function (optional)        |
++---------------------------------+-----------------------------------+
+
+Table: Template parameters for basic reduce and scan operations.
 
 #### Item iterator {#r0-iter}
 
@@ -1903,18 +2004,6 @@ operator is *associative*.
 
 `f(x, f(y, z)) == f(f(x, y), z)`
 
-***Example: the "max" combining operator.*** The following functor is
-   associative because the `std::max` function is itself associative.
-
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-class Max_combine {
-public:
-  long operator()(long x, long y) {
-    return std::max(x, y);
-  }
-};
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
 #### Weight function {#r0-w}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
@@ -1941,31 +2030,6 @@ public:
     return xs.size();
   }
 };
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-#### Examples {#r0-parray}
-
-***Example: taking the maximum value of an array of numbers.*** The
-following code takes the maximum value of `xs` using our `Max_combine`
-functor.
-
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-long max(const parray<long>& xs) {
-  long id = std::numeric_limits<long>::lowest();
-  return reduce(xs.cbegin(), xs.cend(), id, Max_combine());
-}
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Alternatively, one can use C++ lambda expressions to implement the
-same algorithm.
-
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-long max(const parray<long>& xs) {
-  long id = std::numeric_limits<long>::lowest();
-  return pasl::pctl::reduce(xs.cbegin(), xs.cend(), id, [&] (long x, long y) {
-    return std::max(x, y);
-  });
-}
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 #### Complexity {#r0-complexity}
@@ -2008,28 +2072,6 @@ linear time in proportion with the combined size of its two
 arguments. For this example, we will consider the following max
 function, which examines a given array of arrays.
 
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-long max0(const parray<parray<long>>& xss) {
-  parray<long> id = { std::numeric_limits<long>::lowest() };
-  auto weight = [&] (const parray<long>& xs) {
-    return xs.size();
-  };
-  auto combine = [&] (const parray<long>& xs1,
-                      const parray<long>& xs2) {
-    parray<long> r = { std::max(max(xs1), max(xs2)) };
-    return r;
-  };
-  parray<long> a =
-    reduce(xss.cbegin(), xss.cend(), id, weight, combine);
-  return a[0];
-}
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-[max.hpp]: ../example/max.hpp
-[max.cpp]: ../example/max.cpp
-
-Example source code in [max.hpp] and [max.cpp].
-
 Let us now analyze the efficiency of this algorithm. We will begin by
 analyzing the work. To start, we need to determine whether the
 combining operator of the reduction over `xss` is constant-time or
@@ -2052,7 +2094,42 @@ operator has to pay to package the current maximum value in the array
 of abstraction, we are going to see that, by generalizing our `reduce`
 function a little, we can sidestep this issue.
 
-### Level 1 {#red-l-1}
+### Advanced reductions and scans
+
++-----------------------------------+-----------------------------------+
+| Abstraction layer                 | Description                       |
++===================================+===================================+
+| Level 0                           | Apply a specified monoid to       |
+|                                   |combine the items of a range in    |
+|                                   |memory that is specified by a pair |
+|                                   |of iterator pointer values         |
++-----------------------------------+-----------------------------------+
+| [Level 1](#red-l-1)               | Introduces to the above a lift    |
+|                                   |operator that allows the client to |
+|                                   |perform along with a reduction a   |
+|                                   |specified tabulation, where the    |
+|                                   |tabulation is injected into the    |
+|                                   |leaves of the reduction tree       |
++-----------------------------------+-----------------------------------+
+| [Level 2](#red-l-2)               | Introduces to the above an        |
+|                                   |operator that provides a           |
+|                                   |sequentialized alternative for the |
+|                                   |lift operator                      |
++-----------------------------------+-----------------------------------+
+| [Level 3](#red-l-3)               | Introduces to the above a         |
+|                                   |"mergeable output" type that       |
+|                                   |enables destination-passing style  |
+|                                   |reduction                          |
++-----------------------------------+-----------------------------------+
+| [Level 4](#red-l-4)               | Introduces to the above a         |
+|                                   |"splittlable input" type that      |
+|                                   |replaces the iterator pointer      |
+|                                   |values                             |
++-----------------------------------+-----------------------------------+
+
+Table: Abstraction layers used by pctl for reduction operators.
+
+#### Level 1 {#red-l-1}
 
 ***Index passing.*** TODO: explain
 
@@ -2219,7 +2296,7 @@ parray<Result> scani(Iter lo,
 } } }
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
                  
-#### Result {#r1-r}
+##### Result {#r1-r}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 class Result               
@@ -2229,7 +2306,7 @@ Type of the result value to be returned by the reduction.
 
 This class must provide a default (i.e., zero-arity) constructor.
 
-#### Lift {#r1-l}
+##### Lift {#r1-l}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 class Lift;
@@ -2243,7 +2320,7 @@ should have the following type.
 Result operator()(const Item& x);
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-#### Index-passing lift {#r1-li}
+##### Index-passing lift {#r1-li}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 class Lift_idx;
@@ -2260,7 +2337,7 @@ Result operator()(long pos, const Item& x);
 The value passed in the `pos` parameter is the index corresponding to
 the position of item `x`.
 
-#### Associative combining operator {#r1-comb}
+##### Associative combining operator {#r1-comb}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 class Combine;
@@ -2274,7 +2351,7 @@ and returned are values of type `Result`.
 Result operator()(const Result& x, const Result& y);
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-#### Complexity function for lift {#r1-l-c}
+##### Complexity function for lift {#r1-l-c}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 class Lift_comp;
@@ -2289,7 +2366,7 @@ type.
 long operator()(const Item& x);
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-#### Index-passing lift-complexity function {#r1-l-c-i}
+##### Index-passing lift-complexity function {#r1-l-c-i}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 class Lift_comp_idx;
@@ -2304,7 +2381,7 @@ the following type.
 long operator()(long pos, const Item& x);
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-#### Examples
+##### Examples
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 long max1(const parray<parray<long>>& xss) {
@@ -2327,7 +2404,7 @@ long max1(const parray<parray<long>>& xss) {
 
 Example source code in [max.hpp] and [max.cpp].
 
-### Level 2 {#red-l-2}
+#### Level 2 {#red-l-2}
 
 +----------------------------+-----------------------------------+
 | Template parameter         | Description                       |
@@ -2393,7 +2470,7 @@ parray<Result> scan(Iter lo,
 } } }
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-#### Sequential alternative body for the lifting operator {#r2-l}
+##### Sequential alternative body for the lifting operator {#r2-l}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 class Seq_reduce_rng;
@@ -2407,7 +2484,7 @@ should provide a call operator with the following type.
 Result operator()(Iter lo, Iter hi);
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-#### Range-based lift-complexity function {#r2-w}
+##### Range-based lift-complexity function {#r2-w}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 class Lift_comp_rng;
@@ -2423,7 +2500,7 @@ hi)` of the input sequence.
 long operator()(Iter lo, Iter hi);
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-#### Sequential alternative body for the scan operation {#r2-ss}
+##### Sequential alternative body for the scan operation {#r2-ss}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 class Seq_scan_rng_dst;
@@ -2438,38 +2515,7 @@ provide a call operator with the following type.
 Result operator()(Iter lo, Iter hi, typename parray<Result>::iterator dst_lo);
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-#### Examples            
-
-The following function is useful for building a table that is to
-summarize the cost of processing any given range in a specified
-sequence of items. The function takes as input a length value `n` and
-a weight function `weight` and returns the corresponding weight table.
-
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-template <class Weight>
-parray<long> weights(long n, Weight weight);
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-The result returned by the call `weights(n, w)` is the sequence `[0,
-w(0), w(0)+w(1), w(0)+w(1)+w(2), ..., w(0)+...+w(n-1)]`. Notice that
-the size of the value returned by the `weights` function is always
-`n+1`. As an example, let us consider an application of the `weights`
-function where the given weight function is one that returns the value
-of its current position.
-
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-parray<long> w = weights(4, [&] (long i) {
-  return i;
-});
-std::cout << "w = " << w << std::endl;
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-The output is the following.
-
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-w = { 0, 0, 1, 3, 6 }
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
+##### Examples            
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 long max2(const parray<parray<long>>& xss) {
@@ -2513,7 +2559,7 @@ long max_seq(Iter lo_xs, Iter hi_xs) {
 
 Example source code in [max.hpp] and [max.cpp].
 
-### Level 3 {#red-l-3}
+#### Level 3 {#red-l-3}
 
 +------------------------------------+--------------------------------+
 | Template parameter                 | Description                    |
@@ -2588,7 +2634,7 @@ void scan(Input_iter lo,
 } } }
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-#### Input iterator {#r3-iit}
+##### Input iterator {#r3-iit}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 class Input_iter;
@@ -2601,7 +2647,7 @@ iterator](http://en.cppreference.com/w/cpp/concept/RandomAccessIterator).
 An iterator value of this type points to a value from the input
 stream.
 
-#### Output iterator {#r3-oit}
+##### Output iterator {#r3-oit}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 class Output_iter;
@@ -2614,7 +2660,7 @@ iterator](http://en.cppreference.com/w/cpp/concept/RandomAccessIterator).
 An iterator value of this type points to a value from the output
 stream.
                                       
-#### Output {#r3-o}
+##### Output {#r3-o}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 class Output;
@@ -2646,7 +2692,7 @@ Table: Required constructors for the `Output` class.
 
 Table: Public methods that are required for the `Output` class.
 
-##### Copy constructor {#ro-c-c}
+###### Copy constructor {#ro-c-c}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 Output(const Output& other);
@@ -2654,7 +2700,7 @@ Output(const Output& other);
 
 Copy constructor.
 
-#### Result initializer {#ro-i}
+##### Result initializer {#ro-i}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 void init(Result& dst) const;
@@ -2662,7 +2708,7 @@ void init(Result& dst) const;
 
 Initialize the contents of the result object referenced by `dst`.
 
-##### Copy {#ro-cop}
+###### Copy {#ro-cop}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 void copy(const Result& src, Result& dst) const;
@@ -2670,7 +2716,7 @@ void copy(const Result& src, Result& dst) const;
 
 Copy the contents of `src` to `dst`.
 
-##### Merge {#ro-m}
+###### Merge {#ro-m}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 void merge(Result& src, Result& dst) const;                    // (1)
@@ -2683,7 +2729,7 @@ void merge(Output_iter lo, Output_iter hi, Result& dst) const; // (2)
 (2) Merge the contents of the cells in the right-open range `[lo,
 hi)`, leaving the result in `dst`.
 
-##### Example: cell output {#ro-co}
+###### Example: cell output {#ro-co}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 namespace pasl {
@@ -2731,7 +2777,7 @@ public:
 } } }
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-#### Destination-passing-style lift {#r3-dpl}
+##### Destination-passing-style lift {#r3-dpl}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 class Lift_idx_dst;
@@ -2750,7 +2796,7 @@ The value that is passed in for `pos` is the index in the input
 sequence of the item `x`. The object referenced by `dst` is the object
 to receive the result of the lift function.
 
-#### Destination-passing-style sequential lift {#r3-dpl-seq}
+##### Destination-passing-style sequential lift {#r3-dpl-seq}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 class Seq_reduce_rng_dst;
@@ -2771,11 +2817,11 @@ input. The range is specified by the right-open range `[lo, hi)`. The
 object referenced by `dst` is the object to receive the result of the
 sequential lift function.
 
-#### Examples
+##### Examples
 
 TODO
 
-### Level 4 {#red-l-4}
+#### Level 4 {#red-l-4}
 
 +---------------------------------+-----------------------------------+
 | Template parameter              | Description                       |
@@ -2860,7 +2906,7 @@ void scan(Input& in,
 } } }
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-#### Input {#r4-i}
+##### Input {#r4-i}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 class Input;
@@ -2889,7 +2935,7 @@ Table: Constructors that are required for the `Input` class.
 
 Table: Public methods that are required for the `Input` class.
 
-##### Copy constructor {#r4i-cc}
+###### Copy constructor {#r4i-cc}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 Input(const Input& other);
@@ -2897,7 +2943,7 @@ Input(const Input& other);
 
 Copy constructor.
 
-##### Can split {#r4i-c-s}
+###### Can split {#r4i-c-s}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 bool can_split() const;
@@ -2905,7 +2951,7 @@ bool can_split() const;
 
 Return a boolean value to indicate whether a split is possible.
 
-##### Size {#r4i-sz}
+###### Size {#r4i-sz}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 long size() const;
@@ -2913,7 +2959,7 @@ long size() const;
 
 Returns the size of the input.
 
-##### Slice {#r4i-slc}
+###### Slice {#r4i-slc}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 Input slice(parray<Input>& ins, long lo, long hi);
@@ -2923,7 +2969,7 @@ Returns a slice of the input that occurs logically in the right-open
 range `[lo, hi)`, optionally using `ins`, the results of a precomputed
 application of the `split` function.
 
-##### Split {#r4i-sp}
+###### Split {#r4i-sp}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 void split(Input& dst);          // (1)
@@ -2939,7 +2985,7 @@ function would return `false`.
 (2) Divide the contents of the current input object into at most `n`
 pieces, returning an array which stores the new pieces.
 
-##### Example: random-access iterator input
+###### Example: random-access iterator input
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 namespace pasl {
@@ -2993,7 +3039,7 @@ public:
 } } }
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-#### Convert-reduce complexity function {#r4-i-w}
+##### Convert-reduce complexity function {#r4-i-w}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 class Convert_reduce_comp;
@@ -3008,7 +3054,7 @@ call operator.
 long operator()(const Input& in);
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-#### Convert-reduce {#r4-c}
+##### Convert-reduce {#r4-c}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 class Convert_reduce;
@@ -3023,7 +3069,7 @@ operator with the following type.
 void operator()(Input& in, Result& dst);
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-#### Sequential convert-reduce {#r4-s-c}
+##### Sequential convert-reduce {#r4-s-c}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 class Seq_convert_reduce;
@@ -3041,7 +3087,7 @@ void operator()(Input& in, Result& dst);
 The sequential convert function should always compute the same result
 as the ordinary convert function given the same input. 
 
-#### Convert-scan {#r4-sca}
+##### Convert-scan {#r4-sca}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 class Convert_scan;
@@ -3056,7 +3102,7 @@ operator with the following type.
 void operator()(Input& in, Output_iter outs_lo);
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-#### Sequential convert-scan {#r4-ssca}
+##### Sequential convert-scan {#r4-ssca}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 class Seq_convert_scan;
@@ -3074,21 +3120,15 @@ void operator()(Input& in, Output_iter outs_lo);
 The sequential convert function should always compute the same result
 as the ordinary convert function given the same input. 
 
-#### Examples
-
-TODO
-
 Derived operations
 ------------------
 
-### Type-level operators
-
-Sometimes, as we will see in this section, the pctl defines a function
-that both takes as template parameter an iterator class and extracts
-from that iterator class the type of the items that are referenced by
-the iterator.  For this purpose, the pctl defines a few type-level
-functions whose purpose is to extract from the iterator the
-corresponding value, reference and pointer types.
+***Type-level operators*** Sometimes, as we will see in this section,
+the pctl defines a function that both takes as template parameter an
+iterator class and extracts from that iterator class the type of the
+items that are referenced by the iterator.  For this purpose, the pctl
+defines a few type-level functions whose purpose is to extract from
+the iterator the corresponding value, reference and pointer types.
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 namespace pasl {
