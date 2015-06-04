@@ -19,6 +19,14 @@ namespace pasl {
     
     void ex() {
       
+      {
+        pset<int> x1 = { 327, 506, 517, 529, 927, 1011 };
+        pset<int> x2 = { 75, 93, 272, 393, 513, 971 };
+        x1.merge(x2);
+        std::cout << "x1 = " << x1 << std::endl;
+        return;
+      }
+      
       pset<int> s;
       s.insert(45);
       s.insert(3);

@@ -84,8 +84,8 @@ namespace trusted {
   parray<value_type> scan_seq(const parray<value_type>& xs, scan_type st) {
     using output_type = level3::cell_output<value_type, decltype(plus)>;
     output_type out(0L, plus);
-    auto convert = [] (typename parray<value_type>::const_iterator it, value_type& dst) {
-      dst = *it;
+    auto convert = [] (const value_type& val, value_type& dst) {
+      dst = val;
     };
     long n = xs.size();
     parray<value_type> result(n);

@@ -150,7 +150,7 @@ template <
   class Item,
   class Compare = std::less<Item>,
   class Alloc = std::allocator<Item>,
-  int chunk_capacity = 8
+  int chunk_capacity = 2
 >
 class pset {
 public:
@@ -262,7 +262,7 @@ private:
       }
     }
     return result;
-  }
+  } //{ 75, 93, 272, 327, 393, 506, 513, 517, 529, 927, 971, 1011 }
   
   static container_type merge(container_type& xs, container_type& ys) {
     using controller_type = pset_merge_chunkedseq_contr<Item>;
@@ -273,6 +273,8 @@ private:
     par::cstmt(controller_type::contr, [&] { return n + m; }, [&] {
       if (n < m) {
         result = merge(ys, xs);
+      } else if (n == 0) {
+        result = { };
       } else if (n == 1) {
         if (m == 0) {
           result.push_back(xs.back());
@@ -298,9 +300,9 @@ private:
         });
         result.concat(result2);
       }
-    }, [&] {
+    }/*, [&] {
       result = merge_seq(xs, ys);
-    });
+    }*/);
     return result;
   }
   
@@ -532,6 +534,7 @@ public:
   
   void merge(pset& other) {
     seq = merge(seq, other.seq);
+    other.clear();
   }
   
   void intersect(pset& other) {
@@ -540,6 +543,10 @@ public:
   
   void diff(pset& other) {
     seq = diff(seq, other.seq);
+  }
+  
+  void clear() {
+    seq.clear();
   }
   
 };
