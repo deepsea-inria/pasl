@@ -25,47 +25,47 @@ namespace pctl {
 
 namespace {
   
-  template <class Item_ptr>
+  template <class Item>
   class optional {
   public:
     
-    using self_type = optional<Item_ptr>;
+    using self_type = optional<Item>;
     
-    Item_ptr item_ptr;
+    Item item;
     bool no_item;
     
     optional()
-    : item_ptr(nullptr), no_item(true) { }
+    : item(), no_item(true) { }
     
-    optional(Item_ptr item_ptr)
-    : item_ptr(item_ptr), no_item(false) { }
+    optional(Item item)
+    : item(item), no_item(false) { }
     
     optional(const optional& other)
-    : item_ptr(other.item_ptr), no_item(other.no_item) { }
+    : item(other.item), no_item(other.no_item) { }
     
     void swap(self_type& other) {
-      std::swap(item_ptr, other.item_ptr);
+      std::swap(item, other.item);
       std::swap(no_item, other.no_item);
     }
     
   };
   
-  template <class Item_ptr, class Measured>
+  template <class Item, class Measured>
   class get_last_item {
   public:
     
-    using value_type = value_type_of<Item_ptr>;
+    using value_type = Item;
     using measured_type = Measured;
     
     measured_type operator()(const value_type& v) const {
-      return measured_type(&v);
+      return measured_type(v);
     }
     
     measured_type operator()(const value_type* lo, const value_type* hi) const {
       if (hi - lo == 0) {
         return measured_type();
       } else {
-        return measured_type(hi - 1);
+        return measured_type(*(hi - 1));
       }
     }
   };
@@ -116,7 +116,33 @@ namespace {
     }
     
   };
-
+  
+  template <class Item>
+  class pset_merge_chunkedseq_contr {
+  public:
+    static controller_type contr;
+  };
+  
+  template <class Item>
+  controller_type pset_merge_chunkedseq_contr<Item>::contr("pset_merge"+sota<Item>());
+  
+  template <class Item>
+  class pset_intersect_chunkedseq_contr {
+  public:
+    static controller_type contr;
+  };
+  
+  template <class Item>
+  controller_type pset_intersect_chunkedseq_contr<Item>::contr("pset_intersect"+sota<Item>());
+  
+  template <class Item>
+  class pset_diff_chunkedseq_contr {
+  public:
+    static controller_type contr;
+  };
+  
+  template <class Item>
+  controller_type pset_diff_chunkedseq_contr<Item>::contr("pset_diff"+sota<Item>());
   
 } // end namespace
   
@@ -142,7 +168,7 @@ public:
   
 private:
   
-  using cache_type = pset_cache<const_pointer, size_type>;
+  using cache_type = pset_cache<value_type, size_type>;
   using container_type = data::chunkedseq::bootstrapped::deque<value_type, chunk_capacity, cache_type>;
   using option_type = typename cache_type::measured_type;
   
@@ -168,7 +194,7 @@ private:
       return false;
     }
     key_compare comp;
-    return comp(*lhs.item_ptr, *rhs.item_ptr);
+    return comp(lhs.item, rhs.item);
   }
   
   static bool same_key(const key_type& lhs, const key_type& rhs) {
@@ -180,6 +206,10 @@ private:
     return ((!option_compare(lhs, rhs)) && (!option_compare(rhs, lhs)));
   }
   
+  static bool less_than_or_equal(const option_type& lhs, const option_type& rhs) {
+    return option_compare(lhs, rhs) || same_option(lhs, rhs);
+  }
+  
   /* returns either
    *   - the position of the first item in the
    *     sequence `seq` that is either larger than
@@ -187,11 +217,226 @@ private:
    *   - the position one past the end of `seq`, otherwise
    */
   iterator first_larger_or_eq(const key_type& k) const {
-    option_type target(&k);
-    it.search_by([target] (const option_type& key) {
-      return option_compare(target, key) || same_option(target, key);
+    option_type target(k);
+    it.search_by([&] (const option_type& key) {
+      return less_than_or_equal(target, key);
     });
     return it;
+  }
+  
+  static container_type merge_seq(container_type& xs, container_type& ys) {
+    container_type result;
+    key_compare compare;
+    long n = xs.size();
+    long m = ys.size();
+    while (true) {
+      if (n < m) {
+        std::swap(n, m);
+        xs.swap(ys);
+      }
+      if (n == 0) {
+        // xs.empty() implies that ys.empty()
+        break;
+      } else if (m == 0) {
+        if (same_key(xs.front(), result.back())) {
+          xs.pop_front();
+          n--;
+        }
+        result.concat(xs);
+        break;
+      } else {
+        value_type x = xs.front();
+        value_type y = ys.front();
+        if (compare(x, y)) {
+          xs.pop_front();
+          result.push_back(x);
+          n--;
+        } else if (compare(y, x)) {
+          ys.pop_front();
+          result.push_back(y);
+          m--;
+        } else {
+          xs.pop_front();
+          n--;
+        }
+      }
+    }
+    return result;
+  }
+  
+  static container_type merge(container_type& xs, container_type& ys) {
+    using controller_type = pset_merge_chunkedseq_contr<Item>;
+    key_compare compare;
+    long n = xs.size();
+    long m = ys.size();
+    container_type result;
+    par::cstmt(controller_type::contr, [&] { return n + m; }, [&] {
+      if (n < m) {
+        result = merge(ys, xs);
+      } else if (n == 1) {
+        if (m == 0) {
+          result.push_back(xs.back());
+        } else if (same_key(xs.back(), ys.back())) {
+          result.push_back(xs.back());
+        } else {
+          result.push_back(std::min(xs.back(), ys.back(), compare));
+          result.push_back(std::max(xs.back(), ys.back(), compare));
+        }
+      } else {
+        container_type xs2;
+        xs.split((size_t)n/2, xs2);
+        value_type mid = xs.back();
+        container_type ys2;
+        ys.split([&] (const option_type& key) {
+          return option_compare(option_type(mid), key);
+        }, ys2);
+        container_type result2;
+        par::fork2([&] {
+          result = merge(xs, ys);
+        }, [&] {
+          result2 = merge(xs2, ys2);
+        });
+        result.concat(result2);
+      }
+    }, [&] {
+      result = merge_seq(xs, ys);
+    });
+    return result;
+  }
+  
+  static container_type intersect_seq(container_type& xs, container_type& ys) {
+    key_compare compare;
+    container_type result;
+    long n = xs.size();
+    long m = ys.size();
+    while (true) {
+      if ((n == 0) || (m == 0)) {
+        break;
+      }
+      value_type x = xs.front();
+      value_type y = ys.front();
+      if (compare(x, y)) {
+        xs.pop_front();
+        n--;
+      } else if (compare(y, x)) {
+        ys.pop_front();
+        m--;
+      } else { // then, x == y
+        xs.pop_front();
+        n--;
+        ys.pop_front();
+        m--;
+        result.push_back(x);
+      }
+    }
+    xs.clear();
+    ys.clear();
+    return result;
+  }
+  
+  static container_type intersect(container_type& xs, container_type& ys) {
+    using controller_type = pset_intersect_chunkedseq_contr<Item>;
+    long n = xs.size();
+    long m = ys.size();
+    container_type result;
+    par::cstmt(controller_type::contr, [&] { return n + m; }, [&] {
+      if (n < m) {
+        result = intersect(ys, xs);
+      } else if ((n == 1) && (m == 1) && same_key(xs.back(), ys.back())) {
+        result.push_back(xs.back());
+      } else if (n == 1) {
+        result = { };
+      } else {
+        container_type xs2;
+        xs.split((size_t)n/2, xs2);
+        value_type mid = xs.back();
+        container_type ys2;
+        ys.split([&] (const option_type& key) {
+          return option_compare(option_type(mid), key);
+        }, ys2);
+        container_type result2;
+        par::fork2([&] {
+          result = intersect(xs, ys);
+        }, [&] {
+          result2 = intersect(xs2, ys2);
+        });
+        result.concat(result2);
+      }
+    }, [&] {
+      result = intersect_seq(xs, ys);
+    });
+    return result;
+  }
+  
+  static container_type diff_seq(container_type& xs, container_type& ys) {
+    key_compare compare;
+    container_type result;
+    long n = xs.size();
+    long m = ys.size();
+    while (true) {
+      if ((n == 0) || (m == 0)) {
+        break;
+      }
+      value_type x = xs.front();
+      value_type y = ys.front();
+      if (compare(x, y)) {
+        result.push_back(x);
+        xs.pop_front();
+        n--;
+      } else if (compare(y, x)) {
+        ys.pop_front();
+        m--;
+      } else {
+        xs.pop_front();
+        n--;
+        ys.pop_front();
+        m--;
+      }
+    }
+    ys.clear();
+    result.concat(xs);
+    return result;
+  }
+  
+  // result := xs - ys
+  static container_type diff(container_type& xs, container_type& ys) {
+    using controller_type = pset_diff_chunkedseq_contr<Item>;
+    long n = xs.size();
+    long m = ys.size();
+    container_type result;
+    par::cstmt(controller_type::contr, [&] { return n + m; }, [&] {
+      if (m == 0) {
+        result = std::move(xs);
+      } else if (n == 0) {
+        result = { };
+      } else if (n == 1) {
+        iterator it = ys.begin();
+        it.search_by([&] (const option_type& key) {
+          return less_than_or_equal(option_type(xs.back()), key);
+        });
+        if (! same_option(*it, option_type(xs.back()))) {
+          result = std::move(xs);
+        }
+      } else {
+        container_type xs2;
+        xs.split((size_t)n/2, xs2);
+        value_type mid = xs.back();
+        container_type ys2;
+        ys.split([&] (const option_type& key) {
+          return option_compare(option_type(mid), key);
+        }, ys2);
+        container_type result2;
+        par::fork2([&] {
+          result = diff(xs, ys);
+        }, [&] {
+          result2 = diff(xs2, ys2);
+        });
+        result.concat(result2);
+      }
+    }, [&] {
+      result = diff_seq(xs, ys);
+    });
+    return result;
   }
   
 public:
@@ -205,6 +450,9 @@ public:
     it = seq.begin();
   }
   
+  pset(std::initializer_list<value_type> xs)
+  : seq(xs) { }
+  
   size_type size() const {
     return seq.size();
   }
@@ -214,7 +462,6 @@ public:
   }
   
   iterator find(const key_type& k) const {
-    assert(false);
     iterator it = first_larger_or_eq(k);
     return (same_key(*it, k)) ? it : seq.end();
   }
@@ -224,17 +471,12 @@ public:
     it = first_larger_or_eq(val);
     if (it == seq.end()) {
       // val is currently the largest item in the container
-      std::cout << val << std::endl;
       seq.push_back(val);
     } else if (same_key(*it, val)) {
       // val is present in the container
-      Item x = *it;
-      std::cout << x << std::endl;
       already = true;
     } else {
       // val is currently not yet present in the container
-      Item x = *it;
-      std::cout << x << std::endl;
       it = seq.insert(it, val);
     }
     return std::make_pair(it, already);
@@ -245,7 +487,7 @@ public:
       return;
     }
     if (it + 1 == seq.end()) {
-      seq.pop_front();
+      seq.pop_back();
       return;
     }
     seq.erase(it, it+1);
@@ -286,6 +528,18 @@ public:
   
   void check() const {
     seq.check();
+  }
+  
+  void merge(pset& other) {
+    seq = merge(seq, other.seq);
+  }
+  
+  void intersect(pset& other) {
+    seq = intersect(seq, other.seq);
+  }
+  
+  void diff(pset& other) {
+    seq = diff(seq, other.seq);
   }
   
 };

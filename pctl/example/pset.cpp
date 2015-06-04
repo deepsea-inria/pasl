@@ -24,8 +24,29 @@ namespace pasl {
       s.insert(3);
       s.insert(1);
       s.insert(3);
-      //      s.check();
+
+      s.erase(45);
+      
+      s.insert(45);
+      s.insert(78);
+      s.erase(1);
+      
+      pset<int> s2 = { 4, 45, 100, 303 };
+      s.merge(s2);
+      
       std::cout << "s = " << s << std::endl;
+      
+      pset<int> s3 = { 4, 100 };
+      s.intersect(s3);
+      
+      std::cout << "s = " << s << std::endl;
+      
+      pset<int> s4 = { 4, 45, 100, 303 };
+      pset<int> s5 = { 0, 1, 100, 303, 555 };
+
+      s4.diff(s5);
+      
+      std::cout << s4 << std::endl;
       
     }
     
