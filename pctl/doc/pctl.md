@@ -339,6 +339,8 @@ Destructs the container.
 +------------------------+--------------------------------------+
 | [`size`](#pa-si)       | Return size                          |
 +------------------------+--------------------------------------+
+| [`clear`](#pa-cl)      | Empty container contents             |
++------------------------+--------------------------------------+
 | [`resize`](#pa-rsz)    | Change size                          |
 +------------------------+--------------------------------------+
 | [`swap`](#pa-sw)       | Exchange contents                    |
@@ -374,6 +376,21 @@ Returns the size of the container.
 
 ***Complexity.*** Constant time.
 
+### Clear {#pa-cl}
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+void clear();
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Erases the contents of the container, which becomes an empty
+container.
+
+***Complexity.*** Work and span are linear and logarithmic in the size
+   of the container, respectively.
+
+***Iterator validity.*** Invalidates all iterators, if the size before
+   the operation differs from the size after.
+
 ### Resize {#pa-rsz}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
@@ -398,7 +415,7 @@ If the current size is less than `n`,
    $n$ just after the resize operation. Then, the work and span are
    linear and logarithmic in $\max(m, n)$, respectively.
 
-***Iterator validity*** Invalidates all iterators, if the size before
+***Iterator validity.*** Invalidates all iterators, if the size before
    the operation differs from the size after.
 
 ### Exchange operation {#pa-sw}
@@ -853,7 +870,11 @@ void clear();
 Erases the contents of the container, which becomes an empty
 container.
 
-***Complexity.*** Linear and logarithmic work and span, respectively.
+***Complexity.*** Work and span are linear and logarithmic in the size
+   of the container, respectively.
+
+***Iterator validity.*** Invalidates all iterators, if the size before
+   the operation differs from the size after.
 
 ### Tabulate {#cs-rbld}
 
@@ -875,7 +896,7 @@ w(i))$ and $(\log n + \max_{0 \leq i < n} s(i))$, respectively, where
 $w(i)$ represents the work cost of computing $\mathtt{body}(i)$ and
 $s(i)$ the corresponding span cost.
 
-***Iterator validity*** Invalidates all iterators, if the size before
+***Iterator validity.*** Invalidates all iterators, if the size before
    the operation differs from the size after.
 
 ### Resize {#cs-rsz}
@@ -902,7 +923,7 @@ If the current size is less than `n`,
    $n$ just after the resize operation. Then, the work and span are
    linear and logarithmic in $\max(m, n)$, respectively.
 
-***Iterator validity*** Invalidates all iterators, if the size before
+***Iterator validity.*** Invalidates all iterators, if the size before
    the operation differs from the size after.
 
 ## Non-member functions
@@ -978,6 +999,453 @@ $\mathtt{body\_seg}(i,i+1)$ and $s(i)$ the corresponding span cost.
 
 Parallel set {#pset}
 ============
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+namespace pasl {
+namespace pctl {
+
+template <
+  class Item,
+  class Compare = std::less<Item>,
+  class Alloc = std::allocator<Item>,
+  int chunk_capacity = 8
+>
+class pset;
+
+} }
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+## Template parameters
+
++-----------------------------------+-----------------------------------+
+| Template parameter                | Description                       |
++===================================+===================================+
+| [`Item`](#pset-item)              | Type of the objects to be stored  |
+|                                   |in the container                   |
++-----------------------------------+-----------------------------------+
+| [`Compare`](#pset-compare)        | Type of the comparison function   |
+|                                   |                                   |
+|                                   |                                   |
++-----------------------------------+-----------------------------------+
+| [`Alloc`](#pset-alloc)            | Allocator to be used by the       |
+|                                   |container to construct and destruct|
+|                                   |objects of type `Item`             |
++-----------------------------------+-----------------------------------+
+| [`chunk_capacity`](#pset-ccap)    | Capacity of the contiguous chunks |
+|                                   |of memory that are used by the     |
+|                                   |container to store items           |
++-----------------------------------+-----------------------------------+
+
+Table: Template parameters for the `pset` class.
+
+### Item type {#pset-item}
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+class Item;
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Type of the elements.  Only if `Item` is guaranteed to not throw while
+moving, implementations can optimize to move elements instead of
+copying them during reallocations.  Aliased as member type
+`pset::value_type`.
+
+### Compare function {#pset-compare}
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+class Compare;
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+bool operator()(const Item& lhs, const Item& rhs);
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+### Allocator {#pset-alloc}
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+class Alloc;
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Type of the allocator object used to define the storage allocation
+model. By default, the allocator class template is used, which defines
+the simplest memory allocation model and is value-independent.
+Aliased as member type `pset::allocator_type`.
+
+### Chunk capacity {#pset-ccap}
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+int chunk_capacity;
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+An integer which determines the maximum size of a contiguous chunk of
+memory in the underlying container. The chunks are used by the
+container to store the items. The minimum size of a chunk is
+guaranteed by the container to be at least `chunk_size/2`.
+
+## Member types
+
++-----------------------------------+-----------------------------------+
+| Type                              | Description                       |
++===================================+===================================+
+| `value_type`                      | Alias for template parameter      |
+|                                   |`Item`                             |
++-----------------------------------+-----------------------------------+
+| `key_type`                        | Alias for template parameter      |
+|                                   |`Item`                             |
++-----------------------------------+-----------------------------------+
+| `key_compare`                     | Alias for template parameter      |
+|                                   |`Compare`                          |
++-----------------------------------+-----------------------------------+
+| `reference`                       | Alias for `value_type&`           |
++-----------------------------------+-----------------------------------+
+| `const_reference`                 | Alias for `const value_type&`     |
++-----------------------------------+-----------------------------------+
+| `pointer`                         | Alias for `value_type*`           |
++-----------------------------------+-----------------------------------+
+| `const_pointer`                   | Alias for `const value_type*`     |
++-----------------------------------+-----------------------------------+
+| [`iterator`](#pset-iter)          | Iterator                          |
++-----------------------------------+-----------------------------------+
+| [`const_iterator`](#pset-iter)    | Const iterator                    |
++-----------------------------------+-----------------------------------+
+
+Table: Parallel-set member types.
+
+### Iterator {#pset-iter}
+
+The type `iterator` and `const_iterator` are instances of the
+[random-access
+iterator](http://en.cppreference.com/w/cpp/concept/RandomAccessIterator)
+concept.
+
+## Constructors and destructors
+
++-----------------------------------+-----------------------------------+
+| Constructor                       | Description                       |
++===================================+===================================+
+| [empty container                  | constructs an empty container with|
+|constructor](#pset-e-c-c) (default |no items                           |
+|constructor)                       |                                   |
++-----------------------------------+-----------------------------------+
+| [fill constructor](#pset-e-f-c)   | constructs a container with a     |
+|                                   |specified number of copies of a    |
+|                                   |given item                         |
++-----------------------------------+-----------------------------------+
+|[populate constructor](#pset-e-p-c)| constructs a container with a     |
+|                                   |specified number of values that are|
+|                                   |computed by a specified function   |
++-----------------------------------+-----------------------------------+
+| [copy constructor](#pset-e-cp-c)  | constructs a container with a copy|
+|                                   |of each of the items in the given  |
+|                                   |container, in the same order       |
++-----------------------------------+-----------------------------------+
+| [initializer list](#pset-i-l-c)   | constructs a container with the   |
+|                                   |items specified in a given         |
+|                                   |initializer list                   |
++-----------------------------------+-----------------------------------+
+| [move constructor](#pset-m-c)     | constructs a container that       |
+|                                   |acquires the items of a given      |
+|                                   |parallel array                     |
++-----------------------------------+-----------------------------------+
+| [destructor](#pset-destr)         | destructs a container             |
++-----------------------------------+-----------------------------------+
+
+Table: Parallel chunked sequence constructors and destructors.
+
+### Empty container constructor {#pset-e-c-c}
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+pset();
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+***Complexity.*** Constant time.
+
+Constructs an empty container with no items;
+
+### Fill container {#pset-e-f-c}
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+pset(long n, const value_type& val);
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Constructs a container with `n` copies of `val`.
+
+***Complexity.*** Work and span are linear and logarithmic in the size
+   of the resulting container, respectively.
+
+### Populate constructor {#pset-e-p-c}
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+// (1) Constant-time body
+pset(long n, std::function<Item(long)> body);
+// (2) Non-constant-time body
+pset(long n,
+     std::function<long(long)> body_comp,
+     std::function<Item(long)> body);
+// (3) Non-constant-time body along with range-based complexity function
+pset(long n,
+     std::function<long(long,long)> body_comp_rng,
+     std::function<Item(long)> body);            
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Constructs a container with `n` cells, populating those cells with
+values returned by the `n` calls, `body(0)`, `body(1)`, ...,
+`body(n-1)`, in that order.
+
+In the second version, the value returned by `body_comp(i)` is used by
+the constructor as the complexity estimate for the call `body(i)`.
+
+In the third version, the value returned by `body_comp(lo, hi)` is
+used by the constructor as the complexity estimate for the calls
+`body(lo)`, `body(lo+1)`, ... `body(hi-1)`.
+
+***Complexity.*** The work and span cost are $(\sum_{0 \leq i < n}
+w(i))$ and $(\log n + \max_{0 \leq i < n} s(i))$, respectively, where
+$w(i)$ represents the work cost of computing $\mathtt{body}(i)$ and
+$s(i)$ the corresponding span cost.
+
+### Copy constructor {#pset-e-cp-c}
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+pset(const pset& other);
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Constructs a container with a copy of each of the items in `other`, in
+the same order.
+
+***Complexity.*** Work and span are linear and logarithmic in the size
+   of the resulting container, respectively.
+
+### Initializer-list constructor {#pset-i-l-c}
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+pset(initializer_list<value_type> il);
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Constructs a container with the items in `il`.
+
+***Complexity.*** Work and span are linear in the size of the resulting
+   container.
+
+### Move constructor {#pset-m-c}
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+pset(pset&& x);
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Constructs a container that acquires the items of `other`.
+
+***Complexity.*** Constant time.
+
+### Destructor {#pset-destr}
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+~pset();
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Destructs the container.
+
+***Complexity.*** Work and span are linear and logarithmic in the size
+   of the container, respectively.
+
+## Member functions
+
++-------------------------------------+--------------------------------------+
+| Operation                           | Description                          |
++-------------------------------------+--------------------------------------+
+| [`size`](#pset-si)                  | Return size                          |
++-------------------------------------+--------------------------------------+
+| [`swap`](#pset-sw)                  | Exchange contents                    |
++-------------------------------------+--------------------------------------+
+| [`begin`](#pset-beg)                | Returns an iterator to the beginning |
+| [`cbegin`](#pset-beg)               |                                      |
++-------------------------------------+--------------------------------------+
+| [`end`](#pset-end)                  | Returns an iterator the end          |
+| [`cend`](#pset-end)                 |                                      |
++-------------------------------------+--------------------------------------+
+| [`clear`](#pset-clear)              | Erases contents of the container     |
+|                                     |                                      |
++-------------------------------------+--------------------------------------+
+| [`find`](#pset-find)                | Get iterator to element              |
+|                                     |                                      |
++-------------------------------------+--------------------------------------+
+| [`insert`](#pset-insert)            | Insert element                       |
+|                                     |                                      |
++-------------------------------------+--------------------------------------+
+| [`erase`](#pset-erase)              | Remove element                       |
+|                                     |                                      |
++-------------------------------------+--------------------------------------+
+| [`merge`](#pset-merge)              | Take set union with given pset       |
+|                                     |                                      |
++-------------------------------------+--------------------------------------+
+| [`intersect`](#pset-intersect)      | Take set intersection with given pset|
+|                                     |                                      |
++-------------------------------------+--------------------------------------+
+| [`diff`](#pset-diff)                | Take set difference with give pset   |
+|                                     |                                      |
++-------------------------------------+--------------------------------------+
+          
+Table: Operations of the parallel set.
+
+### Size operator {#pset-si}
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+long size();
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Returns the size of the container.
+
+***Complexity.*** Constant time.
+
+### Exchange oparation
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+void swap(pset& other);
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Exchanges the contents of the container with those of other. Does not
+invoke any move, copy, or swap operations on individual items.
+
+***Complexity.*** Constant time.
+
+### Iterator begin {#pset-beg}
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+iterator begin() const;
+const_iterator cbegin() const;
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Returns an iterator to the first item of the container.
+
+If the container is empty, the returned iterator will be equal to
+end().
+
+***Complexity.*** Constant time.
+
+### Iterator end {#pset-end}
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+iterator end() const;
+const_iterator cend() const;
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Returns an iterator to the element following the last item of the
+container.
+
+This element acts as a placeholder; attempting to access it results in
+undefined behavior.
+
+***Complexity.*** Constant time.
+
+### Clear {#pset-clear}
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+void clear();
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Erases the contents of the container, which becomes an empty
+container.
+
+***Complexity.*** Work and span are linear and logarithmic in the size
+   of the container, respectively.
+
+***Iterator validity.*** Invalidates all iterators, if the size before
+   the operation differs from the size after.
+
+### Find {#pset-find}
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+itereator find(const value_type& val);
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Searches the container for an element equivalent to `val` and returns
+an iterator to it if found, otherwise it returns an iterator to
+`pset::end`.
+
+Two elements of a set are considered equivalent if the container's
+comparison object returns false reflexively (i.e., no matter the order
+in which the elements are passed as arguments).
+
+***Complexity.*** Logarithmic time.
+
+### Insert {#pset-insert}
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+pair<iterator,bool> insert (const value_type& val);
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Extends the container by inserting new elements, effectively
+increasing the container size by the number of elements inserted.
+
+Because elements in a set are unique, the insertion operation checks
+whether each inserted element is equivalent to an element already in
+the container, and if so, the element is not inserted, returning an
+iterator to this existing element (if the function returns a value).
+
+***Complexity.*** Logarithmic time.
+
+***Iterator validity.*** Invalidates all iterators, if the size before
+   the operation differs from the size after.
+
+### Erase {#pset-erase}
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+size_type erase (const value_type& val);
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Removes from the set the value `val`, if it is present.
+
+This effectively reduces the container size by the number of elements
+removed, which are destroyed.
+
+***Complexity.*** Logarithmic time.
+
+***Iterator validity.*** Invalidates all iterators, if the size before
+   the operation differs from the size after.
+
+### Set union {#pset-merge}
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+void merge(pset& other);
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Leaves in the current container the result of taking the set union of
+the original container and the `other` container and leaves the
+`other` container empty.
+
+***Complexity.*** Work and span are linear and logarithmic in the
+   combined sizes of the two containers, respectively.
+
+***Iterator validity.*** Invalidates all iterators.
+   
+### Set intersection {#pset-intersect}
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+void intersect(pset& other);
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Leaves in the current container the result of taking the set
+intersection of the original container and the `other` container and
+leaves the `other` container empty.
+
+***Complexity.*** Work and span are linear and logarithmic in the
+   combined sizes of the two containers, respectively.
+
+***Iterator validity.*** Invalidates all iterators.
+
+### Set difference {#pset-diff}
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+void diff(pset& other);
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Leaves in the current container the result of taking the difference
+intersection between the original container and the `other` container
+and leaves the `other` container empty.
+
+***Complexity.*** Work and span are linear and logarithmic in the
+   combined sizes of the two containers, respectively.
+
+***Iterator validity.*** Invalidates all iterators.
 
 Parallel map {#pmap}
 ============
@@ -1298,7 +1766,7 @@ its current value.
 ***Complexity.*** Linear and logarithmic in the size of the resulting
    string, respectively.
 
-***Iterator validity*** Invalidates all iterators, if the size before
+***Iterator validity.*** Invalidates all iterators, if the size before
    the operation differs from the size after.
 
 ### Concatenate strings {#ps-concat}
@@ -1410,7 +1878,7 @@ The output of this program is the same as that of the one just
 above. All of the examples presented here can be found in the source
 file [parallelfor.cpp].
 
-### Non-constant-time loop bodies
+### Non-constant-time loop bodies {#weighted-parallel-for}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 namespace pasl {
@@ -1793,22 +2261,29 @@ cost required to execute specified range.
 Reductions and scans
 --------------------
 
-Parallel-for loops give us the ability to process a specified range of
-iterates in parallel. However, often, we want to, say, take the sum of
-a given sequence of numbers, or find the lowest point in a given set
-of points in two-dimensional space. The problem is that the
-parallel-for loop is a poor tool for this job, because each iterate in
-the parallel-for computation is processed independently in
-parallel. In general, when we have a collection of values that we want
-to combine in a certain fashion, we can usually obtain an efficient
-and clean solution by using a *reduction*, which is an operation that
-combines the items in a specified range in a certain fashion.
+Parallel-for loops give us the ability to process in parallel over a
+specified range of iterates. However, often, we want to, say, take the
+sum of a given sequence of numbers, or perhaps, find the lowest point
+in a given set of points in two-dimensional space. The problem is that
+the parallel-for loop is the wrong tool for this job, because it is
+not safe to use a parallel-for loop to accumulate a value in a shared
+memory cell. We need another mechanism if we want to program such
+accumulation patterns. In general, when we have a collection of values
+that we want to combine in a certain fashion, we can usually obtain an
+efficient and clean solution by using a *reduction*, which is an
+operation that combines the items in a specified range in a certain
+fashion.
 
 The mechanism that a reduction uses to combine a given collection of
-items is a mathematical object called a *monoid*. Recall that a monoid
-is an algebraic structure that consists of a set $T$, an associative
-binary operation $\oplus$ and an identity element $\mathbf{I}$. That
-is, $(T, \oplus, \mathbf{I})$ is a monoid if:
+items is a mathematical object called a *monoid*. The reason that
+monoids are useful is because, if the problem can be stated in terms
+of a monoid, then a monoid provides a simple, yet sufficient condition
+to find a corresponding reduction that delivers an efficient parallel
+solution. In other words, a monoid is a bit like a design pattern for
+programming parallel algorithms. Recall that a monoid is an algebraic
+structure that consists of a set $T$, an associative binary operation
+$\oplus$ and an identity element $\mathbf{I}$. That is, $(T, \oplus,
+\mathbf{I})$ is a monoid if:
 
 - $\oplus$ is associative: for every $x$, $y$ and $z$ in $T$, 
   $x \oplus (y \oplus z) = (x \oplus y) \oplus z$.
@@ -1826,6 +2301,8 @@ Examples of monoids include the following:
 - $T$ = the set of 64-bit signed integers; $\oplus$ = `std::max`;
   $\mathbf{I}$ = $-2^{63}+1$
 
+Let us now see how we can encode a reduction in C++.
+
 ### Basic reduction
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
@@ -1838,6 +2315,16 @@ Item reduce(Iter lo, Iter hi, Item id, Combine combine);
 } }
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+The most basic reduction pattern that is provided by pctl is the one
+above. This template function applies a monoid, encoded by the
+identity element `id` and the associative combining operator
+`combine`, to return the value computed by combining together the
+items contained by the given right-open range [`lo`, `hi`). For
+example, suppose that we are given as input an array of numbers and
+our task is to find the largest number using linear work and
+logarithmic span. We can solve this problem by using our basic
+reduction, as shown below.
+
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 long max(const parray<long>& xs) {
   long id = std::numeric_limits<long>::lowest();
@@ -1846,6 +2333,20 @@ long max(const parray<long>& xs) {
   });
 }
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+As we are going to see [later](#r0-complexity), the work and span cost
+of this operation are linear and logarithmic in the size of the input
+array, implying a good parallel solution to this particular problem.
+
+It is worth noting that reduction can be applied to any container type
+that provides a [random-access
+iterator](http://en.cppreference.com/w/cpp/concept/RandomAccessIterator). For
+example, we could obtain a similarly valid and efficient parallel
+solution to find the max of the items in a chunked sequence, for
+example, by simply replacing the type `parray` in the code above by
+`pchunkedseq.
+
+### Reduction with non-constant-time combining operators
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 namespace pasl {
@@ -1865,6 +2366,28 @@ Item reduce(Iter lo,
 
 } }
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Recall that, for parallel-for loops, we had to take special measures
+in order to properly encode loops with non-constant-time loop
+bodies. The situation is similar for reductions: if the associative
+combining operator is not constant time, then we need to provide
+an extra function to report the costs. However, the way that
+we are going to report is a little different that the way
+we reported to the parallel-for loop.
+
+What we want to report is the *weight* of each item in the input
+sequence. The idea is that the cost of combining any two items in the
+input sequence using the given associative combining operator is the
+sum of the weights of the two items. Let us consider an example of
+this pattern. The code below takes as input an array of arrays of
+numbers and returns the largest number contained by the
+subarrays. Now, observe that the cost of performing our `combine`
+operator to any two subarrays `xs1` and `xs2` is the value `xs1.size()
++ xs2.size()`. It should be clear that our reduce operation can
+calculate these intermediate costs from the `weight` function, which
+we pass to our reduction. Just like the [weight-based parallel-for
+loop](#weighted-parallel-for), the reduction operation calculates a
+table containing the prefix sums of the weights of the items.
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 long max0(const parray<parray<long>>& xss) {
@@ -1920,6 +2443,39 @@ using scan_type = enum {
 };
 
 } }
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+parray<int> xs = { 1, 3, 9, 0, 33, 1, 1 };
+
+parray<int> fe =
+  scan(xs.cbegin(), xs.cend(), 0, combine, forward_exclusive_scan);
+  
+std::cout << "fe\t= " << fe << std::endl;
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+fe	= { 0, 1, 4, 13, 13, 46, 47 }
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+parray<int> be =
+  scan(xs.cbegin(), xs.cend(), 0, combine, backward_exclusive_scan);
+std::cout << "be\t= " << be << std::endl;
+
+parray<int> fi =
+  scan(xs.cbegin(), xs.cend(), 0, combine, forward_inclusive_scan);
+std::cout << "fi\t= " << fi << std::endl;
+
+parray<int> bi =
+  scan(xs.cbegin(), xs.cend(), 0, combine, backward_inclusive_scan);
+std::cout << "bi\t= " << bi << std::endl;
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+be	= { 47, 44, 35, 35, 2, 1, 0 }
+fi	= { 1, 4, 13, 13, 46, 47, 48 }
+bi	= { 48, 47, 44, 35, 35, 2, 1 }
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
