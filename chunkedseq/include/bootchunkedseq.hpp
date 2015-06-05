@@ -1177,7 +1177,12 @@ public:
 
   cdeque() {}
 
-  ~cdeque() {}
+  ~cdeque() {
+    while (! empty()) {
+      value_type v = pop_back();
+      delete v;
+    }
+  }
 
   cdeque(const self_type& other) {
     top_layer.rec_copy(depth0, other.top_layer);
