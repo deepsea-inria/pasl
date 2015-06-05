@@ -163,7 +163,7 @@ template <
   class Item,
   class Compare = std::less<Item>,
   class Alloc = std::allocator<Item>,
-  int chunk_capacity = 2
+  int chunk_capacity = 8
 >
 class pset {
 public:
@@ -431,8 +431,12 @@ private:
         it.search_by([&] (const option_type& key) {
           return less_than_or_equal(option_type(xs.back()), key);
         });
-        if (! same_option(*it, option_type(xs.back()))) {
+        if (it == ys.end()) {
           result = std::move(xs);
+        } else if (! same_option(*it, option_type(xs.back()))) {
+          result = std::move(xs);
+        } else {
+          result = { };
         }
       } else {
         container_type xs2;
