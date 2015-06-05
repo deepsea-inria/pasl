@@ -44,7 +44,7 @@ std::ostream& operator<<(std::ostream& out, const pchunkedseq<Item>& xs) {
   out << " }";
   return out;
 }
-  
+
 template <class Item>
 std::ostream& operator<<(std::ostream& out, const pset<Item>& xs) {
   out << "{ ";

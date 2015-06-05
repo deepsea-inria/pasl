@@ -146,6 +146,19 @@ namespace {
   
 } // end namespace
   
+  template <class value_type, int chunk_capacity, class cache_type>
+  std::ostream& operator<<(std::ostream& out, const data::chunkedseq::bootstrapped::deque<value_type, chunk_capacity, cache_type>& xs) {
+    out << "{ ";
+    for (auto it = xs.cbegin(); it != xs.cend(); it++) {
+      auto x = *it;
+      out << x;
+      if (it+1 != xs.cend())
+        out << ", ";
+    }
+    out << " }";
+    return out;
+  }
+  
 template <
   class Item,
   class Compare = std::less<Item>,
@@ -262,7 +275,7 @@ private:
       }
     }
     return result;
-  } //{ 75, 93, 272, 327, 393, 506, 513, 517, 529, 927, 971, 1011 }
+  }
   
   static container_type merge(container_type& xs, container_type& ys) {
     using controller_type = pset_merge_chunkedseq_contr<Item>;
@@ -300,9 +313,9 @@ private:
         });
         result.concat(result2);
       }
-    }/*, [&] {
+    }, [&] {
       result = merge_seq(xs, ys);
-    }*/);
+    });
     return result;
   }
   
@@ -344,6 +357,8 @@ private:
     par::cstmt(controller_type::contr, [&] { return n + m; }, [&] {
       if (n < m) {
         result = intersect(ys, xs);
+      } else if (n == 0) {
+        result = { };
       } else if ((n == 1) && (m == 1) && same_key(xs.back(), ys.back())) {
         result.push_back(xs.back());
       } else if (n == 1) {
@@ -441,6 +456,47 @@ private:
     return result;
   }
   
+  container_type sort_seq(container_type& xs) {
+    container_type result;
+    long n = xs.size();
+    parray<value_type> tmp(n);
+    xs.backn(tmp.begin(), n);
+    xs.clear();
+    if (n > 1) {
+      std::sort(tmp.begin(), tmp.end());
+    }
+    long i = 0;
+    for (auto it = tmp.cbegin(); it != tmp.cend(); it++, i++) {
+      value_type v = *it;
+      if (i > 0 && same_key(v, result.back())) {
+        continue;
+      }
+      result.push_back(v);
+    }
+    return result;
+  }
+  
+  container_type sort(container_type& xs) {
+    using input_type = level4::chunked_sequence_input<container_type>;
+    container_type id;
+    input_type in(xs);
+    auto combine = [&] (container_type& xs, container_type& ys) {
+      return merge(xs, ys);
+    };
+    using output_type = level3::mergeable_output<decltype(combine), container_type>;
+    output_type out(combine);
+    container_type result;
+    auto convert_reduce_comp = [&] (input_type& in) {
+      return in.seq.size(); // later: use correct value
+    };
+    auto convert_reduce = [&] (input_type& in, container_type& dst) {
+      dst = sort_seq(in.seq);
+    };
+    auto seq_convert_reduce = convert_reduce;
+    level4::reduce(in, out, id, result, convert_reduce_comp, convert_reduce, seq_convert_reduce);
+    return result;
+  }
+  
 public:
   
   pset() {
@@ -453,7 +509,14 @@ public:
   }
   
   pset(std::initializer_list<value_type> xs)
-  : seq(xs) { }
+  : seq(xs) {
+    seq = sort(seq);
+  }
+  
+  template <class Iter>
+  pset(Iter lo, Iter hi) {
+    assert(false); // todo
+  }
   
   size_type size() const {
     return seq.size();
@@ -501,17 +564,6 @@ public:
     return nb - seq.size();
   }
   
-  std::ostream& stream(std::ostream& out) const {
-    out << "[";
-    size_type sz = size();
-    seq.for_each([&] (value_type v) {
-      out << v.first;
-      if (sz-- != 1)
-        out << ",";
-    });
-    return out << "]";
-  }
-  
   iterator begin() const {
     return seq.begin();
   }
@@ -539,10 +591,12 @@ public:
   
   void intersect(pset& other) {
     seq = intersect(seq, other.seq);
+    other.clear();
   }
   
   void diff(pset& other) {
     seq = diff(seq, other.seq);
+    other.clear();
   }
   
   void clear() {

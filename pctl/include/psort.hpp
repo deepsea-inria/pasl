@@ -128,20 +128,18 @@ void sort_seq(Item* xs, long lo, long hi, const Compare& compare) {
   long n = hi-lo;
   if (n <= 1)
     return;
-  std::sort(&xs[lo], &xs[hi-1]+1, compare);
+  std::sort(xs+lo, xs+hi, compare);
 }
   
 template <class Item, class Compare>
-pchunkedseq<Item> sort_seq(pchunkedseq<Item>& xs, const Compare& compare) {
-  pchunkedseq<Item> result;
-  long n = xs.seq.size();
-  if (n <= 1)
-    return result;
+chunkedseq<Item> sort_seq(chunkedseq<Item>& xs, const Compare& compare) {
+  chunkedseq<Item> result;
+  long n = xs.size();
   parray<Item> tmp(n);
-  xs.seq.backn(&tmp[0], n);
-  xs.seq.clear();
-  sort_seq(&tmp[0], 0, n, compare);
-  result.seq.pushn_back(&tmp[0], n);
+  xs.backn(tmp.begin(), n);
+  xs.clear();
+  std::sort(tmp.begin(), tmp.end(), compare);
+  result.pushn_back(tmp.begin(), n);
   return result;
 }
   
@@ -154,7 +152,7 @@ pchunkedseq<Item> pcmergesort(pchunkedseq<Item>& xs, const Compare& compare) {
   using input_type = level4::chunked_sequence_input<seq_type>;
   pchunkedseq_type id;
   input_type in(xs.seq);
-  auto combine = [&] (seq_type& xs, seq_type ys) {
+  auto combine = [&] (seq_type& xs, seq_type& ys) {
     return csmerge<Item>(xs, ys, compare);
   };
   using output_type = level3::mergeable_output<decltype(combine), seq_type>;
@@ -164,10 +162,7 @@ pchunkedseq<Item> pcmergesort(pchunkedseq<Item>& xs, const Compare& compare) {
     return in.seq.size(); // later: use correct value
   };
   auto convert_reduce = [&] (input_type& in, seq_type& dst) {
-    pchunkedseq_type tmp;
-    tmp.seq.swap(in.seq);
-    tmp = sort_seq(tmp, compare);
-    dst.swap(tmp.seq);
+    dst = sort_seq<Item>(in.seq, compare);
   };
   auto seq_convert_reduce = convert_reduce;
   level4::reduce(in, out, id.seq, result.seq, convert_reduce_comp, convert_reduce, seq_convert_reduce);

@@ -18,11 +18,17 @@ namespace pasl {
   namespace pctl {
     
     void ex() {
+      {
+        pset<int> s5 = { 3, 0, 1, 100, 303, -1, 555, 3, 3, 3 };
+        std::cout << "s = " << s5 << std::endl;
+        return;
+      }
       
       {
-        pset<int> x1 = { 327, 506, 517, 529, 927, 1011 };
-        pset<int> x2 = { 75, 93, 272, 393, 513, 971 };
-        x1.merge(x2);
+        
+        pset<int> x1 = { 0, 134, 774 };
+        pset<int> x2 = { 224, 470, 546 };
+        x1.intersect(x2);
         std::cout << "x1 = " << x1 << std::endl;
         return;
       }

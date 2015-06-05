@@ -9,6 +9,7 @@
  */
 
 #include <set>
+#include <vector>
 
 #include "pasl.hpp"
 #include "quickcheck.hpp"
@@ -89,11 +90,33 @@ bool same_set(const container_pair& c) {
 }
   
 void merge(container_pair& c1, container_pair& c2) {
+  c1.second.merge(c2.second);
   for (auto it = c2.first.cbegin(); it != c2.first.cend(); it++) {
     c1.first.insert(*it);
   }
   c2.first.clear();
-  c1.second.merge(c2.second);
+}
+  
+void intersect(container_pair& c1, container_pair& c2) {
+  c1.second.intersect(c2.second);
+  std::set<value_type> tmp;
+  for (auto it = c1.first.cbegin(); it != c1.first.cend(); it++) {
+    if (c2.first.find(*it) != c2.first.cend()) {
+      tmp.insert(*it);
+    }
+  }
+  tmp.swap(c1.first);
+  c2.first.clear();
+}
+  
+void diff(container_pair& c1, container_pair& c2) {
+  c1.second.diff(c2.second);
+  for (auto it = c2.first.cbegin(); it != c2.first.cend(); it++) {
+    if (c1.first.find(*it) != c1.first.cend()) {
+      c1.first.erase(*it);
+    }
+  }
+  c2.first.clear();
 }
   
 } // end namespace
@@ -122,8 +145,7 @@ public:
     assert(trusted::same_set(c));
     int ix = quickcheck::generateInRange(0, (int)c.first.size()-1);
     auto it = c.first.cbegin();
-    for (int i = 0; i < ix; i++, it++) {
-    }
+    for (int i = 0; i < ix; i++, it++) { }
     value_type x = *it;
     c.first.erase(x);
     c.second.erase(x);
@@ -148,6 +170,38 @@ public:
   
 };
 
+class intersect_property : public quickcheck::Property<container_pair, container_pair> {
+public:
+  
+  bool holdsFor(const container_pair& _in1, const container_pair& _in2) {
+    container_pair in1(_in1);
+    container_pair in2(_in2);
+    assert(trusted::same_set(in1));
+    assert(trusted::same_set(in2));
+    trusted::intersect(in1, in2);
+    bool b1 = trusted::same_set(in1);
+    bool b2 = trusted::same_set(in2);
+    return b1 && b2;
+  }
+  
+};
+  
+class diff_property : public quickcheck::Property<container_pair, container_pair> {
+public:
+  
+  bool holdsFor(const container_pair& _in1, const container_pair& _in2) {
+    container_pair in1(_in1);
+    container_pair in2(_in2);
+    assert(trusted::same_set(in1));
+    assert(trusted::same_set(in2));
+    trusted::diff(in1, in2);
+    bool b1 = trusted::same_set(in1);
+    bool b2 = trusted::same_set(in2);
+    return b1 && b2;
+  }
+  
+};
+
 } // end namespace
 } // end namespace
 
@@ -156,10 +210,23 @@ public:
 int main(int argc, char** argv) {
   pasl::sched::launch(argc, argv, [&] (bool sequential) {
     int nb_tests = pasl::util::cmdline::parse_or_default_int("n", 1000);
-    //checkit<pasl::pctl::insert_property>(nb_tests, "pset insert is correct");
-    //checkit<pasl::pctl::erase_property>(nb_tests, "pset erase is correct");
-    checkit<pasl::pctl::merge_property>(nb_tests, "pset merge is correct");
-
+    pasl::util::cmdline::argmap_dispatch m;
+    m.add("insert", [&] {
+      checkit<pasl::pctl::insert_property>(nb_tests, "pset insert is correct");
+    });
+    m.add("erase", [&] {
+      checkit<pasl::pctl::erase_property>(nb_tests, "pset erase is correct");
+    });
+    m.add("merge", [&] {
+      checkit<pasl::pctl::merge_property>(nb_tests, "pset merge is correct");
+    });
+    m.add("intersect", [&] {
+      checkit<pasl::pctl::intersect_property>(nb_tests, "pset intersect is correct");
+    });
+    m.add("diff", [&] {
+      checkit<pasl::pctl::diff_property>(nb_tests, "pset diff is correct");
+    });
+    pasl::util::cmdline::dispatch_by_argmap_with_default_all(m, "test");
   });
   return 0;
 }
