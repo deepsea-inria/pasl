@@ -115,7 +115,7 @@ public:
   using measure_type = typename cache_type::measure_type;
   ///@}
 
-  // apparently, we need this seeminly redundant declaration to build with GCC, but not llvm...
+  // apparently, we need this seemingly redundant declaration to build with GCC, but not llvm...
   template <class T1,class T2, class T3, class T4, class T5>
   friend class iterator::random_access;
 
@@ -132,7 +132,7 @@ private:
   // for efficient implementation of emptiness test, additional invariants w.r.t. the paper:
   //  - if front_outer is empty, then front_inner is empty
   //  - if back_outer is empty, then back_inner is empty
-  //  - if front_outer and back_outer are empty, then middle is empty
+  //  - if either front_outer or back_outer are empty, then middle is empty
   chunk_type front_inner, back_inner, front_outer, back_outer;
   std::unique_ptr<middle_type> middle;
 
@@ -213,9 +213,13 @@ private:
       back_outer.swap(front_outer);
     assert(empty() || ! back_outer.empty());
   }
+  
+  void restore_back_or_front_out_nonempty_if_middle_nonempty() {
+    ensure_back_outer_nonempty();
+    ensure_front_outer_nonempty();
+  }
 
-  // assumption: invariant "both outer empty implies middle empty" may be broken;
-  // calling this function restores it.
+  /*
   void restore_both_outer_empty_middle_empty() {
     if (front_outer.empty() && back_outer.empty() && ! middle->empty()) {
       // pop to the front (to the back would also work)
@@ -223,7 +227,7 @@ private:
       front_outer.swap(*c);
       chunk_free(c);
     }
-  }
+  } */
 
   // ensures that inner buffers are empty, by pushing them in the middle if full
   void ensure_empty_inner() {
@@ -398,8 +402,8 @@ private:
         break;
       }
     } // end switch
-    restore_both_outer_empty_middle_empty();
-    other.restore_both_outer_empty_middle_empty();
+    restore_back_or_front_out_nonempty_if_middle_nonempty();
+    other.restore_back_or_front_out_nonempty_if_middle_nonempty();
     return prefix;
   }
 
@@ -1272,7 +1276,7 @@ public:
     // concatenate the middle sequences
     middle->concat(middle_meas, *other.middle);
     // restore invariants
-    restore_both_outer_empty_middle_empty();
+    restore_back_or_front_out_nonempty_if_middle_nonempty();
     assert(other.empty());
   }
 
