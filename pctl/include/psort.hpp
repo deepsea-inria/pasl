@@ -82,6 +82,8 @@ chunkedseq<Item> csmerge(chunkedseq<Item>& xs, chunkedseq<Item>& ys, const Compa
   par::cstmt(controller_type::contr, [&] { return n + m; }, [&] {
     if (n < m) {
       result = csmerge<Item>(ys, xs, compare);
+    } else if (n == 0) {
+      result = { };
     } else if (n == 1) {
       if (m == 0) {
         result.push_back(xs.back());
@@ -143,13 +145,6 @@ pchunkedseq<Item> sort_seq(pchunkedseq<Item>& xs, const Compare& compare) {
   return result;
 }
   
-template <class Combine, class Container>
-level3::mergeable_output<Combine, Container> create_mergeable_output(const Container& id,
-                                                                     const Combine& combine) {
-  level3::mergeable_output<Combine, Container> out(combine);
-  return out;
-}
-  
 } // end namespace
   
 template <class Item, class Compare>
@@ -159,9 +154,11 @@ pchunkedseq<Item> pcmergesort(pchunkedseq<Item>& xs, const Compare& compare) {
   using input_type = level4::chunked_sequence_input<seq_type>;
   pchunkedseq_type id;
   input_type in(xs.seq);
-  auto out = create_mergeable_output(id.seq, [&] (seq_type& xs, seq_type& ys) {
+  auto combine = [&] (seq_type& xs, seq_type ys) {
     return csmerge<Item>(xs, ys, compare);
-  });
+  };
+  using output_type = level3::mergeable_output<decltype(combine), seq_type>;
+  output_type out(combine);
   pchunkedseq_type result;
   auto convert_reduce_comp = [&] (input_type& in) {
     return in.seq.size(); // later: use correct value
@@ -219,6 +216,8 @@ void merge_par(const Item* xs, const Item* ys, Item* tmp,
     if (n1 < n2) {
       // to ensure that the first subarray being sorted is the larger or the two
       merge_par(ys, xs, tmp, lo_ys, hi_ys, lo_xs, hi_xs, lo_tmp, compare);
+    } else if (n1 == 0) {
+      // xs and ys empty
     } else if (n1 == 1) {
       if (n2 == 0) {
         // xs singleton; ys empty
