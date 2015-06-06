@@ -2298,12 +2298,12 @@ Examples of monoids include the following:
   modulo $2^{32}$; $\mathbf{I}$ = 0
 - $T$ = the set of all strings; $\oplus$ = concatenation;
   $\mathbf{I}$ = the empty string
-- $T$ = the set of 64-bit signed integers; $\oplus$ = `std::max`;
-  $\mathbf{I}$ = $-2^{63}+1$
+- $T$ = the set of 32-bit signed integers; $\oplus$ = `std::max`;
+  $\mathbf{I}$ = $-2^{32}+1$
 
 Let us now see how we can encode a reduction in C++.
 
-### Basic reduction
+### Basic reduction {#reduce-basic}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 namespace pasl {
@@ -2326,13 +2326,17 @@ logarithmic span. We can solve this problem by using our basic
 reduction, as shown below.
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-long max(const parray<long>& xs) {
-  long id = std::numeric_limits<long>::lowest();
-  return reduce(xs.cbegin(), xs.cend(), id, [&] (long x, long y) {
+int max(const parray<int>& xs) {
+  int id = std::numeric_limits<int>::lowest();
+  return reduce(xs.cbegin(), xs.cend(), id, [&] (int x, int y) {
     return std::max(x, y);
   });
 }
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Let us pause for a moment to consider what is the value returned by the
+`max` function when it is passed the empty array (i.e., `max({ })`. In
+this case, the value is going to be the smallest 
 
 As we are going to see [later](#r0-complexity), the work and span cost
 of this operation are linear and logarithmic in the size of the input
@@ -2344,9 +2348,9 @@ iterator](http://en.cppreference.com/w/cpp/concept/RandomAccessIterator). For
 example, we could obtain a similarly valid and efficient parallel
 solution to find the max of the items in a chunked sequence, for
 example, by simply replacing the type `parray` in the code above by
-`pchunkedseq.
+the type `pchunkedseq`.
 
-### Reduction with non-constant-time combining operators
+### Basic reduction with non-constant-time combining operators {#reduction-nonconstant}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 namespace pasl {
@@ -2390,17 +2394,17 @@ loop](#weighted-parallel-for), the reduction operation calculates a
 table containing the prefix sums of the weights of the items.
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-long max0(const parray<parray<long>>& xss) {
-  parray<long> id = { std::numeric_limits<long>::lowest() };
-  auto weight = [&] (const parray<long>& xs) {
+int max0(const parray<parray<int>>& xss) {
+  parray<int> id = { std::numeric_limits<int>::lowest() };
+  auto weight = [&] (const parray<int>& xs) {
     return xs.size();
   };
-  auto combine = [&] (const parray<long>& xs1,
-                      const parray<long>& xs2) {
-    parray<long> r = { std::max(max(xs1), max(xs2)) };
+  auto combine = [&] (const parray<int>& xs1,
+                      const parray<int>& xs2) {
+    parray<int> r = { std::max(max(xs1), max(xs2)) };
     return r;
   };
-  parray<long> a =
+  parray<int> a =
     reduce(xss.cbegin(), xss.cend(), id, weight, combine);
   return a[0];
 }
@@ -2409,7 +2413,16 @@ long max0(const parray<parray<long>>& xss) {
 [max.hpp]: ../example/max.hpp
 [max.cpp]: ../example/max.cpp
 
-Example source code in [max.hpp] and [max.cpp].
+When the `max0` function returns, the result is just one number that
+is our maximum value. It is therefore unfortunate that our combining
+operator has to pay the cost to package the current maximum value in
+the array `r`. The abstraction boundaries, in particular, the type of
+the `reduce` function here leaves us no choice, however. Later, we are
+going to see that, by generalizing our `reduce` function a little, we
+can sidestep this issue.
+
+The example codes shown in this section can be found in [max.hpp] and
+[max.cpp].
 
 ### Basic scan
 
@@ -2431,6 +2444,20 @@ parray<Item> scan(Iter lo,
 } }
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+A *scan* is an operation that computes the running totals of a given
+sequence of values of a specified type. Just like with a reduction, a
+scan computes its running totals with respect to a given monoid. So,
+accordingliy, the signature of our scan function shown above looks a
+lot like the signature of our reduce function.
+
+However, there are a couple differences. First, instead of returning a
+single result value, the scan function returns an array (of length `hi
+- lo`) of the running totals of the input sequence. Second, the
+function takes the argument `st` to determine whether the scan is
+inclusive or exclusive and whether the results are to be calculated
+from the front to the back of the input sequence or from back to
+front.
+
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 namespace pasl {
 namespace pctl {
@@ -2445,38 +2472,97 @@ using scan_type = enum {
 } }
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-parray<int> xs = { 1, 3, 9, 0, 33, 1, 1 };
+Before we define scan formally, let us first consider some example
+programs. For our running example, we are going to pick the same
+monoid that we used in our running example for the reduce function:
+the set of 32-bit signed integers, along with the `std::max` combining
+operator and the identity $-2^{32}+1$.
 
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+auto combine = [&] (int x, int y) {
+  return std::max(x, y);
+};
+int id = std::numeric_limits<int>::lowest();  // == -2^32+1 == -2147483648
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+We are going to use the following array as the input sequence.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+parray<int> xs = { 1, 3, 9, 0, 33, 1, 1 };
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The following code prints the result of the forward-exclusive scan of
+the above sequence.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 parray<int> fe =
-  scan(xs.cbegin(), xs.cend(), 0, combine, forward_exclusive_scan);
-  
+  scan(xs.cbegin(), xs.cend(), id, combine, forward_exclusive_scan);
 std::cout << "fe\t= " << fe << std::endl;
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+The output is shown below. Notice that the first value is the identity
+element, `id` and that the running totals are computed starting from
+the beginning to the end of the input sequence. In general, the first
+value of the result of any exclusive scan is the identity
+element. Moreover, the total of the entire input sequence is not
+included in the result array.
+
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-fe	= { 0, 1, 4, 13, 13, 46, 47 }
+fe	= { -2147483648, 1, 3, 9, 9, 33, 33 }
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+In general, the result of a forward-exclusive reduction is the
+sequence $[ (\mathbf{I}), (\mathbf{I} \oplus xs_0), (\mathbf{I} \oplus
+xs_0 \oplus xs_1), \ldots, (\mathbf{I} \oplus xs_0 \oplus \ldots
+\oplus xs_{n-2}) ]$, where the input sequence is $xs = [ xs_0, \ldots,
+xs_{n-1} ]$. Now, let us consider the forward-inclusive scan.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+parray<int> fi =
+  scan(xs.cbegin(), xs.cend(), id, combine, forward_inclusive_scan);
+std::cout << "fi\t= " << fi << std::endl;
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+In the forward-inclusive scan, the first value in the result array is
+always the first value in the input sequence and the last value is the
+total of the entire input sequence.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+fi	= { 1, 3, 9, 9, 33, 33, 33 }
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The below example shows the backward-oriented versions of the scan
+operator.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 parray<int> be =
-  scan(xs.cbegin(), xs.cend(), 0, combine, backward_exclusive_scan);
+  scan(xs.cbegin(), xs.cend(), id, combine, backward_exclusive_scan);
 std::cout << "be\t= " << be << std::endl;
 
-parray<int> fi =
-  scan(xs.cbegin(), xs.cend(), 0, combine, forward_inclusive_scan);
-std::cout << "fi\t= " << fi << std::endl;
-
 parray<int> bi =
-  scan(xs.cbegin(), xs.cend(), 0, combine, backward_inclusive_scan);
+  scan(xs.cbegin(), xs.cend(), id, combine, backward_inclusive_scan);
 std::cout << "bi\t= " << bi << std::endl;
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+Output:
+
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-be	= { 47, 44, 35, 35, 2, 1, 0 }
-fi	= { 1, 4, 13, 13, 46, 47, 48 }
-bi	= { 48, 47, 44, 35, 35, 2, 1 }
+be	= { 33, 33, 33, 33, 1, 1, -2147483648 }
+bi	= { 33, 33, 33, 33, 33, 1, 1 }
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The uses of the scan function that we have considered thus far use a
+constant-time combining operator. For such applications, the work and
+span complexity of an application is the same as the work and span
+complexity of the corresponding reduce operation. In specific, our
+applications of scan shown above take linear work and logarithmic span
+in the size of the input sequence, and so does our `max` function,
+which uses reduce in a similar way. It turns out that, in general,
+given the same inputs (disragarding, of course, the scan-type
+argument, which has no effect with respect to asymptotic running
+time), reduce and scan have the same work and span complexity.
+
+### Basic scan with a non-constant-time combining operator
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 namespace pasl {
@@ -2497,6 +2583,12 @@ parray<Item> scan(Iter lo,
 
 } }
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Just as was the case with reduce, our scan operator has to handle
+non-constant-time associative combining operators. To this end, pctl
+provides the above scan function, which now takes the corresponding
+weight function. An application of this scan function looks just like
+with the corresponding reduce function.
 
 ### Template parameters
 
@@ -2575,24 +2667,12 @@ following type.
 long operator()(const Item& x);
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-***Example: the array-weight function.*** Let `Item` be
-   `parray<long>`. Then, one valid weight function is the weight
-   function that returns the size of the given array.
-
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-class PArray_weight {
-public:
-  long operator()(const parray<long>& xs) {
-    return xs.size();
-  }
-};
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-#### Complexity {#r0-complexity}
+### Complexity {#r0-complexity}
 
 There are two cases to consider for any reduction $\mathtt{reduce}(lo,
-hi, id, f)$: (1) the associative combining operator $f$ takes constant
-time and (2) $f$ does not.
+hi, id, f)$ (or, correspondingly, any scan $\mathtt{scan}(lo, hi, id,
+f, st)$ for any scan type $st$): (1) the associative combining operator
+$f$ takes constant time and (2) $f$ does not.
 
 ***(1) Constant-time associative combining operator.*** The amount of
 work performed by the reduction is $O(hi-lo)$ and the span is $O(\log
@@ -2622,93 +2702,76 @@ where $W$ denotes the amount of work performed by the call $f(x, y)$,
 then the amount of work performed by the reduction is $O(\log (hi-lo)
 \sum_{lo \leq it < hi} (1 + w(*it)))$.
 
-***Example: using a non-constant time combining operator.*** Now, let
-us consider a case where the associative combining operator takes
-linear time in proportion with the combined size of its two
-arguments. For this example, we will consider the following max
-function, which examines a given array of arrays.
-
-Let us now analyze the efficiency of this algorithm. We will begin by
-analyzing the work. To start, we need to determine whether the
-combining operator of the reduction over `xss` is constant-time or
-not. This combining operator is not because the combining operator
-calls the `max` function twice. The first call is applied to the array
-`xs` and the second to `ys`. The total work performed by these two
-calls is linear in $| \mathtt{xs} | + | \mathtt{ys} |$. Therefore, by
-applying the work-lemma shown above, we get that the total work
-performed by this reduction is $O(\log | \mathtt{xss} |
-\max_{\mathtt{xs} \in \mathtt{xss}} | xs ||)$. The span is simpler to
-analyze. By applying our span rule for reduce, we get that the span
-for the reduction is $O(\log |xss| \max_{\mathtt{xs} \in \mathtt{xss}}
-\log |xs|)$.
-
-When the `max` function returns, the result is just one number that is
-our maximum value. It is therefore unfortunate that our combining
-operator has to pay to package the current maximum value in the array
-`r`. The abstraction boundaries, in particular, the type of the
-`reduce` function here leaves us no choice, however. In the next level
-of abstraction, we are going to see that, by generalizing our `reduce`
-function a little, we can sidestep this issue.
+***Example: analysis of the complexity of a non-constant time
+combining operator.*** For this example, let us analyze the `max0`
+function, which is defined in a [previous
+section](#reduction-nonconstant). We will begin by analyzing the
+work. To start, we need to determine whether the combining operator of
+the reduction over `xss` is constant-time or not. This combining
+operator is not because the combining operator calls the `max`
+function (twice, in fact). The first call is applied to the array `xs`
+and the second to `ys`. The total work performed by these two calls is
+linear in $| \mathtt{xs} | + | \mathtt{ys} |$. Therefore, by applying
+the work-lemma shown above, we get that the total work performed by
+this reduction is $O(\log | \mathtt{xss} | \max_{\mathtt{xs} \in
+\mathtt{xss}} | xs ||)$. The span is simpler to analyze. By applying
+our span rule for reduce, we get that the span for the reduction is
+$O(\log |xss| \max_{\mathtt{xs} \in \mathtt{xss}} \log |xs|)$.
 
 ### Advanced reductions and scans
+
+Although quite general already, the reduce and scan functions that we
+have considered thus far are not always sufficiently general. For
+example, the basic forms of reduce and scan require that the type of
+the result value (or values in the case of scan) is the same as the
+type of the values in the input sequence. As we saw in a [previous
+section](#reduction-nonconstant), this requirement made the code of
+the `max0` function look rather awkward and perhaps unnecessarily
+inefficient. Fortunately, in pctl, such issues can be readily
+addressed by using more advanced forms of reduce and scan.
+
+In this section, we are going to examine in detail which problems (or,
+more precisely, problem patterns) that can be solved more efficiently
+and concisely by using more general forms of reduce and scan. Because
+the number of possible variations of reduce and scan is quite large,
+we are going to use a layered design, whereby, for each generalization
+we introduce, we introduce one new abstraction layer on top of the
+previous one. The following table summarizes the layers that we define
+and what each successive layer adds on top of its predecessor
+layer. The lowest level, namely level 0, is the level corresponding to
+our basic reduce and scan functions from the beginning of this
+section.
 
 +-----------------------------------+-----------------------------------+
 | Abstraction layer                 | Description                       |
 +===================================+===================================+
-| Level 0                           | Apply a specified monoid to       |
+| Level 0 (basic reduce and scan)   | Apply a specified monoid to       |
 |                                   |combine the items of a range in    |
 |                                   |memory that is specified by a pair |
 |                                   |of iterator pointer values         |
 +-----------------------------------+-----------------------------------+
-| [Level 1](#red-l-1)               | Introduces to the above a lift    |
-|                                   |operator that allows the client to |
-|                                   |perform along with a reduction a   |
-|                                   |specified tabulation, where the    |
-|                                   |tabulation is injected into the    |
-|                                   |leaves of the reduction tree       |
+| [Level 1](#red-l-1)               | Introduces a lift operator that   |
+|                                   |allows the client to inline into   |
+|                                   |the reduce a specified map         |
+|                                   |operation                          |
 +-----------------------------------+-----------------------------------+
-| [Level 2](#red-l-2)               | Introduces to the above an        |
-|                                   |operator that provides a           |
-|                                   |sequentialized alternative for the |
-|                                   |lift operator                      |
+| [Level 2](#red-l-2)               | Introduces an operator that       |
+|                                   |provides a sequentialized          |
+|                                   |alternative for the lift operator  |
+|                                   |                                   |
 +-----------------------------------+-----------------------------------+
-| [Level 3](#red-l-3)               | Introduces to the above a         |
-|                                   |"mergeable output" type that       |
-|                                   |enables destination-passing style  |
-|                                   |reduction                          |
+| [Level 3](#red-l-3)               | Introduces a "mergeable output"   |
+|                                   |type that enables                  |
+|                                   |destination-passing style reduction|
 +-----------------------------------+-----------------------------------+
-| [Level 4](#red-l-4)               | Introduces to the above a         |
-|                                   |"splittlable input" type that      |
-|                                   |replaces the iterator pointer      |
-|                                   |values                             |
+| [Level 4](#red-l-4)               | Introduces a "splittlable input"  |
+|                                   |type that replaces the iterator    |
+|                                   |pointer values                     |
 +-----------------------------------+-----------------------------------+
 
-Table: Abstraction layers used by pctl for reduction operators.
+Table: Abstraction layers for reduce and scan that are provided by pctl.
 
 #### Level 1 {#red-l-1}
-
-***Index passing.*** TODO: explain
-
-+----------------------------------+-----------------------------------+
-| Template parameter               | Description                       |
-+==================================+===================================+
-| [`Result`](#r1-r)                | Type of the result value to be    |
-|                                  |returned by the reduction          |
-+----------------------------------+-----------------------------------+
-| [`Lift`](#r1-l)                  | Lifting operator                  |
-+----------------------------------+-----------------------------------+
-| [`Lift_idx`](#r1-li)             | Index-passing lifting operator    |
-+----------------------------------+-----------------------------------+
-| [`Combine`](#r1-comb)            | Associative combining operator    |
-+----------------------------------+-----------------------------------+
-| [`Lift_comp`](#r1-l-c)           | Complexity function associated    |
-|                                  |with the lift funciton             |
-+----------------------------------+-----------------------------------+
-| [`Lift_comp_idx`](#r1-l-c-i)     | Index-passing lift complexity     |
-|                                  |function                           |
-+----------------------------------+-----------------------------------+
-
-Table: Template parameters that are introduced in level 1.
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 namespace pasl {
@@ -2741,13 +2804,6 @@ Result reduce(Iter lo,
               Lift_comp lift_comp,
               Lift lift);
 
-} } }
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-namespace pasl {
-namespace pctl {
-namespace level1 {
 
 template <
   class Iter,
@@ -2762,23 +2818,104 @@ parray<Result> scan(Iter lo,
                     Lift lift,
                     scan_type st);
 
-
 template <
   class Iter,
   class Result,
   class Combine,
-  class Lift_idx
+  class Lift_comp,
+  class Lift
 >
-parray<Result> scani(Iter lo,
-                     Iter hi,
-                     Result id,
-                     Combine combine,
-                     Lift_idx lift_idx,
-                     scan_type st);
+parray<Result> scan(Iter lo,
+                    Iter hi,
+                    Result id,
+                    Combine combine,
+                    Lift_comp lift_comp,
+                    Lift lift,
+                    scan_type st);
 
 } } }
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+To motivate level 1, let us return to our running example and, in
+particular, the `max0` function from a [previous
+section](#reduction-nonconstant). When we examine `max0`, we see that
+our identity value is an array, our combine operator takes two arrays
+and returns an array, and our result value is itself an array. In
+other words, the monoid that we use for `max0` is one where the input
+sequence is the set of all arrays of numbers, and the identity and
+combining function follow accordingly. As such, to get the final
+result value, at the end of the function, we have to extract the first
+value from the result array. Why do we need to use these intermediate
+arrays? The only reason is that the basic reduce function requires
+that the type of the input value (an array of numbers) be the same as
+the type of the result value (an array of numbers).
+
+The level-1 reduce function allows us to bypass this limitation,
+provided that we define and pass to the level-1 reduce function a
+*lift* function of our choice. To see what it looks like, let us
+consider how we solve the same problem as before, but this time using
+level-1 reduce. In the `max1` function below, we see first that our
+identity element and associative combining operator are specified for
+base values (i.e., `int`s) rather than arrays of `int`s.  Furthermore,
+we see that our lift function is a function that takes (a reference
+to) an array and returns the maximum value of the given array, using
+the same `max` function that we defined in a [previous
+section](#reduce-basic). Now, it should be clear what is the purpose
+of the lift function: it describes how to solve the same problem, but
+specifically for an individual item in the input.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+int max1(const parray<parray<int>>& xss) {
+  auto combine = [&] (int x, int y) {
+    return std::max(x, y);
+  };
+  auto lift_comp = [&] (const parray<int>& xs) {
+    return xs.size();
+  };
+  auto lift = [&] (const parray<int>& xs) {
+    return max(xs);
+  };
+  auto lo = xss.cbegin();
+  auto hi = xss.cend();
+  int id = std::numeric_limits<int>::lowest();
+  return level1::reduce(lo, hi, id, combine, lift_comp, lift);
+}
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+As usual, because our lift function is not a constant-time function,
+we need to report the cost of the lift function. To this end, in the
+code above, we use the `lift_comp` function which returns the cost of
+the corresponding application of the `lift` function. The cost that we
+defined is, in particular, equal to the size of the array, since the
+`max` function takes linear time.
+
+In general, our level 1 reduce (and scan) now recognize two types of
+values:
+
+1. the type `Item`, which is the type of the items stored in the input
+sequence (i.e., the type of values pointed at by an iterator of type
+`Iter`)
+
+2. the type `Result`, which is the type of the result value (or values
+in the case of scan) that are returned by the reduce (or scan).
+
+In terms of types, the reduce function converts a value of type `Item`
+to a corresponding value of type `Result`. In the example above, our
+`lift` function converts from a value of type `Item = parray<int>` to
+a value of type `int`. 
+
+##### Index-passing reduce and scan
+
+Sometimes, it is useful for reduce and scan to pass to their lift
+function an extra argument: the corresponding position of the item in
+the input sequence. For this reason, pctl provides for each of the
+level 1 functions a corresponding *index-passing* version. For
+instance, the `reducei` function below now takes a `lift_idx` function
+instead of the usual a `lift` function.  This new, index-passing
+version of the lift function itself takes an additional position
+argument: for item $xs_i$, the lift function is now applied by
+`reducei` to each element as before, but along with the position of
+the item (i.e., $\mathtt{lift\_idx}(i, xs_i)$).
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 namespace pasl {
@@ -2811,28 +2948,18 @@ Result reducei(Iter lo,
                Lift_comp_idx lift_comp_idx,
                Lift_idx lift_idx);
 
-} } }
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-namespace pasl {
-namespace pctl {
-namespace level1 {
-
 template <
   class Iter,
   class Result,
   class Combine,
-  class Lift_comp,
-  class Lift
+  class Lift_idx
 >
-parray<Result> scan(Iter lo,
-                    Iter hi,
-                    Result id,
-                    Combine combine,
-                    Lift_comp lift_comp,
-                    Lift lift,
-                    scan_type st);
+parray<Result> scani(Iter lo,
+                     Iter hi,
+                     Result id,
+                     Combine combine,
+                     Lift_idx lift_idx,
+                     scan_type st);
 
 template <
   class Iter,
@@ -2851,8 +2978,33 @@ parray<Result> scani(Iter lo,
 
 } } }
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+##### Template parameters
+
++----------------------------------+-----------------------------------+
+| Template parameter               | Description                       |
++==================================+===================================+
+| [`Result`](#r1-r)                | Type of the result value to be    |
+|                                  |returned by the reduction          |
++----------------------------------+-----------------------------------+
+| [`Lift`](#r1-l)                  | Lifting operator                  |
++----------------------------------+-----------------------------------+
+| [`Lift_idx`](#r1-li)             | Index-passing lifting operator    |
++----------------------------------+-----------------------------------+
+| [`Combine`](#r1-comb)            | Associative combining operator    |
++----------------------------------+-----------------------------------+
+| [`Lift_comp`](#r1-l-c)           | Complexity function associated    |
+|                                  |with the lift funciton             |
++----------------------------------+-----------------------------------+
+| [`Lift_comp_idx`](#r1-l-c-i)     | Index-passing lift complexity     |
+|                                  |function                           |
++----------------------------------+-----------------------------------+
+
+Table: Template parameters that are introduced in level 1.
+
                  
-##### Result {#r1-r}
+###### Result {#r1-r}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 class Result               
@@ -2862,7 +3014,7 @@ Type of the result value to be returned by the reduction.
 
 This class must provide a default (i.e., zero-arity) constructor.
 
-##### Lift {#r1-l}
+###### Lift {#r1-l}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 class Lift;
@@ -2893,7 +3045,7 @@ Result operator()(long pos, const Item& x);
 The value passed in the `pos` parameter is the index corresponding to
 the position of item `x`.
 
-##### Associative combining operator {#r1-comb}
+###### Associative combining operator {#r1-comb}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 class Combine;
@@ -2907,7 +3059,7 @@ and returned are values of type `Result`.
 Result operator()(const Result& x, const Result& y);
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-##### Complexity function for lift {#r1-l-c}
+###### Complexity function for lift {#r1-l-c}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 class Lift_comp;
@@ -2922,7 +3074,7 @@ type.
 long operator()(const Item& x);
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-##### Index-passing lift-complexity function {#r1-l-c-i}
+###### Index-passing lift-complexity function {#r1-l-c-i}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 class Lift_comp_idx;
@@ -2936,29 +3088,6 @@ the following type.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 long operator()(long pos, const Item& x);
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-##### Examples
-
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-long max1(const parray<parray<long>>& xss) {
-  using iterator = typename parray<parray<long>>::const_iterator;
-  auto combine = [&] (long x, long y) {
-    return std::max(x, y);
-  };
-  auto lift_comp = [&] (const parray<long>& xs) {
-    return xs.size();
-  };
-  auto lift = [&] (const parray<long>& xs) {
-    return max(xs);
-  };
-  auto lo = xss.cbegin();
-  auto hi = xss.cend();
-  long id = std::numeric_limits<long>::lowest();
-  return level1::reduce(lo, hi, id, combine, lift_comp, lift);
-}
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Example source code in [max.hpp] and [max.cpp].
 
 #### Level 2 {#red-l-2}
 
@@ -3074,9 +3203,9 @@ Result operator()(Iter lo, Iter hi, typename parray<Result>::iterator dst_lo);
 ##### Examples            
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-long max2(const parray<parray<long>>& xss) {
-  using iterator = typename parray<parray<long>>::const_iterator;
-  parray<long> w = weights(xss.size(), [&] (const parray<long>& xs) {
+int max2(const parray<parray<int>>& xss) {
+  using iterator = typename parray<parray<int>>::const_iterator;
+  parray<long> w = weights(xss.size(), [&] (const parray<int>& xs) {
     return xs.size();
   });
   auto lift_comp_rng = [&] (iterator lo_xs, iterator hi_xs) {
@@ -3084,10 +3213,10 @@ long max2(const parray<parray<long>>& xss) {
     long hi = hi_xs - xss.cbegin();
     return w[hi] - w[lo];
   };
-  auto combine = [&] (long x, long y) {
+  auto combine = [&] (int x, int y) {
     return std::max(x, y);
   };
-  auto lift = [&] (long, const parray<long>& xs) {
+  auto lift = [&] (long, const parray<int>& xs) {
     return max(xs);
   };
   auto seq_reduce_rng = [&] (iterator lo_xs, iterator hi_xs) {
@@ -3095,16 +3224,16 @@ long max2(const parray<parray<long>>& xss) {
   };
   iterator lo_xs = xss.cbegin();
   iterator hi_xs = xss.cend();
-  long id = std::numeric_limits<long>::lowest();
+  int id = std::numeric_limits<int>::lowest();
   return level2::reduce(lo_xs, hi_xs, id, combine, lift_comp_rng,
                         lift, seq_reduce_rng);
 }
 
 template <class Iter>
-long max_seq(Iter lo_xs, Iter hi_xs) {
-  long m = std::numeric_limits<long>::lowest();
+int max_seq(Iter lo_xs, Iter hi_xs) {
+  int m = std::numeric_limits<int>::lowest();
   for (Iter it_xs = lo_xs; it_xs != hi_xs; it_xs++) {
-    const parray<long>& xs = *it_xs;
+    const parray<int>& xs = *it_xs;
     for (auto it_x = xs.cbegin(); it_x != xs.cend(); it_x++) {
       m = std::max(m, *it_x);
     }
