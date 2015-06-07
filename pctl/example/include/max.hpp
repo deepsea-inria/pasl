@@ -16,14 +16,13 @@
 
 /***********************************************************************/
 
+namespace pasl {
+namespace pctl {
 namespace max_ex {
-  
-template <class Item>
-using parray = pasl::pctl::parray<Item>;
 
 int max(const parray<int>& xs) {
   int id = std::numeric_limits<int>::lowest();
-  return pasl::pctl::reduce(xs.cbegin(), xs.cend(), id, [&] (int x, int y) {
+  return reduce(xs.cbegin(), xs.cend(), id, [&] (int x, int y) {
     return std::max(x, y);
   });
 }
@@ -39,11 +38,14 @@ int max0(const parray<parray<int>>& xss) {
     return r;
   };
   parray<int> a =
-    pasl::pctl::reduce(xss.cbegin(), xss.cend(), id, weight, combine);
+    reduce(xss.cbegin(), xss.cend(), id, weight, combine);
   return a[0];
 }
 
 int max1(const parray<parray<int>>& xss) {
+  auto lo = xss.cbegin();
+  auto hi = xss.cend();
+  int id = std::numeric_limits<int>::lowest();
   auto combine = [&] (int x, int y) {
     return std::max(x, y);
   };
@@ -53,50 +55,48 @@ int max1(const parray<parray<int>>& xss) {
   auto lift = [&] (const parray<int>& xs) {
     return max(xs);
   };
-  auto lo = xss.cbegin();
-  auto hi = xss.cend();
-  int id = std::numeric_limits<int>::lowest();
-  return pasl::pctl::level1::reduce(lo, hi, id, combine, lift_comp, lift);
+  return level1::reduce(lo, hi, id, combine, lift_comp, lift);
 }
 
 template <class Iter>
-int max_seq(Iter lo_xs, Iter hi_xs) {
+int max_seq(Iter lo, Iter hi) {
   int m = std::numeric_limits<int>::lowest();
-  for (Iter it_xs = lo_xs; it_xs != hi_xs; it_xs++) {
-    const parray<int>& xs = *it_xs;
-    for (auto it_x = xs.cbegin(); it_x != xs.cend(); it_x++) {
-      m = std::max(m, *it_x);
+  for (Iter i = lo; i != hi; i++) {
+    const parray<int>& xs = *i;
+    for (auto j = xs.cbegin(); j != xs.cend(); j++) {
+      m = std::max(m, *j);
     }
   }
   return m;
 }
 
 int max2(const parray<parray<int>>& xss) {
-  using iterator = typename parray<parray<int>>::const_iterator;
-  parray<long> w = pasl::pctl::weights(xss.size(), [&] (const parray<int>& xs) {
+  using const_iterator = typename parray<parray<int>>::const_iterator;
+  const_iterator lo = xss.cbegin();
+  const_iterator hi = xss.cend();
+  int id = std::numeric_limits<int>::lowest();
+  parray<long> w = weights(xss.size(), [&] (const parray<int>& xs) {
     return xs.size();
   });
-  auto lift_comp_rng = [&] (iterator lo_xs, iterator hi_xs) {
-    long lo = lo_xs - xss.cbegin();
-    long hi = hi_xs - xss.cbegin();
-    return w[hi] - w[lo];
-  };
   auto combine = [&] (int x, int y) {
     return std::max(x, y);
   };
-  auto lift = [&] (int, const parray<int>& xs) {
+  const_iterator b = lo;
+  auto lift_comp_rng = [&] (const_iterator lo, const_iterator hi) {
+    return w[hi - b] - w[lo - b];
+  };
+  auto lift_idx = [&] (int, const parray<int>& xs) {
     return max(xs);
   };
-  auto seq_reduce_rng = [&] (iterator lo_xs, iterator hi_xs) {
-    return max_seq(lo_xs, hi_xs);
+  auto seq_reduce_rng = [&] (const_iterator lo, const_iterator hi) {
+    return max_seq(lo, hi);
   };
-  iterator lo_xs = xss.cbegin();
-  iterator hi_xs = xss.cend();
-  int id = std::numeric_limits<int>::lowest();
-  return pasl::pctl::level2::reduce(lo_xs, hi_xs, id, combine, lift_comp_rng,
-                                    lift, seq_reduce_rng);
+  return level2::reduce(lo, hi, id, combine, lift_comp_rng,
+                                    lift_idx, seq_reduce_rng);
 }
   
+} // end namespace
+} // end namespace
 } // end namespace
 
 /***********************************************************************/

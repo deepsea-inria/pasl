@@ -48,6 +48,8 @@ Granularity control
 
 Define *cost function* here.
 
+Introduce `fork2` and `cstmt` here.
+
 Containers
 ==========
 
@@ -1959,7 +1961,7 @@ implementation of this particular parallel-for loop, there is an
 operation that is being called to precompute the cost of computing any
 subrange of the parallel-for loop iterations.
 
-### The `weights` operation
+### The `weights` operation {#pfor-weights}
 
 This operation is a function which takes a number `n` and a weight
 function `w` and returns a *weight table*.
@@ -2065,7 +2067,7 @@ a sequence of dot products on a specified range. In particular, the
 products. In this way, we have bypassed having to calculate the
 weights table by providing such a range-based complexity function.
 
-### Sequential-alternative loop bodies
+### Sequential-alternative loop bodies {#pfor-sequential-alt}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 namespace pasl {
@@ -2866,6 +2868,9 @@ specifically for an individual item in the input.
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 int max1(const parray<parray<int>>& xss) {
+  auto lo = xss.cbegin();
+  auto hi = xss.cend();
+  int id = std::numeric_limits<int>::lowest();
   auto combine = [&] (int x, int y) {
     return std::max(x, y);
   };
@@ -2875,9 +2880,6 @@ int max1(const parray<parray<int>>& xss) {
   auto lift = [&] (const parray<int>& xs) {
     return max(xs);
   };
-  auto lo = xss.cbegin();
-  auto hi = xss.cend();
-  int id = std::numeric_limits<int>::lowest();
   return level1::reduce(lo, hi, id, combine, lift_comp, lift);
 }
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -2905,17 +2907,6 @@ to a corresponding value of type `Result`. In the example above, our
 a value of type `int`. 
 
 ##### Index-passing reduce and scan
-
-Sometimes, it is useful for reduce and scan to pass to their lift
-function an extra argument: the corresponding position of the item in
-the input sequence. For this reason, pctl provides for each of the
-level 1 functions a corresponding *index-passing* version. For
-instance, the `reducei` function below now takes a `lift_idx` function
-instead of the usual a `lift` function.  This new, index-passing
-version of the lift function itself takes an additional position
-argument: for item $xs_i$, the lift function is now applied by
-`reducei` to each element as before, but along with the position of
-the item (i.e., $\mathtt{lift\_idx}(i, xs_i)$).
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 namespace pasl {
@@ -2979,6 +2970,16 @@ parray<Result> scani(Iter lo,
 } } }
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+Sometimes, it is useful for reduce and scan to pass to their lift
+function an extra argument: the corresponding position of the item in
+the input sequence. For this reason, pctl provides for each of the
+level 1 functions a corresponding *index-passing* version. For
+instance, the `reducei` function below now takes a `lift_idx` function
+instead of the usual a `lift` function.  This new, index-passing
+version of the lift function itself takes an additional position
+argument: for item $xs_i$, the lift function is now applied by
+`reducei` to each element as before, but along with the position of
+the item (i.e., $\mathtt{lift\_idx}(i, xs_i)$).
 
 ##### Template parameters
 
@@ -3091,21 +3092,6 @@ long operator()(long pos, const Item& x);
 
 #### Level 2 {#red-l-2}
 
-+----------------------------+-----------------------------------+
-| Template parameter         | Description                       |
-+============================+===================================+
-| [`Seq_reduce_rng`](#r2-l)  | Sequential alternative body for   |
-|                            |the reduce operation               |
-+----------------------------+-----------------------------------+
-| [`Lift_comp_rng`](#r2-w)   | Range-based lift complexity       |
-|                            |function                           |
-+----------------------------+-----------------------------------+
-|[`Seq_scan_rng_dst`](#r2-ss)| Sequential alternative body for   |
-|                            |the scan operation                 |
-+----------------------------+-----------------------------------+
-
-Table: Template parameters that are introduced in level 2.
-
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 namespace pasl {
 namespace pctl {
@@ -3127,14 +3113,6 @@ Result reduce(Iter lo,
               Lift_idx lift_idx,
               Seq_reduce_rng seq_reduce_rng);
 
-} } }
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-namespace pasl {
-namespace pctl {
-namespace level2 {
-
 template <
   class Iter,
   class Result,
@@ -3155,7 +3133,105 @@ parray<Result> scan(Iter lo,
 } } }
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-##### Sequential alternative body for the lifting operator {#r2-l}
+In the [section on parallel for loops](#pfor-sequential-alt), we saw
+that we can combine two algorithms, one parallel and one sequential,
+to make a hybrid algorithm that combines the best features of both
+algorithms. We rely on the underlying granularity-control algorithm of
+pctl to switch intelligently between the parallel and sequential
+algorithms as the program runs.
+
+Now, we are going to see how we can apply a similar technique for
+reductions. Continuing with our running example, let us consider how
+we would solve the same problem, that is, to find the maximum value in
+an array of arrays of numbers, but this time in a purely sequential
+setting. The `max_seq` function below solves this problem by storing
+intermediate results in a sequential accumulator variable, `m`.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+template <class Iter>
+int max_seq(Iter lo, Iter hi) {
+  int m = std::numeric_limits<int>::lowest();
+  for (Iter i = lo; i != hi; i++) {
+    const parray<int>& xs = *i;
+    for (auto j = xs.cbegin(); j != xs.cend(); j++) {
+      m = std::max(m, *j);
+    }
+  }
+  return m;
+}
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Just by simple inspection, we can see that the `max_seq` function pays
+no cost for parallelization whatsoever. Therefore, our goal is to
+arrange that the `max_seq` function is the code that gets run by our
+granularity-control algorithm whenever the algorithm determines that a
+subproblem is small enough to run sequentially.
+
+Now, let us consider our new solution, the `max2` function.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+int max2(const parray<parray<int>>& xss) {
+  using const_iterator = typename parray<parray<int>>::const_iterator;
+  const_iterator lo = xss.cbegin();
+  const_iterator hi = xss.cend();
+  int id = std::numeric_limits<int>::lowest();
+  parray<long> w = weights(xss.size(), [&] (const parray<int>& xs) {
+    return xs.size();
+  });
+  auto combine = [&] (int x, int y) {
+    return std::max(x, y);
+  };
+  const_iterator b = lo;
+  auto lift_comp_rng = [&] (const_iterator lo, const_iterator hi) {
+    return w[hi - b] - w[lo - b];
+  };
+  auto lift_idx = [&] (long, const parray<int>& xs) {
+    return max(xs);
+  };
+  auto seq_reduce_rng = [&] (const_iterator lo, const_iterator hi) {
+    return max_seq(lo, hi);
+  };
+  return level2::reduce(lo, hi, id, combine, lift_comp_rng, lift_idx,
+                        seq_reduce_rng);
+}
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Compared to our `max1` function, we can see two differences:
+
+1. The complexity function for lift, namely `lift_comp_rng`,
+calculates the cost for a given range of input values rather than for
+a given individual value. The cost is precomputed by the `weights`
+function, which is described in a [previous section](#pfor-weights).
+
+2. The last argument to the reduce function is the sequential
+alternative body, namely `seq_reduce_rng`. This function returns the
+result of our `max_seq` function.
+
+To summarize, our level-1 solution, namely `max1`, had a parallel
+solution that was expressed by nested instances of our reduce
+functions. In this section, we saw how to use the level-2 reduce
+function to combine parallel and sequential solutions to make a hybrid
+solution.
+
+##### Template parameters
+
++----------------------------+-----------------------------------+
+| Template parameter         | Description                       |
++============================+===================================+
+| [`Seq_reduce_rng`](#r2-l)  | Sequential alternative body for   |
+|                            |the reduce operation               |
++----------------------------+-----------------------------------+
+| [`Lift_comp_rng`](#r2-w)   | Range-based lift complexity       |
+|                            |function                           |
++----------------------------+-----------------------------------+
+|[`Seq_scan_rng_dst`](#r2-ss)| Sequential alternative body for   |
+|                            |the scan operation                 |
++----------------------------+-----------------------------------+
+
+Table: Template parameters that are introduced in level 2.
+
+
+###### Sequential alternative body for the lifting operator {#r2-l}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 class Seq_reduce_rng;
@@ -3169,7 +3245,7 @@ should provide a call operator with the following type.
 Result operator()(Iter lo, Iter hi);
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-##### Range-based lift-complexity function {#r2-w}
+###### Range-based lift-complexity function {#r2-w}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 class Lift_comp_rng;
@@ -3185,7 +3261,7 @@ hi)` of the input sequence.
 long operator()(Iter lo, Iter hi);
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-##### Sequential alternative body for the scan operation {#r2-ss}
+###### Sequential alternative body for the scan operation {#r2-ss}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 class Seq_scan_rng_dst;
@@ -3200,72 +3276,7 @@ provide a call operator with the following type.
 Result operator()(Iter lo, Iter hi, typename parray<Result>::iterator dst_lo);
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-##### Examples            
-
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-int max2(const parray<parray<int>>& xss) {
-  using iterator = typename parray<parray<int>>::const_iterator;
-  parray<long> w = weights(xss.size(), [&] (const parray<int>& xs) {
-    return xs.size();
-  });
-  auto lift_comp_rng = [&] (iterator lo_xs, iterator hi_xs) {
-    long lo = lo_xs - xss.cbegin();
-    long hi = hi_xs - xss.cbegin();
-    return w[hi] - w[lo];
-  };
-  auto combine = [&] (int x, int y) {
-    return std::max(x, y);
-  };
-  auto lift = [&] (long, const parray<int>& xs) {
-    return max(xs);
-  };
-  auto seq_reduce_rng = [&] (iterator lo_xs, iterator hi_xs) {
-    return max_seq(lo_xs, hi_xs);
-  };
-  iterator lo_xs = xss.cbegin();
-  iterator hi_xs = xss.cend();
-  int id = std::numeric_limits<int>::lowest();
-  return level2::reduce(lo_xs, hi_xs, id, combine, lift_comp_rng,
-                        lift, seq_reduce_rng);
-}
-
-template <class Iter>
-int max_seq(Iter lo_xs, Iter hi_xs) {
-  int m = std::numeric_limits<int>::lowest();
-  for (Iter it_xs = lo_xs; it_xs != hi_xs; it_xs++) {
-    const parray<int>& xs = *it_xs;
-    for (auto it_x = xs.cbegin(); it_x != xs.cend(); it_x++) {
-      m = std::max(m, *it_x);
-    }
-  }
-  return m;
-}
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Example source code in [max.hpp] and [max.cpp].
-
 #### Level 3 {#red-l-3}
-
-+------------------------------------+--------------------------------+
-| Template parameter                 | Description                    |
-+====================================+================================+
-| [`Input_iter`](#r3-iit)            | Type of an iterator for input  |
-|                                    |values                          |
-+------------------------------------+--------------------------------+
-| [`Output_iter`](#r3-oit)           | Type of an iterator for output |
-|                                    |values                          |
-+------------------------------------+--------------------------------+
-| [`Output`](#r3-o)                  | Type of the object to manage   |
-|                                    |the output of the reduction     |
-+------------------------------------+--------------------------------+
-| [`Lift_idx_dst`](#r3-dpl)          | Lift function in               |
-|                                    |destination-passing style       |
-+------------------------------------+--------------------------------+
-| [`Seq_reduce_rng_dst`](#r3-dpl-seq)| Sequential reduce function in  |
-|                                    |destination-passing style       |
-+------------------------------------+--------------------------------+
-
-Table: Template parameters that are introduced in level 3.
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 namespace pasl {
@@ -3289,14 +3300,6 @@ void reduce(Input_iter lo,
             Lift_idx_dst lift_idx_dst,
             Seq_reduce_rng_dst seq_reduce_rng_dst);
 
-} } }
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-namespace pasl {
-namespace pctl {
-namespace level3 {
-
 template <
   class Input_iter,
   class Output,
@@ -3318,6 +3321,27 @@ void scan(Input_iter lo,
 
 } } }
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
++------------------------------------+--------------------------------+
+| Template parameter                 | Description                    |
++====================================+================================+
+| [`Input_iter`](#r3-iit)            | Type of an iterator for input  |
+|                                    |values                          |
++------------------------------------+--------------------------------+
+| [`Output_iter`](#r3-oit)           | Type of an iterator for output |
+|                                    |values                          |
++------------------------------------+--------------------------------+
+| [`Output`](#r3-o)                  | Type of the object to manage   |
+|                                    |the output of the reduction     |
++------------------------------------+--------------------------------+
+| [`Lift_idx_dst`](#r3-dpl)          | Lift function in               |
+|                                    |destination-passing style       |
++------------------------------------+--------------------------------+
+| [`Seq_reduce_rng_dst`](#r3-dpl-seq)| Sequential reduce function in  |
+|                                    |destination-passing style       |
++------------------------------------+--------------------------------+
+
+Table: Template parameters that are introduced in level 3.
 
 ##### Input iterator {#r3-iit}
 
@@ -3508,6 +3532,52 @@ TODO
 
 #### Level 4 {#red-l-4}
 
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+namespace pasl {
+namespace pctl {
+namespace level4 {
+
+template <
+  class Input,
+  class Output,
+  class Result,
+  class Convert_reduce_comp,
+  class Convert_reduce,
+  class Seq_convert_reduce
+>
+void reduce(Input& in,
+            Output out,
+            Result id,
+            Result& dst,
+            Convert_reduce_comp convert_comp,
+            Convert_reduce convert,
+            Seq_convert_reduce seq_convert);
+
+template <
+  class Input,
+  class Output,
+  class Result,
+  class Output_iter,
+  class Merge_comp,
+  class Convert_reduce_comp,
+  class Convert_reduce,
+  class Convert_scan,
+  class Seq_convert_scan
+>
+void scan(Input& in,
+          Output out,
+          Result& id,
+          Output_iter outs_lo,
+          Merge_comp merge_comp,
+          Convert_reduce_comp convert_reduce_comp,
+          Convert_reduce convert_reduce,
+          Convert_scan convert_scan,
+          Seq_convert_scan seq_convert_scan,
+          scan_type st);
+            
+} } }
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
 +---------------------------------+-----------------------------------+
 | Template parameter              | Description                       |
 +=================================+===================================+
@@ -3536,60 +3606,6 @@ TODO
 +---------------------------------+-----------------------------------+
 
 Table: Template parameters that are introduced in level 4.
-
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-namespace pasl {
-namespace pctl {
-namespace level4 {
-
-template <
-  class Input,
-  class Output,
-  class Result,
-  class Convert_reduce_comp,
-  class Convert_reduce,
-  class Seq_convert_reduce
->
-void reduce(Input& in,
-            Output out,
-            Result id,
-            Result& dst,
-            Convert_reduce_comp convert_comp,
-            Convert_reduce convert,
-            Seq_convert_reduce seq_convert);
-            
-} } }
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-namespace pasl {
-namespace pctl {
-namespace level4 {
-
-template <
-  class Input,
-  class Output,
-  class Result,
-  class Output_iter,
-  class Merge_comp,
-  class Convert_reduce_comp,
-  class Convert_reduce,
-  class Convert_scan,
-  class Seq_convert_scan
->
-void scan(Input& in,
-          Output out,
-          Result& id,
-          Output_iter outs_lo,
-          Merge_comp merge_comp,
-          Convert_reduce_comp convert_reduce_comp,
-          Convert_reduce convert_reduce,
-          Convert_scan convert_scan,
-          Seq_convert_scan seq_convert_scan,
-          scan_type st);
-
-} } }
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 ##### Input {#r4-i}
 
