@@ -58,18 +58,6 @@ int max1(const parray<parray<int>>& xss) {
   return level1::reduce(lo, hi, id, combine, lift_comp, lift);
 }
 
-template <class Iter>
-int max_seq(Iter lo, Iter hi) {
-  int m = std::numeric_limits<int>::lowest();
-  for (Iter i = lo; i != hi; i++) {
-    const parray<int>& xs = *i;
-    for (auto j = xs.cbegin(); j != xs.cend(); j++) {
-      m = std::max(m, *j);
-    }
-  }
-  return m;
-}
-
 int max2(const parray<parray<int>>& xss) {
   using const_iterator = typename parray<parray<int>>::const_iterator;
   const_iterator lo = xss.cbegin();
@@ -89,10 +77,51 @@ int max2(const parray<parray<int>>& xss) {
     return max(xs);
   };
   auto seq_reduce_rng = [&] (const_iterator lo, const_iterator hi) {
-    return max_seq(lo, hi);
+    int m = id;
+    for (const_iterator i = lo; i != hi; i++) {
+      for (auto j = i->cbegin(); j != i->cend(); j++) {
+        m = std::max(m, *j);
+      }
+    }
+    return m;
   };
   return level2::reduce(lo, hi, id, combine, lift_comp_rng,
                                     lift_idx, seq_reduce_rng);
+}
+  
+int max3(const parray<parray<int>>& xss) {
+  using const_iterator = typename parray<parray<int>>::const_iterator;
+  const_iterator lo = xss.cbegin();
+  const_iterator hi = xss.cend();
+  int id = std::numeric_limits<int>::lowest();
+  parray<long> w = weights(xss.size(), [&] (const parray<int>& xs) {
+    return xs.size();
+  });
+  auto combine = [&] (int x, int y) {
+    return std::max(x, y);
+  };
+  using output_type = level3::cell_output<int, decltype(combine)>;
+  output_type out(id, combine);
+  const_iterator b = lo;
+  auto lift_comp_rng = [&] (const_iterator lo, const_iterator hi) {
+    return w[hi - b] - w[lo - b];
+  };
+  auto lift_idx_dst = [&] (int, const parray<int>& xs, int& result) {
+    result = max(xs);
+  };
+  auto seq_reduce_rng = [&] (const_iterator lo, const_iterator hi, int& result) {
+    int m = id;
+    for (const_iterator i = lo; i != hi; i++) {
+      for (auto j = i->cbegin(); j != i->cend(); j++) {
+        m = std::max(m, *j);
+      }
+    }
+    result = m;
+  };
+  int result;
+  level3::reduce(lo, hi, out, id, result, lift_comp_rng,
+                 lift_idx_dst, seq_reduce_rng);
+  return result;
 }
   
 } // end namespace

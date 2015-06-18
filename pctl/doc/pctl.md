@@ -1151,7 +1151,7 @@ concept.
 | [destructor](#pset-destr)         | destructs a container             |
 +-----------------------------------+-----------------------------------+
 
-Table: Parallel chunked sequence constructors and destructors.
+Table: Parallel set constructors and destructors.
 
 ### Empty container constructor {#pset-e-c-c}
 
@@ -3140,34 +3140,10 @@ algorithms. We rely on the underlying granularity-control algorithm of
 pctl to switch intelligently between the parallel and sequential
 algorithms as the program runs.
 
-Now, we are going to see how we can apply a similar technique for
-reductions. Continuing with our running example, let us consider how
-we would solve the same problem, that is, to find the maximum value in
-an array of arrays of numbers, but this time in a purely sequential
-setting. The `max_seq` function below solves this problem by storing
-intermediate results in a sequential accumulator variable, `m`.
-
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-template <class Iter>
-int max_seq(Iter lo, Iter hi) {
-  int m = std::numeric_limits<int>::lowest();
-  for (Iter i = lo; i != hi; i++) {
-    const parray<int>& xs = *i;
-    for (auto j = xs.cbegin(); j != xs.cend(); j++) {
-      m = std::max(m, *j);
-    }
-  }
-  return m;
-}
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Just by simple inspection, we can see that the `max_seq` function pays
-no cost for parallelization whatsoever. Therefore, our goal is to
-arrange that the `max_seq` function is the code that gets run by our
-granularity-control algorithm whenever the algorithm determines that a
-subproblem is small enough to run sequentially.
-
-Now, let us consider our new solution, the `max2` function.
+Now, we are going to see how we can apply a similar technique to
+reduction. Let us return to the problem of finding the maximum value
+in an array of arrays of numbers. The solution we are going to
+consider is the one given by the `max2` function below.
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 int max2(const parray<parray<int>>& xss) {
@@ -3185,14 +3161,20 @@ int max2(const parray<parray<int>>& xss) {
   auto lift_comp_rng = [&] (const_iterator lo, const_iterator hi) {
     return w[hi - b] - w[lo - b];
   };
-  auto lift_idx = [&] (long, const parray<int>& xs) {
+  auto lift_idx = [&] (int, const parray<int>& xs) {
     return max(xs);
   };
   auto seq_reduce_rng = [&] (const_iterator lo, const_iterator hi) {
-    return max_seq(lo, hi);
+    int m = id;
+    for (const_iterator i = lo; i != hi; i++) {
+      for (auto j = i->cbegin(); j != i->cend(); j++) {
+        m = std::max(m, *j);
+      }
+    }
+    return m;
   };
-  return level2::reduce(lo, hi, id, combine, lift_comp_rng, lift_idx,
-                        seq_reduce_rng);
+  return level2::reduce(lo, hi, id, combine, lift_comp_rng,
+                                    lift_idx, seq_reduce_rng);
 }
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -3204,8 +3186,7 @@ a given individual value. The cost is precomputed by the `weights`
 function, which is described in a [previous section](#pfor-weights).
 
 2. The last argument to the reduce function is the sequential
-alternative body, namely `seq_reduce_rng`. This function returns the
-result of our `max_seq` function.
+alternative body, namely `seq_reduce_rng`.
 
 To summarize, our level-1 solution, namely `max1`, had a parallel
 solution that was expressed by nested instances of our reduce
@@ -3322,123 +3303,55 @@ void scan(Input_iter lo,
 } } }
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-+------------------------------------+--------------------------------+
-| Template parameter                 | Description                    |
-+====================================+================================+
-| [`Input_iter`](#r3-iit)            | Type of an iterator for input  |
-|                                    |values                          |
-+------------------------------------+--------------------------------+
-| [`Output_iter`](#r3-oit)           | Type of an iterator for output |
-|                                    |values                          |
-+------------------------------------+--------------------------------+
-| [`Output`](#r3-o)                  | Type of the object to manage   |
-|                                    |the output of the reduction     |
-+------------------------------------+--------------------------------+
-| [`Lift_idx_dst`](#r3-dpl)          | Lift function in               |
-|                                    |destination-passing style       |
-+------------------------------------+--------------------------------+
-| [`Seq_reduce_rng_dst`](#r3-dpl-seq)| Sequential reduce function in  |
-|                                    |destination-passing style       |
-+------------------------------------+--------------------------------+
-
-Table: Template parameters that are introduced in level 3.
-
-##### Input iterator {#r3-iit}
+In this section, we are going to introduce the
+destination-passing-style interface for reduction and scan. Relative
+to the previous one, this level introduces one new concept. An *output
+descriptor* is a class that describes how objects of type `Result` are
+to be initialized, combined, and copied. Let us see how to use an
+output descriptor by continuing with our running example.
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-class Input_iter;
+int max3(const parray<parray<int>>& xss) {
+  using const_iterator = typename parray<parray<int>>::const_iterator;
+  const_iterator lo = xss.cbegin();
+  const_iterator hi = xss.cend();
+  int id = std::numeric_limits<int>::lowest();
+  parray<long> w = weights(xss.size(), [&] (const parray<int>& xs) {
+    return xs.size();
+  });
+  auto combine = [&] (int x, int y) {
+    return std::max(x, y);
+  };
+  using output_type = level3::cell_output<int, decltype(combine)>;
+  output_type out(id, combine);
+  const_iterator b = lo;
+  auto lift_comp_rng = [&] (const_iterator lo, const_iterator hi) {
+    return w[hi - b] - w[lo - b];
+  };
+  auto lift_idx_dst = [&] (int, const parray<int>& xs, int& result) {
+    result = max(xs);
+  };
+  auto seq_reduce_rng = [&] (const_iterator lo, const_iterator hi, int& result) {
+    int m = id;
+    for (const_iterator i = lo; i != hi; i++) {
+      for (auto j = i->cbegin(); j != i->cend(); j++) {
+        m = std::max(m, *j);
+      }
+    }
+    result = m;
+  };
+  int result;
+  level3::reduce(lo, hi, out, id, result, lift_comp_rng,
+                 lift_idx_dst, seq_reduce_rng);
+  return result;
+}
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-An instance of this class must be an implementation of the
-[random-access
-iterator](http://en.cppreference.com/w/cpp/concept/RandomAccessIterator).
-
-An iterator value of this type points to a value from the input
-stream.
-
-##### Output iterator {#r3-oit}
-
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-class Output_iter;
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-An instance of this class must be an implementation of the
-[random-access
-iterator](http://en.cppreference.com/w/cpp/concept/RandomAccessIterator).
-
-An iterator value of this type points to a value from the output
-stream.
-                                      
-##### Output {#r3-o}
-
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-class Output;
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Type of the object to receive the output of the reduction.
-
-
-+-----------------------------+-------------------------------------+
-| Constructor                 | Description                         |
-+=============================+=====================================+
-| [copy constructor](#ro-c-c) | Copy constructor                    |
-+-----------------------------+-------------------------------------+
-
-Table: Constructors that are required for the `Output` class.
-
-Table: Required constructors for the `Output` class.
-
-+-------------------------+-------------------------------------+
-| Public method           | Description                         |
-+=========================+=====================================+
-| [`init`](#ro-i)         | Initialize given result object      |
-+-------------------------+-------------------------------------+
-| [`copy`](#ro-cop)       | Copy the contents of a specified    |
-|                         |object to a specified cell           |
-+-------------------------+-------------------------------------+
-| [`merge`](#ro-m)        | Merge result objects                |
-+-------------------------+-------------------------------------+
-
-Table: Public methods that are required for the `Output` class.
-
-###### Copy constructor {#ro-c-c}
-
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-Output(const Output& other);
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Copy constructor.
-
-##### Result initializer {#ro-i}
-
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-void init(Result& dst) const;
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Initialize the contents of the result object referenced by `dst`.
-
-###### Copy {#ro-cop}
-
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-void copy(const Result& src, Result& dst) const;
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Copy the contents of `src` to `dst`.
-
-###### Merge {#ro-m}
-
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-void merge(Result& src, Result& dst) const;                    // (1)
-void merge(Output_iter lo, Output_iter hi, Result& dst) const; // (2)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-(1) Merge the contents of `src` and `dst`, leaving the result in
-`dst`.
-
-(2) Merge the contents of the cells in the right-open range `[lo,
-hi)`, leaving the result in `dst`.
-
-###### Example: cell output {#ro-co}
+The only change in `max3` relative to `max2` is the use of the output
+descriptor `cell_output`. This output descriptor is the simplest
+output descriptor: all it does is apply the given combining operator
+directly to its arguments, writing the result into a destination
+cell. The implementation of the cell output is shown below.
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 namespace pasl {
@@ -3486,7 +3399,179 @@ public:
 } } }
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-##### Destination-passing-style lift {#r3-dpl}
+The constructor takes the identity element and associative combining
+operator and stores them in member fields. The `init` method writes
+the identity element into the given destination cell. The `copy`
+method simply copies the value in `src` to the `dst` cell. There are
+two `merge` methods: the first one applies the combining operator,
+leaving the result in the `dst` cell. The second uses the combining
+operator to accumulate a result value from a given range of input
+items, leaving the result in the `dst` cell.
+
+Because it assumes that objects of type `Result` can be copied
+efficiently, the cell output descriptor does not demonstrate the
+benefit of the output-descriptor mechanism. However, the benefit is
+clear when the `Result` objects are container objects, such as
+`pchunkedseq` objects, which require linear work to be copied.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+template <class Chunked_sequence>
+class chunkedseq_output {
+public:
+  
+  using result_type = Chunked_sequence;
+  using const_iterator = const result_type*;
+  
+  result_type id;
+  
+  chunkedseq_output() { }
+  
+  void init(result_type& dst) const {
+    
+  }
+  
+  void copy(const result_type& src, result_type& dst) const {
+    dst = src;
+  }
+  
+  void merge(result_type& src, result_type& dst) const {
+    dst.concat(src);
+  }
+  
+  void merge(const_iterator lo, const_iterator hi, result_type& dst) const {
+    dst = id;
+    for (const_iterator it = lo; it != hi; it++) {
+      merge(*it, dst);
+    }
+  }
+  
+};
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The first `merge` method concatenates the `src` and `dst` containers,
+leaving the result in `dst` and taking logarithmic work to
+complete. As such, the chunkedseq output descriptor can merge results
+taking logarithmic work in the size of the chunked sequence, thereby
+avoiding costly linear-work copy merges that would be imposed if we
+were to instead use the cell output descriptor for the same task.
+
+##### Template parameters
+
++------------------------------------+--------------------------------+
+| Template parameter                 | Description                    |
++====================================+================================+
+| [`Input_iter`](#r3-iit)            | Type of an iterator for input  |
+|                                    |values                          |
++------------------------------------+--------------------------------+
+| [`Output_iter`](#r3-oit)           | Type of an iterator for output |
+|                                    |values                          |
++------------------------------------+--------------------------------+
+| [`Output`](#r3-o)                  | Type of the object to manage   |
+|                                    |the output of the reduction     |
++------------------------------------+--------------------------------+
+| [`Lift_idx_dst`](#r3-dpl)          | Lift function in               |
+|                                    |destination-passing style       |
++------------------------------------+--------------------------------+
+| [`Seq_reduce_rng_dst`](#r3-dpl-seq)| Sequential reduce function in  |
+|                                    |destination-passing style       |
++------------------------------------+--------------------------------+
+
+Table: Template parameters that are introduced in level 3.
+
+###### Input iterator {#r3-iit}
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+class Input_iter;
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+An instance of this class must be an implementation of the
+[random-access
+iterator](http://en.cppreference.com/w/cpp/concept/RandomAccessIterator).
+
+An iterator value of this type points to a value from the input
+stream.
+
+###### Output iterator {#r3-oit}
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+class Output_iter;
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+An instance of this class must be an implementation of the
+[random-access
+iterator](http://en.cppreference.com/w/cpp/concept/RandomAccessIterator).
+
+An iterator value of this type points to a value from the output
+stream.
+                                      
+###### Output {#r3-o}
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+class Output;
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Type of the object to receive the output of the reduction.
+
+
++-----------------------------+-------------------------------------+
+| Constructor                 | Description                         |
++=============================+=====================================+
+| [copy constructor](#ro-c-c) | Copy constructor                    |
++-----------------------------+-------------------------------------+
+
+Table: Constructors that are required for the `Output` class.
+
++-------------------------+-------------------------------------+
+| Public method           | Description                         |
++=========================+=====================================+
+| [`init`](#ro-i)         | Initialize given result object      |
++-------------------------+-------------------------------------+
+| [`copy`](#ro-cop)       | Copy the contents of a specified    |
+|                         |object to a specified cell           |
++-------------------------+-------------------------------------+
+| [`merge`](#ro-m)        | Merge result objects                |
++-------------------------+-------------------------------------+
+
+Table: Public methods that are required for the `Output` class.
+
+###### Copy constructor {#ro-c-c}
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+Output(const Output& other);
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Copy constructor.
+
+###### Result initializer {#ro-i}
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+void init(Result& dst) const;
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Initialize the contents of the result object referenced by `dst`.
+
+###### Copy {#ro-cop}
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+void copy(const Result& src, Result& dst) const;
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Copy the contents of `src` to `dst`.
+
+###### Merge {#ro-m}
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+void merge(Result& src, Result& dst) const;                    // (1)
+void merge(Output_iter lo, Output_iter hi, Result& dst) const; // (2)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+(1) Merge the contents of `src` and `dst`, leaving the result in
+`dst`.
+
+(2) Merge the contents of the cells in the right-open range `[lo,
+hi)`, leaving the result in `dst`.
+
+###### Destination-passing-style lift {#r3-dpl}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 class Lift_idx_dst;
@@ -3505,7 +3590,7 @@ The value that is passed in for `pos` is the index in the input
 sequence of the item `x`. The object referenced by `dst` is the object
 to receive the result of the lift function.
 
-##### Destination-passing-style sequential lift {#r3-dpl-seq}
+###### Destination-passing-style sequential lift {#r3-dpl-seq}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 class Seq_reduce_rng_dst;
@@ -3526,10 +3611,6 @@ input. The range is specified by the right-open range `[lo, hi)`. The
 object referenced by `dst` is the object to receive the result of the
 sequential lift function.
 
-##### Examples
-
-TODO
-
 #### Level 4 {#red-l-4}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
@@ -3548,7 +3629,7 @@ template <
 void reduce(Input& in,
             Output out,
             Result id,
-            Result& dst,
+            Result dst,
             Convert_reduce_comp convert_comp,
             Convert_reduce convert,
             Seq_convert_reduce seq_convert);
@@ -3566,7 +3647,7 @@ template <
 >
 void scan(Input& in,
           Output out,
-          Result& id,
+          Result id,
           Output_iter outs_lo,
           Merge_comp merge_comp,
           Convert_reduce_comp convert_reduce_comp,
@@ -4025,16 +4106,17 @@ void merge(Input_iter first1, Input_iter last1,
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 namespace pasl {
 namespace pctl {
+namespace chunked {
 
 template <class Item, class Compare>
-pchunkedseq<Item> pcmerge(pchunkedseq<Item>& xs, pchunkedseq<Item>& ys,
-                          Compare compare);
+pchunkedseq<Item> merge(pchunkedseq<Item>& xs, pchunkedseq<Item>& ys,
+                        Compare compare);
 
 template <class Item, class Weight, class Compare>
-pchunkedseq<Item> pcmerge(pchunkedseq<Item>& xs, pchunkedseq<Item>& ys,
-                          Weight weight, Compare compare);
+pchunkedseq<Item> merge(pchunkedseq<Item>& xs, pchunkedseq<Item>& ys,
+                        Weight weight, Compare compare);
 
-} }
+} } }
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
@@ -4084,30 +4166,32 @@ void sort(Iter lo, Iter hi, Weight_rng weight_rng, Compare compare);
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 namespace pasl {
 namespace pctl {
+namespace pchunked {
 
 template <class Item, class Compare>
-pchunkedseq<Item> pcmergesort(pchunkedseq<Item>& xs, Compare compare);
+pchunkedseq<Item> sort(pchunkedseq<Item>& xs, Compare compare);
 
 template <class Item, class Weight, class Compare>
-pchunkedseq<Item> pcmergesort(pchunkedseq<Item>& xs,
-                              Weight weight,
-                              Compare compare);
+pchunkedseq<Item> sort(pchunkedseq<Item>& xs,
+                       Weight weight,
+                       Compare compare);
 
 
-} }
+} } }
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 namespace pasl {
 namespace pctl {
+namespace pchunked {
 namespace range {
 
 template <class Item, class Weight_rng, class Compare>
-pchunkedseq<Item> pcmergesort(pchunkedseq<Item>& xs,
-                              Weight_rng weight_rng,
-                              Compare compare);
+pchunkedseq<Item> sort(pchunkedseq<Item>& xs,
+                       Weight_rng weight_rng,
+                       Compare compare);
 
-} } }
+} } } }
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 
@@ -4131,9 +4215,10 @@ void integersort(Iter lo, Iter hi);
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 namespace pasl {
 namespace pctl {
+namespace pchunked {
 
 template <class Integer>
 pchunkedseq<Integer> integersort(pchunekdseq<Integer>& xs);
 
-} }
+} } }
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

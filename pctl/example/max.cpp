@@ -44,6 +44,11 @@ void ex() {
     std::cout << "max2(xss)\t= " << max2(xss) << std::endl;
   }
   
+  {
+    std::cout << "xss\t\t= " << xss << std::endl;
+    std::cout << "max3(xss)\t= " << max3(xss) << std::endl;
+  }
+  
 }
 
 } // end namespace

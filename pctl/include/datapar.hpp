@@ -637,6 +637,8 @@ class chunkedseq_output {
 public:
   
   using result_type = Chunked_sequence;
+  using array_type = parray<result_type>;
+  using const_iterator = typename array_type::const_iterator;
   
   result_type id;
   
@@ -646,8 +648,19 @@ public:
     
   }
   
+  void copy(const result_type& src, result_type& dst) const {
+    dst = src;
+  }
+  
   void merge(result_type& src, result_type& dst) const {
     dst.concat(src);
+  }
+  
+  void merge(const_iterator lo, const_iterator hi, result_type& dst) const {
+    dst = id;
+    for (const_iterator it = lo; it != hi; it++) {
+      merge(*it, dst);
+    }
   }
   
 };

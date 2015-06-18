@@ -559,6 +559,18 @@ public:
     back_outer.swap(other.back_outer);
   }
   
+  chunkedseqbase& operator=(const chunkedseqbase& other) {
+    new (&front_outer) chunk_type(other.front_outer);
+    new (&front_inner) chunk_type(other.front_inner);
+    new (&back_inner) chunk_type(other.back_inner);
+    new (&back_outer) chunk_type(other.back_outer);
+    new (&chunk_meas) chunk_measure_type(other.chunk_meas);
+    new (&middle_meas) middle_measure_type(other.middle_meas);
+    middle.reset(new middle_type(*other.middle));
+    check();
+    return *this;
+  }
+  
   chunkedseqbase& operator=(chunkedseqbase&& other) {
     middle_meas = std::move(middle_meas);
     chunk_meas = std::move(chunk_meas);
