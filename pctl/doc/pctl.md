@@ -3453,7 +3453,9 @@ leaving the result in `dst` and taking logarithmic work to
 complete. As such, the chunkedseq output descriptor can merge results
 taking logarithmic work in the size of the chunked sequence, thereby
 avoiding costly linear-work copy merges that would be imposed if we
-were to instead use the cell output descriptor for the same task.
+were to instead use the cell output descriptor for the same task. The
+second `merge` method simply combines all items in the range using the
+first `merge` method.
 
 ##### Template parameters
 
@@ -3629,7 +3631,7 @@ template <
 void reduce(Input& in,
             Output out,
             Result id,
-            Result dst,
+            Result& dst,
             Convert_reduce_comp convert_comp,
             Convert_reduce convert,
             Seq_convert_reduce seq_convert);
@@ -3658,6 +3660,203 @@ void scan(Input& in,
             
 } } }
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+In the last level of our scan and reduce operators, we are going to
+introduce one more concept. At this level, reduction and scan no
+longer take as input a pair of iterator values. Instead, the input is
+described in an even more generic form. An *input descriptor* is an
+object that describes a process for dividing an input container into
+two or more pieces. The following input descriptor is the one we use
+to represent a range encoded by a pair or random-access iterator
+values.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+namespace pasl {
+namespace pctl {
+namespace level4 {
+
+template <class Input_iter>
+class random_access_iterator_input {
+public:
+  
+  using self_type = random_access_iterator_input;
+  using array_type = parray<self_type>;
+  
+  Input_iter lo;
+  Input_iter hi;
+  
+  random_access_iterator_input() { }
+  
+  random_access_iterator_input(Input_iter lo, Input_iter hi)
+  : lo(lo), hi(hi) { }
+  
+  bool can_split() const {
+    return size() >= 2;
+  }
+
+  long size() const {
+    return hi - lo;
+  }
+  
+  void split(random_access_iterator_input& dst) {
+    dst = *this;
+    long n = size();
+    assert(n >= 2);
+    Input_iter mid = lo + (n / 2);
+    hi = mid;
+    dst.lo = mid;
+  }
+  
+  array_type split(long) {
+    array_type tmp;
+    return tmp;
+  }
+  
+  self_type slice(const array_type&, long _lo, long _hi) {
+    self_type tmp(lo + _lo, lo + _hi);
+    return tmp;
+  }
+    
+};
+
+} } }
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+As usual, the pair (`lo`, `hi`) represents the right-open index [`lo`,
+`hi`). The `can_split` method returns `true` when the range contains
+at least two elements and `false` otherwise. The `size` method returns
+the number of items in the range. The `split` method divides the range
+in two subranges of approximately the same size, leaving the result in
+`dst`. The `slice` method creates a subrange starting at `lo + _lo`
+and ending at `lo + _hi`.
+
+Now, we are going to see one feature that we have at level 4 that we
+lacked in previous levels. Because we can provide a custom input
+descriptor, we can provide one that destroys its input as the
+reduction operation proceeds. It turns out that this feature is just
+what we need to encode a useful algorithmic pattern: a pattern that
+updates a chunked sequence container in place and all in
+parallel. First, let us see the input descriptor, and then we will see
+it put to work. The chunkedseq input descriptor removes items from a
+chunked sequence structure as the reduction repeatedly divides the
+input.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+template <class Chunkedseq>
+class chunkedseq_input {
+public:
+  
+  using self_type = chunkedseq_input<Chunkedseq>;
+  using array_type = parray<self_type>;
+  
+  Chunkedseq seq;
+  
+  chunkedseq_input(Chunkedseq& _seq) {
+    _seq.swap(seq);
+  }
+  
+  chunkedseq_input(const chunkedseq_input& other) { }
+  
+  bool can_split() const {
+    return seq.size() >= 2;
+  }
+  
+  void split(chunkedseq_input& dst) {
+    long n = seq.size() / 2;
+    seq.split(seq.begin() + n, dst.seq);
+  }
+  
+  array_type split(long) {
+    array_type tmp;
+    assert(false);
+    return tmp;
+  }
+  
+  self_type slice(const array_type&, long _lo, long _hi) {
+    self_type tmp;
+    assert(false);
+    return tmp;
+  }
+  
+};
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Let us see this input descriptor at work. Recall that our
+`pchunkedseq` class provides a `keep_if` method, which removes items
+from the container according to a given predicate function. The
+following example shows how we can remove all odd values from a
+chunked sequence of `int`s.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+pchunkedseq<int> xs = { 3, 10, 35, 2, 2, 100 };
+xs.keep_if([&] (int x) { return x%2 == 0; });
+std::cout << "xs = " << xs << std::endl;
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The output is the following. All the odd values were deleted from the
+container.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+{ 10, 2, 2, 100 }
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The body of this method simply calls to a generic function in the
+`chunked` module, passing references to the chunked sequence object,
+`seq`.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+template <class Pred>
+void keep_if(const Pred& p) {
+  chunked::keep_if(p, seq, seq);
+}
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The body of this function is shown below. Here, we see that, before
+the reduction, we feed the input sequence `xs` to our input
+descriptor, `in`. After the `reduce` operation completes, `xs` is
+going to be empty. All the items that survived the filtering process
+go into the `dst` chunked sequence.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+namespace chunked {
+
+template <class Pred, class Chunkedseq>
+void keep_if(const Pred& p, Chunkedseq& xs, Chunkedseq& dst) {
+  using input_type = level4::chunkedseq_input<Chunkedseq>;
+  using output_type = level3::chunkedseq_output<Chunkedseq>;
+  using value_type = typename Chunkedseq::value_type;
+  input_type in(xs);
+  output_type out;
+  Chunkedseq id;
+  auto convert_reduce_comp = [&] (input_type& in) {
+    return in.seq.size();
+  };
+  auto convert_reduce = [&] (input_type& in, Chunkedseq& dst) {
+    while (! in.seq.empty()) {
+      value_type v = in.seq.pop_back();
+      if (p(v)) {
+        dst.push_front(v);
+      }
+    }
+  };
+  auto seq_convert_reduce = convert_reduce;
+  level4::reduce(in, out, id, dst, convert_reduce_comp,
+                 convert_reduce, seq_convert_reduce);
+}
+
+}
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+To summarize, we saw that input descriptors are general enough to
+describe read-only inputs as well as inputs that are to be consumed
+destructively. The `keep_if` example shows the usefulness of the
+latter input type. Using `keep_if` we can process our input sequence
+destructively and in parallel. As a bonus, during the processing,
+chunks can be reused on the fly by the memory allocator to construct
+the output chunked sequence, thanks to the property that chunks are
+popped off the input sequence as the `reduce` is working.
+
+##### Template parameters
 
 +---------------------------------+-----------------------------------+
 | Template parameter              | Description                       |
@@ -3688,7 +3887,7 @@ void scan(Input& in,
 
 Table: Template parameters that are introduced in level 4.
 
-##### Input {#r4-i}
+###### Input {#r4-i}
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 class Input;
@@ -3767,59 +3966,6 @@ function would return `false`.
 (2) Divide the contents of the current input object into at most `n`
 pieces, returning an array which stores the new pieces.
 
-###### Example: random-access iterator input
-
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
-namespace pasl {
-namespace pctl {
-namespace level4 {
-
-template <class Input_iter>
-class random_access_iterator_input {
-public:
-  
-  using self_type = random_access_iterator_input;
-  using array_type = parray<self_type>;
-  
-  Input_iter lo;
-  Input_iter hi;
-  
-  random_access_iterator_input() { }
-  
-  random_access_iterator_input(Input_iter lo, Input_iter hi)
-  : lo(lo), hi(hi) { }
-  
-  bool can_split() const {
-    return size() >= 2;
-  }
-
-  long size() const {
-    return hi - lo;
-  }
-  
-  void split(random_access_iterator_input& dst) {
-    dst = *this;
-    long n = size();
-    assert(n >= 2);
-    Input_iter mid = lo + (n / 2);
-    hi = mid;
-    dst.lo = mid;
-  }
-  
-  array_type split(long) {
-    array_type tmp;
-    return tmp;
-  }
-  
-  self_type slice(const array_type&, long _lo, long _hi) {
-    self_type tmp(lo + _lo, lo + _hi);
-    return tmp;
-  }
-    
-};
-
-} } }
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 ##### Convert-reduce complexity function {#r4-i-w}
 

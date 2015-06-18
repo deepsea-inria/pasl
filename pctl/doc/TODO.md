@@ -29,8 +29,6 @@ Tasks for anyone
   parallel constructs, e.g., fork2(), which interfere with, say, `gdb`
   sessions.
 
-- Add unit tests for `reduce` function.
-
 - Expand unit tests for `scan` function to test for correct handling
   of indices (e.g., `scani`) and to test the `lift` operator.
 
@@ -46,8 +44,6 @@ Tasks for Mike
 ==============
 
 - Update psort benchmarking program to use new interface.
-
-- Investigate possible memory leak in chunkedseq.
 
 - Later: introduce "weighted parray" and "weighted pchunkedseq"
   structures. The idea is that each of these structures is enriched

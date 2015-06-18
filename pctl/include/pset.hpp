@@ -328,6 +328,10 @@ private:
     return result;
   }
   
+  static container_type merge_par(container_type& xs, container_type& ys) {
+    return merge(xs, ys);
+  }
+  
   static container_type intersect_seq(container_type& xs, container_type& ys) {
     key_compare compare;
     container_type result;
@@ -489,21 +493,45 @@ private:
     return result;
   }
   
+  class merge_output {
+  public:
+    
+    using result_type = container_type;
+    using array_type = parray<result_type>;
+    using const_iterator = typename array_type::const_iterator;
+    
+    void init(result_type& dst) const {
+      
+    }
+    
+    void copy(const result_type& src, result_type& dst) const {
+      dst = src;
+    }
+    
+    void merge(result_type& src, result_type& dst) const {
+      dst = std::move(merge_par(src, dst));
+    }
+    
+    void merge(const_iterator lo, const_iterator hi, result_type& dst) const {
+      for (const_iterator it = lo; it != hi; it++) {
+        merge(*it, dst);
+      }
+    }
+    
+  };
+  
   container_type sort(container_type& xs) {
-    using input_type = level4::chunked_sequence_input<container_type>;
+    using input_type = level4::chunkedseq_input<container_type>;
+    using output_type = merge_output;
     container_type id;
     input_type in(xs);
-    auto combine = [&] (container_type& xs, container_type& ys) {
-      return merge(xs, ys);
-    };
-    using output_type = level3::mergeable_output<decltype(combine), container_type>;
-    output_type out(combine);
+    output_type out;
     container_type result;
     auto convert_reduce_comp = [&] (input_type& in) {
       return in.seq.size(); // later: use correct value
     };
     auto convert_reduce = [&] (input_type& in, container_type& dst) {
-      dst = sort_seq(in.seq);
+      dst = std::move(sort_seq(in.seq));
     };
     auto seq_convert_reduce = convert_reduce;
     level4::reduce(in, out, id, result, convert_reduce_comp, convert_reduce, seq_convert_reduce);

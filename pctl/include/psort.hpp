@@ -161,7 +161,7 @@ Chunkedseq merge(Chunkedseq& xs, Chunkedseq& ys, const Compare& compare) {
 
 template <class Chunkedseq, class Compare>
 Chunkedseq mergesort(Chunkedseq& xs, const Compare& compare) {
-  using input_type = level4::chunked_sequence_input<Chunkedseq>;
+  using input_type = level4::chunkedseq_input<Chunkedseq>;
   Chunkedseq id;
   input_type in(xs);
   using output_type = chunkedseq_merge_output<Chunkedseq, Compare>;

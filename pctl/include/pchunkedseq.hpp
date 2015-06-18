@@ -141,7 +141,7 @@ void for_each(Iter lo, Iter hi, const Visit_item& visit_item) {
 
 template <class Chunkedseq>
 void clear(Chunkedseq& seq) {
-  using input_type = level4::chunked_sequence_input<Chunkedseq>;
+  using input_type = level4::chunkedseq_input<Chunkedseq>;
   using output_type = level3::trivial_output<int>;
   input_type in(seq);
   output_type out;
@@ -210,7 +210,7 @@ void tabulate_dst(long n,
   
 template <class Pred, class Chunkedseq>
 void keep_if(const Pred& p, Chunkedseq& xs, Chunkedseq& dst) {
-  using input_type = level4::chunked_sequence_input<Chunkedseq>;
+  using input_type = level4::chunkedseq_input<Chunkedseq>;
   using output_type = level3::chunkedseq_output<Chunkedseq>;
   using value_type = typename Chunkedseq::value_type;
   input_type in(xs);
