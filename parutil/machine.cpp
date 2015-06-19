@@ -56,7 +56,7 @@ hyperthreading_mode_t htmode_of_string(std::string s) {
     return HYPERTHREADING_USEALL;
   else
     ;
-  printf("bogus hyperthreading mode %s\n", s.c_str(), false);
+  printf("bogus hyperthreading mode %s\n", s.c_str());
   exit(1);
 }
 

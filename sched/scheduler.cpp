@@ -12,6 +12,8 @@ namespace scheduler {
 
 util::worker::controller_factory_t* the_factory;
 
+_private::~_private() {}
+
 bool _private::stay() {
   return ! periodic_set.empty() || ! util::worker::the_group.exit_controller();
 }

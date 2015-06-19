@@ -383,8 +383,7 @@ public:
   }
   
   void frontn(value_type* dst, size_type nb) const {
-    size_t sz = size();
-    assert(nb <= sz);
+    assert(nb <= size());
     for (size_t i = 0; i < nb; i++)
       dst[i] = deque[i];
   }
