@@ -56,3 +56,7 @@ Tasks for Mike
 
 - Implement Vitaly and Anna's extension to granularity control for
   dealing with nested parallelism.
+
+- add pushn/popn methods to pchunkedseq
+
+- remove dead code from fixedcapacity module

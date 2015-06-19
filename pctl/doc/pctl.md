@@ -1017,6 +1017,91 @@ class pset;
 } }
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+The set container stores unique elements in ascending order. Order
+among the container elements is maintained by a comparison operator,
+which is provided by the template parameter `Compare`. The value of
+the elements in the set container cannot be modified once in the
+container, but they can be inserted or removed from the container.
+
+Just like the STL `set` container, our `pset` container provides
+`insert` and `erase` methods. Both methods take logarithmic time in
+the size of the container.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+pset<int> s;
+s.insert(5);
+s.insert(432);
+s.insert(5);
+s.insert(89);
+s.erase(5);
+std::cout << "s = " << s << std::endl;
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+This program prints the following.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+s = { 89, 432 }
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Unlike an STL `set`, our `pset` provides bulk set operations,
+including union (i.e., merge), intersection, and difference. Moreover,
+these methods are highly parallel: they take linear work and
+logarithmic span in the total size of the two containers being
+combined. The `merge` method computes the set union with a given
+container, leaving the result in the targeted container and leaving
+the given container empty.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+pset<int> s1 = { 3, 1, 5, 8, 12 };
+pset<int> s2 = { 3, 54, 8, 9 };
+s1.merge(s2);
+std::cout << "s1 = " << s1 << std::endl;
+std::cout << "s2 = " << s2 << std::endl;
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The output:
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+s1 = { 1, 3, 5, 8, 9, 12, 54 }
+s2 = {  }
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Set intersection is handled in a similar fashion, by the
+`intersection` method.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+pset<int> s1 = { 3, 1, 5, 8, 12 };
+pset<int> s2 = { 3, 54, 8, 9 };
+s1.intersect(s2);
+std::cout << "s1 = " << s1 << std::endl;
+std::cout << "s2 = " << s2 << std::endl;
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The output:
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+s1 = { 3, 8 }
+s2 = {  }
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Set difference is handled similarly by the `diff` method.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
+pset<int> s1 = { 3, 1, 5, 8, 12 };
+pset<int> s2 = { 3, 54, 8, 9 };
+s1.diff(s2);
+std::cout << "s1 = " << s1 << std::endl;
+std::cout << "s2 = " << s2 << std::endl;
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The output:
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+s1 = { 1, 5, 12 }
+s2 = {  }
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
 ## Template parameters
 
 +-----------------------------------+-----------------------------------+
@@ -2271,7 +2356,7 @@ the parallel-for loop is the wrong tool for this job, because it is
 not safe to use a parallel-for loop to accumulate a value in a shared
 memory cell. We need another mechanism if we want to program such
 accumulation patterns. In general, when we have a collection of values
-that we want to combine in a certain fashion, we can usually obtain an
+that we want to combine in a certain fashion, we can often obtain an
 efficient and clean solution by using a *reduction*, which is an
 operation that combines the items in a specified range in a certain
 fashion.
@@ -2673,22 +2758,21 @@ long operator()(const Item& x);
 
 There are two cases to consider for any reduction $\mathtt{reduce}(lo,
 hi, id, f)$ (or, correspondingly, any scan $\mathtt{scan}(lo, hi, id,
-f, st)$ for any scan type $st$): (1) the associative combining operator
-$f$ takes constant time and (2) $f$ does not.
+f, st)$ for any scan type $st$):
 
-***(1) Constant-time associative combining operator.*** The amount of
+1. ***Constant-time associative combining operator.*** The amount of
 work performed by the reduction is $O(hi-lo)$ and the span is $O(\log
 (hi-lo))$.
 
-***(2) Non-constant-time associative combining operator.*** We define
+2. ***Non-constant-time associative combining operator.*** We define
 $\mathcal{R}$ to be the set of all function applications $f(x, y)$
 that are performed in the reduction tree. Then,
 
-- The work performed by the reduction is $O(n + \sum_{f(x, y) \in
-\mathcal{R}(f, id, lo, hi)} W(f(x, y)))$.
+    - The work performed by the reduction is $O(n + \sum_{f(x, y) \in
+    \mathcal{R}(f, id, lo, hi)} W(f(x, y)))$.
 
-- The span of the reduction is $O(\log n \max_{f(x, y) \in
-\mathcal{R}(f, id, lo, hi)} S(f(x, y)))$.
+    - The span of the reduction is $O(\log n \max_{f(x, y) \in
+    \mathcal{R}(f, id, lo, hi)} S(f(x, y)))$.
 
 Under certain conditions, we can use the following lemma to deduce a
 more precise bound on the amount of work performed by the
@@ -2697,8 +2781,8 @@ reduction.
 ***Lemma (Work efficiency).*** For any associative combining operator
 $f$ and weight function $w$, if for any $x$, $y$,
 
-1. $w(f(x, y)) \leq w(x) + w(y)$, and
-2. $W \leq c (w(x) + w(y))$, for some constant $c$,
+- $w(f(x, y)) \leq w(x) + w(y)$, and
+- $W \leq c (w(x) + w(y))$, for some constant $c$,
 
 where $W$ denotes the amount of work performed by the call $f(x, y)$,
 then the amount of work performed by the reduction is $O(\log (hi-lo)
@@ -3089,6 +3173,63 @@ the following type.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.cpp}
 long operator()(long pos, const Item& x);
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+##### Complexity
+ 
+Let us now consider the work and span complexity of a level-1
+reduction $\mathtt{reduce}(lo, hi, id, f, l)$ (or, correspondingly,
+any scan $\mathtt{scan}(lo, hi, id, f, l, st)$ for any scan type
+$st$).  Compared to the previous level, in level 1, we now need to
+account for the costs associated with applications of the lift
+operator. We define $\mathcal{L}$ to be the set of all function
+applications of $l(a)$ that are performed in the leaves of the level-1
+reduction tree and $\mathcal{R}$ to be the set of all function
+applications $f(x, y)$ in the interior nodes of the level-1 reduction
+tree. There are two cases with respect to the associative combining
+operator $f$:
+
+1. ***Constant-time associative combining operator.*** There are two
+cases with respect to the lifting operator $l$.
+
+    a. ***Constant-time lift operator.*** The amount of work performed
+    by the reduction is $O(hi - lo)$ and the span is $O(\log(hi -
+    lo))$.
+
+    b. ***Non-constant-time lift operator.*** The total amount of
+    work performed by the reduction is $O((hi - lo) + \sum_{l(a) \in
+    \mathcal{L}(lo, hi, id, f, l)} W(l(a)))$ and the span is
+    $O(\log(hi - lo)+ \max_{l(a) \in \mathcal{L}(lo, hi, id, f, l)}
+    W(l(a)))$.
+
+2. ***Non-constant-time associative combining operator.*** Then,
+
+    - The work performed by the level-1 reduction is $O(n +
+    \sum_{f(x,  y) \in \mathcal{R}(lo, hi, id, f, l)} W(f(x, y)) +
+    \sum_{l(a) \in  \mathcal{L}(lo, hi, id, f, l)} W(l(a)))$.
+
+    - The span of the reduction is $O(\log n \max_{f(x, y) \in
+    \mathcal{R}(lo, hi, id, f, l)} S(f(x, y)) + \max_{l(a) \in
+    \mathcal{L}(lo, hi, id, f, l)} S(l(a)))$.
+
+Under certain conditions, we can use the following lemma to deduce a
+more precise bound on the amount of work performed by the level-1
+reduction.
+
+***Lemma (Work efficiency).*** For any associative combining operator
+$f$ and weight function $w$, if for any $a$
+
+- $w(l(a)) \leq w(a)$, and
+- $W_l \leq c (\log w(a) \cdot w(a))$, for some constant $c$.
+
+where $W_l$ denotes the amount of work performed by the call $l(a)$,
+and for any $x$, $y$,
+
+- $w(f(x, y)) \leq w(x) + w(y)$, and
+- $W_f \leq c (w(x) + w(y))$, for some constant $c$,
+
+where $W_f$ denotes the amount of work performed by the call $f(x, y)$,
+then the amount of work performed by the reduction is $O(\log (hi-lo)
+\sum_{lo \leq it < hi} (1 + w(*it)))$.
 
 #### Level 2 {#red-l-2}
 
