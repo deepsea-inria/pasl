@@ -123,7 +123,7 @@ public:
   template <class Value>
   static char* spawn(context_pointer cxt, Value val) {
     Value target;
-    if (target = (Value)_pasl_cxt_save(cxt)) {
+    if ( (target = (Value)_pasl_cxt_save(cxt)) ) {
       target->enter(target);
       assert(false);
     }

@@ -152,6 +152,8 @@ private:
 public:
 
   event_t();
+  
+  virtual ~event_t() = 0;
 
   virtual event_type_t get_type () = 0;
 

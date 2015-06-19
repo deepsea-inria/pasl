@@ -167,8 +167,7 @@ public:
   inline thread_p remote_peek() {
     if (remote_can_split())
       assert(false);
-    else
-      return my_ready_threads.front();
+    return my_ready_threads.front();
   }
 
   inline thread_p remote_pop() {

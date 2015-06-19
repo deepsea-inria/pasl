@@ -31,6 +31,8 @@ static inline void fwrite_int64 (FILE* f, int64_t v) {
 
 
 event_t::event_t() {}
+  
+event_t::~event_t() {}
 
 void event_t::print_byte_descr(FILE* f) { }
 
