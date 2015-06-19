@@ -49,6 +49,8 @@ protected:
 
 public:
   
+  virtual ~_private();
+  
   //! Executes the given thread.
   virtual void exec(thread_p t);
   

@@ -290,6 +290,7 @@ public:
     if (! state.compare_exchange_strong(old, ready)) {
       bool b = state.compare_exchange_strong(old, ready);
       assert(b);
+      (void) b; // avoid unused variable warning (used by the assert)
       decr_dependencies(old);
     }
     common::finished();
