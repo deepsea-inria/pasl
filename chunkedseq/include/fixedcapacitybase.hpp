@@ -194,7 +194,14 @@ template <class Alloc>
 void pfill(typename Alloc::pointer first,
            typename Alloc::pointer last,
            typename Alloc::const_reference val) {
-  std::fill(first, last, val);
+  using value_type = typename Alloc::value_type;
+  if (std::is_trivial<value_type>::value) {
+    std::fill(first, last, val);
+  } else {
+    for (auto it = first; it != last; it++) {
+      new (it) value_type(val);
+    }
+  }
 }
 
 /*---------------------------------------------------------------------*/
