@@ -33,7 +33,7 @@ namespace pmem {
 
 template <class Iter, class Item>
 void fill(Iter lo, Iter hi, const Item& val) {
-  if (std::is_trivial<Item>::value) { 
+  if (std::is_trivial<Item>::value) {
     // later: can we relax the above constraint without breaking gcc compatibility?
     range::parallel_for(lo, hi, [&] (Iter lo, Iter hi) { return hi - lo; }, [&] (Iter i) {
       std::fill(i, i+1, val);
@@ -45,7 +45,7 @@ void fill(Iter lo, Iter hi, const Item& val) {
       new (i) Item();
     }, [&] (Iter lo, Iter hi) {
       for (Iter i = lo; i != hi; i++) {
-	new (i) Item();
+        new (i) Item();
       }
     });
   }
