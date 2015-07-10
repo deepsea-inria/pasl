@@ -24,7 +24,7 @@ void ex() {
   {
     parray<int> xs = { 3, 2, 100, 1, 0, -1, -3 };
     std::cout << "xs\t\t\t=\t" << xs << std::endl;
-    sort::mergesort(xs);
+    pasl::pctl::sort(xs.begin(), xs.end(), std::less<int>());
     std::cout << "mergesort(xs)\t=\t" << xs << std::endl;
   }
   std::cout << std::endl;
@@ -34,7 +34,7 @@ void ex() {
   {
     pchunkedseq<int> xs = { 3, 2, 100, 1, 0, -1, -3 };
     std::cout << "xs\t\t\t=\t" << xs << std::endl;
-    std::cout << "mergesort(xs)\t=\t" << sort::mergesort(xs) << std::endl;
+    std::cout << "mergesort(xs)\t=\t" << chunked::sort(xs, std::less<int>()) << std::endl;
   }
   std::cout << std::endl;
 

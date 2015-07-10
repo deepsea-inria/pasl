@@ -93,7 +93,7 @@ class pchunkedseq_mergesort {
 public:
   
   void operator()(pchunkedseq_type& xs) {
-    pchunkedseq_type tmp = sort::pcmergesort(xs, std::less<value_type>());
+    pchunkedseq_type tmp = pchunked::mergesort(xs, std::less<value_type>());
     tmp.seq.swap(xs.seq);
   }
   
@@ -121,7 +121,7 @@ class parray_mergesort {
 public:
   
   void operator()(parray_type& xs) {
-    sort::mergesort(xs.begin(), xs.end(), compare);
+    mergesort(xs.begin(), xs.end(), compare);
   }
   
 };

@@ -31,10 +31,10 @@ std::ostream& operator<<(std::ostream& out, const container_wrapper<Container>& 
 /*---------------------------------------------------------------------*/
 /* Quickcheck generators */
 
-using value_type = long;
+using value_type = int;
 
 const value_type loval = 0;
-const value_type hival = LONG_MAX;
+const value_type hival = 1l<<20;
 
 value_type random_value() {
   return quickcheck::generateInRange(loval, hival);
@@ -54,7 +54,7 @@ void generate(size_t nb, pchunkedseq<value_type>& dst) {
   }
 }
 
-void generate(size_t nb, container_wrapper<parray<long>>& c) {
+void generate(size_t nb, container_wrapper<parray<value_type>>& c) {
   generate(nb, c.c);
 }
   
@@ -64,7 +64,7 @@ void generate(size_t nb, container_wrapper<parray<long>>& c) {
 namespace trusted {
 
 value_type max(const parray<value_type>& xs) {
-  value_type m = LONG_MIN;
+  value_type m = std::numeric_limits<value_type>::lowest();
   for (long i = 0; i < xs.size(); i++) {
     m = std::max(m, xs[i]);
   }

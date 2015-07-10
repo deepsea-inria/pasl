@@ -424,66 +424,43 @@ public:
   }
   
 };
-
-class tabulate_input {
+  
+using tabulate_input = random_access_iterator_input<long>;
+  
+template <class Chunkedseq>
+class chunkedseq_input {
 public:
   
-  using self_type = tabulate_input;
+  using self_type = chunkedseq_input<Chunkedseq>;
   using array_type = parray<self_type>;
   
-  long lo;
-  long hi;
+  Chunkedseq seq;
   
-  tabulate_input(long lo, long hi)
-  : lo(lo), hi(hi) { }
-  
-  tabulate_input(const tabulate_input& other)
-  : lo(other.lo), hi(other.hi) { }
-  
-  bool can_split() const {
-    return size() >= 2;
-  }
-  
-  long size() const {
-    return hi - lo;
-  }
-  
-  void split(tabulate_input& dst) {
-    dst.lo = lo;
-    dst.hi = hi;
-    long n = hi - lo;
-    assert(n >= 2);
-    long mid = lo + (n / 2);
-    hi = mid;
-    dst.lo = mid;
-  }
-  
-  self_type slice(const array_type&, long _lo, long _hi) {
-    self_type tmp(lo + _lo, lo + _hi);
-    return tmp;
-  }
-  
-};
-  
-template <class Chunked_sequence>
-class chunked_sequence_input {
-public:
-  
-  Chunked_sequence seq;
-  
-  chunked_sequence_input(Chunked_sequence& _seq) {
+  chunkedseq_input(Chunkedseq& _seq) {
     _seq.swap(seq);
   }
   
-  chunked_sequence_input(const chunked_sequence_input& other) { }
+  chunkedseq_input(const chunkedseq_input& other) { }
   
   bool can_split() const {
     return seq.size() >= 2;
   }
   
-  void split(chunked_sequence_input& dst) {
+  void split(chunkedseq_input& dst) {
     long n = seq.size() / 2;
     seq.split(seq.begin() + n, dst.seq);
+  }
+  
+  array_type split(long) {
+    array_type tmp;
+    assert(false);
+    return tmp;
+  }
+  
+  self_type slice(const array_type&, long _lo, long _hi) {
+    self_type tmp;
+    assert(false);
+    return tmp;
   }
   
 };
@@ -637,6 +614,8 @@ class chunkedseq_output {
 public:
   
   using result_type = Chunked_sequence;
+  using array_type = parray<result_type>;
+  using const_iterator = typename array_type::const_iterator;
   
   result_type id;
   
@@ -646,28 +625,19 @@ public:
     
   }
   
+  void copy(const result_type& src, result_type& dst) const {
+    dst = src;
+  }
+  
   void merge(result_type& src, result_type& dst) const {
     dst.concat(src);
   }
   
-};
-  
-template <class Combine, class Container>
-class mergeable_output {
-public:
-  
-  using result_type = Container;
-  Combine combine;
-  
-  mergeable_output(const Combine& combine)
-  : combine(combine) { }
-  
-  void init(Container&) const {
-    
-  }
-  
-  void merge(Container& src, Container& dst) const {
-    dst = combine(src, dst);
+  void merge(const_iterator lo, const_iterator hi, result_type& dst) const {
+    dst = id;
+    for (const_iterator it = lo; it != hi; it++) {
+      merge(*it, dst);
+    }
   }
   
 };

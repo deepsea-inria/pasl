@@ -115,7 +115,7 @@ public:
   using measure_type = typename cache_type::measure_type;
   ///@}
 
-  // apparently, we need this seemingly redundant declaration to build with GCC, but not llvm...
+  // apparently, we need this seeminly redundant declaration to build with GCC, but not llvm...
   template <class T1,class T2, class T3, class T4, class T5>
   friend class iterator::random_access;
 
@@ -132,7 +132,7 @@ private:
   // for efficient implementation of emptiness test, additional invariants w.r.t. the paper:
   //  - if front_outer is empty, then front_inner is empty
   //  - if back_outer is empty, then back_inner is empty
-  //  - if either front_outer or back_outer are empty, then middle is empty
+  //  - if front_outer and back_outer are empty, then middle is empty
   chunk_type front_inner, back_inner, front_outer, back_outer;
   std::unique_ptr<middle_type> middle;
 
@@ -213,13 +213,9 @@ private:
       back_outer.swap(front_outer);
     assert(empty() || ! back_outer.empty());
   }
-  
-  void restore_back_or_front_out_nonempty_if_middle_nonempty() {
-    ensure_back_outer_nonempty();
-    ensure_front_outer_nonempty();
-  }
 
-  /*
+  // assumption: invariant "both outer empty implies middle empty" may be broken;
+  // calling this function restores it.
   void restore_both_outer_empty_middle_empty() {
     if (front_outer.empty() && back_outer.empty() && ! middle->empty()) {
       // pop to the front (to the back would also work)
@@ -227,7 +223,7 @@ private:
       front_outer.swap(*c);
       chunk_free(c);
     }
-  } */
+  }
 
   // ensures that inner buffers are empty, by pushing them in the middle if full
   void ensure_empty_inner() {
@@ -402,8 +398,8 @@ private:
         break;
       }
     } // end switch
-    restore_back_or_front_out_nonempty_if_middle_nonempty();
-    other.restore_back_or_front_out_nonempty_if_middle_nonempty();
+    restore_both_outer_empty_middle_empty();
+    other.restore_both_outer_empty_middle_empty();
     return prefix;
   }
 
@@ -563,6 +559,18 @@ public:
     back_outer.swap(other.back_outer);
   }
   
+  chunkedseqbase& operator=(const chunkedseqbase& other) {
+    new (&front_outer) chunk_type(other.front_outer);
+    new (&front_inner) chunk_type(other.front_inner);
+    new (&back_inner) chunk_type(other.back_inner);
+    new (&back_outer) chunk_type(other.back_outer);
+    new (&chunk_meas) chunk_measure_type(other.chunk_meas);
+    new (&middle_meas) middle_measure_type(other.middle_meas);
+    middle.reset(new middle_type(*other.middle));
+    check();
+    return *this;
+  }
+  
   chunkedseqbase& operator=(chunkedseqbase&& other) {
     middle_meas = std::move(middle_meas);
     chunk_meas = std::move(chunk_meas);
@@ -639,9 +647,11 @@ public:
    */
   value_type front() const {
     assert(! front_outer.empty() || front_inner.empty());
-    value_type v;
     if (! front_outer.empty()) {
       return front_outer.front();
+    } else if (! middle->empty()) {
+      chunk_pointer c = middle->front();
+      return c->front();
     } else if (! back_inner.empty()) {
       return back_inner.front();
     } else {
@@ -669,6 +679,9 @@ public:
     assert(! back_outer.empty() || back_inner.empty());
     if (! back_outer.empty()) {
       return back_outer.back();
+    } else if (! middle->empty()) {
+      chunk_pointer c = middle->back();
+      return c->back();
     } else if (! front_inner.empty()) {
       return front_inner.back();
     } else {
@@ -1276,7 +1289,7 @@ public:
     // concatenate the middle sequences
     middle->concat(middle_meas, *other.middle);
     // restore invariants
-    restore_back_or_front_out_nonempty_if_middle_nonempty();
+    restore_both_outer_empty_middle_empty();
     assert(other.empty());
   }
 

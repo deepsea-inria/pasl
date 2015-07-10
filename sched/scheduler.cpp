@@ -12,6 +12,8 @@ namespace scheduler {
 
 util::worker::controller_factory_t* the_factory;
 
+_private::~_private() {}
+
 bool _private::stay() {
   return ! periodic_set.empty() || ! util::worker::the_group.exit_controller();
 }
@@ -84,12 +86,12 @@ void _private::exec(thread_p t) {
   LOG_EVENT(LOCALITY, new util::logging::locality_event_t(logging::LOCALITY_STOP, t->locality.hi));
 #endif
   //! \todo could handle interrupt_was_blocked
+  outstrategy::finished(t, current_outstrategy);
+  LOG_THREAD(THREAD_FINISH, t);
   if (should_not_deallocate || reuse_thread_requested)
     t->reset_caches();
   else
     pasl_delete(t);
-  LOG_THREAD(THREAD_FINISH, t);
-  outstrategy::finished(t, current_outstrategy);
   current_outstrategy = nullptr; // optional
   current_thread = nullptr; // would probably be optional when assertions are disabled
 }

@@ -163,7 +163,7 @@ template <
   class Item,
   class Compare = std::less<Item>,
   class Alloc = std::allocator<Item>,
-  int chunk_capacity = 4
+  int chunk_capacity = 8
 >
 class pset {
 public:
@@ -229,8 +229,17 @@ private:
    *     or equal to `k`, if there is such a position
    *   - the position one past the end of `seq`, otherwise
    */
-  iterator first_larger_or_eq(const key_type& k) const {
+  iterator first_larger_or_eq(const key_type& k) {
     option_type target(k);
+    it.search_by([&] (const option_type& key) {
+      return less_than_or_equal(target, key);
+    });
+    return it;
+  }
+  
+  const_iterator first_larger_or_eq(const key_type& k) const {
+    option_type target(k);
+    const_iterator it = cbegin();
     it.search_by([&] (const option_type& key) {
       return less_than_or_equal(target, key);
     });
@@ -317,6 +326,10 @@ private:
       result = merge_seq(xs, ys);
     });
     return result;
+  }
+  
+  static container_type merge_par(container_type& xs, container_type& ys) {
+    return merge(xs, ys);
   }
   
   static container_type intersect_seq(container_type& xs, container_type& ys) {
@@ -431,8 +444,12 @@ private:
         it.search_by([&] (const option_type& key) {
           return less_than_or_equal(option_type(xs.back()), key);
         });
-        if (! same_option(*it, option_type(xs.back()))) {
+        if (it == ys.end()) {
           result = std::move(xs);
+        } else if (! same_option(*it, option_type(xs.back()))) {
+          result = std::move(xs);
+        } else {
+          result = { };
         }
       } else {
         container_type xs2;
@@ -476,46 +493,103 @@ private:
     return result;
   }
   
+  class merge_output {
+  public:
+    
+    using result_type = container_type;
+    using array_type = parray<result_type>;
+    using const_iterator = typename array_type::const_iterator;
+    
+    void init(result_type& dst) const {
+      
+    }
+    
+    void copy(const result_type& src, result_type& dst) const {
+      dst = src;
+    }
+    
+    void merge(result_type& src, result_type& dst) const {
+      dst = std::move(merge_par(src, dst));
+    }
+    
+    void merge(const_iterator lo, const_iterator hi, result_type& dst) const {
+      for (const_iterator it = lo; it != hi; it++) {
+        merge(*it, dst);
+      }
+    }
+    
+  };
+  
   container_type sort(container_type& xs) {
-    using input_type = level4::chunked_sequence_input<container_type>;
+    using input_type = level4::chunkedseq_input<container_type>;
+    using output_type = merge_output;
     container_type id;
     input_type in(xs);
-    auto combine = [&] (container_type& xs, container_type& ys) {
-      return merge(xs, ys);
-    };
-    using output_type = level3::mergeable_output<decltype(combine), container_type>;
-    output_type out(combine);
+    output_type out;
     container_type result;
     auto convert_reduce_comp = [&] (input_type& in) {
       return in.seq.size(); // later: use correct value
     };
     auto convert_reduce = [&] (input_type& in, container_type& dst) {
-      dst = sort_seq(in.seq);
+      dst = std::move(sort_seq(in.seq));
     };
     auto seq_convert_reduce = convert_reduce;
     level4::reduce(in, out, id, result, convert_reduce_comp, convert_reduce, seq_convert_reduce);
     return result;
   }
   
+  void init() {
+    it = seq.begin();
+  }
+  
+  void uniqify() {
+    seq = sort(seq);
+    init();
+  }
+  
 public:
   
   pset() {
-    it = seq.begin();
+    init();
   }
   
-  pset(const pset& other)
-  : seq(other.seq) {
-    it = seq.begin();
+  ~pset() {
+    clear();
   }
+  
+  pset(const pset& other) {
+    chunked::copy_dst(other.seq.cbegin(), other.seq.cend(), seq);
+    init();
+  }
+  
+  pset(pset&& other)
+  : seq(std::move(other.seq)) { }
   
   pset(std::initializer_list<value_type> xs)
   : seq(xs) {
-    seq = sort(seq);
+    uniqify();
   }
   
   template <class Iter>
   pset(Iter lo, Iter hi) {
-    assert(false); // todo
+    chunked::copy_dst(lo, hi, seq);
+    uniqify();
+  }
+  
+  pset(long sz, const std::function<value_type(long)>& body) {
+    chunked::tabulate_dst(sz, seq, [&] (long i, reference dst) {
+      dst = body(i);
+    });
+    uniqify();
+  }
+  
+  pset(long sz,
+       const std::function<long(long)>& body_comp,
+       const std::function<value_type(long)>& body) {
+    chunked::tabulate_dst(sz, seq, body_comp, [&] (long i, reference dst) {
+      dst = body(i);
+    });
+    uniqify();
   }
   
   size_type size() const {
@@ -526,8 +600,13 @@ public:
     return size() == 0;
   }
   
-  iterator find(const key_type& k) const {
+  iterator find(const key_type& k) {
     iterator it = first_larger_or_eq(k);
+    return (same_key(*it, k)) ? it : seq.end();
+  }
+  
+  const_iterator find(const key_type& k) const {
+    const_iterator it = first_larger_or_eq(k);
     return (same_key(*it, k)) ? it : seq.end();
   }
   
@@ -600,7 +679,7 @@ public:
   }
   
   void clear() {
-    seq.clear();
+    chunked::clear(seq);
   }
   
 };

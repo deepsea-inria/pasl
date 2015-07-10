@@ -26,36 +26,39 @@ namespace pctl {
 template <class Item /*, class Alloc = std::allocator<Item>*/ >
 class pchunkedseq;
 
-namespace segmented {
+namespace chunked {
   
-template <class Iter>
-pchunkedseq<value_type_of<Iter>> copy(Iter lo, Iter hi);
+template <class Iter, class Chunkedseq>
+void copy_dst(Iter lo, Iter hi, Chunkedseq& dst);
   
 template <class Iter, class Visit_segment_idx>
 void for_each_segmenti(Iter lo, Iter hi, const Visit_segment_idx& visit_segment_idx);
   
-template <class Item>
-void clear(pchunkedseq<Item>& pc);
+template <class Chunkedseq>
+void clear(Chunkedseq& seq);
   
-template <class Item, class Body_comp_rng, class Body_idx_dst>
+template <class Item, class Chunkedseq>
+void fill_dst(long n, const Item& x, Chunkedseq& dst);
+  
+template <class Chunkedseq, class Body_comp_rng, class Body_idx_dst>
 void tabulate_rng_dst(long n,
                       const Body_comp_rng& body_comp_rng,
-                      pchunkedseq<Item>& dst,
+                      Chunkedseq& dst,
                       const Body_idx_dst& body_idx_dst);
 
-template <class Item, class Body_comp, class Body_idx_dst>
+template <class Chunkedseq, class Body_comp, class Body_idx_dst>
 void tabulate_dst(long n,
                   const Body_comp& body_comp,
-                  pchunkedseq<Item>& dst,
+                  Chunkedseq& dst,
                   const Body_idx_dst& body_idx_dst);
 
-template <class Item, class Body_idx_dst>
+template <class Chunkedseq, class Body_idx_dst>
 void tabulate_dst(long n,
-                  pchunkedseq<Item>& dst,
+                  Chunkedseq& dst,
                   const Body_idx_dst& body_idx_dst);
   
-template <class Item>
-pchunkedseq<Item> fill(long n, const Item& x);
+template <class Pred, class Chunkedseq>
+void keep_if(const Pred& p, Chunkedseq& xs, Chunkedseq& dst);
   
 } // end namespace
   
@@ -89,8 +92,7 @@ private:
     if (n == 0) {
       return;
     }
-    pchunkedseq<Item> tmp = segmented::fill(n, val);
-    swap(tmp);
+    chunked::fill_dst(n, val, seq);
   }
   
 public:
@@ -105,7 +107,7 @@ public:
   }
   
   pchunkedseq(long sz, const std::function<value_type(long)>& body) {
-    segmented::tabulate_dst(sz, *this, [&] (long i, reference dst) {
+    chunked::tabulate_dst(sz, seq, [&] (long i, reference dst) {
       dst = body(i);
     });
   }
@@ -113,7 +115,7 @@ public:
   pchunkedseq(long sz,
               const std::function<long(long)>& body_comp,
               const std::function<value_type(long)>& body) {
-    segmented::tabulate_dst(sz, *this, body_comp, [&] (long i, reference dst) {
+    chunked::tabulate_dst(sz, seq, body_comp, [&] (long i, reference dst) {
       dst = body(i);
     });
   }
@@ -126,8 +128,7 @@ public:
   }
   
   pchunkedseq(const pchunkedseq& other) {
-    pchunkedseq<Item> tmp = segmented::copy(other.cbegin(), other.cend());
-    swap(tmp);
+    chunked::copy_dst(other.cbegin(), other.cend(), seq);
   }
   
   pchunkedseq(pchunkedseq&& other)
@@ -139,7 +140,7 @@ public:
   }
   
   void clear() {
-    segmented::clear(*this);
+    chunked::clear(seq);
   }
   
   iterator begin() const {
@@ -160,6 +161,11 @@ public:
   
   void swap(pchunkedseq<Item>& other) {
     seq.swap(other.seq);
+  }
+  
+  template <class Pred>
+  void keep_if(const Pred& p) {
+    chunked::keep_if(p, seq, seq);
   }
   
 };

@@ -238,8 +238,8 @@ protected:
   
 public:
   distributed(std::string name)
-  : init_constant_provided_flg(false), private_csts(cost::undefined),
-    common(name) {
+  : common(name), init_constant_provided_flg(false), 
+    private_csts(cost::undefined) {
     util::callback::register_client(this);
   }
   void init();
