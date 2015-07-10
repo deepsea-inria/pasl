@@ -163,7 +163,7 @@ template <
   class Item,
   class Compare = std::less<Item>,
   class Alloc = std::allocator<Item>,
-  int chunk_capacity = 2
+  int chunk_capacity = 4
 >
 class pset {
 public:
