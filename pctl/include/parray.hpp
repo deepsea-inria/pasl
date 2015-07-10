@@ -1,4 +1,4 @@
-             /* COPYRIGHT (c) 2015 Umut Acar, Arthur Chargueraud, and Michael
+/* COPYRIGHT (c) 2015 Umut Acar, Arthur Chargueraud, and Michael
  * Rainey
  * All rights reserved.
  *
@@ -62,9 +62,13 @@ private:
     sz = 0;
   }
   
-  void fill(long n, const value_type& val) {
+  void realloc(long n) {
     destroy();
     alloc(n);
+  }
+  
+  void fill(long n, const value_type& val) {
+    realloc(n);
     pmem::fill(begin(), end(), val);
   }
   
@@ -134,7 +138,7 @@ public:
     if (&other == this) {
       return *this;
     }
-    alloc(other.size());
+    realloc(other.size());
     pmem::copy(other.cbegin(), other.cend(), begin());
     return *this;
   }
@@ -187,7 +191,7 @@ public:
   
   template <class Body>
   void tabulate(long n, const Body& body) {
-    resize(n);
+    realloc(n);
     parallel_for(0l, n, [&] (long i) {
       ptr[i] = body(i);
     });
@@ -195,7 +199,7 @@ public:
   
   template <class Body, class Body_comp_rng>
   void tabulate(long n, const Body_comp_rng& body_comp_rng, const Body& body) {
-    resize(n);
+    realloc(n);
     parallel_for(0l, n, body_comp_rng, [&] (long i) {
       ptr[i] = body(i);
     });
@@ -270,12 +274,10 @@ public:
    
 public:
   
-  //Constructors
   vector_const_iterator()
   : item_pointer(nullptr), weight_pointer(nullptr) {
   }
   
-  //Pointer like operators
   reference operator*()   const {
     return *item_pointer;
   }
@@ -292,7 +294,6 @@ public:
     return weight_pointer;
   }
   
-  //Increment / Decrement
   vector_const_iterator& operator++() {
     ++item_pointer;
     ++weight_pointer;
@@ -319,7 +320,6 @@ public:
     return vector_const_iterator(tmp, tmp_weight);
   }
   
-  //Arithmetic
   vector_const_iterator& operator+=(difference_type off) {
     item_pointer += off;
     weight_pointer += off;
@@ -348,7 +348,6 @@ public:
     return item_pointer - right.item_pointer;
   }
   
-  //Comparison operators
   bool operator==   (const vector_const_iterator& r)  const {
     return item_pointer == r.item_pointer;
   }
@@ -390,10 +389,8 @@ public:
   using pointer = Pointer;
   using reference = reference_of<Pointer>;
   
-  //Constructors
   vector_iterator() {}
   
-  //Pointer like operators
   reference operator*()  const {
     return *this->item_pointer;
   }
@@ -410,7 +407,6 @@ public:
     return this->weight_pointer[off];
   }
   
-  //Increment / Decrement
   vector_iterator& operator++() {
     ++this->item_pointer;
     ++this->weight_pointer;
@@ -435,7 +431,6 @@ public:
     return vector_iterator(tmp);
   }
   
-  // Arithmetic
   vector_iterator& operator+=(difference_type off) {
     this->item_pointer += off;
     this->weight_pointer += off;
