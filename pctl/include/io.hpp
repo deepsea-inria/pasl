@@ -33,6 +33,19 @@ std::ostream& operator<<(std::ostream& out, const parray<Item>& xs) {
   return out;
 }
   
+template <class Item, class Weight>
+std::ostream& operator<<(std::ostream& out, const weighted::parray<Item, Weight>& xs) {
+  out << "{ ";
+  size_t sz = xs.size();
+  for (long i = 0; i < sz; i++) {
+    out << xs[i];
+    if (i+1 < sz)
+      out << ", ";
+  }
+  out << " }";
+  return out;
+}
+  
 template <class Item>
 std::ostream& operator<<(std::ostream& out, const pchunkedseq<Item>& xs) {
   out << "{ ";

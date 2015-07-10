@@ -8,9 +8,12 @@
  *
  */
 
+#include <random>
+
 #include "pasl.hpp"
 #include "io.hpp"
 #include "dpsdatapar.hpp"
+#include "tagged.hpp"
 
 /***********************************************************************/
 
@@ -66,7 +69,6 @@ public:
       if (parent == nullptr) {
         n1 = new snzi2;
         n2 = nullptr;
-        n1->parent = nullptr;
       } else {
         n1 = new snzi2;
         n2 = new snzi2;
@@ -112,10 +114,137 @@ namespace pasl {
 namespace sched {
 namespace outstrategy {
   
-class outlist {
+data::perworker::array<std::mt19937> generator;
+  
+class outlist : public common {
 public:
   
+  static constexpr int N = 5;
   
+  /* one of the following:
+   *   - nullptr
+   *   - value of type thread_p
+   *   - value of type outlist*, 
+   *     with the least-significant bit set to 1
+   */
+  using pointer_type = union {
+    outlist* outlist;
+    thread_p thread;
+  };
+  
+  std::atomic<int> index;
+  std::atomic<pointer_type> items[N];
+  
+  outlist() {
+    index.store(0);
+    for (int i = 0; i < N; i++) {
+      pointer_type ptr = { .thread = nullptr };
+      items[i].store(ptr);
+    }
+  }
+  
+  void add(pointer_type v) {
+    while (true) { // progress since i increases at every iteration, until N
+      int i = index.load();
+      if (i == N) {
+        break;
+      }
+      bool b = index.compare_exchange_strong(i, i + 1);
+      if (! b) {
+        continue;  // concurrent increase of the index
+      }
+      pointer_type old = { .outlist = nullptr };
+      bool b2 = items[i].compare_exchange_strong(old, v);
+      assert(b2 || !b2);
+      return;
+      // if b2 is false, the task has finished concurrently, so we return
+      // if b2 is true, then we successfully added the task, and we return
+    }
+    int k = index.load();
+    if (k == -1) {
+      return; // task has concurrently finished
+    }
+    assert(k == N); // all cells filled
+    std::uniform_int_distribution<int> distribution(0,N-1);
+    int i = distribution(generator.mine()); // could also be based on the processor id
+    while (true) { // process since x has a very constrainted evolution
+      pointer_type x = items[i].load();
+      if (data::tagged::extract_tag<long>(x.outlist) == 1) {
+        outlist* s2 = data::tagged::extract_value<outlist*>(x.outlist);
+        if (s2 == nullptr) {
+          return; // task has concurrently finished
+        }
+        s2->add(v);
+        return;
+      }
+      outlist* s2 = new outlist();
+      if (x.outlist == nullptr) {
+        // x can be null because of the delay between the two cas performed above
+        pointer_type p = { .outlist = s2 };
+        bool b = items[i].compare_exchange_strong(x, p);
+        if (b) {
+          s2->add(v);
+          return;
+        } else {
+          x = items[i].load(); // concurrently set the cell
+        }
+      }
+      if (data::tagged::extract_value<long>(x.outlist) != 1) {
+        s2->index.store(1);
+        s2->items[0].store(x);
+        pointer_type p = { .outlist = data::tagged::create<outlist*, outlist*>(s2, 1) };
+        bool b = items[i].compare_exchange_strong(x, p);
+        if (b) {
+          return;
+        } else {
+          delete s2;
+          assert(data::tagged::extract_tag<long>(items[i].load()) == 1);
+        }
+      } else {
+        delete s2;
+      }
+    }
+  }
+  
+  void add(thread_p t) {
+    pointer_type ptr = { .thread = t };
+    add(ptr);
+  }
+  
+  void finished() {
+    int j = 0;
+    // first, try to block the index
+    while (true) {
+      j = index.load();
+      if (j == N) {
+        break;
+      }
+      bool b = index.compare_exchange_strong(j, -1);
+      if (b) {
+        break;
+      }
+    }
+    // then, try to process cells and to block the leaves.
+    for (int i = 0; i < j; i++) {
+      while (true) {
+        pointer_type x = items[i].load();
+        if (data::tagged::extract_tag<long>(x) == 1) {
+          outlist* s2 = data::tagged::extract_value<outlist*>(x);
+          s2->finished();
+          break;
+        }
+      }
+      pointer_type x = items[i].load();
+      pointer_type p = { .outlist = data::tagged::create<outlist*, outlist*>(nullptr, 1) };
+      bool b = items[i].compare_exchange_strong(x, p); // try to block the cell
+      if (b) {
+        thread_p t = data::tagged::extract_value<thread_p>(x);
+        if (t != nullptr) {
+          decr_dependencies(t);
+        }
+      }
+    }
+  }
   
 };
   
