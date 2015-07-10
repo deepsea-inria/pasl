@@ -17,6 +17,8 @@
 
 #include "ploop.hpp"
 
+#include <type_traits>
+
 #ifndef _PCTL_PMEM_H_
 #define _PCTL_PMEM_H_
 
@@ -31,11 +33,22 @@ namespace pmem {
 
 template <class Iter, class Item>
 void fill(Iter lo, Iter hi, const Item& val) {
-  range::parallel_for(lo, hi, [&] (Iter lo, Iter hi) { return hi - lo; }, [&] (Iter i) {
-    std::fill(i, i+1, val);
-  }, [&] (Iter lo, Iter hi) {
-    std::fill(lo, hi, val);
-  });
+  if (std::is_trivial<Item>::value) { 
+    // later: can we relax the above constraint without breaking gcc compatibility?
+    range::parallel_for(lo, hi, [&] (Iter lo, Iter hi) { return hi - lo; }, [&] (Iter i) {
+      std::fill(i, i+1, val);
+    }, [&] (Iter lo, Iter hi) {
+      std::fill(lo, hi, val);
+    });
+  } else {
+    range::parallel_for(lo, hi, [&] (Iter lo, Iter hi) { return hi - lo; }, [&] (Iter i) {
+      new (i) Item();
+    }, [&] (Iter lo, Iter hi) {
+      for (Iter i = lo; i != hi; i++) {
+	new (i) Item();
+      }
+    });
+  }
 }
   
 template <class Iter, class Output_iterator>

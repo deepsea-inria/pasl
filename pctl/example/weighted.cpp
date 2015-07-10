@@ -51,9 +51,9 @@ namespace pasl {
       };
       
     }
-    
+
     void ex() {
-      
+
       /*
       {
         auto w = weighted::unary<int>();
@@ -70,17 +70,17 @@ namespace pasl {
       }*/
 
       {
-        auto w = weighted::by_size<pstring>();
-        weighted::parray<pstring, decltype(w)> xs(w);
+	//        auto w = weighted::by_size<pstring>();
+        parray<std::string /*, decltype(w) */ > xs;
         xs.tabulate(5, [&] (int i) {
-          return pstring(std::to_string(i).c_str());
+	    return std::to_string(i);
         });
         
         auto lo = xs.begin();
         auto hi = xs.end();
         
         std::cout << "xs = " << xs << std::endl;
-        std::cout << "weight_of(xs.begin(),xs.end()) = " << weighted::weight_of(lo, hi) << std::endl;
+	//        std::cout << "weight_of(xs.begin(),xs.end()) = " << weighted::weight_of(lo, hi) << std::endl;
       }
       
     }
