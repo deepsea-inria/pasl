@@ -143,7 +143,7 @@ public:
 /*---------------------------------------------------------------------*/
   
 #define THREAD_COST_UNKNOWN \
-cost_type get_cost() { return pasl::data::estimator::cost::unknown; }
+pasl::cost_type get_cost() { return pasl::data::estimator::cost::unknown; }
   
 } // end namespace
 } // end namespace

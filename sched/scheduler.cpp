@@ -116,6 +116,14 @@ outstrategy_p _private::capture_outstrategy() {
   return out;
 }
 
+outstrategy_p _private::get_outstrategy() {
+  return current_outstrategy;
+}
+
+void _private::set_outstrategy(outstrategy_p out) {
+  current_outstrategy = out;
+}
+  
 void _private::decr_dependencies(thread_p t) {
   instrategy::delta(t->in, t, -1l);
 }

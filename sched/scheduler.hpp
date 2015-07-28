@@ -68,6 +68,10 @@ public:
   void decr_dependencies(thread_p t);
   void reuse_calling_thread();
   thread_p get_current_thread() const;
+  
+  // for experimentation with alternative in/out strategies
+  outstrategy_p get_outstrategy();
+  void set_outstrategy(outstrategy_p out);
 
   void schedule(thread_p t);
 

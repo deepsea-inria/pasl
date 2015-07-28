@@ -120,6 +120,10 @@ namespace scheduler {
      */
     virtual outstrategy_p capture_outstrategy() = 0;
     
+    // for experimentation with alternative in/out strategies
+    virtual outstrategy_p get_outstrategy() = 0;
+    virtual void set_outstrategy(outstrategy_p out) = 0;
+    
     /*! \brief Ensures that the scheduler does not deallocate the
      *  calling thread.
      */
