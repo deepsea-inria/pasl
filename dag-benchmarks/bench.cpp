@@ -91,7 +91,29 @@ public:
     return true;
   }
   
+  int nb_leaf_nodes() {
+    if (is_leaf()) {
+      return 1;
+    }
+    int cnt = 0;
+    for (int i = 0; i < B; i++) {
+      if (tagged_tag_of(children[i].load()) == incounter_minus) {
+        continue;
+      }
+      ictnode* child = tagged_pointer_of(children[i].load());
+      if (child != nullptr) {
+        cnt += child->nb_leaf_nodes();
+      }
+    }
+    return cnt;
+  }
+  
 };
+  
+std::ostream& operator<<(std::ostream& out, ictnode* n) {
+  out << n->nb_leaf_nodes();
+  return out;
+}
 
 class incounter : public pasl::sched::instrategy::common {
 public:
@@ -125,7 +147,7 @@ public:
   
   ~incounter() {
     destroy_icttree(in);
-    destroy_icttree(out);
+    destroy_icttree(tagged_pointer_of(out));
     in = nullptr;
     out = nullptr;
   }
@@ -213,15 +235,15 @@ public:
         int i = random_int(0, B);
         std::atomic<ictnode*>& branch = cur->children[i];
         ictnode* next = branch.load();
-        if (next == minus()) {
+        if (tagged_pointer_of(next) == nullptr) {
           ictnode* orig = next;
-          ictnode* tagged = tagged_tag_with(next, incounter_minus);
+          ictnode* tagged = tagged_tag_with(n, incounter_minus);
           if (branch.compare_exchange_strong(orig, tagged)) {
             return;
           }
           break;
         }
-        cur = next;
+        cur = tagged_pointer_of(next);
       }
     }
   }
@@ -237,6 +259,15 @@ public:
   }
   
 };
+  
+std::ostream& operator<<(std::ostream& out, incounter* n) {
+  if (n->in->is_leaf()) {
+    out << 0;
+  } else {
+    out << n->in;
+  }
+  return out;
+}
 
 using outset_add_status_type = enum {
   outset_add_success,
@@ -254,17 +285,17 @@ void continue_with(node*);
 void add_node(node* n);
 
 void decrement_incounter(node*);
-
+  
 class outset : public pasl::sched::outstrategy::common {
 public:
   
   using ostnode_tag_type = enum {
-    ostnode_empty,
-    ostnode_leaf,
-    ostnode_interior,
-    ostnode_finished_empty,
-    ostnode_finished_leaf,
-    ostnode_finished_interior
+    ostnode_empty=1,
+    ostnode_leaf=2,
+    ostnode_interior=3,
+    ostnode_finished_empty=4,
+    ostnode_finished_leaf=5,
+    ostnode_finished_interior=6
   };
   
   using tagged_pointer_type = union {
@@ -357,7 +388,6 @@ public:
   outset_add_status_type my_add(node* leaf) {
     tagged_pointer_type p;
     p.leaf = tagged_tag_with(leaf, ostnode_leaf);
-    add(p);
     return add(p);
   }
   
@@ -365,11 +395,14 @@ public:
     tagged_pointer_type result;
     int t = tagged_tag_of(p.interior);
     if (t == ostnode_empty) {
-      result.interior = tagged_tag_with(p.interior, ostnode_finished_empty);
+      outset* out = tagged_pointer_of(p.interior);
+      result.interior = tagged_tag_with(out, ostnode_finished_empty);
     } else if (t == ostnode_leaf) {
-      result.leaf = tagged_tag_with(p.leaf, ostnode_finished_leaf);
+      node* n = tagged_pointer_of(p.leaf);
+      result.leaf = tagged_tag_with(n, ostnode_finished_leaf);
     } else if (t == ostnode_interior) {
-      result.interior = tagged_tag_with(p.interior, ostnode_finished_interior);
+      outset* out = tagged_pointer_of(p.interior);
+      result.interior = tagged_tag_with(out, ostnode_finished_interior);
     } else {
       assert(false);
     }
@@ -387,7 +420,7 @@ public:
         cur = items[i].load();
       }
       if (tagged_tag_of(cur.leaf) == ostnode_leaf) {
-        f(cur.leaf);
+        f(tagged_pointer_of(cur.leaf));
       }
       if (tagged_tag_of(cur.interior) == ostnode_interior) {
         outset* interior = tagged_pointer_of(cur.interior);
@@ -403,7 +436,44 @@ public:
     common::finished();
   }
   
+  void visit(std::function<void (node*)> f) {
+    for (int i = 0; i < B; i++) {
+      tagged_pointer_type cur = items[i].load();
+      int t = tagged_tag_of(cur.interior);
+      if (   (t == ostnode_leaf)
+          || (t == ostnode_finished_leaf) ) {
+        f(tagged_pointer_of(cur.leaf));
+      } else if (   (t == ostnode_interior)
+                 || (t == ostnode_finished_interior) ) {
+        outset* out = tagged_pointer_of(cur.interior);
+        out->visit(f);
+      }
+    }
+  }
+  
 };
+  
+template <class Item>
+std::ostream& operator<<(std::ostream& out, const std::vector<Item>& xs) {
+  out << "{ ";
+  size_t sz = xs.size();
+  for (long i = 0; i < sz; i++) {
+    out << xs[i];
+    if (i+1 < sz)
+      out << ", ";
+  }
+  out << " }";
+  return out;
+}
+  
+std::ostream& operator<<(std::ostream& out, outset* o) {
+  std::vector<node*> nodes;
+  o->visit([&] (node* n) {
+    nodes.push_back(n);
+  });
+  out << nodes;
+  return out;
+}
   
 outset* capture_outset();
   
@@ -457,11 +527,10 @@ public:
   
   void finish(node* producer, int continuation_block_id) {
     node* consumer = this;
+    producer->init();
     prepare_for_transfer(continuation_block_id);
     join_with(consumer, new incounter);
-    producer->init();
     add_edge(producer, consumer);
-    add_node(consumer);
     add_node(producer);
   }
   
@@ -523,7 +592,7 @@ void join_with(node* n, incounter* in) {
 
 void continue_with(node* n) {
   join_with(n, new incounter);
-  pasl::sched::threaddag::add_thread(n);
+  add_node(n);
 }
   
 } // end namespace
@@ -609,7 +678,7 @@ public:
       }
       case async_loop_exit: {
         assert(async_leaf_counter.load() == n);
-        assert(async_interior_counter.load() == n);
+        assert(async_interior_counter.load() + 1 == n);
         break;
       }
       default:
@@ -1099,7 +1168,7 @@ void join_with(node* n, incounter* in) {
 
 void continue_with(node* n) {
   join_with(n, new incounter);
-  pasl::sched::threaddag::add_thread(n);
+  add_node(n);
 }
   
 } // end namespace
@@ -1114,15 +1183,22 @@ int main(int argc, char** argv) {
   pasl::sched::threaddag::init();
   pasl::util::cmdline::argmap_dispatch c;
   pasl::sched::thread_p t;
-  c.add("async_loop", [&] {
-    int n = pasl::util::cmdline::parse_or_default_int("n", 1);
-    t = new topdown::async_loop(n);
+  c.add("topdown", [&] {
+    pasl::util::cmdline::argmap_dispatch c;
+    c.add("async_loop", [&] {
+      int n = pasl::util::cmdline::parse_or_default_int("n", 1);
+      t = new topdown::async_loop(n);
+    });
+    c.add("future_loop", [&] {
+      int n = pasl::util::cmdline::parse_or_default_int("n", 1);
+      t = new topdown::future_loop(n);
+    });
+    c.find_by_arg("cmd")();
   });
-  c.add("future_loop", [&] {
-    int n = pasl::util::cmdline::parse_or_default_int("n", 1);
-    t = new topdown::future_loop(n);
+  c.add("bottomup", [&] {
+    assert(false);
   });
-  c.find_by_arg("cmd")();
+  c.find_by_arg("algo")();
   pasl::sched::threaddag::launch(t);
   pasl::sched::threaddag::destroy();
   return 0;
