@@ -5,14 +5,19 @@
  * \file parray.hpp
  * \brief Array-based implementation of sequences
  *
+ * \todo 
+ * - only propagate the allocator on swap calls if propagate_on_container_swap
+ *   is true
  */
-
-#include <cmath>
-
-#include "pmem.hpp"
 
 #ifndef _PCTL_PARRAY_BASE_H_
 #define _PCTL_PARRAY_BASE_H_
+
+#include "callable.hpp"
+#include "pmem.hpp"
+#include <cmath>
+#include <memory>
+#include <type_traits>
 
 namespace pasl {
 namespace pctl {
@@ -21,15 +26,15 @@ namespace pctl {
 
 /*---------------------------------------------------------------------*/
 /* Parallel array */
-
-template <class Item, class Alloc = std::allocator<Item>>
+  
+template <class Item, class Allocator = std::allocator<Item>>
 class parray {
 public:
   
   using value_type = Item;
-  using allocator_type = Alloc;
+  using allocator_type = Allocator;
   using size_type = std::size_t;
-  using ptr_diff = std::ptrdiff_t;
+  using difference_type = std::ptrdiff_t;
   using reference = value_type&;
   using const_reference = const value_type&;
   using pointer = value_type*;
@@ -38,187 +43,271 @@ public:
   using const_iterator = const_pointer;
   
 private:
+  using allocator_traits = std::allocator_traits<allocator_type>;
   
-  class Deleter {
-  public:
-    void operator()(value_type* ptr) {
-      free(ptr);
+  struct deleter : allocator_type {
+    using allocator_type::allocator_type;
+    
+    void operator()(pointer ptr) {
+      allocator_traits::deallocate(*static_cast<allocator_type*>(this),
+                                   ptr, size);
     }
+    
+    deleter(const deleter& other) noexcept
+    : allocator_type(allocator_traits::
+                     select_on_container_copy_construction(static_cast<
+                                                             const allocator_type&
+                                                           >(other)))
+    , size(other.size) {}
+    
+    deleter(deleter&& other) noexcept {
+      size = other.size;
+      other.size = 0;
+    }
+    
+    deleter& operator=(const deleter& other) noexcept {
+      if(allocator_traits::propagate_on_copy_assignment::value)
+        allocator_type::operator=(static_cast<allocator_type&>(other));
+      size = other.size;
+      return *this;
+    }
+    
+    deleter& operator=(deleter&& other) noexcept {
+      if(allocator_traits::propagate_on_container_move_assignment::value)
+        allocator_type::operator=(static_cast<allocator_type&&>(other));
+      size = std::move(other.size);
+      other.size = 0;
+      return *this;
+    }
+    
+    size_type size = 0;
   };
   
-  std::unique_ptr<value_type[], Deleter> ptr;
-  long sz = 0L;
+  std::unique_ptr<value_type[], deleter> content;
   
-  void alloc(long n) {
-    sz = n;
-    assert(sz >= 0);
-    value_type* p = (value_type*)malloc(sz * sizeof(value_type));
+  allocator_type& get_allocator() noexcept {
+    return static_cast<allocator_type&>(content.get_deleter());
+  }
+  
+  const allocator_type& get_allocator() const noexcept {
+    return static_cast<const allocator_type&>(content.get_deleter());
+  }
+  
+  void set_size(size_type sz) noexcept {
+    content.get_deleter().size = sz;
+  }
+  
+  void allocate(size_type n) {
+    set_size(n);
+    assert(size() >= 0);
+    allocator_type& alloc = get_allocator();
+    pointer p = allocator_traits::allocate(alloc, size());
     assert(p != nullptr);
-    ptr.reset(p);
+    content.reset(p);
   }
   
-  void destroy() {
-    pmem::pdelete<Item, Alloc>(begin(), end());
-    sz = 0;
+  void destroy() noexcept {
+    pmem::pdelete(begin(), end(), get_allocator());
+    set_size(0);
   }
   
-  void realloc(long n) {
+  void realloc(size_type n) {
     destroy();
-    alloc(n);
+    allocate(n);
   }
   
-  void fill(long n, const value_type& val) {
+  void fill(size_type n, const_reference value) {
     realloc(n);
-    pmem::fill(begin(), end(), val);
+    pmem::fill(begin(), end(), value, get_allocator());
   }
   
-  void check(long i) const {
-    assert(ptr != nullptr);
-    assert(i >= 0);
-    assert(i < sz);
+  void check(size_type i) const {
+    assert(content.get() != nullptr);
+    assert(i < size());
+    (void) i; // avoid unused parameter warning
   }
   
 public:
   
-  parray(long sz = 0) {
-    value_type val;
-    fill(sz, val);
+  explicit parray()
+  : parray(allocator_type()) {}
+  
+  explicit parray(const allocator_type& allocator)
+  : content(nullptr, deleter(allocator)) {}
+  
+  explicit parray(size_type size, const_reference val,
+                  const allocator_type& allocator = allocator_type())
+  : content(nullptr, deleter(allocator)) {
+    fill(size, val);
   }
   
-  parray(long sz, const value_type& val) {
-    fill(sz, val);
+  explicit parray(size_type size,
+                  const allocator_type& allocator = allocator_type())
+  : content(nullptr, deleter(allocator)) {
+    fill(size, value_type());
   }
   
-  parray(long sz, const std::function<value_type(long)>& body)
-  : sz(0) {
-    tabulate(sz, body);
+  template<
+    class Provider,
+    class Selector =
+    typename std::enable_if<
+               pmem::is_valid_provider<Provider, value_type, iterator>::value
+             >::type
+  >
+  parray(size_type size, Provider&& body,
+         const allocator_type& allocator = allocator_type())
+  : content(nullptr, deleter(allocator)) {
+    tabulate(size, std::forward<Provider>(body));
   }
   
-  parray(long sz,
-         const std::function<long(long)>& body_comp,
-         const std::function<value_type(long)>& body)
-  : sz(0) {
-    assert(false);
+  template<
+    class WorkEstimator, class Provider,
+    class Selector =
+    typename std::enable_if<
+      pmem::is_valid_estimator<WorkEstimator, iterator>::value &&
+      pmem::is_valid_provider<Provider, value_type, iterator>::value
+    >::type
+  >
+  parray(size_type size, WorkEstimator&& body_comp, Provider&& body,
+         const allocator_type& allocator = allocator_type())
+  : content(nullptr, deleter(allocator)) {
+    tabulate(size, std::forward<WorkEstimator>(body_comp),
+             std::forward<Provider>(body));
   }
   
-  parray(long sz,
-         const std::function<long(long,long)>& body_comp_rng,
-         const std::function<value_type(long)>& body)
-  : sz(0) {
-    assert(false);
+  parray(std::initializer_list<value_type> xs,
+         const allocator_type& allocator = allocator_type())
+  : content(nullptr, deleter(allocator)) {
+    allocate(xs.size());
+    auto low = xs.begin();
+    pmem::tabulate(begin(), end(), [low](size_type i) {
+      return *(low + i);
+    }, get_allocator());
   }
   
-  parray(std::initializer_list<value_type> xs) {
-    alloc(xs.size());
-    long i = 0;
-    for (auto it = xs.begin(); it != xs.end(); it++) {
-      new (&ptr[i++]) value_type(*it);
-    }
+  parray(const parray& other)
+  : content(nullptr, deleter(other.content.get_deleter())) {
+    allocate(other.size());
+    if(!std::is_trivially_copyable<value_type>::value)
+      pmem::tabulate(begin(), end(), [&other](size_type i) {
+        return other[i];
+      }, get_allocator());
+    else
+      pmem::copy(other.cbegin(), other.cend(), begin());
   }
   
-  parray(const parray& other) {
-    alloc(other.size());
-    pmem::copy(other.cbegin(), other.cend(), begin());
-  }
+  parray(parray&& other) = default;
   
   parray(iterator lo, iterator hi) {
-    long n = hi - lo;
-    if (n < 0) {
+    difference_type n = hi - lo;
+    if (n < 0)
       return;
-    }
-    alloc(n);
-    pmem::copy(lo, hi, begin());
+    allocate(n);
+    if(!std::is_trivially_copyable<value_type>::value)
+      pmem::tabulate(begin(), end(), [lo](size_type i) {
+        return *(lo + i);
+      }, get_allocator());
+    else
+      pmem::copy(lo, hi, begin());
   }
   
-  ~parray() {
+  ~parray() noexcept {
     destroy();
   }
   
   parray& operator=(const parray& other) {
-    if (&other == this) {
+    if (&other == this)
       return *this;
-    }
     realloc(other.size());
-    pmem::copy(other.cbegin(), other.cend(), begin());
+    if(std::is_trivially_constructible<value_type>::value)
+      pmem::copy(other.cbegin(), other.cend(), begin());
+    else
+      pmem::tabulate(begin(), end(), [&other](size_type i) {
+        return other[i];
+      }, get_allocator());
     return *this;
   }
   
-  parray& operator=(parray&& other) {
-    ptr = std::move(other.ptr);
-    sz = std::move(other.sz);
-    other.sz = 0l; // redundant?
-    return *this;
-  }
+  parray& operator=(parray&& other) = default;
   
-  value_type& operator[](long i) {
+  reference operator[](size_type i) {
     check(i);
-    return ptr[i];
+    return content[i];
   }
   
-  const value_type& operator[](long i) const {
+  const_reference operator[](size_type i) const {
     check(i);
-    return ptr[i];
+    return content[i];
   }
   
-  long size() const {
-    return sz;
+  size_type size() const {
+    return content.get_deleter().size;
   }
   
   void swap(parray& other) {
-    ptr.swap(other.ptr);
-    std::swap(sz, other.sz);
+    std::swap(content, other.content);
   }
   
-  void resize(long n, const value_type& val) {
-    if (n == sz) {
+  void resize(size_type n, const_reference val) {
+    if (n == size())
       return;
-    }
-    parray<Item> tmp(n, val);
+    parray<value_type, allocator_type> tmp(n, val, get_allocator());
     swap(tmp);
-    long m = std::min(tmp.size(), size());
+    size_type m = std::min(tmp.size(), size());
     assert(size() >= m);
-    pmem::copy(tmp.cbegin(), tmp.cbegin()+m, begin());
+    pmem::copy(tmp.cbegin(), tmp.cbegin() + m, begin());
   }
   
-  void resize(long n) {
-    value_type val;
-    resize(n, val);
+  void resize(size_type n) {
+    resize(n, value_type());
   }
   
-  void clear() {
-    resize(0);
+  void clear() noexcept {
+    destroy();
   }
   
   template <class Body>
-  void tabulate(long n, const Body& body) {
+  auto tabulate(size_type n, Body&& body) ->
+  typename std::enable_if<
+             pmem::is_valid_provider<Body, value_type, iterator>::value
+           >::type {
     realloc(n);
-    parallel_for(0l, n, [&] (long i) {
-      ptr[i] = body(i);
-    });
+    pmem::tabulate(begin(), end(), std::forward<Body>(body), get_allocator());
   }
   
-  template <class Body, class Body_comp_rng>
-  void tabulate(long n, const Body_comp_rng& body_comp_rng, const Body& body) {
+  template <class Body_comp_rng, class Body>
+  auto tabulate(size_type n, Body_comp_rng&& body_comp_rng, Body&& body) ->
+  typename std::enable_if<
+             pmem::is_valid_estimator<Body_comp_rng, iterator>::value &&
+             pmem::is_valid_provider<Body, value_type, iterator>::value
+           >::type {
     realloc(n);
-    parallel_for(0l, n, body_comp_rng, [&] (long i) {
-      ptr[i] = body(i);
-    });
+    pmem::tabulate(begin(), end(), std::forward<Body_comp_rng>(body_comp_rng),
+                   std::forward<Body>(body), get_allocator());
   }
   
-  iterator begin() const {
-    return &ptr[0];
+  iterator begin() noexcept {
+    return &content[0];
   }
   
-  const_iterator cbegin() const {
-    return &ptr[0];
+  const_iterator begin() const noexcept {
+    return cbegin();
   }
   
-  iterator end() const {
-    return &ptr[size()];
+  const_iterator cbegin() const noexcept {
+    return &content[0];
   }
   
-  const_iterator cend() const {
-    return &ptr[size()];
+  iterator end() noexcept {
+    return &content[size()];
+  }
+  
+  const_iterator end() const noexcept {
+    return cend();
+  }
+  
+  const_iterator cend() const noexcept {
+    return &content[size()];
   }
   
 };
