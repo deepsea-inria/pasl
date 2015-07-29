@@ -3,6 +3,9 @@
  *
  * \todo
  * - doc
+ * \bug
+ * - callable_traits isn't well defined if the call operator
+ *   (<tt>operator()</tt>) is overloaded several times
  */
 #ifndef _PASLEXAMPLES_CALLABLE_H_
 #define _PASLEXAMPLES_CALLABLE_H_
@@ -11,17 +14,44 @@
 
 namespace util {
   namespace _detail {
+    /**
+     * \brief Part of callable_traits' implementation.
+     */
     template<class ReturnType, class... Arguments>
     struct call_operator_traits_final {
+      /**
+       * \brief The call operator's return type.
+       */
       typedef ReturnType return_type;
+      /**
+       * \brief The call operator's arguments' types.
+       */
       typedef type_list<Arguments...> argument_typelist;
+      /**
+       * \brief The number of arguments.
+       */
       static constexpr std::size_t argument_count = sizeof...(Arguments);
+      /**
+       * \brief The type of the <tt>Index</tt>th argument.
+       */
       template<std::size_t Index>
       using argument_type = get_template_t<Index, argument_typelist>;
+      /**
+       * \brief Checks whether the provided type satisfies Callable.
+       */
       static constexpr bool callable = true;
       // the following are default values which might be overridden
+      /**
+       * \brief Checks whether the call operator is a member function (method).
+       */
       static constexpr bool member = false;
+      /**
+       * \brief Checks whether the call operator is const member function.
+       */
       static constexpr bool const_member = false;
+      /**
+       * \brief Checks whether the provided type satisfies FunctionObject.
+       */
       static constexpr bool function_object = true;
       typedef ReturnType type(Arguments...);
       typedef ReturnType(*pointer)(Arguments...);
@@ -47,14 +77,18 @@ namespace util {
     
     // rvalue reference to functor C: same as pointer to method C::operator()
     template<class CallOperator>
-    struct call_operator_traits_helper<CallOperator&&, void> :
+    struct call_operator_traits_helper<
+             CallOperator&&, void_t<decltype(&CallOperator::operator())>
+           > :
     call_operator_traits_helper<decltype(&CallOperator::operator())> {
       static constexpr bool function_object = true;
     };
     
     // reference to functor C: same as pointer to method C::operator()
     template<class CallOperator>
-    struct call_operator_traits_helper<CallOperator&, void> :
+    struct call_operator_traits_helper<
+             CallOperator&, void_t<decltype(&CallOperator::operator())>
+           > :
     call_operator_traits_helper<decltype(&CallOperator::operator())> {
       static constexpr bool function_object = true;
     };
@@ -107,7 +141,7 @@ namespace util {
   } // namespace _detail
 
   /**
-   * \brief This type helps determining if an overload exists.
+   * \brief This struct helps determining if a specific overload exists.
    */
   template<class Signature, Signature>
   struct signature_checker {};
