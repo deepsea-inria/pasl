@@ -422,7 +422,7 @@ public:
       }
       current = next;
     }
-    assert(false);
+    assert(false); // control should never reach here
     return insert_fail;
   }
   
@@ -492,8 +492,6 @@ std::ostream& operator<<(std::ostream& out, outset* o) {
   out << nodes;
   return out;
 }
-  
-outset* capture_outset();
   
 class node : public pasl::sched::thread {
 public:
@@ -850,7 +848,7 @@ public:
   
 };
 
-template <class Body>
+template <class Body_gen>
 class parallel_for_rec : public node {
 public:
   
@@ -862,13 +860,13 @@ public:
   
   int lo;
   int hi;
-  Body _body;
+  Body_gen body_gen;
   node* join;
   
   int mid;
   
-  parallel_for_rec(int lo, int hi, Body body, node* join)
-  : lo(lo), hi(hi), _body(body), join(join) { }
+  parallel_for_rec(int lo, int hi, Body_gen body_gen, node* join)
+  : lo(lo), hi(hi), body_gen(body_gen), join(join) { }
   
   void body() {
     switch (current_block_id) {
@@ -877,18 +875,17 @@ public:
         if (n == 0) {
           // nothing to do
         } else if (n == 1) {
-          _body->i = lo;
-          call(_body,
+          call(body_gen(lo),
                parallel_for_rec_exit);
         } else {
           mid = (hi + lo) / 2;
-          async(new parallel_for_rec(lo, mid, _body, join), join,
+          async(new parallel_for_rec(lo, mid, body_gen, join), join,
                 parallel_for_rec_branch2);
         }
         break;
       }
       case parallel_for_rec_branch2: {
-        async(new parallel_for_rec(mid, hi, _body, join), join,
+        async(new parallel_for_rec(mid, hi, body_gen, join), join,
               parallel_for_rec_exit);
         break;
       }
@@ -903,7 +900,7 @@ public:
   
 };
   
-template <class Body>
+template <class Body_gen>
 class parallel_for : public node {
 public:
   
@@ -914,15 +911,15 @@ public:
   
   int lo;
   int hi;
-  Body _body;
+  Body_gen body_gen;
   
-  parallel_for(int lo, int hi, Body body)
-  : lo(lo), hi(hi), _body(body) { }
+  parallel_for(int lo, int hi, Body_gen body_gen)
+  : lo(lo), hi(hi), body_gen(body_gen) { }
   
   void body() {
     switch (current_block_id) {
       case parallel_for_entry: {
-        finish(new parallel_for_rec<Body>(lo, hi, _body, this),
+        finish(new parallel_for_rec<Body_gen>(lo, hi, body_gen, this),
                parallel_for_exit);
         break;
       }
@@ -947,6 +944,8 @@ static long fib (long n){
     return fib (n - 1) + fib (n - 2);
 }
   
+int fib_input = 20;
+  
 class future_body : public node {
 public:
   
@@ -955,10 +954,12 @@ public:
     future_body_exit
   };
   
+  long result;
+  
   void body() {
     switch (current_block_id) {
       case future_body_entry: {
-        fib(20);
+        result = fib(fib_input);
         break;
       }
       case future_body_exit: {
@@ -981,12 +982,12 @@ public:
     future_reader_exit
   };
   
-  node* f;
+  future_body* f;
   
   int i;
   
-  future_reader(node* f)
-  : f(f) { }
+  future_reader(future_body* f, int i)
+  : f(f), i(i) { }
   
   void body() {
     switch (current_block_id) {
@@ -997,6 +998,7 @@ public:
       }
       case future_reader_exit: {
         future_pool_counter.fetch_add(1);
+        assert(f->result == fib(fib_input));
         break;
       }
       default:
@@ -1006,9 +1008,9 @@ public:
   
 };
   
-template <class Body>
-node* mk_parallel_for(int lo, int hi, Body body) {
-  return new parallel_for<Body>(lo, hi, body);
+template <class Body_gen>
+node* mk_parallel_for(int lo, int hi, Body_gen body_gen) {
+  return new parallel_for<Body_gen>(lo, hi, body_gen);
 }
   
 class future_pool : public node {
@@ -1022,7 +1024,7 @@ public:
   
   int n;
   
-  node* f;
+  future_body* f;
   
   future_pool(int n)
   : n(n) { }
@@ -1036,7 +1038,10 @@ public:
         break;
       }
       case future_pool_call: {
-        call(mk_parallel_for(0, n, new future_reader(f)),
+        node* b = mk_parallel_for(0, n, [=] (int i) {
+          return new future_reader(f, i);
+        });
+        call(b,
              future_pool_exit);
         break;
       }
@@ -1452,6 +1457,7 @@ int main(int argc, char** argv) {
     });
     c.add("future_pool", [&] {
       int n = pasl::util::cmdline::parse_or_default_int("n", 1);
+      topdown::fib_input = pasl::util::cmdline::parse_or_default_int("fib_input", topdown::fib_input);
       t = new topdown::future_pool(n);
     });
     c.find_by_arg("cmd")();
