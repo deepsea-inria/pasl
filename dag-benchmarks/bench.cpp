@@ -55,15 +55,27 @@ int random_int(int lo, int hi) {
 /* The top-down algorithm */
 
 namespace topdown {
-  
-static constexpr int B = 2;
-
-static constexpr int incounter_minus = 1;
 
 class node;
+class incounter;
+class outset;
 
+void add_node(node*);
+void add_edge(node*, node*);
+void prepare_node(node*);
+void prepare_node(node*, incounter*);
+void prepare_node(node*, outset*);
+void prepare_node(node*, incounter*, outset*);
+void join_with(node*, incounter*);
+void continue_with(node*);
+void decrement_incounter(node*);
+  
+static constexpr int B = 2;
+  
 class ictnode {
 public:
+  
+  static constexpr int minus = 1;
   
   std::atomic<ictnode*> children[B];
   
@@ -97,7 +109,7 @@ public:
     }
     int cnt = 0;
     for (int i = 0; i < B; i++) {
-      if (tagged_tag_of(children[i].load()) == incounter_minus) {
+      if (tagged_tag_of(children[i].load()) == minus) {
         continue;
       }
       ictnode* child = tagged_pointer_of(children[i].load());
@@ -123,14 +135,14 @@ public:
   std::atomic<bool> one_to_zero;
   
   ictnode* minus() const {
-    return tagged_tag_with((ictnode*)nullptr, incounter_minus);
+    return tagged_tag_with((ictnode*)nullptr, ictnode::minus);
   }
   
   incounter() {
     in = new ictnode;
     out = new ictnode(minus());
     one_to_zero.store(false);
-    out = tagged_tag_with(out, incounter_minus);
+    out = tagged_tag_with(out, ictnode::minus);
   }
   
   void destroy_icttree(ictnode* n) {
@@ -170,12 +182,12 @@ public:
   void increment() {
     ictnode* leaf = new ictnode;
     while (true) {
-      ictnode* cur = in;
+      ictnode* current = in;
       while (true) {
         int i = random_int(0, B);
-        std::atomic<ictnode*>& branch = cur->children[i];
+        std::atomic<ictnode*>& branch = current->children[i];
         ictnode* next = branch.load();
-        if (tagged_tag_of(next) == incounter_minus) {
+        if (tagged_tag_of(next) == ictnode::minus) {
           break;
         }
         if (next == nullptr) {
@@ -186,20 +198,20 @@ public:
             break;
           }
         }
-        cur = next;
+        current = next;
       }
     }
   }
   
   void decrement() {
     while (true) {
-      ictnode* cur = in;
+      ictnode* current = in;
       while (true) {
         int i = random_int(0, B);
-        std::atomic<ictnode*>& branch = cur->children[i];
+        std::atomic<ictnode*>& branch = current->children[i];
         ictnode* next = branch.load();
         if (   (next == nullptr)
-            || (tagged_tag_of(next) == incounter_minus) ) {
+            || (tagged_tag_of(next) == ictnode::minus) ) {
           break;
         }
         if (next->is_leaf()) {
@@ -210,7 +222,7 @@ public:
           }
           break;
         }
-        cur = next;
+        current = next;
       }
     }
   }
@@ -230,20 +242,20 @@ public:
   
   void add_to_out(ictnode* n) {
     while (true) {
-      ictnode* cur = tagged_pointer_of(out);
+      ictnode* current = tagged_pointer_of(out);
       while (true) {
         int i = random_int(0, B);
-        std::atomic<ictnode*>& branch = cur->children[i];
+        std::atomic<ictnode*>& branch = current->children[i];
         ictnode* next = branch.load();
         if (tagged_pointer_of(next) == nullptr) {
           ictnode* orig = next;
-          ictnode* tagged = tagged_tag_with(n, incounter_minus);
+          ictnode* tagged = tagged_tag_with(n, ictnode::minus);
           if (branch.compare_exchange_strong(orig, tagged)) {
             return;
           }
           break;
         }
-        cur = tagged_pointer_of(next);
+        current = tagged_pointer_of(next);
       }
     }
   }
@@ -268,187 +280,193 @@ std::ostream& operator<<(std::ostream& out, incounter* n) {
   }
   return out;
 }
-
-using outset_add_status_type = enum {
-  outset_add_success,
-  outset_add_fail
-};
   
-class node;
-
-void add_edge(node*, node*);
-
-void join_with(node*, incounter*);
-
-void continue_with(node*);
-
-void add_node(node* n);
-
-void decrement_incounter(node*);
-  
-class outset : public pasl::sched::outstrategy::common {
+class ostnode {
 public:
   
-  using ostnode_tag_type = enum {
-    ostnode_empty=1,
-    ostnode_leaf=2,
-    ostnode_interior=3,
-    ostnode_finished_empty=4,
-    ostnode_finished_leaf=5,
-    ostnode_finished_interior=6
+  enum {
+    empty=1,
+    leaf=2,
+    interior=3,
+    finished_empty=4,
+    finished_leaf=5,
+    finished_interior=6
   };
   
   using tagged_pointer_type = union {
-    outset* interior;
+    ostnode* interior;
     node* leaf;
   };
   
-  std::atomic<tagged_pointer_type> items[B];
+  std::atomic<tagged_pointer_type> children[B];
   
   void init() {
     for (int i = 0; i < B; i++) {
       tagged_pointer_type p;
-      p.interior = tagged_tag_with((outset*)nullptr, ostnode_empty);
-      items[i].store(p);
+      p.interior = tagged_tag_with((ostnode*)nullptr, empty);
+      children[i].store(p);
     }
   }
   
-  outset() {
+  ostnode() {
     init();
   }
   
-  outset(tagged_pointer_type pointer) {
+  ostnode(tagged_pointer_type pointer) {
     init();
-    items[0].store(pointer);
+    children[0].store(pointer);
   }
   
-  ~outset() {
-    destroy();
-  }
-  
-  void destroy() {
-    for (int i = 0; i < B; i++) {
-      tagged_pointer_type p = items[i].load();
-      if (tagged_tag_of(p.interior) == ostnode_finished_empty)  {
-        // nothing to do
-      } else if (tagged_tag_of(p.interior) == ostnode_finished_interior) {
-        outset* out = tagged_pointer_of(p.interior);
-        delete out;
-      } else if (tagged_tag_of(p.interior) == ostnode_finished_leaf) {
-        // nothing to do
-      } else {
-        assert(false);
-      }
-    }
-  }
-  
-  outset_add_status_type add(tagged_pointer_type pointer) {
-    int i = random_int(0, B);
-    tagged_pointer_type cur;
-    outset_add_status_type result = outset_add_success;
-    while (true) {
-      cur = items[i].load();
-      if (   (tagged_tag_of(cur.interior) == ostnode_finished_empty)
-          || (tagged_tag_of(cur.interior) == ostnode_finished_leaf)
-          || (tagged_tag_of(cur.interior) == ostnode_finished_interior) ){
-        result = outset_add_fail;
-        break;
-      }
-      if (tagged_tag_of(cur.interior) == ostnode_empty) {
-        tagged_pointer_type orig = cur;
-        if (items[i].compare_exchange_strong(orig, pointer)) {
-          break;
-        }
-        cur = items[i].load();
-      }
-      if (tagged_tag_of(cur.interior) == ostnode_leaf) {
-        tagged_pointer_type orig = cur;
-        outset* nextp = new outset(pointer);
-        tagged_pointer_type next;
-        next.interior = tagged_tag_with(nextp, ostnode_interior);
-        if (items[i].compare_exchange_strong(orig, next)) {
-          break;
-        }
-        delete nextp;
-        cur = items[i].load();
-      }
-      if (tagged_tag_of(cur.interior) == ostnode_interior) {
-        outset* p = tagged_pointer_of(cur.interior);
-        p->add(pointer);
-        break;
-      }
-    }
-    return result;
-  }
-  
-  void add(pasl::sched::thread_p t) {
-    assert(false);
-  }
-  
-  outset_add_status_type my_add(node* leaf) {
-    tagged_pointer_type p;
-    p.leaf = tagged_tag_with(leaf, ostnode_leaf);
-    return add(p);
-  }
-  
-  tagged_pointer_type make_finished(tagged_pointer_type p) const {
+  static tagged_pointer_type make_finished(tagged_pointer_type p) {
     tagged_pointer_type result;
-    int t = tagged_tag_of(p.interior);
-    if (t == ostnode_empty) {
-      outset* out = tagged_pointer_of(p.interior);
-      result.interior = tagged_tag_with(out, ostnode_finished_empty);
-    } else if (t == ostnode_leaf) {
+    int tag = tagged_tag_of(p.interior);
+    if (tag == empty) {
+      ostnode* n = tagged_pointer_of(p.interior);
+      result.interior = tagged_tag_with(n, finished_empty);
+    } else if (tag == leaf) {
       node* n = tagged_pointer_of(p.leaf);
-      result.leaf = tagged_tag_with(n, ostnode_finished_leaf);
-    } else if (t == ostnode_interior) {
-      outset* out = tagged_pointer_of(p.interior);
-      result.interior = tagged_tag_with(out, ostnode_finished_interior);
+      result.leaf = tagged_tag_with(n, finished_leaf);
+    } else if (tag == interior) {
+      ostnode* n = tagged_pointer_of(p.interior);
+      result.interior = tagged_tag_with(n, finished_interior);
     } else {
       assert(false);
     }
     return result;
   }
   
-  void finish(std::function<void (node*)> f) {
-    for (int i = 0; i < B; i++) {
-      tagged_pointer_type cur = items[i].load();
+};
+  
+using outset_insert_status_type = enum {
+  outset_insert_success,
+  outset_insert_fail
+};
+  
+class outset : public pasl::sched::outstrategy::common {
+public:
+  
+  using insert_status_type = enum {
+    insert_success,
+    insert_fail
+  };
+  
+  ostnode* root;
+  
+  bool should_deallocate = true;
+  
+  outset() {
+    root = new ostnode;
+  }
+  
+  ~outset() {
+    std::deque<ostnode*> todo;
+    todo.push_back(root);
+    while (! todo.empty()) {
+      ostnode* n = todo.back();
+      todo.pop_back();
+      for (int i = 0; i < B; i++) {
+        ostnode::tagged_pointer_type c = n->children[i].load();
+        int tag = tagged_tag_of(c.interior);
+        if (   (tag == ostnode::finished_empty)
+            || (tag == ostnode::finished_leaf) ) {
+          // nothing to do
+        } else if (tag == ostnode::finished_interior) {
+          todo.push_back(tagged_pointer_of(c.interior));
+        } else {
+          // should not occur, given that finished() has been called
+          assert(false);
+        }
+      }
+      delete n;
+    }
+  }
+  
+  insert_status_type insert(ostnode::tagged_pointer_type val) {
+    ostnode* current = root;
+    ostnode* next = nullptr;
+    while (true) {
+      ostnode::tagged_pointer_type n;
       while (true) {
-        tagged_pointer_type orig = cur;
-        if (items[i].compare_exchange_strong(orig, make_finished(cur))) {
+        int i = random_int(0, B);
+        n = current->children[i].load();
+        int tag = tagged_tag_of(n.interior);
+        if (   (tag == ostnode::finished_empty)
+            || (tag == ostnode::finished_leaf)
+            || (tag == ostnode::finished_interior) ) {
+          return insert_fail;
+        }
+        if (tag == ostnode::empty) {
+          ostnode::tagged_pointer_type orig = n;
+          if (current->children[i].compare_exchange_strong(orig, val)) {
+            return insert_success;
+          }
+          n = current->children[i].load();
+          tag = tagged_tag_of(n.interior);
+        }
+        if (tag == ostnode::leaf) {
+          ostnode::tagged_pointer_type orig = n;
+          ostnode* tmp = new ostnode(val);
+          ostnode::tagged_pointer_type next;
+          next.interior = tagged_tag_with(tmp, ostnode::interior);
+          if (current->children[i].compare_exchange_strong(orig, next)) {
+            return insert_success;
+          }
+          delete tmp;
+          n = current->children[i].load();
+          tag = tagged_tag_of(n.interior);
+        }
+        if (tag == ostnode::interior) {
+          next = tagged_pointer_of(n.interior);
           break;
         }
-        cur = items[i].load();
       }
-      if (tagged_tag_of(cur.leaf) == ostnode_leaf) {
-        f(tagged_pointer_of(cur.leaf));
-      }
-      if (tagged_tag_of(cur.interior) == ostnode_interior) {
-        outset* interior = tagged_pointer_of(cur.interior);
-        interior->finish(f);
-      }
+      current = next;
     }
+    assert(false);
+    return insert_fail;
+  }
+  
+  insert_status_type insert(node* leaf) {
+    ostnode::tagged_pointer_type val;
+    val.leaf = tagged_tag_with(leaf, ostnode::leaf);
+    return insert(val);
+  }
+
+  void add(pasl::sched::thread_p t) {
+    assert(false);
   }
   
   void finished() {
-    finish([&] (node* n) {
-      decrement_incounter(n);
-    });
-    common::finished();
+    std::deque<ostnode*> todo;
+    todo.push_back(root);
+    while (! todo.empty()) {
+      ostnode* current = todo.back();
+      todo.pop_back();
+      for (int i = 0; i < B; i++) {
+        ostnode::tagged_pointer_type n = current->children[i].load();
+        while (true) {
+          ostnode::tagged_pointer_type orig = n;
+          ostnode::tagged_pointer_type next = ostnode::make_finished(n);
+          if (current->children[i].compare_exchange_strong(orig, next)) {
+            break;
+          }
+        }
+        int tag = tagged_tag_of(n.leaf);
+        if (tag == ostnode::leaf) {
+          decrement_incounter(tagged_pointer_of(n.leaf));
+        }
+        if (tag == ostnode::interior) {
+          todo.push_back(tagged_pointer_of(n.interior));
+        }
+      }
+    }
+    if (should_deallocate) {
+      delete this;
+    }
   }
   
   void visit(std::function<void (node*)> f) {
-    for (int i = 0; i < B; i++) {
-      tagged_pointer_type cur = items[i].load();
-      int t = tagged_tag_of(cur.interior);
-      if (   (t == ostnode_leaf)
-          || (t == ostnode_finished_leaf) ) {
-        f(tagged_pointer_of(cur.leaf));
-      } else if (   (t == ostnode_interior)
-                 || (t == ostnode_finished_interior) ) {
-        outset* out = tagged_pointer_of(cur.interior);
-        out->visit(f);
-      }
-    }
+    assert(false);
   }
   
 };
@@ -486,6 +504,7 @@ public:
   int current_block_id;
   
 private:
+  
   int continuation_block_id;
   
 public:
@@ -503,11 +522,6 @@ public:
     body();
   }
   
-  void init() {
-    set_instrategy(new incounter);
-    set_outstrategy(new outset);
-  }
-  
   void prepare_for_transfer(int target) {
     pasl::sched::threaddag::reuse_calling_thread();
     continuation_block_id = target;
@@ -519,7 +533,7 @@ public:
   }
   
   void async(node* producer, node* consumer, int continuation_block_id) {
-    producer->init();
+    prepare_node(producer);
     add_edge(producer, consumer);
     jump_to(continuation_block_id);
     add_node(producer);
@@ -527,7 +541,7 @@ public:
   
   void finish(node* producer, int continuation_block_id) {
     node* consumer = this;
-    producer->init();
+    prepare_node(producer);
     prepare_for_transfer(continuation_block_id);
     join_with(consumer, new incounter);
     add_edge(producer, consumer);
@@ -536,8 +550,10 @@ public:
   
   void future(node* producer, int continuation_block_id) {
     node* consumer = this;
-    producer->init();
+    prepare_node(producer);
     producer->should_not_deallocate = true;
+    outset* producer_out = (outset*)producer->out;
+    producer_out->should_deallocate = false;
     consumer->jump_to(continuation_block_id);
     add_node(producer);
   }
@@ -547,6 +563,10 @@ public:
     prepare_for_transfer(continuation_block_id);
     join_with(consumer, new incounter);
     add_edge(producer, consumer);
+  }
+  
+  void call(node* target, int continuation_block_id) {
+    finish(target, continuation_block_id);
   }
   
   THREAD_COST_UNKNOWN
@@ -573,9 +593,26 @@ void add_node(node* n) {
 void add_edge(node* source, node* target) {
   increment_incounter(target);
   outset* out = (outset*)source->out;
-  if (out->my_add(target) == outset_add_fail) {
+  if (out->insert(target) == outset_insert_fail) {
     decrement_incounter(target);
   }
+}
+  
+void prepare_node(node* n, incounter* in, outset* out) {
+  n->set_instrategy(in);
+  n->set_outstrategy(out);
+}
+  
+void prepare_node(node* n) {
+  prepare_node(n, new incounter, new outset);
+}
+
+void prepare_node(node* n, incounter* in) {
+  prepare_node(n, in, new outset);
+}
+
+void prepare_node(node* n, outset* out) {
+  prepare_node(n, new incounter, out);
 }
   
 outset* capture_outset() {
@@ -586,13 +623,22 @@ outset* capture_outset() {
 }
 
 void join_with(node* n, incounter* in) {
-  n->set_instrategy(in);
-  n->set_outstrategy(capture_outset());
+  prepare_node(n, in, capture_outset());
 }
 
 void continue_with(node* n) {
   join_with(n, new incounter);
   add_node(n);
+}
+
+void deallocate_future(node* n) {
+  outset* out = (outset*)n->out;
+  assert(! out->should_deallocate);
+  n->out = nullptr;
+  delete out;
+  assert(n->in == nullptr);
+  assert(n->should_not_deallocate);
+  delete n;
 }
   
 } // end namespace
@@ -637,12 +683,14 @@ public:
         } else {
           async_interior_counter.fetch_add(1);
           mid = (lo + hi) / 2;
-          async(new async_loop_rec(lo, mid, consumer), consumer, async_loop_rec_mid);
+          async(new async_loop_rec(lo, mid, consumer), consumer,
+                async_loop_rec_mid);
         }
         break;
       }
       case async_loop_rec_mid: {
-        async(new async_loop_rec(mid, hi, consumer), consumer, async_loop_rec_exit);
+        async(new async_loop_rec(mid, hi, consumer), consumer,
+              async_loop_rec_exit);
         break;
       }
       case async_loop_rec_exit: {
@@ -673,7 +721,8 @@ public:
       case async_loop_entry: {
         async_leaf_counter.store(0);
         async_interior_counter.store(0);
-        finish(new async_loop_rec(0, n, this), async_loop_exit);
+        finish(new async_loop_rec(0, n, this),
+               async_loop_exit);
         break;
       }
       case async_loop_exit: {
@@ -723,27 +772,31 @@ public:
         } else {
           mid = (lo + hi) / 2;
           branch1 = new future_loop_rec(lo, mid);
-          future(branch1, future_loop_branch2);
+          future(branch1,
+                 future_loop_branch2);
         }
         break;
       }
       case future_loop_branch2: {
         branch2 = new future_loop_rec(mid, hi);
-        future(branch2, future_loop_force1);
+        future(branch2,
+               future_loop_force1);
         break;
       }
       case future_loop_force1: {
-        force(branch1, future_loop_branch2);
+        force(branch1,
+              future_loop_force2);
         break;
       }
       case future_loop_force2: {
-        force(branch2, future_loop_exit);
+        force(branch2,
+              future_loop_exit);
         break;
       }
       case future_loop_exit: {
         future_interior_counter.fetch_add(1);
-        delete branch1;
-        delete branch2;
+        deallocate_future(branch1);
+        deallocate_future(branch2);
         break;
       }
       default:
@@ -775,17 +828,72 @@ public:
         future_leaf_counter.store(0);
         future_interior_counter.store(0);
         root = new future_loop_rec(0, n);
-        future(root, future_loop_force);
+        future(root,
+               future_loop_force);
         break;
       }
       case future_loop_force: {
-        force(root, future_loop_exit);
+        force(root,
+              future_loop_exit);
         break;
       }
       case future_loop_exit: {
-        delete root;
+        deallocate_future(root);
         assert(future_leaf_counter.load() == n);
-        assert(future_interior_counter.load() == n);
+        assert(future_interior_counter.load() + 1 == n);
+        break;
+      }
+      default:
+        break;
+    }
+  }
+  
+};
+
+template <class Body>
+class parallel_for_rec : public node {
+public:
+  
+  enum {
+    parallel_for_rec_entry,
+    parallel_for_rec_branch2,
+    parallel_for_rec_exit
+  };
+  
+  int lo;
+  int hi;
+  Body _body;
+  node* join;
+  
+  int mid;
+  
+  parallel_for_rec(int lo, int hi, Body body, node* join)
+  : lo(lo), hi(hi), _body(body), join(join) { }
+  
+  void body() {
+    switch (current_block_id) {
+      case parallel_for_rec_entry: {
+        int n = hi - lo;
+        if (n == 0) {
+          // nothing to do
+        } else if (n == 1) {
+          _body->i = lo;
+          call(_body,
+               parallel_for_rec_exit);
+        } else {
+          mid = (hi + lo) / 2;
+          async(new parallel_for_rec(lo, mid, _body, join), join,
+                parallel_for_rec_branch2);
+        }
+        break;
+      }
+      case parallel_for_rec_branch2: {
+        async(new parallel_for_rec(mid, hi, _body, join), join,
+              parallel_for_rec_exit);
+        break;
+      }
+      case parallel_for_rec_exit: {
+        // nothing to do
         break;
       }
       default:
@@ -795,6 +903,155 @@ public:
   
 };
   
+template <class Body>
+class parallel_for : public node {
+public:
+  
+  enum {
+    parallel_for_entry,
+    parallel_for_exit
+  };
+  
+  int lo;
+  int hi;
+  Body _body;
+  
+  parallel_for(int lo, int hi, Body body)
+  : lo(lo), hi(hi), _body(body) { }
+  
+  void body() {
+    switch (current_block_id) {
+      case parallel_for_entry: {
+        finish(new parallel_for_rec<Body>(lo, hi, _body, this),
+               parallel_for_exit);
+        break;
+      }
+      case parallel_for_exit: {
+        // nothing to do
+        break;
+      }
+      default:
+        break;
+    }
+  }
+  
+};
+  
+std::atomic<int> future_pool_leaf_counter;
+std::atomic<int> future_pool_interior_counter;
+  
+static long fib (long n){
+  if (n < 2)
+    return n;
+  else
+    return fib (n - 1) + fib (n - 2);
+}
+  
+class future_body : public node {
+public:
+  
+  enum {
+    future_body_entry,
+    future_body_exit
+  };
+  
+  void body() {
+    switch (current_block_id) {
+      case future_body_entry: {
+        fib(20);
+        break;
+      }
+      case future_body_exit: {
+        break;
+      }
+      default:
+        break;
+    }
+  }
+  
+};
+  
+std::atomic<int> future_pool_counter;
+
+class future_reader : public node {
+public:
+  
+  enum {
+    future_reader_entry,
+    future_reader_exit
+  };
+  
+  node* f;
+  
+  int i;
+  
+  future_reader(node* f)
+  : f(f) { }
+  
+  void body() {
+    switch (current_block_id) {
+      case future_reader_entry: {
+        force(f,
+              future_reader_exit);
+        break;
+      }
+      case future_reader_exit: {
+        future_pool_counter.fetch_add(1);
+        break;
+      }
+      default:
+        break;
+    }
+  }
+  
+};
+  
+template <class Body>
+node* mk_parallel_for(int lo, int hi, Body body) {
+  return new parallel_for<Body>(lo, hi, body);
+}
+  
+class future_pool : public node {
+public:
+  
+  enum {
+    future_pool_entry,
+    future_pool_call,
+    future_pool_exit
+  };
+  
+  int n;
+  
+  node* f;
+  
+  future_pool(int n)
+  : n(n) { }
+
+  void body() {
+    switch (current_block_id) {
+      case future_pool_entry: {
+        f = new future_body();
+        future(f,
+               future_pool_call);
+        break;
+      }
+      case future_pool_call: {
+        call(mk_parallel_for(0, n, new future_reader(f)),
+             future_pool_exit);
+        break;
+      }
+      case future_pool_exit: {
+        deallocate_future(f);
+        assert(future_pool_counter.load() == n);
+        break;
+      }
+      default:
+        break;
+    }
+  }
+  
+};
+
 } // end namespace
 
 /*---------------------------------------------------------------------*/
@@ -889,9 +1146,9 @@ void decr_incounter(ictnode* port, node* n);
   
 void decr_inports(node* n);
 
-using outset_add_status_type = enum {
-  outset_add_success,
-  outset_add_fail
+using outset_insert_status_type = enum {
+  outset_insert_success,
+  outset_insert_fail
 };
 
 class outset : public pasl::sched::outstrategy::common {
@@ -908,16 +1165,16 @@ public:
   outset(pasl::sched::thread_p t)
   : t(t) { }
   
-  std::pair<outset_add_status_type, ostnode*> add(ostnode* outport, node* target, ictnode* inport) {
+  std::pair<outset_insert_status_type, ostnode*> add(ostnode* outport, node* target, ictnode* inport) {
     ostnode* next = new ostnode;
     next->target = target;
     next->port = inport;
     ostnode* orig = nullptr;
     if (! (outport->children[0].compare_exchange_strong(orig, next))) {
       delete next;
-      return std::make_pair(outset_add_fail, nullptr);
+      return std::make_pair(outset_insert_fail, nullptr);
     }
-    return std::make_pair(outset_add_success, next);
+    return std::make_pair(outset_insert_success, next);
   }
   
   void add(pasl::sched::thread_p t) {
@@ -1082,7 +1339,7 @@ public:
     ostnode* outport = p->second;
     auto inport = incr_incounter(nullptr, consumer);
     auto res = producer_out->add(outport, consumer, inport.first);
-    if (res.first == outset_add_success) {
+    if (res.first == outset_insert_success) {
       consumer->outports.insert(std::make_pair(producer, res.second));
     } else {
       add_node(consumer);
@@ -1192,6 +1449,10 @@ int main(int argc, char** argv) {
     c.add("future_loop", [&] {
       int n = pasl::util::cmdline::parse_or_default_int("n", 1);
       t = new topdown::future_loop(n);
+    });
+    c.add("future_pool", [&] {
+      int n = pasl::util::cmdline::parse_or_default_int("n", 1);
+      t = new topdown::future_pool(n);
     });
     c.find_by_arg("cmd")();
   });
