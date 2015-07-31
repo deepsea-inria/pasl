@@ -168,7 +168,6 @@ public:
   ~incounter() {
     assert(is_activated());
     deallocate_icttree(tagged_pointer_of(out));
-    in = nullptr;
     out = nullptr;
   }
   
@@ -248,7 +247,7 @@ public:
     for (int i = 0; i < B; i++) {
       ictnode* orig = nullptr;
       if (! (n->children[i].compare_exchange_strong(orig, minus()))) {
-        for (int j = i; j >= 0; j--) {
+        for (int j = i - 1; j >= 0; j--) {
           n->children[j].store(nullptr);
         }
         return false;
@@ -258,6 +257,7 @@ public:
   }
   
   void add_to_out(ictnode* n) {
+    n = tagged_tag_with(n, ictnode::minus);
     while (true) {
       ictnode* current = tagged_pointer_of(out);
       while (true) {
@@ -265,9 +265,8 @@ public:
         std::atomic<ictnode*>& branch = current->children[i];
         ictnode* next = branch.load();
         if (tagged_pointer_of(next) == nullptr) {
-          ictnode* orig = next;
-          ictnode* tagged = tagged_tag_with(n, ictnode::minus);
-          if (branch.compare_exchange_strong(orig, tagged)) {
+          ictnode* orig = nullptr;
+          if (branch.compare_exchange_strong(orig, n)) {
             return;
           }
           break;
