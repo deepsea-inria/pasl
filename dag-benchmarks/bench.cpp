@@ -265,7 +265,7 @@ public:
         std::atomic<ictnode*>& branch = current->children[i];
         ictnode* next = branch.load();
         if (tagged_pointer_of(next) == nullptr) {
-          ictnode* orig = nullptr;
+          ictnode* orig = next;
           if (branch.compare_exchange_strong(orig, n)) {
             return;
           }
