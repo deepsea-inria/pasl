@@ -218,7 +218,7 @@ public:
         if (try_to_detatch(current)) {
           in.store(nullptr);
           add_to_out(current);
-          return get_status();
+          return activated;
         }
       }
       while (true) {
@@ -233,14 +233,14 @@ public:
           if (try_to_detatch(next)) {
             branch.store(nullptr);
             add_to_out(next);
-            return get_status();
+            return not_activated;
           }
           break;
         }
         current = next;
       }
     }
-    return get_status();
+    return not_activated;
   }
   
   bool try_to_detatch(ictnode* n) {
