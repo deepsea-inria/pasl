@@ -130,59 +130,67 @@ std::ostream& operator<<(std::ostream& out, ictnode* n) {
 class incounter : public pasl::sched::instrategy::common {
 public:
   
-  ictnode* in;
+  using status_type = enum {
+    activated,
+    not_activated
+  };
+  
+  std::atomic<ictnode*> in;
   ictnode* out;
-  std::atomic<bool> one_to_zero;
   
   ictnode* minus() const {
     return tagged_tag_with((ictnode*)nullptr, ictnode::minus);
   }
   
   incounter() {
-    in = new ictnode;
+    in.store(nullptr);
     out = new ictnode(minus());
-    one_to_zero.store(false);
     out = tagged_tag_with(out, ictnode::minus);
   }
   
-  void destroy_icttree(ictnode* n) {
-    for (int i = 0; i < B; i++) {
-      ictnode* child = tagged_pointer_of(n->children[i].load());
-      if (child == nullptr) {
-        continue;
+  void deallocate_icttree(ictnode* n) {
+    std::deque<ictnode*> todo;
+    todo.push_back(n);
+    while (! todo.empty()) {
+      ictnode* current = todo.back();
+      todo.pop_back();
+      for (int i = 0; i < B; i++) {
+        ictnode* child = tagged_pointer_of(current->children[i].load());
+        if (child == nullptr) {
+          continue;
+        }
+        todo.push_back(child);
       }
-      destroy_icttree(child);
-      n->children[i].store(nullptr);
+      delete current;
     }
-    delete n;
   }
   
   ~incounter() {
-    destroy_icttree(in);
-    destroy_icttree(tagged_pointer_of(out));
+    assert(is_activated());
+    deallocate_icttree(tagged_pointer_of(out));
     in = nullptr;
     out = nullptr;
   }
   
-  bool is_zero() {
-    if (in->is_leaf()) {
-      while (true) {
-        if (one_to_zero.load()) {
-          return false;
-        }
-        bool orig = false;
-        if (one_to_zero.compare_exchange_strong(orig, true)) {
-          return true;
-        }
-      }
-    }
-    return false;
+  bool is_activated() const {
+    return in.load() == nullptr;
+  }
+  
+  status_type get_status() const {
+    return (is_activated()) ? activated : not_activated;
   }
   
   void increment() {
     ictnode* leaf = new ictnode;
     while (true) {
-      ictnode* current = in;
+      if (in.load() == nullptr) {
+        ictnode* orig = nullptr;
+        if (in.compare_exchange_strong(orig, leaf)) {
+          return;
+        }
+      }
+      assert(in.load() != nullptr);
+      ictnode* current = in.load();
       while (true) {
         int i = random_int(0, B);
         std::atomic<ictnode*>& branch = current->children[i];
@@ -203,9 +211,17 @@ public:
     }
   }
   
-  void decrement() {
+  status_type decrement() {
     while (true) {
-      ictnode* current = in;
+      ictnode* current = in.load();
+      assert(current != nullptr);
+      if (current->is_leaf()) {
+        if (try_to_detatch(current)) {
+          in.store(nullptr);
+          add_to_out(current);
+          return get_status();
+        }
+      }
       while (true) {
         int i = random_int(0, B);
         std::atomic<ictnode*>& branch = current->children[i];
@@ -218,13 +234,14 @@ public:
           if (try_to_detatch(next)) {
             branch.store(nullptr);
             add_to_out(next);
-            return;
+            return get_status();
           }
           break;
         }
         current = next;
       }
     }
+    return get_status();
   }
   
   bool try_to_detatch(ictnode* n) {
@@ -261,7 +278,7 @@ public:
   }
   
   void check(pasl::sched::thread_p t) {
-    if (is_zero()) {
+    if (is_activated()) {
       start(t);
     }
   }
@@ -273,7 +290,7 @@ public:
 };
   
 std::ostream& operator<<(std::ostream& out, incounter* n) {
-  if (n->in->is_leaf()) {
+  if (n->in.load()->is_leaf()) {
     out << 0;
   } else {
     out << n->in;
@@ -337,10 +354,6 @@ public:
   
 };
   
-using outset_insert_status_type = enum {
-  outset_insert_success,
-  outset_insert_fail
-};
   
 class outset : public pasl::sched::outstrategy::common {
 public:
@@ -578,8 +591,8 @@ void increment_incounter(node* n) {
 
 void decrement_incounter(node* n) {
   incounter* in = (incounter*)n->in;
-  in->decrement();
-  if (in->is_zero()) {
+  incounter::status_type status = in->decrement();
+  if (status == incounter::activated) {
     in->start(n);
   }
 }
@@ -591,7 +604,7 @@ void add_node(node* n) {
 void add_edge(node* source, node* target) {
   increment_incounter(target);
   outset* out = (outset*)source->out;
-  if (out->insert(target) == outset_insert_fail) {
+  if (out->insert(target) == outset::insert_fail) {
     decrement_incounter(target);
   }
 }
@@ -1102,7 +1115,7 @@ public:
 class incounter : public pasl::sched::instrategy::common {
 public:
   
-  bool is_zero(ictnode* port) const {
+  bool is_activated(ictnode* port) const {
     return port->parent == nullptr;
   }
   
@@ -1400,7 +1413,7 @@ std::pair<ictnode*, ictnode*> incr_incounter(ictnode* port, node* n) {
 void decr_incounter(ictnode* port, node* n) {
   incounter* in = (incounter*)n->in;
   port = in->decrement(port);
-  if (in->is_zero(port)) {
+  if (in->is_activated(port)) {
     delete port;
     in->start(n);
   }
