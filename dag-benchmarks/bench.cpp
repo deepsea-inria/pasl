@@ -77,6 +77,7 @@ void finish_outset_tree(ostnode*);
 void deallocate_outset_tree(ostnode*);
   
 static constexpr int B = 2;
+const int K = 100;
   
 class ictnode {
 public:
@@ -594,10 +595,9 @@ void deallocate_future(node* n) {
   delete n;
 }
   
-void deallocate_incounter_tree(ictnode* n) {
-  std::deque<ictnode*> todo;
-  todo.push_back(n);
-  while (! todo.empty()) {
+void deallocate_incounter_tree(std::deque<ictnode*>& todo) {
+  int k = 0;
+  while ( (k < K) && (! todo.empty()) ) {
     ictnode* current = todo.back();
     todo.pop_back();
     for (int i = 0; i < B; i++) {
@@ -608,13 +608,21 @@ void deallocate_incounter_tree(ictnode* n) {
       todo.push_back(child);
     }
     delete current;
+    k++;
   }
 }
   
-void finish_outset_tree(ostnode* n) {
-  std::deque<ostnode*> todo;
+void deallocate_incounter_tree(ictnode* n) {
+  std::deque<ictnode*> todo;
   todo.push_back(n);
   while (! todo.empty()) {
+    deallocate_incounter_tree(todo);
+  }
+}
+  
+void finish_outset_tree(std::deque<ostnode*>& todo) {
+  int k = 0;
+  while ( (k < K) && (! todo.empty()) ) {
     ostnode* current = todo.back();
     todo.pop_back();
     for (int i = 0; i < B; i++) {
@@ -634,13 +642,21 @@ void finish_outset_tree(ostnode* n) {
         todo.push_back(tagged_pointer_of(n.interior));
       }
     }
+    k++;
   }
 }
   
-void deallocate_outset_tree(ostnode* n) {
+void finish_outset_tree(ostnode* n) {
   std::deque<ostnode*> todo;
   todo.push_back(n);
   while (! todo.empty()) {
+    finish_outset_tree(todo);
+  }
+}
+  
+void deallocate_outset_tree(std::deque<ostnode*>& todo) {
+  int k = 0;
+  while ( (k < K) && (! todo.empty()) ) {
     ostnode* n = todo.back();
     todo.pop_back();
     for (int i = 0; i < B; i++) {
@@ -657,6 +673,15 @@ void deallocate_outset_tree(ostnode* n) {
       }
     }
     delete n;
+    k++;
+  }
+}
+  
+void deallocate_outset_tree(ostnode* n) {
+  std::deque<ostnode*> todo;
+  todo.push_back(n);
+  while (! todo.empty()) {
+    deallocate_outset_tree(todo);
   }
 }
   
