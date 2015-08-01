@@ -73,7 +73,7 @@ void join_with(node*, incounter*);
 void continue_with(node*);
 void decrement_incounter(node*);
 void deallocate_incounter_tree(ictnode*);
-void finish_outset_tree(ostnode*);
+void finish_outset(outset*);
 void deallocate_outset_tree(ostnode*);
   
 static constexpr int B = 2;
@@ -415,10 +415,7 @@ public:
   }
   
   void finished() {
-    finish_outset_tree(root);
-    if (should_deallocate) {
-      delete this;
-    }
+    finish_outset(this);
   }
   
   void visit(std::function<void (node*)> f) {
@@ -595,7 +592,7 @@ void deallocate_future(node* n) {
   delete n;
 }
   
-void deallocate_incounter_tree(std::deque<ictnode*>& todo) {
+void deallocate_incounter_tree_partial(std::deque<ictnode*>& todo) {
   int k = 0;
   while ( (k < K) && (! todo.empty()) ) {
     ictnode* current = todo.back();
@@ -612,15 +609,63 @@ void deallocate_incounter_tree(std::deque<ictnode*>& todo) {
   }
 }
   
-void deallocate_incounter_tree(ictnode* n) {
+class deallocate_incounter_tree_par : public node {
+public:
+  
+  using self_type = deallocate_incounter_tree_par;
+  
+  enum {
+    process_block=0,
+    repeat_block
+  };
+  
   std::deque<ictnode*> todo;
-  todo.push_back(n);
-  while (! todo.empty()) {
-    deallocate_incounter_tree(todo);
+  
+  void body() {
+    switch (current_block_id) {
+      case process_block: {
+        deallocate_incounter_tree_partial(todo);
+        jump_to(repeat_block);
+        break;
+      }
+      case repeat_block: {
+        if (! todo.empty()) {
+          jump_to(process_block);
+        }
+        break;
+      }
+      default:
+        break;
+    }
+  }
+  
+  size_t size() const {
+    return todo.size();
+  }
+  
+  pasl::sched::thread_p split() {
+    assert(size() >= 2);
+    auto n = todo.front();
+    todo.pop_front();
+    auto t = new self_type();
+    t->todo.push_back(n);
+    return t;
+  }
+  
+};
+  
+void deallocate_incounter_tree(ictnode* root) {
+  deallocate_incounter_tree_par d;
+  d.todo.push_back(root);
+  deallocate_incounter_tree_partial(d.todo);
+  if (! d.todo.empty()) {
+    node* n = new deallocate_incounter_tree_par(d);
+    prepare_node(n);
+    add_node(n);
   }
 }
   
-void finish_outset_tree(std::deque<ostnode*>& todo) {
+void finish_outset_tree_partial(std::deque<ostnode*>& todo) {
   int k = 0;
   while ( (k < K) && (! todo.empty()) ) {
     ostnode* current = todo.back();
@@ -646,15 +691,117 @@ void finish_outset_tree(std::deque<ostnode*>& todo) {
   }
 }
   
-void finish_outset_tree(ostnode* n) {
+class finish_outset_tree_par_rec : public node {
+public:
+  
+  using self_type = finish_outset_tree_par_rec;
+  
+  enum {
+    process_block=0,
+    repeat_block,
+    exit_block
+  };
+
+  node* join;
   std::deque<ostnode*> todo;
-  todo.push_back(n);
-  while (! todo.empty()) {
-    finish_outset_tree(todo);
+  
+  finish_outset_tree_par_rec(node* join, ostnode* n)
+  : join(join) {
+    todo.push_back(n);
+  }
+  
+  finish_outset_tree_par_rec(node* join, std::deque<ostnode*>& _todo)
+  : join(join) {
+    _todo.swap(todo);
+  }
+  
+  void body() {
+    switch (current_block_id) {
+      case process_block: {
+        finish_outset_tree_partial(todo);
+        jump_to(repeat_block);
+        break;
+      }
+      case repeat_block: {
+        if (! todo.empty()) {
+          jump_to(process_block);
+        }
+        break;
+      }
+      default:
+        break;
+    }
+  }
+  
+  size_t size() const {
+    return todo.size();
+  }
+  
+  pasl::sched::thread_p split() {
+    assert(size() >= 2);
+    auto n = todo.front();
+    todo.pop_front();
+    auto t = new self_type(join, n);
+    add_edge(t, join);
+    return t;
+  }
+  
+};
+  
+class finish_outset_tree_par : public node {
+public:
+  
+  using self_type = finish_outset_tree_par;
+  
+  enum {
+    entry_block=0,
+    exit_block
+  };
+  
+  outset* out;
+  std::deque<ostnode*> todo;
+  
+  finish_outset_tree_par(outset* out, std::deque<ostnode*>& _todo)
+  : out(out) {
+    todo.swap(_todo);
+  }
+  
+  void body() {
+    switch (current_block_id) {
+      case entry_block: {
+        finish(new finish_outset_tree_par_rec(this, todo),
+               exit_block);
+        break;
+      }
+      case exit_block: {
+        if (out->should_deallocate) {
+          delete out;
+        }
+        break;
+      }
+      default:
+        break;
+    }
+  }
+  
+};
+  
+void finish_outset(outset* out) {
+  std::deque<ostnode*> todo;
+  todo.push_back(out->root);
+  finish_outset_tree_partial(todo);
+  if (! todo.empty()) {
+    auto n = new finish_outset_tree_par(out, todo);
+    prepare_node(n);
+    add_node(n);
+  } else {
+    if (out->should_deallocate) {
+      delete out;
+    }
   }
 }
   
-void deallocate_outset_tree(std::deque<ostnode*>& todo) {
+void deallocate_outset_tree_partial(std::deque<ostnode*>& todo) {
   int k = 0;
   while ( (k < K) && (! todo.empty()) ) {
     ostnode* n = todo.back();
@@ -677,11 +824,59 @@ void deallocate_outset_tree(std::deque<ostnode*>& todo) {
   }
 }
   
-void deallocate_outset_tree(ostnode* n) {
+class deallocate_outset_tree_par : public node {
+public:
+  
+  using self_type = deallocate_outset_tree_par;
+  
+  enum {
+    process_block=0,
+    repeat_block
+  };
+  
   std::deque<ostnode*> todo;
-  todo.push_back(n);
-  while (! todo.empty()) {
-    deallocate_outset_tree(todo);
+  
+  void body() {
+    switch (current_block_id) {
+      case process_block: {
+        deallocate_outset_tree_partial(todo);
+        jump_to(repeat_block);
+        break;
+      }
+      case repeat_block: {
+        if (! todo.empty()) {
+          jump_to(process_block);
+        }
+        break;
+      }
+      default:
+        break;
+    }
+  }
+  
+  size_t size() const {
+    return todo.size();
+  }
+  
+  pasl::sched::thread_p split() {
+    assert(size() >= 2);
+    auto n = todo.front();
+    todo.pop_front();
+    auto t = new self_type();
+    t->todo.push_back(n);
+    return t;
+  }
+  
+};
+  
+void deallocate_outset_tree(ostnode* root) {
+  deallocate_outset_tree_par d;
+  d.todo.push_back(root);
+  deallocate_outset_tree_partial(d.todo);
+  if (! d.todo.empty()) {
+    node* n = new deallocate_outset_tree_par(d);
+    prepare_node(n);
+    add_node(n);
   }
 }
   
