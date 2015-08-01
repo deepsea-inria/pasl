@@ -43,6 +43,7 @@ T* tagged_tag_with(T* n, int t) {
 
 pasl::data::perworker::array<std::mt19937> generator;
 
+// returns a random integer in the range [lo, hi)
 int random_int(int lo, int hi) {
   std::uniform_int_distribution<int> distribution(lo, hi-1);
   return distribution(generator.mine());
@@ -59,6 +60,8 @@ namespace topdown {
 class node;
 class incounter;
 class outset;
+class ictnode;
+class ostnode;
 
 void add_node(node*);
 void add_edge(node*, node*);
@@ -69,6 +72,9 @@ void prepare_node(node*, incounter*, outset*);
 void join_with(node*, incounter*);
 void continue_with(node*);
 void decrement_incounter(node*);
+void deallocate_incounter_tree(ictnode*);
+void finish_outset_tree(ostnode*);
+void deallocate_outset_tree(ostnode*);
   
 static constexpr int B = 2;
   
@@ -148,35 +154,14 @@ public:
     out = tagged_tag_with(out, ictnode::minus);
   }
   
-  void deallocate_icttree(ictnode* n) {
-    std::deque<ictnode*> todo;
-    todo.push_back(n);
-    while (! todo.empty()) {
-      ictnode* current = todo.back();
-      todo.pop_back();
-      for (int i = 0; i < B; i++) {
-        ictnode* child = tagged_pointer_of(current->children[i].load());
-        if (child == nullptr) {
-          continue;
-        }
-        todo.push_back(child);
-      }
-      delete current;
-    }
-  }
-  
   ~incounter() {
     assert(is_activated());
-    deallocate_icttree(tagged_pointer_of(out));
+    deallocate_incounter_tree(tagged_pointer_of(out));
     out = nullptr;
   }
   
   bool is_activated() const {
     return in.load() == nullptr;
-  }
-  
-  status_type get_status() const {
-    return (is_activated()) ? activated : not_activated;
   }
   
   void increment() {
@@ -353,7 +338,6 @@ public:
   
 };
   
-  
 class outset : public pasl::sched::outstrategy::common {
 public:
   
@@ -371,26 +355,7 @@ public:
   }
   
   ~outset() {
-    std::deque<ostnode*> todo;
-    todo.push_back(root);
-    while (! todo.empty()) {
-      ostnode* n = todo.back();
-      todo.pop_back();
-      for (int i = 0; i < B; i++) {
-        ostnode::tagged_pointer_type c = n->children[i].load();
-        int tag = tagged_tag_of(c.interior);
-        if (   (tag == ostnode::finished_empty)
-            || (tag == ostnode::finished_leaf) ) {
-          // nothing to do
-        } else if (tag == ostnode::finished_interior) {
-          todo.push_back(tagged_pointer_of(c.interior));
-        } else {
-          // should not occur, given that finished() has been called
-          assert(false);
-        }
-      }
-      delete n;
-    }
+    deallocate_outset_tree(root);
   }
   
   insert_status_type insert(ostnode::tagged_pointer_type val) {
@@ -449,29 +414,7 @@ public:
   }
   
   void finished() {
-    std::deque<ostnode*> todo;
-    todo.push_back(root);
-    while (! todo.empty()) {
-      ostnode* current = todo.back();
-      todo.pop_back();
-      for (int i = 0; i < B; i++) {
-        ostnode::tagged_pointer_type n = current->children[i].load();
-        while (true) {
-          ostnode::tagged_pointer_type orig = n;
-          ostnode::tagged_pointer_type next = ostnode::make_finished(n);
-          if (current->children[i].compare_exchange_strong(orig, next)) {
-            break;
-          }
-        }
-        int tag = tagged_tag_of(n.leaf);
-        if (tag == ostnode::leaf) {
-          decrement_incounter(tagged_pointer_of(n.leaf));
-        }
-        if (tag == ostnode::interior) {
-          todo.push_back(tagged_pointer_of(n.interior));
-        }
-      }
-    }
+    finish_outset_tree(root);
     if (should_deallocate) {
       delete this;
     }
@@ -649,6 +592,72 @@ void deallocate_future(node* n) {
   assert(n->in == nullptr);
   assert(n->should_not_deallocate);
   delete n;
+}
+  
+void deallocate_incounter_tree(ictnode* n) {
+  std::deque<ictnode*> todo;
+  todo.push_back(n);
+  while (! todo.empty()) {
+    ictnode* current = todo.back();
+    todo.pop_back();
+    for (int i = 0; i < B; i++) {
+      ictnode* child = tagged_pointer_of(current->children[i].load());
+      if (child == nullptr) {
+        continue;
+      }
+      todo.push_back(child);
+    }
+    delete current;
+  }
+}
+  
+void finish_outset_tree(ostnode* n) {
+  std::deque<ostnode*> todo;
+  todo.push_back(n);
+  while (! todo.empty()) {
+    ostnode* current = todo.back();
+    todo.pop_back();
+    for (int i = 0; i < B; i++) {
+      ostnode::tagged_pointer_type n = current->children[i].load();
+      while (true) {
+        ostnode::tagged_pointer_type orig = n;
+        ostnode::tagged_pointer_type next = ostnode::make_finished(n);
+        if (current->children[i].compare_exchange_strong(orig, next)) {
+          break;
+        }
+      }
+      int tag = tagged_tag_of(n.leaf);
+      if (tag == ostnode::leaf) {
+        decrement_incounter(tagged_pointer_of(n.leaf));
+      }
+      if (tag == ostnode::interior) {
+        todo.push_back(tagged_pointer_of(n.interior));
+      }
+    }
+  }
+}
+  
+void deallocate_outset_tree(ostnode* n) {
+  std::deque<ostnode*> todo;
+  todo.push_back(n);
+  while (! todo.empty()) {
+    ostnode* n = todo.back();
+    todo.pop_back();
+    for (int i = 0; i < B; i++) {
+      ostnode::tagged_pointer_type c = n->children[i].load();
+      int tag = tagged_tag_of(c.interior);
+      if (   (tag == ostnode::finished_empty)
+          || (tag == ostnode::finished_leaf) ) {
+        // nothing to do
+      } else if (tag == ostnode::finished_interior) {
+        todo.push_back(tagged_pointer_of(c.interior));
+      } else {
+        // should not occur, given that finished() has been called
+        assert(false);
+      }
+    }
+    delete n;
+  }
 }
   
 } // end namespace
