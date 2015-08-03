@@ -60,8 +60,6 @@ namespace topdown {
 class node;
 class incounter;
 class outset;
-class ictnode;
-class ostnode;
 
 void add_node(node*);
 void add_edge(node*, node*);
@@ -73,15 +71,58 @@ void prepare_node(node*, incounter*, outset*);
 void join_with(node*, incounter*);
 void continue_with(node*);
 void decrement_incounter(node*);
-void deallocate_incounter_tree(ictnode*);
-void finish_outset(outset*);
-void deallocate_outset_tree(ostnode*);
 incounter* incounter_ready();
 incounter* incounter_unary();
+incounter* incounter_new();
 outset* outset_unary();
+outset* outset_noop();
+outset* outset_new();
+  
+class incounter : public pasl::sched::instrategy::common {
+public:
+  
+  using status_type = enum {
+    activated,
+    not_activated
+  };
+  
+  virtual bool is_activated() const = 0;
+  
+  virtual void increment() = 0;
+  
+  virtual status_type decrement() = 0;
+  
+};
+
+class outset : public pasl::sched::outstrategy::common {
+public:
+  
+  using insert_status_type = enum {
+    insert_success,
+    insert_fail
+  };
+  
+  bool should_deallocate = true;
+  
+  virtual insert_status_type insert(node*) = 0;
+  
+  virtual void finish() = 0;
+  
+};
+  
+namespace tree {
   
 static constexpr int B = 2;
 const int K = 100;
+  
+class tree_incounter;
+class tree_outset;
+class ictnode;
+class ostnode;
+
+void deallocate_incounter_tree(ictnode*);
+void finish_outset(tree_outset*);
+void deallocate_outset_tree(ostnode*);
   
 class ictnode {
 public:
@@ -114,37 +155,10 @@ public:
     return true;
   }
   
-  int nb_leaf_nodes() {
-    if (is_leaf()) {
-      return 1;
-    }
-    int cnt = 0;
-    for (int i = 0; i < B; i++) {
-      if (tagged_tag_of(children[i].load()) == minus) {
-        continue;
-      }
-      ictnode* child = tagged_pointer_of(children[i].load());
-      if (child != nullptr) {
-        cnt += child->nb_leaf_nodes();
-      }
-    }
-    return cnt;
-  }
-  
 };
-  
-std::ostream& operator<<(std::ostream& out, ictnode* n) {
-  out << n->nb_leaf_nodes();
-  return out;
-}
 
-class incounter : public pasl::sched::instrategy::common {
+class tree_incounter : public incounter {
 public:
-  
-  using status_type = enum {
-    activated,
-    not_activated
-  };
   
   ictnode* in;
   ictnode* out;
@@ -153,13 +167,13 @@ public:
     return tagged_tag_with((ictnode*)nullptr, ictnode::minus);
   }
   
-  incounter() {
+  tree_incounter() {
     in = nullptr;
     out = new ictnode(minus());
     out = tagged_tag_with(out, ictnode::minus);
   }
   
-  ~incounter() {
+  ~tree_incounter() {
     assert(is_activated());
     deallocate_incounter_tree(tagged_pointer_of(out));
     out = nullptr;
@@ -284,15 +298,6 @@ public:
   
 };
   
-std::ostream& operator<<(std::ostream& out, incounter* n) {
-  if (n->in->is_leaf()) {
-    out << 0;
-  } else {
-    out << n->in;
-  }
-  return out;
-}
-  
 class ostnode {
 public:
   
@@ -349,23 +354,16 @@ public:
   
 };
   
-class outset : public pasl::sched::outstrategy::common {
+class tree_outset : public outset {
 public:
-  
-  using insert_status_type = enum {
-    insert_success,
-    insert_fail
-  };
-  
+ 
   ostnode* root;
   
-  bool should_deallocate = true;
-  
-  outset() {
+  tree_outset() {
     root = new ostnode;
   }
   
-  ~outset() {
+  ~tree_outset() {
     deallocate_outset_tree(root);
   }
   
@@ -424,37 +422,17 @@ public:
     assert(false);
   }
   
-  void finished() {
+  void finish() {
     finish_outset(this);
   }
   
-  void visit(std::function<void (node*)> f) {
-    assert(false);
+  void finished() {
+    finish();
   }
-  
+
 };
   
-template <class Item>
-std::ostream& operator<<(std::ostream& out, const std::vector<Item>& xs) {
-  out << "{ ";
-  size_t sz = xs.size();
-  for (long i = 0; i < sz; i++) {
-    out << xs[i];
-    if (i+1 < sz)
-      out << ", ";
-  }
-  out << " }";
-  return out;
-}
-  
-std::ostream& operator<<(std::ostream& out, outset* o) {
-  std::vector<node*> nodes;
-  o->visit([&] (node* n) {
-    nodes.push_back(n);
-  });
-  out << nodes;
-  return out;
-}
+} // end namespace
   
 class node : public pasl::sched::thread {
 public:
@@ -504,7 +482,7 @@ public:
     node* consumer = this;
     prepare_node(producer, incounter_ready(), outset_unary());
     prepare_for_transfer(continuation_block_id);
-    join_with(consumer, new incounter);
+    join_with(consumer, incounter_new());
     add_edge(producer, consumer);
     add_node(producer);
   }
@@ -545,6 +523,18 @@ incounter* incounter_unary() {
 
 outset* outset_unary() {
   return (outset*)pasl::sched::outstrategy::unary_new();
+}
+  
+outset* outset_noop() {
+  return (outset*)pasl::sched::outstrategy::noop_new();
+}
+  
+incounter* incounter_new() {
+  return new tree::tree_incounter;
+}
+
+outset* outset_new() {
+  return new tree::tree_outset;
 }
   
 void increment_incounter(node* n, incounter* n_in) {
@@ -617,22 +607,22 @@ void prepare_node(node* n, incounter* in, outset* out) {
 }
   
 void prepare_node(node* n) {
-  prepare_node(n, new incounter, new outset);
+  prepare_node(n, incounter_new(), outset_new());
 }
 
 void prepare_node(node* n, incounter* in) {
-  prepare_node(n, in, new outset);
+  prepare_node(n, in, outset_new());
 }
 
 void prepare_node(node* n, outset* out) {
-  prepare_node(n, new incounter, out);
+  prepare_node(n, incounter_new(), out);
 }
   
 outset* capture_outset() {
   auto sched = pasl::sched::threaddag::my_sched();
   outset* out = (outset*)sched->get_outstrategy();
   assert(out != nullptr);
-  sched->set_outstrategy(new outset);
+  sched->set_outstrategy(outset_new());
   return out;
 }
 
@@ -641,7 +631,7 @@ void join_with(node* n, incounter* in) {
 }
 
 void continue_with(node* n) {
-  join_with(n, new incounter);
+  join_with(n, incounter_ready());
   add_node(n);
 }
   
@@ -649,6 +639,8 @@ void deallocate_future(outset* out) {
   assert(! out->should_deallocate);
   delete out;
 }
+  
+namespace tree {
   
 void deallocate_incounter_tree_partial(std::deque<ictnode*>& todo) {
   int k = 0;
@@ -816,10 +808,10 @@ public:
     exit_block
   };
   
-  outset* out;
+  tree_outset* out;
   std::deque<ostnode*> todo;
   
-  finish_outset_tree_par(outset* out, std::deque<ostnode*>& _todo)
+  finish_outset_tree_par(tree_outset* out, std::deque<ostnode*>& _todo)
   : out(out) {
     todo.swap(_todo);
   }
@@ -844,7 +836,7 @@ public:
   
 };
   
-void finish_outset(outset* out) {
+void finish_outset(tree_outset* out) {
   std::deque<ostnode*> todo;
   todo.push_back(out->root);
   finish_outset_tree_partial(todo);
@@ -937,6 +929,8 @@ void deallocate_outset_tree(ostnode* root) {
     add_node(n);
   }
 }
+  
+} // end namespace
   
 } // end namespace
 
