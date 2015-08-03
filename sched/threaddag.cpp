@@ -85,11 +85,10 @@ instrategy_p new_forkjoin_instrategy() {
 typedef enum { UNARY, FENCEFREE_OUTSTRATEGY } outstrategy_class_t;
 static outstrategy_class_t outstrategy_class_forkjoin;
 
-outstrategy_p new_forkjoin_outstrategy(branch_t branch = UNDEFINED) {
+outstrategy_p new_forkjoin_outstrategy() {
   outstrategy_p out = NULL;
   switch (outstrategy_class_forkjoin) {
     case UNARY: out = outstrategy::unary_new(); break;
-    //case FENCEFREE_OUTSTRATEGY: out = fencefree::select_outstrategy(branch); break;
     default: util::atomic::die("bogus outstrategy");
   }
   return out;
@@ -305,12 +304,8 @@ static void fork(thread_p thread, thread_p cont, instrategy_p in, outstrategy_p 
   add_thread(thread);
 }
 
-void fork(thread_p thread, thread_p cont, branch_t branch) {
-  fork(thread, cont, instrategy::ready_new(), new_forkjoin_outstrategy(branch));
-}
-
 void fork(thread_p thread, thread_p cont) {
-  fork(thread, cont, UNDEFINED);
+  fork(thread, cont, instrategy::ready_new(), new_forkjoin_outstrategy());
 }
 
 /*---------------------------------------------------------------------*/
@@ -318,7 +313,7 @@ void fork(thread_p thread, thread_p cont) {
 
 void unary_fork_join(thread_p thread, thread_p cont, instrategy_p in) {
   join_with(cont, in);
-  fork(thread, cont, SINGLE);
+  fork(thread, cont);
   add_thread(cont);
 }
 
@@ -329,8 +324,8 @@ void unary_fork_join(thread_p thread, thread_p cont) {
 void binary_fork_join(thread_p thread1, thread_p thread2, thread_p cont,
                                                   instrategy_p in) {
   join_with(cont, in);
-  fork(thread2, cont, RIGHT);
-  fork(thread1, cont, LEFT);
+  fork(thread2, cont);
+  fork(thread1, cont);
   add_thread(cont);
 }
 

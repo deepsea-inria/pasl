@@ -366,9 +366,6 @@ public:
   
 const long NOOP_TAG = 1;
 const long UNARY_TAG = 2;
-const long FLEFT_TAG = 3;
-const long FRIGHT_TAG = 4;
-const long SINGLE_TAG = 5;
   
 static inline long extract_tag(outstrategy_p out) {
   return data::tagged::extract_tag<thread_p, outstrategy_p>(out);
@@ -390,37 +387,12 @@ static inline outstrategy_p noop_new() {
 #endif
 }
   
-static inline outstrategy_p fleft_tag_new() {
-#ifndef DEBUG_OPTIM_STRATEGY
-  return data::tagged::create<thread_p, outstrategy_p>(NULL, FLEFT_TAG);
-#else
-  //return new noop();
-#endif
-}
-  
-static inline outstrategy_p fright_tag_new() {
-#ifndef DEBUG_OPTIM_STRATEGY
-  return data::tagged::create<thread_p, outstrategy_p>(NULL, FRIGHT_TAG);
-#else
-  //return new noop();
-#endif
-}
-
-static inline outstrategy_p single_tag_new() {
-#ifndef DEBUG_OPTIM_STRATEGY
-  return data::tagged::create<thread_p, outstrategy_p>(NULL, SINGLE_TAG);
-#else
-  //return new noop();
-#endif
-}
-  
 /*---------------------------------------------------------------------*/
 
 static inline void add(outstrategy_p& out, thread_p td) {
   long tag = extract_tag(out);
   if (tag > 0) {
-    assert(   tag == UNARY_TAG || tag == FLEFT_TAG || tag == FRIGHT_TAG
-           || tag == SINGLE_TAG);
+    assert(   tag == UNARY_TAG);
     out = data::tagged::create<thread_p, outstrategy_p>(td, tag);
   } else {
     out->add(td);

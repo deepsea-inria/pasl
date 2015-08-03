@@ -90,12 +90,6 @@ void reuse_calling_thread();
  * \ingroup threaddag
  *  @{
  */
-  
-typedef int branch_t;
-const branch_t UNDEFINED = -1l;
-const branch_t LEFT = 0;
-const branch_t RIGHT = 1;
-const branch_t SINGLE = 2;
 
 /** \defgroup basicderived Basic
  *  @{
@@ -124,7 +118,6 @@ void continue_with(thread_p thread);
  * the thread `thread` to the set of ready threads.
  */
 void fork(thread_p thread, thread_p join);
-void fork(thread_p thread, thread_p join, branch_t branch);
   
 /** @} */
 
@@ -228,7 +221,7 @@ void finish(thread_p thread, thread_p cont);
 /*---------------------------------------------------------------------*/
   
 instrategy_p new_forkjoin_instrategy();
-outstrategy_p new_forkjoin_outstrategy(branch_t branch);
+outstrategy_p new_forkjoin_outstrategy();
   
 void change_factory(util::worker::controller_factory_t* factory);
   
