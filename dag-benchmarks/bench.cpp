@@ -65,7 +65,7 @@ class ostnode;
 
 void add_node(node*);
 void add_edge(node*, node*);
-void add_edge(node*, outset*, incounter*);
+void add_edge(node*, node*, outset*, incounter*);
 void prepare_node(node*);
 void prepare_node(node*, incounter*);
 void prepare_node(node*, outset*);
@@ -76,6 +76,9 @@ void decrement_incounter(node*);
 void deallocate_incounter_tree(ictnode*);
 void finish_outset(outset*);
 void deallocate_outset_tree(ostnode*);
+incounter* incounter_ready();
+incounter* incounter_unary();
+outset* outset_unary();
   
 static constexpr int B = 2;
 const int K = 100;
@@ -268,7 +271,15 @@ public:
   }
   
   void delta(pasl::sched::thread_p t, int64_t d) {
-    assert(false);
+    if (d == -1L) {
+      if (decrement() == activated) {
+        start(t);
+      }
+    } else if (d == +1L) {
+      increment();
+    } else {
+      assert(false);
+    }
   }
   
 };
@@ -483,7 +494,7 @@ public:
   }
   
   void async(node* producer, node* consumer, int continuation_block_id) {
-    prepare_node(producer);
+    prepare_node(producer, incounter_ready(), outset_unary());
     add_edge(producer, consumer);
     jump_to(continuation_block_id);
     add_node(producer);
@@ -491,7 +502,7 @@ public:
   
   void finish(node* producer, int continuation_block_id) {
     node* consumer = this;
-    prepare_node(producer);
+    prepare_node(producer, incounter_ready(), outset_unary());
     prepare_for_transfer(continuation_block_id);
     join_with(consumer, new incounter);
     add_edge(producer, consumer);
@@ -500,19 +511,20 @@ public:
   
   outset* future(node* producer, int continuation_block_id) {
     node* consumer = this;
-    prepare_node(producer);
+    prepare_node(producer, incounter_ready());
     outset* producer_out = (outset*)producer->out;
     producer_out->should_deallocate = false;
     consumer->jump_to(continuation_block_id);
     add_node(producer);
-    return (outset*)producer->out;
+    return producer_out;
   }
   
   void force(outset* producer_out, int continuation_block_id) {
     node* consumer = this;
     prepare_for_transfer(continuation_block_id);
-    join_with(consumer, new incounter);
-    add_edge(consumer, producer_out, (incounter*)consumer->in);
+    incounter* consumer_in = incounter_unary();
+    join_with(consumer, consumer_in);
+    add_edge(consumer, nullptr, producer_out, consumer_in);
   }
   
   void call(node* target, int continuation_block_id) {
@@ -522,9 +534,30 @@ public:
   THREAD_COST_UNKNOWN
   
 };
+
+incounter* incounter_ready() {
+  return (incounter*)pasl::sched::instrategy::ready_new();
+}
+
+incounter* incounter_unary() {
+  return (incounter*)pasl::sched::instrategy::unary_new();
+}
+
+outset* outset_unary() {
+  return (outset*)pasl::sched::outstrategy::unary_new();
+}
   
 void increment_incounter(node* n, incounter* n_in) {
-  n_in->increment();
+  long tag = pasl::sched::instrategy::extract_tag(n_in);
+  assert(tag != pasl::sched::instrategy::READY_TAG);
+  if (tag == pasl::sched::instrategy::UNARY_TAG) {
+    // nothing to do
+  } else if (tag == pasl::sched::instrategy::FETCH_ADD_TAG) {
+    pasl::data::tagged::atomic_fetch_and_add<pasl::sched::instrategy_p>(&(n->in), 1l);
+  } else {
+    assert(tag == 0);
+    n_in->delta(n, +1L);
+  }
 }
   
 void increment_incounter(node* n) {
@@ -532,8 +565,18 @@ void increment_incounter(node* n) {
 }
   
 void decrement_incounter(node* n, incounter* n_in) {
-  if (n_in->decrement() == incounter::activated) {
-    n_in->start(n);
+  long tag = pasl::sched::instrategy::extract_tag(n_in);
+  assert(tag != pasl::sched::instrategy::READY_TAG);
+  if (tag == pasl::sched::instrategy::UNARY_TAG) {
+    pasl::sched::instrategy::schedule(n);
+  } else if (tag == pasl::sched::instrategy::FETCH_ADD_TAG) {
+    int64_t old = pasl::data::tagged::atomic_fetch_and_add<pasl::sched::instrategy_p>(&(n->in), -1l);
+    if (old == 1) {
+      pasl::sched::instrategy::schedule(n);
+    }
+  } else {
+    assert(tag == 0);
+    n->in->delta(n, -1L);
   }
 }
 
@@ -544,16 +587,28 @@ void decrement_incounter(node* n) {
 void add_node(node* n) {
   pasl::sched::threaddag::add_thread(n);
 }
+  
+outset::insert_status_type add_to_outset(node* n, outset* out, node* m) {
+  long tag = pasl::sched::outstrategy::extract_tag(out);
+  assert(tag != pasl::sched::outstrategy::NOOP_TAG);
+  if (tag == pasl::sched::outstrategy::UNARY_TAG) {
+    n->out = pasl::data::tagged::create<pasl::sched::thread_p, pasl::sched::outstrategy_p>(m, tag);
+    return outset::insert_success;
+  } else {
+    assert(tag == 0);
+    return out->insert(m);
+  }
+}
 
-void add_edge(node* target, outset* source_out, incounter* target_in) {
+void add_edge(node* target, node* source, outset* source_out, incounter* target_in) {
   increment_incounter(target, target_in);
-  if (source_out->insert(target) == outset::insert_fail) {
+  if (add_to_outset(source, source_out, target) == outset::insert_fail) {
     decrement_incounter(target, target_in);
   }
 }
   
 void add_edge(node* source, node* target) {
-  add_edge(target, (outset*)source->out, (incounter*)target->in);
+  add_edge(target, source, (outset*)source->out, (incounter*)target->in);
 }
   
 void prepare_node(node* n, incounter* in, outset* out) {
