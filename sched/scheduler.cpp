@@ -75,9 +75,7 @@ void _private::exec(thread_p t) {
   reuse_thread_requested = false;
   current_thread = t;
   current_outstrategy = t->out;
-  // disable line below because experimental implementation of futures depends on
-  // the field t->out being preserved
-  //t->out = nullptr; // optional
+  t->out = nullptr; // optional
   interrupt_was_blocked = false;
   if (interrupt_was_blocked)
     check_on_interrupt();

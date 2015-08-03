@@ -65,6 +65,7 @@ class ostnode;
 
 void add_node(node*);
 void add_edge(node*, node*);
+void add_edge(node*, outset*, incounter*);
 void prepare_node(node*);
 void prepare_node(node*, incounter*);
 void prepare_node(node*, outset*);
@@ -497,21 +498,21 @@ public:
     add_node(producer);
   }
   
-  void future(node* producer, int continuation_block_id) {
+  outset* future(node* producer, int continuation_block_id) {
     node* consumer = this;
     prepare_node(producer);
-    producer->should_not_deallocate = true;
     outset* producer_out = (outset*)producer->out;
     producer_out->should_deallocate = false;
     consumer->jump_to(continuation_block_id);
     add_node(producer);
+    return (outset*)producer->out;
   }
   
-  void force(node* producer, int continuation_block_id) {
+  void force(outset* producer_out, int continuation_block_id) {
     node* consumer = this;
     prepare_for_transfer(continuation_block_id);
     join_with(consumer, new incounter);
-    add_edge(producer, consumer);
+    add_edge(consumer, producer_out, (incounter*)consumer->in);
   }
   
   void call(node* target, int continuation_block_id) {
@@ -522,29 +523,37 @@ public:
   
 };
   
+void increment_incounter(node* n, incounter* n_in) {
+  n_in->increment();
+}
+  
 void increment_incounter(node* n) {
-  incounter* in = (incounter*)n->in;
-  in->increment();
+  increment_incounter(n, (incounter*)n->in);
+}
+  
+void decrement_incounter(node* n, incounter* n_in) {
+  if (n_in->decrement() == incounter::activated) {
+    n_in->start(n);
+  }
 }
 
 void decrement_incounter(node* n) {
-  incounter* in = (incounter*)n->in;
-  incounter::status_type status = in->decrement();
-  if (status == incounter::activated) {
-    in->start(n);
-  }
+  decrement_incounter(n, (incounter*)n->in);
 }
   
 void add_node(node* n) {
   pasl::sched::threaddag::add_thread(n);
 }
+
+void add_edge(node* target, outset* source_out, incounter* target_in) {
+  increment_incounter(target, target_in);
+  if (source_out->insert(target) == outset::insert_fail) {
+    decrement_incounter(target, target_in);
+  }
+}
   
 void add_edge(node* source, node* target) {
-  increment_incounter(target);
-  outset* out = (outset*)source->out;
-  if (out->insert(target) == outset::insert_fail) {
-    decrement_incounter(target);
-  }
+  add_edge(target, (outset*)source->out, (incounter*)target->in);
 }
   
 void prepare_node(node* n, incounter* in, outset* out) {
@@ -565,9 +574,10 @@ void prepare_node(node* n, outset* out) {
 }
   
 outset* capture_outset() {
-  outset* out = (outset*)pasl::sched::threaddag::my_sched()->get_outstrategy();
+  auto sched = pasl::sched::threaddag::my_sched();
+  outset* out = (outset*)sched->get_outstrategy();
   assert(out != nullptr);
-  pasl::sched::threaddag::my_sched()->set_outstrategy(new outset);
+  sched->set_outstrategy(new outset);
   return out;
 }
 
@@ -579,15 +589,10 @@ void continue_with(node* n) {
   join_with(n, new incounter);
   add_node(n);
 }
-
-void deallocate_future(node* n) {
-  outset* out = (outset*)n->out;
+  
+void deallocate_future(outset* out) {
   assert(! out->should_deallocate);
-  n->out = nullptr;
   delete out;
-  assert(n->in == nullptr);
-  assert(n->should_not_deallocate);
-  delete n;
 }
   
 void deallocate_incounter_tree_partial(std::deque<ictnode*>& todo) {
@@ -991,8 +996,9 @@ public:
   int lo;
   int hi;
   
-  future_loop_rec* branch1;
-  future_loop_rec* branch2;
+  outset* branch1_out;
+  outset* branch2_out;
+  
   int mid;
   
   future_loop_rec(int lo, int hi)
@@ -1008,32 +1014,32 @@ public:
           future_leaf_counter.fetch_add(1);
         } else {
           mid = (lo + hi) / 2;
-          branch1 = new future_loop_rec(lo, mid);
-          future(branch1,
-                 future_loop_branch2);
+          node* branch1 = new future_loop_rec(lo, mid);
+          branch1_out = future(branch1,
+                               future_loop_branch2);
         }
         break;
       }
       case future_loop_branch2: {
-        branch2 = new future_loop_rec(mid, hi);
-        future(branch2,
-               future_loop_force1);
+        node* branch2 = new future_loop_rec(mid, hi);
+        branch2_out = future(branch2,
+                             future_loop_force1);
         break;
       }
       case future_loop_force1: {
-        force(branch1,
+        force(branch1_out,
               future_loop_force2);
         break;
       }
       case future_loop_force2: {
-        force(branch2,
+        force(branch2_out,
               future_loop_exit);
         break;
       }
       case future_loop_exit: {
         future_interior_counter.fetch_add(1);
-        deallocate_future(branch1);
-        deallocate_future(branch2);
+        deallocate_future(branch1_out);
+        deallocate_future(branch2_out);
         break;
       }
       default:
@@ -1054,7 +1060,7 @@ public:
   
   int n;
   
-  future_loop_rec* root;
+  outset* root_out;
   
   future_loop(int n)
   : n(n) { }
@@ -1064,18 +1070,18 @@ public:
       case future_loop_entry: {
         future_leaf_counter.store(0);
         future_interior_counter.store(0);
-        root = new future_loop_rec(0, n);
-        future(root,
-               future_loop_force);
+        node* root = new future_loop_rec(0, n);
+        root_out = future(root,
+                          future_loop_force);
         break;
       }
       case future_loop_force: {
-        force(root,
+        force(root_out,
               future_loop_exit);
         break;
       }
       case future_loop_exit: {
-        deallocate_future(root);
+        deallocate_future(root_out);
         assert(future_leaf_counter.load() == n);
         assert(future_interior_counter.load() + 1 == n);
         break;
@@ -1185,6 +1191,8 @@ static long fib (long n){
   
 int fib_input = 20;
   
+long fib_result;
+  
 class future_body : public node {
 public:
   
@@ -1193,12 +1201,11 @@ public:
     future_body_exit
   };
   
-  long result;
   
   void body() {
     switch (current_block_id) {
       case future_body_entry: {
-        result = fib(fib_input);
+        fib_result = fib(fib_input);
         break;
       }
       case future_body_exit: {
@@ -1221,11 +1228,11 @@ public:
     future_reader_exit
   };
   
-  future_body* f;
+  outset* f;
   
   int i;
   
-  future_reader(future_body* f, int i)
+  future_reader(outset* f, int i)
   : f(f), i(i) { }
   
   void body() {
@@ -1237,7 +1244,7 @@ public:
       }
       case future_reader_exit: {
         future_pool_counter.fetch_add(1);
-        assert(f->result == fib(fib_input));
+        assert(fib_result == fib(fib_input));
         break;
       }
       default:
@@ -1263,7 +1270,7 @@ public:
   
   int n;
   
-  future_body* f;
+  outset* f;
   
   future_pool(int n)
   : n(n) { }
@@ -1271,9 +1278,9 @@ public:
   void body() {
     switch (current_block_id) {
       case future_pool_entry: {
-        f = new future_body();
-        future(f,
-               future_pool_call);
+        node* fut = new future_body();
+        f = future(fut,
+                   future_pool_call);
         break;
       }
       case future_pool_call: {
