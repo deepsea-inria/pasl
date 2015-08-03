@@ -142,7 +142,7 @@ public:
     not_activated
   };
   
-  std::atomic<ictnode*> in;
+  ictnode* in;
   ictnode* out;
   
   ictnode* minus() const {
@@ -150,7 +150,7 @@ public:
   }
   
   incounter() {
-    in.store(nullptr);
+    in = nullptr;
     out = new ictnode(minus());
     out = tagged_tag_with(out, ictnode::minus);
   }
@@ -162,20 +162,18 @@ public:
   }
   
   bool is_activated() const {
-    return in.load() == nullptr;
+    return in == nullptr;
   }
   
   void increment() {
     ictnode* leaf = new ictnode;
     while (true) {
-      if (in.load() == nullptr) {
-        ictnode* orig = nullptr;
-        if (in.compare_exchange_strong(orig, leaf)) {
-          return;
-        }
+      if (in == nullptr) {
+        in = leaf;
+        return;
       }
-      assert(in.load() != nullptr);
-      ictnode* current = in.load();
+      assert(in != nullptr);
+      ictnode* current = in;
       while (true) {
         int i = random_int(0, B);
         std::atomic<ictnode*>& branch = current->children[i];
@@ -198,11 +196,11 @@ public:
   
   status_type decrement() {
     while (true) {
-      ictnode* current = in.load();
+      ictnode* current = in;
       assert(current != nullptr);
       if (current->is_leaf()) {
         if (try_to_detatch(current)) {
-          in.store(nullptr);
+          in = nullptr;
           add_to_out(current);
           return activated;
         }
@@ -275,7 +273,7 @@ public:
 };
   
 std::ostream& operator<<(std::ostream& out, incounter* n) {
-  if (n->in.load()->is_leaf()) {
+  if (n->in->is_leaf()) {
     out << 0;
   } else {
     out << n->in;
