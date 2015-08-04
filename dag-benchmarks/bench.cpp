@@ -298,8 +298,8 @@ public:
   
 namespace tree {
   
-const int B = 2;
-int K = 100;
+int branching_factor = 2;
+int communication_delay = 100;
   
 class tree_incounter;
 class tree_outset;
@@ -313,12 +313,13 @@ void deallocate_outset_tree(ostnode*);
 class ictnode {
 public:
   
-  static constexpr int minus = 1;
+  static constexpr int minus_tag = 1;
   
-  std::atomic<ictnode*> children[B];
+  std::atomic<ictnode*>* children;
   
   void init(ictnode* v) {
-    for (int i = 0; i < B; i++) {
+    children = new std::atomic<ictnode*>[branching_factor];
+    for (int i = 0; i < branching_factor; i++) {
       children[i].store(v);
     }
   }
@@ -331,8 +332,12 @@ public:
     init(i);
   }
   
+  ~ictnode() {
+    delete [] children;
+  }
+  
   bool is_leaf() const {
-    for (int i = 0; i < B; i++) {
+    for (int i = 0; i < branching_factor; i++) {
       ictnode* child = tagged_pointer_of(children[i].load());
       if (child != nullptr) {
         return false;
@@ -350,13 +355,13 @@ public:
   ictnode* out;
   
   ictnode* minus() const {
-    return tagged_tag_with((ictnode*)nullptr, ictnode::minus);
+    return tagged_tag_with((ictnode*)nullptr, ictnode::minus_tag);
   }
   
   tree_incounter() {
     in = nullptr;
     out = new ictnode(minus());
-    out = tagged_tag_with(out, ictnode::minus);
+    out = tagged_tag_with(out, ictnode::minus_tag);
   }
   
   ~tree_incounter() {
@@ -379,10 +384,10 @@ public:
       assert(in != nullptr);
       ictnode* current = in;
       while (true) {
-        int i = random_int(0, B);
+        int i = random_int(0, branching_factor);
         std::atomic<ictnode*>& branch = current->children[i];
         ictnode* next = branch.load();
-        if (tagged_tag_of(next) == ictnode::minus) {
+        if (tagged_tag_of(next) == ictnode::minus_tag) {
           break;
         }
         if (next == nullptr) {
@@ -410,11 +415,11 @@ public:
         }
       }
       while (true) {
-        int i = random_int(0, B);
+        int i = random_int(0, branching_factor);
         std::atomic<ictnode*>& branch = current->children[i];
         ictnode* next = branch.load();
         if (   (next == nullptr)
-            || (tagged_tag_of(next) == ictnode::minus) ) {
+            || (tagged_tag_of(next) == ictnode::minus_tag) ) {
           break;
         }
         if (next->is_leaf()) {
@@ -432,7 +437,7 @@ public:
   }
   
   bool try_to_detatch(ictnode* n) {
-    for (int i = 0; i < B; i++) {
+    for (int i = 0; i < branching_factor; i++) {
       ictnode* orig = nullptr;
       if (! (n->children[i].compare_exchange_strong(orig, minus()))) {
         for (int j = i - 1; j >= 0; j--) {
@@ -445,11 +450,11 @@ public:
   }
   
   void add_to_out(ictnode* n) {
-    n = tagged_tag_with(n, ictnode::minus);
+    n = tagged_tag_with(n, ictnode::minus_tag);
     while (true) {
       ictnode* current = tagged_pointer_of(out);
       while (true) {
-        int i = random_int(0, B);
+        int i = random_int(0, branching_factor);
         std::atomic<ictnode*>& branch = current->children[i];
         ictnode* next = branch.load();
         if (tagged_pointer_of(next) == nullptr) {
@@ -483,10 +488,11 @@ public:
     node* leaf;
   };
   
-  std::atomic<tagged_pointer_type> children[B];
+  std::atomic<tagged_pointer_type>* children;
   
   void init() {
-    for (int i = 0; i < B; i++) {
+    children = new std::atomic<tagged_pointer_type>[branching_factor];
+    for (int i = 0; i < branching_factor; i++) {
       tagged_pointer_type p;
       p.interior = tagged_tag_with((ostnode*)nullptr, empty);
       children[i].store(p);
@@ -500,6 +506,10 @@ public:
   ostnode(tagged_pointer_type pointer) {
     init();
     children[0].store(pointer);
+  }
+  
+  ~ostnode() {
+    delete [] children;
   }
   
   static tagged_pointer_type make_finished(tagged_pointer_type p) {
@@ -541,7 +551,7 @@ public:
     while (true) {
       ostnode::tagged_pointer_type n;
       while (true) {
-        int i = random_int(0, B);
+        int i = random_int(0, branching_factor);
         n = current->children[i].load();
         int tag = tagged_tag_of(n.interior);
         if (   (tag == ostnode::finished_empty)
@@ -830,10 +840,10 @@ namespace tree {
   
 void deallocate_incounter_tree_partial(std::deque<ictnode*>& todo) {
   int k = 0;
-  while ( (k < K) && (! todo.empty()) ) {
+  while ( (k < communication_delay) && (! todo.empty()) ) {
     ictnode* current = todo.back();
     todo.pop_back();
-    for (int i = 0; i < B; i++) {
+    for (int i = 0; i < branching_factor; i++) {
       ictnode* child = tagged_pointer_of(current->children[i].load());
       if (child == nullptr) {
         continue;
@@ -903,10 +913,10 @@ void deallocate_incounter_tree(ictnode* root) {
   
 void finish_outset_tree_partial(std::deque<ostnode*>& todo) {
   int k = 0;
-  while ( (k < K) && (! todo.empty()) ) {
+  while ( (k < communication_delay) && (! todo.empty()) ) {
     ostnode* current = todo.back();
     todo.pop_back();
-    for (int i = 0; i < B; i++) {
+    for (int i = 0; i < branching_factor; i++) {
       ostnode::tagged_pointer_type n = current->children[i].load();
       while (true) {
         ostnode::tagged_pointer_type orig = n;
@@ -1039,10 +1049,10 @@ void finish_outset(tree_outset* out) {
   
 void deallocate_outset_tree_partial(std::deque<ostnode*>& todo) {
   int k = 0;
-  while ( (k < K) && (! todo.empty()) ) {
+  while ( (k < communication_delay) && (! todo.empty()) ) {
     ostnode* n = todo.back();
     todo.pop_back();
-    for (int i = 0; i < B; i++) {
+    for (int i = 0; i < branching_factor; i++) {
       ostnode::tagged_pointer_type c = n->children[i].load();
       int tag = tagged_tag_of(c.interior);
       if (   (tag == ostnode::finished_empty)
@@ -1921,8 +1931,10 @@ void continue_with(node* n) {
 
 /*---------------------------------------------------------------------*/
 
+namespace cmdline = pasl::util::cmdline;
+
 void choose_edge_algorithm() {
-  pasl::util::cmdline::argmap_dispatch c;
+  cmdline::argmap_dispatch c;
   c.add("simple", [&] {
     topdown::edge_algorithm = topdown::edge_algorithm_simple;
   });
@@ -1931,29 +1943,31 @@ void choose_edge_algorithm() {
   });
   c.add("tree", [&] {
     topdown::edge_algorithm = topdown::edge_algorithm_tree;
+    topdown::tree::branching_factor = cmdline::parse_or_default_int("branching_factor",
+                                                                    topdown::tree::branching_factor);
+    topdown::tree::communication_delay = cmdline::parse_or_default_int("communication_delay",
+                                                                       topdown::tree::communication_delay);
   });
   c.find("edge_algo", "tree")();
 }
 
-int main(int argc, char** argv) {
-  pasl::util::cmdline::set(argc, argv);
-  pasl::sched::threaddag::init();
-  pasl::util::cmdline::argmap_dispatch c;
+void launch() {
+  cmdline::argmap_dispatch c;
   pasl::sched::thread_p t;
   c.add("topdown", [&] {
     choose_edge_algorithm();
-    pasl::util::cmdline::argmap_dispatch c;
+    cmdline::argmap_dispatch c;
     c.add("async_loop", [&] {
-      int n = pasl::util::cmdline::parse_or_default_int("n", 1);
+      int n = cmdline::parse_or_default_int("n", 1);
       t = new topdown::async_loop(n);
     });
     c.add("future_loop", [&] {
-      int n = pasl::util::cmdline::parse_or_default_int("n", 1);
+      int n = cmdline::parse_or_default_int("n", 1);
       t = new topdown::future_loop(n);
     });
     c.add("future_pool", [&] {
-      int n = pasl::util::cmdline::parse_or_default_int("n", 1);
-      topdown::fib_input = pasl::util::cmdline::parse_or_default_int("fib_input", topdown::fib_input);
+      int n = cmdline::parse_or_default_int("n", 1);
+      topdown::fib_input = cmdline::parse_or_default_int("fib_input", topdown::fib_input);
       t = new topdown::future_pool(n);
     });
     c.find_by_arg("cmd")();
@@ -1963,6 +1977,12 @@ int main(int argc, char** argv) {
   });
   c.find_by_arg("algo")();
   pasl::sched::threaddag::launch(t);
+}
+
+int main(int argc, char** argv) {
+  cmdline::set(argc, argv);
+  pasl::sched::threaddag::init();
+  launch();
   pasl::sched::threaddag::destroy();
   return 0;
 }
