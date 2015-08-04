@@ -74,6 +74,7 @@ void decrement_incounter(node*);
 incounter* incounter_ready();
 incounter* incounter_unary();
 incounter* incounter_new();
+incounter* incounter_fetch_add();
 outset* outset_unary();
 outset* outset_noop();
 outset* outset_new();
@@ -92,6 +93,24 @@ public:
   
   virtual status_type decrement() = 0;
   
+  void check(pasl::sched::thread_p t) {
+    if (is_activated()) {
+      start(t);
+    }
+  }
+  
+  void delta(pasl::sched::thread_p t, int64_t d) {
+    if (d == -1L) {
+      if (decrement() == activated) {
+        start(t);
+      }
+    } else if (d == +1L) {
+      increment();
+    } else {
+      assert(false);
+    }
+  }
+  
 };
 
 class outset : public pasl::sched::outstrategy::common {
@@ -108,12 +127,179 @@ public:
   
   virtual void finish() = 0;
   
+  void add(pasl::sched::thread_p t) {
+    insert((node*)t);
+  }
+  
+  void finished() {
+    finish();
+  }
+  
 };
+
+using edge_algorithm_type = enum {
+  edge_algorithm_simple,
+  edge_algorithm_perprocessor,
+  edge_algorithm_tree
+};
+  
+edge_algorithm_type edge_algorithm;
+  
+namespace simple {
+  
+class simple_outset : public outset {
+public:
+  
+  using concurrent_list_type = struct concurrent_list_struct {
+    node* n;
+    struct concurrent_list_struct* next;
+  };
+  
+  std::atomic<concurrent_list_type*> head;
+  
+  const int finished_code = 1;
+  
+  simple_outset() {
+    head.store(nullptr);
+  }
+  
+  insert_status_type insert(node* n) {
+    insert_status_type result = insert_success;
+    concurrent_list_type* cell = new concurrent_list_type;
+    cell->n = n;
+    while (true) {
+      concurrent_list_type* orig = head.load();
+      if (tagged_tag_of(orig) == finished_code) {
+        result = insert_fail;
+        delete cell;
+        decrement_incounter(n);
+        break;
+      } else {
+        cell->next = orig;
+        if (head.compare_exchange_strong(orig, cell)) {
+          break;
+        }
+      }
+    }
+    return result;
+  }
+  
+  void finish() {
+    concurrent_list_type* todo = nullptr;
+    while (true) {
+      concurrent_list_type* orig = head.load();
+      concurrent_list_type* v = (concurrent_list_type*)nullptr;
+      concurrent_list_type* next = tagged_tag_with(v, finished_code);
+      if (head.compare_exchange_strong(orig, next)) {
+        todo = orig;
+        break;
+      }
+    }
+    while (todo != nullptr) {
+      node* n = todo->n;
+      concurrent_list_type* next = todo->next;
+      delete todo;
+      decrement_incounter(n);
+      todo = next;
+    }
+  }
+
+  
+};
+  
+} // end namespace
+  
+namespace perprocessor {
+  
+class perprocessor_incounter : public incounter, public pasl::util::worker::periodic_t {
+public:
+      
+  pasl::data::perworker::counter::carray<int64_t> counter;
+      
+  node* n;
+
+  void init(pasl::sched::thread_p t) {
+    n = (node*)t;
+    counter.init(0);
+    pasl::sched::scheduler::get_mine()->add_periodic(this);
+  }
+  
+  bool is_activated() const {
+    return (counter.sum() == 0);
+  }
+  
+  void increment() {
+    delta((pasl::sched::thread_p)n, +1L);
+  }
+  
+  status_type decrement() {
+    delta((pasl::sched::thread_p)n, -1L);
+    return is_activated() ? activated: not_activated;
+  }
+  
+  void check(node* _n) {
+    assert(_n == n);
+    if (counter.sum() == 0) {
+      pasl::sched::scheduler::get_mine()->rem_periodic(this);
+      start((pasl::sched::thread_p)n);
+    }
+  }
+  
+  void check() {
+    check(n);
+  }
+  
+  void delta(pasl::sched::thread_p t, int64_t d) {
+    assert((node*)t == n);
+    pasl::worker_id_t my_id = pasl::util::worker::get_my_id();
+    counter.delta(my_id, d);
+  }
+  
+};
+
+class perprocessor_outset : public outset, public pasl::util::worker::periodic_t {
+public:
+  
+  using node_buffer_type = std::vector<node*>;
+  
+  pasl::data::perworker::array<node_buffer_type> nodes;
+  
+  bool finished_indicator = false;
+  
+  insert_status_type insert(node* n) {
+    if (finished_indicator) {
+      return insert_fail;
+    }
+    pasl::sched::scheduler::get_mine()->add_periodic(this);
+    node_buffer_type& buffer = nodes.mine();
+    buffer.push_back(n);
+    return insert_success;
+  }
+  
+  void check() {
+    if (finished_indicator) {
+      node_buffer_type& buffer = nodes.mine();
+      while (! buffer.empty()) {
+        node* n = buffer.back();
+        buffer.pop_back();
+        decrement_incounter(n);
+      }
+      pasl::sched::scheduler::get_mine()->rem_periodic(this);
+    }
+  }
+  
+  void finish() {
+    finished_indicator = true;
+  }
+  
+};
+  
+} // end namespace
   
 namespace tree {
   
-static constexpr int B = 2;
-const int K = 100;
+const int B = 2;
+int K = 100;
   
 class tree_incounter;
 class tree_outset;
@@ -278,24 +464,6 @@ public:
     }
   }
   
-  void check(pasl::sched::thread_p t) {
-    if (is_activated()) {
-      start(t);
-    }
-  }
-  
-  void delta(pasl::sched::thread_p t, int64_t d) {
-    if (d == -1L) {
-      if (decrement() == activated) {
-        start(t);
-      }
-    } else if (d == +1L) {
-      increment();
-    } else {
-      assert(false);
-    }
-  }
-  
 };
   
 class ostnode {
@@ -425,10 +593,6 @@ public:
   void finish() {
     finish_outset(this);
   }
-  
-  void finished() {
-    finish();
-  }
 
 };
   
@@ -520,6 +684,23 @@ incounter* incounter_ready() {
 incounter* incounter_unary() {
   return (incounter*)pasl::sched::instrategy::unary_new();
 }
+  
+incounter* incounter_fetch_add() {
+  return (incounter*)pasl::sched::instrategy::fetch_add_new();
+}
+  
+incounter* incounter_new() {
+  if (edge_algorithm == edge_algorithm_simple) {
+    return incounter_fetch_add();
+  } else if (edge_algorithm == edge_algorithm_perprocessor) {
+    return new perprocessor::perprocessor_incounter;
+  } else if (edge_algorithm == edge_algorithm_tree) {
+    return new tree::tree_incounter;
+  } else {
+    assert(false);
+    return nullptr;
+  }
+}
 
 outset* outset_unary() {
   return (outset*)pasl::sched::outstrategy::unary_new();
@@ -528,13 +709,18 @@ outset* outset_unary() {
 outset* outset_noop() {
   return (outset*)pasl::sched::outstrategy::noop_new();
 }
-  
-incounter* incounter_new() {
-  return new tree::tree_incounter;
-}
 
 outset* outset_new() {
-  return new tree::tree_outset;
+  if (edge_algorithm == edge_algorithm_simple) {
+    return new simple::simple_outset;
+  } else if (edge_algorithm == edge_algorithm_perprocessor) {
+    return new perprocessor::perprocessor_outset;
+  } else if (edge_algorithm == edge_algorithm_tree) {
+    return new tree::tree_outset;
+  } else {
+    assert(false);
+    return nullptr;
+  }
 }
   
 void increment_incounter(node* n, incounter* n_in) {
@@ -1735,12 +1921,27 @@ void continue_with(node* n) {
 
 /*---------------------------------------------------------------------*/
 
+void choose_edge_algorithm() {
+  pasl::util::cmdline::argmap_dispatch c;
+  c.add("simple", [&] {
+    topdown::edge_algorithm = topdown::edge_algorithm_simple;
+  });
+  c.add("perprocessor", [&] {
+    topdown::edge_algorithm = topdown::edge_algorithm_perprocessor;
+  });
+  c.add("tree", [&] {
+    topdown::edge_algorithm = topdown::edge_algorithm_tree;
+  });
+  c.find("edge_algo", "tree")();
+}
+
 int main(int argc, char** argv) {
   pasl::util::cmdline::set(argc, argv);
   pasl::sched::threaddag::init();
   pasl::util::cmdline::argmap_dispatch c;
   pasl::sched::thread_p t;
   c.add("topdown", [&] {
+    choose_edge_algorithm();
     pasl::util::cmdline::argmap_dispatch c;
     c.add("async_loop", [&] {
       int n = pasl::util::cmdline::parse_or_default_int("n", 1);
