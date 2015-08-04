@@ -11,7 +11,7 @@
 #define _PASL_UTIL_WORKER_H_
 
 #include <assert.h>
-#include <deque>
+#include <set>
 #include <signal.h>
 #include <cstdlib>
 #ifdef USE_CILK_RUNTIME
@@ -134,8 +134,9 @@ public:
   ///@{
 protected:
   ticks_t last_check_periodic;
-  typedef std::deque<periodic_p> periodic_set_t;
-  periodic_set_t periodic_set;  
+  using periodic_set_type = std::set<periodic_p>;
+  periodic_set_type periodic_set;
+  periodic_set_type remove_buffer;
   
 public:  
   /*! \brief Adds to the set of periodic checks the check `p`. */

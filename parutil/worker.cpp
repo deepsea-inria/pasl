@@ -241,27 +241,28 @@ void group_t::send_interrupt(worker_id_t id) {
 
 void controller_t::add_periodic(periodic_p p) {
   assert(my_id != undef);
-  periodic_set.push_back(p);
+  periodic_set.insert(p);
+  remove_buffer.erase(p);
 }
 
 void controller_t::rem_periodic(periodic_p p) {
-  bool found = false;
-  periodic_set_t::iterator iter;
-  for (iter = periodic_set.begin(); iter < periodic_set.end(); iter++)
-    if (*iter == p) {
-      found = true;
-      break;
-    }
-  if (!found) atomic::die("failed to remove periodic check\n");
-  periodic_set.erase(iter);
+  remove_buffer.insert(p);
 }
 
 void controller_t::check_periodic() {
   double delay = ticks::microseconds_since(last_check_periodic);
-  if (delay > delta) { 
+  if (delay > delta) {
+    // first, remove any stale checks
+    for (auto iter = remove_buffer.cbegin();
+         iter != remove_buffer.cend();
+         iter++) {
+      periodic_set.erase(*iter);
+    }
+    remove_buffer.clear();
+    // now, perform remaining checks
     last_check_periodic = ticks::now();
-    for (periodic_set_t::iterator iter = periodic_set.begin();
-         iter < periodic_set.end();
+    for (auto iter = periodic_set.cbegin();
+         iter != periodic_set.cend();
          iter++) {
       periodic_p p = *iter;
       p->check();
