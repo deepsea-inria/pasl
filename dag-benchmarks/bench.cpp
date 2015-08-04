@@ -73,8 +73,8 @@ void continue_with(node*);
 void decrement_incounter(node*);
 incounter* incounter_ready();
 incounter* incounter_unary();
-incounter* incounter_new();
 incounter* incounter_fetch_add();
+incounter* incounter_new();
 outset* outset_unary();
 outset* outset_noop();
 outset* outset_new();
@@ -126,6 +126,10 @@ public:
   virtual insert_status_type insert(node*) = 0;
   
   virtual void finish() = 0;
+  
+  virtual void destroy() {
+    delete this;
+  }
   
   void add(pasl::sched::thread_p t) {
     insert((node*)t);
@@ -264,13 +268,20 @@ public:
   
   pasl::data::perworker::array<node_buffer_type> nodes;
   
+  // to count the number of processors that are participating
+  pasl::data::perworker::counter::carray<int64_t> counter;
+  
   bool finished_indicator = false;
+  
+  perprocessor_outset() {
+    counter.init(0);
+  }
   
   insert_status_type insert(node* n) {
     if (finished_indicator) {
       return insert_fail;
     }
-    pasl::sched::scheduler::get_mine()->add_periodic(this);
+    add_calling_processor();
     node_buffer_type& buffer = nodes.mine();
     buffer.push_back(n);
     return insert_success;
@@ -284,12 +295,31 @@ public:
         buffer.pop_back();
         decrement_incounter(n);
       }
-      pasl::sched::scheduler::get_mine()->rem_periodic(this);
+      remove_calling_processor();
     }
   }
   
   void finish() {
     finished_indicator = true;
+  }
+  
+  void destroy() {
+    should_deallocate = true;
+  }
+  
+  void add_calling_processor() {
+    pasl::worker_id_t my_id = pasl::util::worker::get_my_id();
+    counter.delta(my_id, +1);
+    pasl::sched::scheduler::get_mine()->add_periodic(this);
+  }
+  
+  void remove_calling_processor() {
+    pasl::sched::scheduler::get_mine()->rem_periodic(this);
+    pasl::worker_id_t my_id = pasl::util::worker::get_my_id();
+    counter.delta(my_id, -1);
+    if (should_deallocate && counter.sum() == 0) {
+      delete this;
+    }
   }
   
 };
@@ -832,8 +862,7 @@ void continue_with(node* n) {
 }
   
 void deallocate_future(outset* out) {
-  assert(! out->should_deallocate);
-  delete out;
+  out->destroy();
 }
   
 namespace tree {
@@ -1748,6 +1777,7 @@ public:
   int current_block_id;
   
 private:
+  
   int continuation_block_id;
   
 public:
@@ -1908,9 +1938,10 @@ void add_node(node* n) {
 }
   
 outset* capture_outset() {
-  outset* out = (outset*)pasl::sched::threaddag::my_sched()->get_outstrategy();
+  auto sched = pasl::sched::threaddag::my_sched();
+  outset* out = (outset*)sched->get_outstrategy();
   assert(out != nullptr);
-  pasl::sched::threaddag::my_sched()->set_outstrategy(new outset);
+  sched->set_outstrategy(new outset);
   return out;
 }
   
