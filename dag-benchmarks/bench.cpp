@@ -1593,8 +1593,8 @@ class outset;
 class ictnode;
 class ostnode;
   
-using inport_map_type = std::map<node*, ictnode*>;
-using outport_map_type = std::map<node*, ostnode*>;
+using inport_map_type = std::map<incounter*, ictnode*>;
+using outport_map_type = std::map<outset*, ostnode*>;
   
 void prepare_node(node*);
 void prepare_node(node*, incounter*);
@@ -1608,6 +1608,7 @@ void continue_with(node*);
 std::pair<ictnode*, ictnode*> increment_incounter(node*, ictnode*);
 std::pair<ictnode*, ictnode*> increment_incounter(node*, node*);
 void decrement_incounter(node*, ictnode*);
+void decrement_incounter(node*, incounter*, ictnode*);
 void decrement_inports(node*);
 void insert_inport(node*, node*, ictnode*);
 void insert_outport(node*, node*, ostnode*);
@@ -1644,6 +1645,13 @@ public:
 
 class incounter : public pasl::sched::instrategy::common {
 public:
+  
+  node* n;
+  
+  incounter(node* n)
+  : n(n) {
+    assert(n != nullptr);
+  }
   
   bool is_activated(ictnode* port) const {
     return port->parent == nullptr;
@@ -1801,7 +1809,7 @@ public:
 };
   
 outset::insert_result_type insert_outedge(node*,
-                                          node*, outset*,
+                                          outset*,
                                           node*, ictnode*);
   
 class node : public pasl::sched::thread {
@@ -1837,7 +1845,10 @@ public:
   
   void decrement_inports() {
     for (auto it = inports.cbegin(); it != inports.cend(); it++) {
-      decrement_incounter(it->first, it->second);
+      incounter* in = it->first;
+      ictnode* in_port = it->second;
+      node* n_in = in->n;
+      decrement_incounter(n_in, in, in_port);
     }
   }
   
@@ -1862,7 +1873,7 @@ public:
   void finish(node* producer, int continuation_block_id) {
     prepare_node(producer);
     node* consumer = this;
-    join_with(consumer, new incounter);
+    join_with(consumer, new incounter(consumer));
     create_fresh_ports(consumer, producer);
     ictnode* consumer_inport = increment_incounter(consumer, (ictnode*)nullptr).first;
     insert_inport(producer, consumer, consumer_inport);
@@ -1884,9 +1895,9 @@ public:
   void force(node* producer, outset* producer_out, int continuation_block_id) {
     node* consumer = this;
     prepare_for_transfer(continuation_block_id);
-    join_with(consumer, new incounter);
+    join_with(consumer, new incounter(consumer));
     ictnode* consumer_inport = increment_incounter(consumer, (ictnode*)nullptr).first;
-    auto insert_result = insert_outedge(consumer, producer, producer_out, consumer, consumer_inport);
+    auto insert_result = insert_outedge(consumer, producer_out, consumer, consumer_inport);
     outset::insert_status_type insert_status = insert_result.first;
     if (insert_status == outset::insert_success) {
       ostnode* producer_outport = insert_result.second;
@@ -1903,7 +1914,7 @@ public:
 };
   
 void prepare_node(node* n) {
-  prepare_node(n, new incounter, new outset(n));
+  prepare_node(n, new incounter(n), new outset(n));
 }
 
 void prepare_node(node* n, incounter* in) {
@@ -1911,7 +1922,7 @@ void prepare_node(node* n, incounter* in) {
 }
 
 void prepare_node(node* n, outset* out) {
-  prepare_node(n, new incounter, out);
+  prepare_node(n, new incounter(n), out);
 }
 
 void prepare_node(node* n, incounter* in, outset* out) {
@@ -1920,21 +1931,21 @@ void prepare_node(node* n, incounter* in, outset* out) {
 }
   
 void insert_inport(node* caller, node* target, ictnode* target_inport) {
-  caller->inports.insert(std::make_pair(target, target_inport));
+  caller->inports.insert(std::make_pair((incounter*)target->in, target_inport));
 }
 
 void insert_outport(node* caller, node* target, ostnode* target_outport) {
-  caller->outports.insert(std::make_pair(target, target_outport));
+  caller->outports.insert(std::make_pair((outset*)target->out, target_outport));
 }
 
-ictnode* find_inport(node* caller, node* target) {
-  auto target_inport_result = caller->inports.find(target);
+ictnode* find_inport(node* caller, incounter* target_in) {
+  auto target_inport_result = caller->inports.find(target_in);
   assert(target_inport_result != caller->inports.end());
   return target_inport_result->second;
 }
 
-ostnode* find_outport(node* caller, node* target) {
-  auto target_outport_result = caller->outports.find(target);
+ostnode* find_outport(node* caller, outset* target_out) {
+  auto target_outport_result = caller->outports.find(target_out);
   assert(target_outport_result != caller->outports.end());
   return target_outport_result->second;
 }
@@ -1943,9 +1954,9 @@ void create_fresh_inports(node* source, node* target) {
   inport_map_type source_ports = source->inports;
   inport_map_type target_ports;
   for (auto it = source->inports.cbegin(); it != source->inports.cend(); it++) {
-    std::pair<node*, ictnode*> p = *it;
+    auto p = *it;
     if (target->inports.find(p.first) != target->inports.cend()) {
-      incounter* in = (incounter*)p.first->in;
+      incounter* in = p.first;
       auto ports = in->increment(p.second);
       source_ports.insert(std::make_pair(p.first, ports.first));
       target_ports.insert(std::make_pair(p.first, ports.second));
@@ -1959,9 +1970,9 @@ void create_fresh_outports(node* source, node* target) {
   outport_map_type source_ports = source->outports;
   outport_map_type target_ports;
   for (auto it = source->outports.cbegin(); it != source->outports.cend(); it++) {
-    std::pair<node*, ostnode*> p = *it;
+    auto p = *it;
     if (target->outports.find(p.first) != target->outports.cend()) {
-      outset* out = (outset*)p.first->out;
+      outset* out = p.first;
       auto ports = out->fork2(p.second);
       source_ports.insert(std::make_pair(p.first, ports.first));
       target_ports.insert(std::make_pair(p.first, ports.second));
@@ -1982,17 +1993,20 @@ std::pair<ictnode*, ictnode*> increment_incounter(node* n, ictnode* n_port) {
 }
   
 std::pair<ictnode*, ictnode*> increment_incounter(node* caller, node* target) {
-  ictnode* target_inport = find_inport(caller, target);
+  ictnode* target_inport = find_inport(caller, (incounter*)target->in);
   return increment_incounter(target, target_inport);
 }
 
-void decrement_incounter(node* n, ictnode* n_port) {
-  incounter* in = (incounter*)n->in;
-  n_port = in->decrement(n_port);
-  if (in->is_activated(n_port)) {
+void decrement_incounter(node* n, incounter* n_in, ictnode* n_port) {
+  n_port = n_in->decrement(n_port);
+  if (n_in->is_activated(n_port)) {
     delete n_port;
-    in->start(n);
+    n_in->start(n);
   }
+}
+  
+void decrement_incounter(node* n, ictnode* n_port) {
+  decrement_incounter(n, (incounter*)n->in, n_port);
 }
   
 void decrement_inports(node* n) {
@@ -2000,9 +2014,9 @@ void decrement_inports(node* n) {
 }
   
 outset::insert_result_type insert_outedge(node* caller,
-                                          node* source, outset* source_out,
+                                          outset* source_out,
                                           node* target, ictnode* target_inport) {
-  auto source_outport = find_outport(caller, source);
+  auto source_outport = find_outport(caller, source_out);
   return source_out->insert(source_outport, target, target_inport);
 }
   
@@ -2023,7 +2037,7 @@ void join_with(node* n, incounter* in) {
 }
 
 void continue_with(node* n) {
-  join_with(n, new incounter);
+  join_with(n, new incounter(n));
   add_node(n);
 }
   
