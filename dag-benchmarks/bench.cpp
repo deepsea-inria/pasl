@@ -337,7 +337,7 @@ class ictnode;
 class ostnode;
 
 void deallocate_incounter_tree(ictnode*);
-void finish_outset(tree_outset*);
+void notify_outset_nodes(tree_outset*);
 void deallocate_outset_tree(ostnode*);
   
 class ictnode {
@@ -631,7 +631,7 @@ public:
   }
   
   void finish() {
-    finish_outset(this);
+    notify_outset_nodes(this);
   }
 
 };
@@ -827,11 +827,6 @@ void add_edge(node* source, node* target) {
   add_edge(target, source, (outset*)source->out, (incounter*)target->in);
 }
   
-void prepare_node(node* n, incounter* in, outset* out) {
-  n->set_instrategy(in);
-  n->set_outstrategy(out);
-}
-  
 void prepare_node(node* n) {
   prepare_node(n, incounter_new(), outset_new());
 }
@@ -844,6 +839,11 @@ void prepare_node(node* n, outset* out) {
   prepare_node(n, incounter_new(), out);
 }
   
+void prepare_node(node* n, incounter* in, outset* out) {
+  n->set_instrategy(in);
+  n->set_outstrategy(out);
+}
+
 outset* capture_outset() {
   auto sched = pasl::sched::threaddag::my_sched();
   outset* out = (outset*)sched->get_outstrategy();
@@ -940,7 +940,7 @@ void deallocate_incounter_tree(ictnode* root) {
   }
 }
   
-void finish_outset_tree_partial(std::deque<ostnode*>& todo) {
+void notify_outset_tree_nodes_partial(std::deque<ostnode*>& todo) {
   int k = 0;
   while ( (k < communication_delay) && (! todo.empty()) ) {
     ostnode* current = todo.back();
@@ -966,10 +966,10 @@ void finish_outset_tree_partial(std::deque<ostnode*>& todo) {
   }
 }
   
-class finish_outset_tree_par_rec : public node {
+class notify_outset_tree_nodes_par_rec : public node {
 public:
   
-  using self_type = finish_outset_tree_par_rec;
+  using self_type = notify_outset_tree_nodes_par_rec;
   
   enum {
     process_block=0,
@@ -980,12 +980,12 @@ public:
   node* join;
   std::deque<ostnode*> todo;
   
-  finish_outset_tree_par_rec(node* join, ostnode* n)
+  notify_outset_tree_nodes_par_rec(node* join, ostnode* n)
   : join(join) {
     todo.push_back(n);
   }
   
-  finish_outset_tree_par_rec(node* join, std::deque<ostnode*>& _todo)
+  notify_outset_tree_nodes_par_rec(node* join, std::deque<ostnode*>& _todo)
   : join(join) {
     _todo.swap(todo);
   }
@@ -993,7 +993,7 @@ public:
   void body() {
     switch (current_block_id) {
       case process_block: {
-        finish_outset_tree_partial(todo);
+        notify_outset_tree_nodes_partial(todo);
         jump_to(repeat_block);
         break;
       }
@@ -1023,10 +1023,10 @@ public:
   
 };
   
-class finish_outset_tree_par : public node {
+class notify_outset_tree_nodes_par : public node {
 public:
   
-  using self_type = finish_outset_tree_par;
+  using self_type = notify_outset_tree_nodes_par;
   
   enum {
     entry_block=0,
@@ -1036,7 +1036,7 @@ public:
   tree_outset* out;
   std::deque<ostnode*> todo;
   
-  finish_outset_tree_par(tree_outset* out, std::deque<ostnode*>& _todo)
+  notify_outset_tree_nodes_par(tree_outset* out, std::deque<ostnode*>& _todo)
   : out(out) {
     todo.swap(_todo);
   }
@@ -1044,7 +1044,7 @@ public:
   void body() {
     switch (current_block_id) {
       case entry_block: {
-        finish(new finish_outset_tree_par_rec(this, todo),
+        finish(new notify_outset_tree_nodes_par_rec(this, todo),
                exit_block);
         break;
       }
@@ -1061,12 +1061,12 @@ public:
   
 };
   
-void finish_outset(tree_outset* out) {
+void notify_outset_nodes(tree_outset* out) {
   std::deque<ostnode*> todo;
   todo.push_back(out->root);
-  finish_outset_tree_partial(todo);
+  notify_outset_tree_nodes_partial(todo);
   if (! todo.empty()) {
-    auto n = new finish_outset_tree_par(out, todo);
+    auto n = new notify_outset_tree_nodes_par(out, todo);
     prepare_node(n);
     add_node(n);
   } else {
@@ -1588,6 +1588,29 @@ public:
 namespace bottomup {
   
 class node;
+class incounter;
+class outset;
+class ictnode;
+class ostnode;
+  
+using inport_map_type = std::map<node*, ictnode*>;
+using outport_map_type = std::map<node*, ostnode*>;
+  
+void prepare_node(node*);
+void prepare_node(node*, incounter*);
+void prepare_node(node*, outset*);
+void prepare_node(node*, incounter*, outset*);
+void add_node(node* n);
+void create_fresh_ports(node*, node*);
+outset* capture_outset();
+void join_with(node*, incounter*);
+void continue_with(node*);
+std::pair<ictnode*, ictnode*> increment_incounter(node*, ictnode*);
+std::pair<ictnode*, ictnode*> increment_incounter(node*, node*);
+void decrement_incounter(node*, ictnode*);
+void decrement_inports(node*);
+void insert_inport(node*, node*, ictnode*);
+void insert_outport(node*, node*, ostnode*);
 
 class ictnode {
 public:
@@ -1626,7 +1649,7 @@ public:
     return port->parent == nullptr;
   }
   
-  std::pair<ictnode*, ictnode*> increment(ictnode* port) {
+  std::pair<ictnode*, ictnode*> increment(ictnode* port) const {
     ictnode* branch1;
     ictnode* branch2;
     if (port == nullptr) {
@@ -1641,7 +1664,7 @@ public:
     return std::make_pair(branch1, branch2);
   }
   
-  ictnode* decrement(ictnode* port) {
+  ictnode* decrement(ictnode* port) const {
     ictnode* cur = port;
     while (cur->parent != nullptr) {
       ictnode* tmp2 = cur;
@@ -1657,7 +1680,7 @@ public:
   }
   
   void check(pasl::sched::thread_p t) {
-
+    assert(false);
   }
   
   void delta(pasl::sched::thread_p t, int64_t d) {
@@ -1666,77 +1689,83 @@ public:
   
 };
 
-std::pair<ictnode*, ictnode*> incr_incounter(ictnode* port, node* n);
-void decr_incounter(ictnode* port, node* n);
-  
-void decr_inports(node* n);
-
-using outset_insert_status_type = enum {
-  outset_insert_success,
-  outset_insert_fail
-};
-
 class outset : public pasl::sched::outstrategy::common {
 public:
   
-  static constexpr int ostnode_frozen = 1;
+  using insert_status_type = enum {
+    insert_success,
+    insert_fail
+  };
+  
+  using insert_result_type = std::pair<insert_status_type, ostnode*>;
+  
+  static constexpr int frozen_tag = 1;
   
   ostnode* root;
   
-  pasl::sched::thread_p t;
+  node* n;
   
-  outset() : t(nullptr) { }
+  bool should_deallocate = true;
   
-  outset(pasl::sched::thread_p t)
-  : t(t) { }
+  outset(node* n)
+  : n(n) {
+    root = new ostnode;
+  }
   
-  std::pair<outset_insert_status_type, ostnode*> add(ostnode* outport, node* target, ictnode* inport) {
+  ~outset() {
+    deallocate_outset_tree();
+  }
+  
+  insert_result_type insert(ostnode* outport, node* target, ictnode* inport) {
     ostnode* next = new ostnode;
     next->target = target;
     next->port = inport;
     ostnode* orig = nullptr;
     if (! (outport->children[0].compare_exchange_strong(orig, next))) {
       delete next;
-      return std::make_pair(outset_insert_fail, nullptr);
+      return std::make_pair(insert_fail, nullptr);
     }
-    return std::make_pair(outset_insert_success, next);
+    return std::make_pair(insert_success, next);
   }
   
-  void add(pasl::sched::thread_p t) {
-    assert(false);
-  }
-  
-  void finish_rec(ostnode* outport, std::function<void (ictnode*, node*)> f) {
-    std::set<ostnode*> branches;
-    if (outport->target != nullptr) {
-      f(outport->port, outport->target);
-    }
-    for (int i = 0; i < 2; i++) {
-      ostnode* child = outport->children[i].load();
-      while (true) {
-        ostnode* orig = child;
-        ostnode* next = tagged_tag_with((ostnode*)nullptr, ostnode_frozen);
-        if (outport->children[i].compare_exchange_strong(orig, next)) {
-          if (child != nullptr) {
-            branches.insert(child);
+  void notify_outset_nodes() {
+    std::vector<ostnode*> todo;
+    todo.push_back(root);
+    while (! todo.empty()) {
+      ostnode* n = todo.back();
+      todo.pop_back();
+      if (n->target != nullptr) {
+        decrement_incounter(n->target, n->port);
+      }
+      for (int i = 0; i < 2; i++) {
+        ostnode* orig;
+        while (true) {
+          orig = n->children[i].load();
+          ostnode* next = tagged_tag_with((ostnode*)nullptr, frozen_tag);
+          if (n->children[i].compare_exchange_strong(orig, next)) {
+            break;
           }
-          break;
+        }
+        if (orig != nullptr) {
+          todo.push_back(orig);
         }
       }
     }
-    for (auto it = branches.cbegin(); it != branches.cend(); it++) {
-      finish_rec(*it, f);
-    }
   }
   
-  void finished() {
-    finish_rec(root, [&] (ictnode* port, node* n) {
-      decr_incounter(port, n);
-    });
-    if (t != nullptr) {
-      decr_inports((node*)t);
+  void deallocate_outset_tree() {
+    std::vector<ostnode*> todo;
+    while (! todo.empty()) {
+      ostnode* n = todo.back();
+      todo.pop_back();
+      for (int i = 0; i < 2; i++) {
+        ostnode* child = n->children[i].load();
+        if (child != nullptr) {
+          todo.push_back(child);
+        }
+      }
+      delete n;
     }
-    common::finished();
   }
   
   std::pair<ostnode*, ostnode*> fork2(ostnode* port) {
@@ -1755,18 +1784,25 @@ public:
     return std::make_pair(branches[0], branches[1]);
   }
   
+  void add(pasl::sched::thread_p t) {
+    assert(false);
+  }
+  
+  void finished() {
+    notify_outset_nodes();
+    if (n != nullptr) {
+      decrement_inports(n);
+    }
+    if (should_deallocate) {
+      delete this;
+    }
+  }
+  
 };
   
-using inports_type = std::map<node*, ictnode*>;
-using outports_type = std::map<node*, ostnode*>;
-
-void add_node(node* n);
-  
-void create_fresh_ports(node*, node*);
-outset* capture_outset();
-  
-void join_with(node*, incounter*);
-void continue_with(node*);
+outset::insert_result_type insert_outedge(node*,
+                                          node*, outset*,
+                                          node*, ictnode*);
   
 class node : public pasl::sched::thread {
 public:
@@ -1782,8 +1818,8 @@ private:
   
 public:
   
-  inports_type inports;
-  outports_type outports;
+  inport_map_type inports;
+  outport_map_type outports;
   
   node()
   : current_block_id(uninitialized_block_id),
@@ -1799,14 +1835,9 @@ public:
     body();
   }
   
-  void init() {
-    set_instrategy(new incounter);
-    set_outstrategy(new outset);
-  }
-  
-  void decr_inports() {
+  void decrement_inports() {
     for (auto it = inports.cbegin(); it != inports.cend(); it++) {
-      decr_incounter(it->second, it->first);
+      decrement_incounter(it->first, it->second);
     }
   }
   
@@ -1821,64 +1852,96 @@ public:
   }
   
   void async(node* producer, node* consumer, int continuation_block_id) {
-    producer->init();
+    prepare_node(producer);
     node* caller = this;
-    prepare_for_transfer(continuation_block_id);
     create_fresh_ports(caller, producer);
-    auto p = caller->inports.find(consumer);
-    assert(p != caller->inports.end());
-    ictnode* port = p->second;
-    auto ports = incr_incounter(port, consumer);
-    caller->inports.insert(std::make_pair(consumer, ports.first));
-    producer->inports.insert(std::make_pair(consumer, ports.second));
-    add_node(consumer);
+    caller->jump_to(continuation_block_id);
     add_node(producer);
   }
   
   void finish(node* producer, int continuation_block_id) {
-    producer->init();
+    prepare_node(producer);
     node* consumer = this;
-    prepare_for_transfer(continuation_block_id);
+    join_with(consumer, new incounter);
     create_fresh_ports(consumer, producer);
-    auto ports = incr_incounter(nullptr, consumer);
-    producer->inports.insert(std::make_pair(consumer, ports.first));
+    ictnode* consumer_inport = increment_incounter(consumer, (ictnode*)nullptr).first;
+    insert_inport(producer, consumer, consumer_inport);
+    consumer->prepare_for_transfer(continuation_block_id);
     add_node(producer);
   }
   
   void future(node* producer, int continuation_block_id) {
-    producer->init();
-    producer->should_not_deallocate = true;
+    prepare_node(producer);
     node* caller = this;
-    prepare_for_transfer(continuation_block_id);
     create_fresh_ports(caller, producer);
     outset* producer_out = (outset*)producer->out;
-    caller->outports.insert(std::make_pair(producer, producer_out->root));
-    add_node(caller);
+    producer_out->should_deallocate = false;
+    insert_outport(caller, producer, producer_out->root);
+    caller->jump_to(continuation_block_id);
     add_node(producer);
   }
   
-  void force(node* producer, int continuation_block_id) {
+  void force(node* producer, outset* producer_out, int continuation_block_id) {
     node* consumer = this;
-    outset* producer_out = (outset*)producer->out;
-    auto p = consumer->outports.find(producer);
-    assert(p != consumer->outports.end());
-    ostnode* outport = p->second;
-    auto inport = incr_incounter(nullptr, consumer);
-    auto res = producer_out->add(outport, consumer, inport.first);
-    if (res.first == outset_insert_success) {
-      consumer->outports.insert(std::make_pair(producer, res.second));
+    prepare_for_transfer(continuation_block_id);
+    join_with(consumer, new incounter);
+    ictnode* consumer_inport = increment_incounter(consumer, (ictnode*)nullptr).first;
+    auto insert_result = insert_outedge(consumer, producer, producer_out, consumer, consumer_inport);
+    outset::insert_status_type insert_status = insert_result.first;
+    if (insert_status == outset::insert_success) {
+      ostnode* producer_outport = insert_result.second;
+      insert_outport(consumer, producer, producer_outport);
+    } else if (insert_status == outset::insert_fail) {
+      decrement_incounter(consumer, consumer_inport);
     } else {
-      add_node(consumer);
+      assert(false);
     }
   }
   
   THREAD_COST_UNKNOWN
   
 };
+  
+void prepare_node(node* n) {
+  prepare_node(n, new incounter, new outset(n));
+}
+
+void prepare_node(node* n, incounter* in) {
+  prepare_node(n, in, new outset(n));
+}
+
+void prepare_node(node* n, outset* out) {
+  prepare_node(n, new incounter, out);
+}
+
+void prepare_node(node* n, incounter* in, outset* out) {
+  n->set_instrategy(in);
+  n->set_outstrategy(out);
+}
+  
+void insert_inport(node* caller, node* target, ictnode* target_inport) {
+  caller->inports.insert(std::make_pair(target, target_inport));
+}
+
+void insert_outport(node* caller, node* target, ostnode* target_outport) {
+  caller->outports.insert(std::make_pair(target, target_outport));
+}
+
+ictnode* find_inport(node* caller, node* target) {
+  auto target_inport_result = caller->inports.find(target);
+  assert(target_inport_result != caller->inports.end());
+  return target_inport_result->second;
+}
+
+ostnode* find_outport(node* caller, node* target) {
+  auto target_outport_result = caller->outports.find(target);
+  assert(target_outport_result != caller->outports.end());
+  return target_outport_result->second;
+}
 
 void create_fresh_inports(node* source, node* target) {
-  inports_type source_ports = source->inports;
-  inports_type target_ports;
+  inport_map_type source_ports = source->inports;
+  inport_map_type target_ports;
   for (auto it = source->inports.cbegin(); it != source->inports.cend(); it++) {
     std::pair<node*, ictnode*> p = *it;
     if (target->inports.find(p.first) != target->inports.cend()) {
@@ -1893,8 +1956,8 @@ void create_fresh_inports(node* source, node* target) {
 }
 
 void create_fresh_outports(node* source, node* target) {
-  outports_type source_ports = source->outports;
-  outports_type target_ports;
+  outport_map_type source_ports = source->outports;
+  outport_map_type target_ports;
   for (auto it = source->outports.cbegin(); it != source->outports.cend(); it++) {
     std::pair<node*, ostnode*> p = *it;
     if (target->outports.find(p.first) != target->outports.cend()) {
@@ -1913,41 +1976,50 @@ void create_fresh_ports(node* source, node* target) {
   create_fresh_outports(source, target);
 }
   
-std::pair<ictnode*, ictnode*> incr_incounter(ictnode* port, node* n) {
+std::pair<ictnode*, ictnode*> increment_incounter(node* n, ictnode* n_port) {
   incounter* in = (incounter*)n->in;
-  return in->increment(port);
+  return in->increment(n_port);
+}
+  
+std::pair<ictnode*, ictnode*> increment_incounter(node* caller, node* target) {
+  ictnode* target_inport = find_inport(caller, target);
+  return increment_incounter(target, target_inport);
 }
 
-void decr_incounter(ictnode* port, node* n) {
+void decrement_incounter(node* n, ictnode* n_port) {
   incounter* in = (incounter*)n->in;
-  port = in->decrement(port);
-  if (in->is_activated(port)) {
-    delete port;
+  n_port = in->decrement(n_port);
+  if (in->is_activated(n_port)) {
+    delete n_port;
     in->start(n);
   }
 }
   
-void decr_inports(node* n) {
-  n->decr_inports();
+void decrement_inports(node* n) {
+  n->decrement_inports();
+}
+  
+outset::insert_result_type insert_outedge(node* caller,
+                                          node* source, outset* source_out,
+                                          node* target, ictnode* target_inport) {
+  auto source_outport = find_outport(caller, source);
+  return source_out->insert(source_outport, target, target_inport);
 }
   
 void add_node(node* n) {
-  assert(false); // no good because check() is being called by add_thread()
-  // instead, find a way to push n directly on the deque
-  pasl::sched::threaddag::add_thread(n);
+  pasl::sched::instrategy::schedule(n);
 }
   
 outset* capture_outset() {
   auto sched = pasl::sched::threaddag::my_sched();
   outset* out = (outset*)sched->get_outstrategy();
   assert(out != nullptr);
-  sched->set_outstrategy(new outset);
+  sched->set_outstrategy(new outset(nullptr));
   return out;
 }
   
 void join_with(node* n, incounter* in) {
-  n->set_instrategy(in);
-  n->set_outstrategy(capture_outset());
+  prepare_node(n, in, capture_outset());
 }
 
 void continue_with(node* n) {
@@ -1955,6 +2027,101 @@ void continue_with(node* n) {
   add_node(n);
 }
   
+} // end namespace
+
+/*---------------------------------------------------------------------*/
+
+/*---------------------------------------------------------------------*/
+/* Test functions for the top-down algorithm */
+
+namespace bottomup {
+  
+std::atomic<int> async_leaf_counter;
+std::atomic<int> async_interior_counter;
+
+class async_loop_rec : public node {
+public:
+  
+  enum {
+    async_loop_rec_entry,
+    async_loop_rec_mid,
+    async_loop_rec_exit
+  };
+  
+  int lo;
+  int hi;
+  node* consumer;
+  
+  int mid;
+  
+  async_loop_rec(int lo, int hi, node* consumer)
+  : lo(lo), hi(hi), consumer(consumer) { }
+  
+  void body() {
+    switch (current_block_id) {
+      case async_loop_rec_entry: {
+        int n = hi - lo;
+        if (n == 0) {
+          return;
+        } else if (n == 1) {
+          async_leaf_counter.fetch_add(1);
+        } else {
+          async_interior_counter.fetch_add(1);
+          mid = (lo + hi) / 2;
+          async(new async_loop_rec(lo, mid, consumer), consumer,
+                async_loop_rec_mid);
+        }
+        break;
+      }
+      case async_loop_rec_mid: {
+        async(new async_loop_rec(mid, hi, consumer), consumer,
+              async_loop_rec_exit);
+        break;
+      }
+      case async_loop_rec_exit: {
+        break;
+      }
+      default:
+        break;
+    }
+  }
+  
+};
+
+class async_loop : public node {
+public:
+  
+  enum {
+    async_loop_entry,
+    async_loop_exit
+  };
+  
+  int n;
+  
+  async_loop(int n)
+  : n(n) { }
+  
+  void body() {
+    switch (current_block_id) {
+      case async_loop_entry: {
+        async_leaf_counter.store(0);
+        async_interior_counter.store(0);
+        finish(new async_loop_rec(0, n, this),
+               async_loop_exit);
+        break;
+      }
+      case async_loop_exit: {
+        assert(async_leaf_counter.load() == n);
+        assert(async_interior_counter.load() + 1 == n);
+        break;
+      }
+      default:
+        break;
+    }
+  }
+  
+};
+
 } // end namespace
 
 /*---------------------------------------------------------------------*/
@@ -2004,7 +2171,12 @@ void launch() {
     c.find_by_arg("cmd")();
   });
   c.add("bottomup", [&] {
-    assert(false);
+    cmdline::argmap_dispatch c;
+    c.add("async_loop", [&] {
+      int n = cmdline::parse_or_default_int("n", 1);
+      t = new bottomup::async_loop(n);
+    });
+    c.find_by_arg("cmd")();
   });
   c.find_by_arg("algo")();
   pasl::sched::threaddag::launch(t);
