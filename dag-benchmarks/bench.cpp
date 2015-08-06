@@ -641,6 +641,8 @@ public:
 class node : public pasl::sched::thread {
 public:
   
+  using outset_type = outset;
+  
   const int uninitialized_block_id = -1;
   const int entry_block_id = 0;
   
@@ -711,6 +713,10 @@ public:
   
   void call(node* target, int continuation_block_id) {
     finish(target, continuation_block_id);
+  }
+  
+  void deallocate_future(outset* future) const {
+    future->destroy();
   }
   
   THREAD_COST_UNKNOWN
@@ -859,10 +865,6 @@ void join_with(node* n, incounter* in) {
 void continue_with(node* n) {
   join_with(n, incounter_ready());
   add_node(n);
-}
-  
-void deallocate_future(outset* out) {
-  out->destroy();
 }
   
 namespace tree {
@@ -1163,426 +1165,6 @@ void deallocate_outset_tree(ostnode* root) {
 
 
 /*---------------------------------------------------------------------*/
-/* Test functions for the top-down algorithm */
-
-namespace topdown {
-  
-std::atomic<int> async_leaf_counter;
-std::atomic<int> async_interior_counter;
-  
-class async_loop_rec : public node {
-public:
-  
-  enum {
-    async_loop_rec_entry,
-    async_loop_rec_mid,
-    async_loop_rec_exit
-  };
-  
-  int lo;
-  int hi;
-  node* consumer;
-  
-  int mid;
-  
-  async_loop_rec(int lo, int hi, node* consumer)
-  : lo(lo), hi(hi), consumer(consumer) { }
-  
-  void body() {
-    switch (current_block_id) {
-      case async_loop_rec_entry: {
-        int n = hi - lo;
-        if (n == 0) {
-          return;
-        } else if (n == 1) {
-          async_leaf_counter.fetch_add(1);
-        } else {
-          async_interior_counter.fetch_add(1);
-          mid = (lo + hi) / 2;
-          async(new async_loop_rec(lo, mid, consumer), consumer,
-                async_loop_rec_mid);
-        }
-        break;
-      }
-      case async_loop_rec_mid: {
-        async(new async_loop_rec(mid, hi, consumer), consumer,
-              async_loop_rec_exit);
-        break;
-      }
-      case async_loop_rec_exit: {
-        break;
-      }
-      default:
-        break;
-    }
-  }
-  
-};
-  
-class async_loop : public node {
-public:
-  
-  enum {
-    async_loop_entry,
-    async_loop_exit
-  };
-  
-  int n;
-  
-  async_loop(int n)
-  : n(n) { }
-  
-  void body() {
-    switch (current_block_id) {
-      case async_loop_entry: {
-        async_leaf_counter.store(0);
-        async_interior_counter.store(0);
-        finish(new async_loop_rec(0, n, this),
-               async_loop_exit);
-        break;
-      }
-      case async_loop_exit: {
-        assert(async_leaf_counter.load() == n);
-        assert(async_interior_counter.load() + 1 == n);
-        break;
-      }
-      default:
-        break;
-    }
-  }
-  
-};
-
-std::atomic<int> future_leaf_counter;
-std::atomic<int> future_interior_counter;
-  
-class future_loop_rec : public node {
-public:
-  
-  enum {
-    future_loop_entry,
-    future_loop_branch2,
-    future_loop_force1,
-    future_loop_force2,
-    future_loop_exit
-  };
-  
-  int lo;
-  int hi;
-  
-  outset* branch1_out;
-  outset* branch2_out;
-  
-  int mid;
-  
-  future_loop_rec(int lo, int hi)
-  : lo(lo), hi(hi) { }
-  
-  void body() {
-    switch (current_block_id) {
-      case future_loop_entry: {
-        int n = hi - lo;
-        if (n == 0) {
-          return;
-        } else if (n == 1) {
-          future_leaf_counter.fetch_add(1);
-        } else {
-          mid = (lo + hi) / 2;
-          node* branch1 = new future_loop_rec(lo, mid);
-          branch1_out = future(branch1,
-                               future_loop_branch2);
-        }
-        break;
-      }
-      case future_loop_branch2: {
-        node* branch2 = new future_loop_rec(mid, hi);
-        branch2_out = future(branch2,
-                             future_loop_force1);
-        break;
-      }
-      case future_loop_force1: {
-        force(branch1_out,
-              future_loop_force2);
-        break;
-      }
-      case future_loop_force2: {
-        force(branch2_out,
-              future_loop_exit);
-        break;
-      }
-      case future_loop_exit: {
-        future_interior_counter.fetch_add(1);
-        deallocate_future(branch1_out);
-        deallocate_future(branch2_out);
-        break;
-      }
-      default:
-        break;
-    }
-  }
-  
-};
-  
-class future_loop : public node {
-public:
-  
-  enum {
-    future_loop_entry,
-    future_loop_force,
-    future_loop_exit
-  };
-  
-  int n;
-  
-  outset* root_out;
-  
-  future_loop(int n)
-  : n(n) { }
-  
-  void body() {
-    switch (current_block_id) {
-      case future_loop_entry: {
-        future_leaf_counter.store(0);
-        future_interior_counter.store(0);
-        node* root = new future_loop_rec(0, n);
-        root_out = future(root,
-                          future_loop_force);
-        break;
-      }
-      case future_loop_force: {
-        force(root_out,
-              future_loop_exit);
-        break;
-      }
-      case future_loop_exit: {
-        deallocate_future(root_out);
-        assert(future_leaf_counter.load() == n);
-        assert(future_interior_counter.load() + 1 == n);
-        break;
-      }
-      default:
-        break;
-    }
-  }
-  
-};
-
-template <class Body_gen>
-class parallel_for_rec : public node {
-public:
-  
-  enum {
-    parallel_for_rec_entry,
-    parallel_for_rec_branch2,
-    parallel_for_rec_exit
-  };
-  
-  int lo;
-  int hi;
-  Body_gen body_gen;
-  node* join;
-  
-  int mid;
-  
-  parallel_for_rec(int lo, int hi, Body_gen body_gen, node* join)
-  : lo(lo), hi(hi), body_gen(body_gen), join(join) { }
-  
-  void body() {
-    switch (current_block_id) {
-      case parallel_for_rec_entry: {
-        int n = hi - lo;
-        if (n == 0) {
-          // nothing to do
-        } else if (n == 1) {
-          call(body_gen(lo),
-               parallel_for_rec_exit);
-        } else {
-          mid = (hi + lo) / 2;
-          async(new parallel_for_rec(lo, mid, body_gen, join), join,
-                parallel_for_rec_branch2);
-        }
-        break;
-      }
-      case parallel_for_rec_branch2: {
-        async(new parallel_for_rec(mid, hi, body_gen, join), join,
-              parallel_for_rec_exit);
-        break;
-      }
-      case parallel_for_rec_exit: {
-        // nothing to do
-        break;
-      }
-      default:
-        break;
-    }
-  }
-  
-};
-  
-template <class Body_gen>
-class parallel_for : public node {
-public:
-  
-  enum {
-    parallel_for_entry,
-    parallel_for_exit
-  };
-  
-  int lo;
-  int hi;
-  Body_gen body_gen;
-  
-  parallel_for(int lo, int hi, Body_gen body_gen)
-  : lo(lo), hi(hi), body_gen(body_gen) { }
-  
-  void body() {
-    switch (current_block_id) {
-      case parallel_for_entry: {
-        finish(new parallel_for_rec<Body_gen>(lo, hi, body_gen, this),
-               parallel_for_exit);
-        break;
-      }
-      case parallel_for_exit: {
-        // nothing to do
-        break;
-      }
-      default:
-        break;
-    }
-  }
-  
-};
-  
-std::atomic<int> future_pool_leaf_counter;
-std::atomic<int> future_pool_interior_counter;
-  
-static long fib (long n){
-  if (n < 2)
-    return n;
-  else
-    return fib (n - 1) + fib (n - 2);
-}
-  
-int fib_input = 20;
-  
-long fib_result;
-  
-class future_body : public node {
-public:
-  
-  enum {
-    future_body_entry,
-    future_body_exit
-  };
-  
-  
-  void body() {
-    switch (current_block_id) {
-      case future_body_entry: {
-        fib_result = fib(fib_input);
-        break;
-      }
-      case future_body_exit: {
-        break;
-      }
-      default:
-        break;
-    }
-  }
-  
-};
-  
-std::atomic<int> future_pool_counter;
-
-class future_reader : public node {
-public:
-  
-  enum {
-    future_reader_entry,
-    future_reader_exit
-  };
-  
-  outset* f;
-  
-  int i;
-  
-  future_reader(outset* f, int i)
-  : f(f), i(i) { }
-  
-  void body() {
-    switch (current_block_id) {
-      case future_reader_entry: {
-        force(f,
-              future_reader_exit);
-        break;
-      }
-      case future_reader_exit: {
-        future_pool_counter.fetch_add(1);
-        assert(fib_result == fib(fib_input));
-        break;
-      }
-      default:
-        break;
-    }
-  }
-  
-};
-  
-template <class Body_gen>
-node* mk_parallel_for(int lo, int hi, Body_gen body_gen) {
-  return new parallel_for<Body_gen>(lo, hi, body_gen);
-}
-  
-class future_pool : public node {
-public:
-  
-  enum {
-    future_pool_entry,
-    future_pool_call,
-    future_pool_exit
-  };
-  
-  int n;
-  
-  outset* f;
-  
-  future_pool(int n)
-  : n(n) { }
-
-  void body() {
-    switch (current_block_id) {
-      case future_pool_entry: {
-        node* fut = new future_body();
-        f = future(fut,
-                   future_pool_call);
-        break;
-      }
-      case future_pool_call: {
-        node* b = mk_parallel_for(0, n, [=] (int i) {
-          return new future_reader(f, i);
-        });
-        call(b,
-             future_pool_exit);
-        break;
-      }
-      case future_pool_exit: {
-        deallocate_future(f);
-        assert(future_pool_counter.load() == n);
-        break;
-      }
-      default:
-        break;
-    }
-  }
-  
-};
-
-} // end namespace
-
-/*---------------------------------------------------------------------*/
-
-
-/*---------------------------------------------------------------------*/
 /* The bottom-up algorithm */
 
 namespace bottomup {
@@ -1605,12 +1187,15 @@ void create_fresh_ports(node*, node*);
 outset* capture_outset();
 void join_with(node*, incounter*);
 void continue_with(node*);
+ictnode* increment_incounter(node*);
 std::pair<ictnode*, ictnode*> increment_incounter(node*, ictnode*);
 std::pair<ictnode*, ictnode*> increment_incounter(node*, node*);
 void decrement_incounter(node*, ictnode*);
 void decrement_incounter(node*, incounter*, ictnode*);
 void decrement_inports(node*);
+void insert_inport(node*, incounter*, ictnode*);
 void insert_inport(node*, node*, ictnode*);
+void insert_outport(node*, outset*, ostnode*);
 void insert_outport(node*, node*, ostnode*);
 
 class ictnode {
@@ -1670,6 +1255,10 @@ public:
       branch2->parent = port;
     }
     return std::make_pair(branch1, branch2);
+  }
+  
+  ictnode* increment() const {
+    return increment((ictnode*)nullptr).first;
   }
   
   ictnode* decrement(ictnode* port) const {
@@ -1815,6 +1404,8 @@ outset::insert_result_type insert_outedge(node*,
 class node : public pasl::sched::thread {
 public:
   
+  using outset_type = outset;
+  
   const int uninitialized_block_id = -1;
   const int entry_block_id = 0;
   
@@ -1875,7 +1466,7 @@ public:
     node* consumer = this;
     join_with(consumer, new incounter(consumer));
     create_fresh_ports(consumer, producer);
-    ictnode* consumer_inport = increment_incounter(consumer, (ictnode*)nullptr).first;
+    ictnode* consumer_inport = increment_incounter(consumer);
     insert_inport(producer, consumer, consumer_inport);
     consumer->prepare_for_transfer(continuation_block_id);
     add_node(producer);
@@ -1892,16 +1483,16 @@ public:
     add_node(producer);
   }
   
-  void force(node* producer, outset* producer_out, int continuation_block_id) {
+  void force(outset* producer_out, int continuation_block_id) {
     node* consumer = this;
     prepare_for_transfer(continuation_block_id);
     join_with(consumer, new incounter(consumer));
-    ictnode* consumer_inport = increment_incounter(consumer, (ictnode*)nullptr).first;
+    ictnode* consumer_inport = increment_incounter(consumer);
     auto insert_result = insert_outedge(consumer, producer_out, consumer, consumer_inport);
     outset::insert_status_type insert_status = insert_result.first;
     if (insert_status == outset::insert_success) {
       ostnode* producer_outport = insert_result.second;
-      insert_outport(consumer, producer, producer_outport);
+      insert_outport(consumer, producer_out, producer_outport);
     } else if (insert_status == outset::insert_fail) {
       decrement_incounter(consumer, consumer_inport);
     } else {
@@ -1930,12 +1521,20 @@ void prepare_node(node* n, incounter* in, outset* out) {
   n->set_outstrategy(out);
 }
   
+void insert_inport(node* caller, incounter* target_in, ictnode* target_inport) {
+  caller->inports.insert(std::make_pair(target_in, target_inport));
+}
+  
 void insert_inport(node* caller, node* target, ictnode* target_inport) {
-  caller->inports.insert(std::make_pair((incounter*)target->in, target_inport));
+  insert_inport(caller, (incounter*)target->in, target_inport);
 }
 
+void insert_outport(node* caller, outset* target_out, ostnode* target_outport) {
+  caller->outports.insert(std::make_pair(target_out, target_outport));
+}
+  
 void insert_outport(node* caller, node* target, ostnode* target_outport) {
-  caller->outports.insert(std::make_pair((outset*)target->out, target_outport));
+  insert_outport(caller, (outset*)target->out, target_outport);
 }
 
 ictnode* find_inport(node* caller, incounter* target_in) {
@@ -1985,6 +1584,11 @@ void create_fresh_outports(node* source, node* target) {
 void create_fresh_ports(node* source, node* target) {
   create_fresh_inports(source, target);
   create_fresh_outports(source, target);
+}
+  
+ictnode* increment_incounter(node* n) {
+  incounter* in = (incounter*)n->in;
+  return in->increment();
 }
   
 std::pair<ictnode*, ictnode*> increment_incounter(node* n, ictnode* n_port) {
@@ -2045,14 +1649,19 @@ void continue_with(node* n) {
 
 /*---------------------------------------------------------------------*/
 
-/*---------------------------------------------------------------------*/
-/* Test functions for the top-down algorithm */
 
-namespace bottomup {
+/*---------------------------------------------------------------------*/
+/* Test functions */
+
+namespace tests {
+  
+template <class node>
+using outset_of = typename node::outset_type;
   
 std::atomic<int> async_leaf_counter;
 std::atomic<int> async_interior_counter;
 
+template <class node>
 class async_loop_rec : public node {
 public:
   
@@ -2072,7 +1681,7 @@ public:
   : lo(lo), hi(hi), consumer(consumer) { }
   
   void body() {
-    switch (current_block_id) {
+    switch (node::current_block_id) {
       case async_loop_rec_entry: {
         int n = hi - lo;
         if (n == 0) {
@@ -2082,14 +1691,14 @@ public:
         } else {
           async_interior_counter.fetch_add(1);
           mid = (lo + hi) / 2;
-          async(new async_loop_rec(lo, mid, consumer), consumer,
-                async_loop_rec_mid);
+          node::async(new async_loop_rec(lo, mid, consumer), consumer,
+                      async_loop_rec_mid);
         }
         break;
       }
       case async_loop_rec_mid: {
-        async(new async_loop_rec(mid, hi, consumer), consumer,
-              async_loop_rec_exit);
+        node::async(new async_loop_rec(mid, hi, consumer), consumer,
+                    async_loop_rec_exit);
         break;
       }
       case async_loop_rec_exit: {
@@ -2102,6 +1711,7 @@ public:
   
 };
 
+template <class node>
 class async_loop : public node {
 public:
   
@@ -2116,17 +1726,341 @@ public:
   : n(n) { }
   
   void body() {
-    switch (current_block_id) {
+    switch (node::current_block_id) {
       case async_loop_entry: {
         async_leaf_counter.store(0);
         async_interior_counter.store(0);
-        finish(new async_loop_rec(0, n, this),
+        node::finish(new async_loop_rec<node>(0, n, this),
                async_loop_exit);
         break;
       }
       case async_loop_exit: {
         assert(async_leaf_counter.load() == n);
         assert(async_interior_counter.load() + 1 == n);
+        break;
+      }
+      default:
+        break;
+    }
+  }
+  
+};
+
+std::atomic<int> future_leaf_counter;
+std::atomic<int> future_interior_counter;
+
+template <class node>
+class future_loop_rec : public node {
+public:
+  
+  enum {
+    future_loop_entry,
+    future_loop_branch2,
+    future_loop_force1,
+    future_loop_force2,
+    future_loop_exit
+  };
+  
+  int lo;
+  int hi;
+  
+  outset_of<node>* branch1_out;
+  outset_of<node>* branch2_out;
+  
+  int mid;
+  
+  future_loop_rec(int lo, int hi)
+  : lo(lo), hi(hi) { }
+  
+  void body() {
+    switch (node::current_block_id) {
+      case future_loop_entry: {
+        int n = hi - lo;
+        if (n == 0) {
+          return;
+        } else if (n == 1) {
+          future_leaf_counter.fetch_add(1);
+        } else {
+          mid = (lo + hi) / 2;
+          node* branch1 = new future_loop_rec<node>(lo, mid);
+          branch1_out = node::future(branch1,
+                                     future_loop_branch2);
+        }
+        break;
+      }
+      case future_loop_branch2: {
+        node* branch2 = new future_loop_rec<node>(mid, hi);
+        branch2_out = node::future(branch2,
+                                   future_loop_force1);
+        break;
+      }
+      case future_loop_force1: {
+        node::force(branch1_out,
+                    future_loop_force2);
+        break;
+      }
+      case future_loop_force2: {
+        node::force(branch2_out,
+                    future_loop_exit);
+        break;
+      }
+      case future_loop_exit: {
+        future_interior_counter.fetch_add(1);
+        node::deallocate_future(branch1_out);
+        node::deallocate_future(branch2_out);
+        break;
+      }
+      default:
+        break;
+    }
+  }
+  
+};
+
+template <class node>
+class future_loop : public node {
+public:
+  
+  enum {
+    future_loop_entry,
+    future_loop_force,
+    future_loop_exit
+  };
+  
+  int n;
+  
+  outset_of<node>* root_out;
+  
+  future_loop(int n)
+  : n(n) { }
+  
+  void body() {
+    switch (node::current_block_id) {
+      case future_loop_entry: {
+        future_leaf_counter.store(0);
+        future_interior_counter.store(0);
+        node* root = new future_loop_rec<node>(0, n);
+        root_out = node::future(root,
+                                future_loop_force);
+        break;
+      }
+      case future_loop_force: {
+        node::force(root_out,
+                    future_loop_exit);
+        break;
+      }
+      case future_loop_exit: {
+        node::deallocate_future(root_out);
+        assert(future_leaf_counter.load() == n);
+        assert(future_interior_counter.load() + 1 == n);
+        break;
+      }
+      default:
+        break;
+    }
+  }
+  
+};
+
+template <class Body_gen, class node>
+class parallel_for_rec : public node {
+public:
+  
+  enum {
+    parallel_for_rec_entry,
+    parallel_for_rec_branch2,
+    parallel_for_rec_exit
+  };
+  
+  int lo;
+  int hi;
+  Body_gen body_gen;
+  node* join;
+  
+  int mid;
+  
+  parallel_for_rec(int lo, int hi, Body_gen body_gen, node* join)
+  : lo(lo), hi(hi), body_gen(body_gen), join(join) { }
+  
+  void body() {
+    switch (node::current_block_id) {
+      case parallel_for_rec_entry: {
+        int n = hi - lo;
+        if (n == 0) {
+          // nothing to do
+        } else if (n == 1) {
+          node::call(body_gen(lo),
+                     parallel_for_rec_exit);
+        } else {
+          mid = (hi + lo) / 2;
+          node::async(new parallel_for_rec(lo, mid, body_gen, join), join,
+                      parallel_for_rec_branch2);
+        }
+        break;
+      }
+      case parallel_for_rec_branch2: {
+        node::async(new parallel_for_rec(mid, hi, body_gen, join), join,
+                    parallel_for_rec_exit);
+        break;
+      }
+      case parallel_for_rec_exit: {
+        // nothing to do
+        break;
+      }
+      default:
+        break;
+    }
+  }
+  
+};
+
+template <class Body_gen, class node>
+class parallel_for : public node {
+public:
+  
+  enum {
+    parallel_for_entry,
+    parallel_for_exit
+  };
+  
+  int lo;
+  int hi;
+  Body_gen body_gen;
+  
+  parallel_for(int lo, int hi, Body_gen body_gen)
+  : lo(lo), hi(hi), body_gen(body_gen) { }
+  
+  void body() {
+    switch (node::current_block_id) {
+      case parallel_for_entry: {
+        node::finish(new parallel_for_rec<Body_gen, node>(lo, hi, body_gen, this),
+                     parallel_for_exit);
+        break;
+      }
+      case parallel_for_exit: {
+        // nothing to do
+        break;
+      }
+      default:
+        break;
+    }
+  }
+  
+};
+
+std::atomic<int> future_pool_leaf_counter;
+std::atomic<int> future_pool_interior_counter;
+
+static long fib (long n){
+  if (n < 2)
+    return n;
+  else
+    return fib (n - 1) + fib (n - 2);
+}
+
+int fib_input = 20;
+
+long fib_result;
+
+template <class node>
+class future_body : public node {
+public:
+  
+  enum {
+    future_body_entry,
+    future_body_exit
+  };
+  
+  void body() {
+    switch (node::current_block_id) {
+      case future_body_entry: {
+        fib_result = fib(fib_input);
+        break;
+      }
+      case future_body_exit: {
+        break;
+      }
+      default:
+        break;
+    }
+  }
+  
+};
+
+std::atomic<int> future_pool_counter;
+
+template <class node>
+class future_reader : public node {
+public:
+  
+  enum {
+    future_reader_entry,
+    future_reader_exit
+  };
+  
+  outset_of<node>* f;
+  
+  int i;
+  
+  future_reader(outset_of<node>* f, int i)
+  : f(f), i(i) { }
+  
+  void body() {
+    switch (node::current_block_id) {
+      case future_reader_entry: {
+        node::force(f,
+                    future_reader_exit);
+        break;
+      }
+      case future_reader_exit: {
+        future_pool_counter.fetch_add(1);
+        assert(fib_result == fib(fib_input));
+        break;
+      }
+      default:
+        break;
+    }
+  }
+  
+};
+
+template <class node>
+class future_pool : public node {
+public:
+  
+  enum {
+    future_pool_entry,
+    future_pool_call,
+    future_pool_exit
+  };
+  
+  int n;
+  
+  outset_of<node>* f;
+  
+  future_pool(int n)
+  : n(n) { }
+  
+  void body() {
+    switch (node::current_block_id) {
+      case future_pool_entry: {
+        node* fut = new future_body<node>;
+        f = node::future(fut,
+                         future_pool_call);
+        break;
+      }
+      case future_pool_call: {
+        auto loop_body = [=] (int i) {
+          return new future_reader<node>(f, i);
+        };
+        node* b = new parallel_for<decltype(loop_body), node>(0, n, loop_body);
+        node::call(b,
+                   future_pool_exit);
+        break;
+      }
+      case future_pool_exit: {
+        node::deallocate_future(f);
+        assert(future_pool_counter.load() == n);
         break;
       }
       default:
@@ -2163,36 +2097,39 @@ void choose_edge_algorithm() {
   c.find("edge_algo", "tree")();
 }
 
-void launch() {
-  cmdline::argmap_dispatch c;
+template <class node>
+pasl::sched::thread_p choose_command() {
   pasl::sched::thread_p t;
+  cmdline::argmap_dispatch c;
+  c.add("async_loop", [&] {
+    int n = cmdline::parse_or_default_int("n", 1);
+    t = new tests::async_loop<topdown::node>(n);
+  });
+  c.add("future_loop", [&] {
+    int n = cmdline::parse_or_default_int("n", 1);
+    t = new tests::future_loop<topdown::node>(n);
+  });
+  c.add("future_pool", [&] {
+    int n = cmdline::parse_or_default_int("n", 1);
+    tests::fib_input = cmdline::parse_or_default_int("fib_input", tests::fib_input);
+    t = new tests::future_pool<topdown::node>(n);
+  });
+  c.find_by_arg("cmd")();
+  return t;
+}
+
+void launch() {
+  pasl::sched::thread_p t = nullptr;
+  cmdline::argmap_dispatch c;
   c.add("topdown", [&] {
     choose_edge_algorithm();
-    cmdline::argmap_dispatch c;
-    c.add("async_loop", [&] {
-      int n = cmdline::parse_or_default_int("n", 1);
-      t = new topdown::async_loop(n);
-    });
-    c.add("future_loop", [&] {
-      int n = cmdline::parse_or_default_int("n", 1);
-      t = new topdown::future_loop(n);
-    });
-    c.add("future_pool", [&] {
-      int n = cmdline::parse_or_default_int("n", 1);
-      topdown::fib_input = cmdline::parse_or_default_int("fib_input", topdown::fib_input);
-      t = new topdown::future_pool(n);
-    });
-    c.find_by_arg("cmd")();
+    t = choose_command<topdown::node>();
   });
   c.add("bottomup", [&] {
-    cmdline::argmap_dispatch c;
-    c.add("async_loop", [&] {
-      int n = cmdline::parse_or_default_int("n", 1);
-      t = new bottomup::async_loop(n);
-    });
-    c.find_by_arg("cmd")();
+    t = choose_command<bottomup::node>();
   });
   c.find_by_arg("algo")();
+  assert(t != nullptr);
   pasl::sched::threaddag::launch(t);
 }
 
