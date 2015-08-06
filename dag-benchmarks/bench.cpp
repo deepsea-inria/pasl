@@ -641,6 +641,7 @@ public:
 class node : public pasl::sched::thread {
 public:
   
+  using incounter_type = incounter;
   using outset_type = outset;
   
   const int uninitialized_block_id = -1;
@@ -1197,6 +1198,7 @@ void insert_inport(node*, incounter*, ictnode*);
 void insert_inport(node*, node*, ictnode*);
 void insert_outport(node*, outset*, ostnode*);
 void insert_outport(node*, node*, ostnode*);
+void deallocate_future(node*, outset*);
 
 class ictnode {
 public:
@@ -1404,6 +1406,7 @@ outset::insert_result_type insert_outedge(node*,
 class node : public pasl::sched::thread {
 public:
   
+  using incounter_type = incounter;
   using outset_type = outset;
   
   const int uninitialized_block_id = -1;
@@ -1472,7 +1475,7 @@ public:
     add_node(producer);
   }
   
-  void future(node* producer, int continuation_block_id) {
+  outset* future(node* producer, int continuation_block_id) {
     prepare_node(producer);
     node* caller = this;
     create_fresh_ports(caller, producer);
@@ -1481,6 +1484,7 @@ public:
     insert_outport(caller, producer, producer_out->root);
     caller->jump_to(continuation_block_id);
     add_node(producer);
+    return producer_out;
   }
   
   void force(outset* producer_out, int continuation_block_id) {
@@ -1498,6 +1502,14 @@ public:
     } else {
       assert(false);
     }
+  }
+  
+  void deallocate_future(outset* future) {
+    bottomup::deallocate_future(this, future);
+  }
+  
+  void call(node* target, int continuation_block_id) {
+    finish(target, continuation_block_id);
   }
   
   THREAD_COST_UNKNOWN
@@ -1643,6 +1655,12 @@ void join_with(node* n, incounter* in) {
 void continue_with(node* n) {
   join_with(n, new incounter(n));
   add_node(n);
+}
+  
+void deallocate_future(node* caller, outset* future) {
+  assert(caller->outports.find(future) != caller->outports.end());
+  caller->outports.erase(future);
+  delete future;
 }
   
 } // end namespace
@@ -2103,16 +2121,16 @@ pasl::sched::thread_p choose_command() {
   cmdline::argmap_dispatch c;
   c.add("async_loop", [&] {
     int n = cmdline::parse_or_default_int("n", 1);
-    t = new tests::async_loop<topdown::node>(n);
+    t = new tests::async_loop<node>(n);
   });
   c.add("future_loop", [&] {
     int n = cmdline::parse_or_default_int("n", 1);
-    t = new tests::future_loop<topdown::node>(n);
+    t = new tests::future_loop<node>(n);
   });
   c.add("future_pool", [&] {
     int n = cmdline::parse_or_default_int("n", 1);
     tests::fib_input = cmdline::parse_or_default_int("fib_input", tests::fib_input);
-    t = new tests::future_pool<topdown::node>(n);
+    t = new tests::future_pool<node>(n);
   });
   c.find_by_arg("cmd")();
   return t;
