@@ -1595,8 +1595,8 @@ void create_fresh_inports(node* source, node* target) {
   inport_map_type target_ports;
   for (auto it = source->inports.cbegin(); it != source->inports.cend(); it++) {
     auto p = *it;
-    source_ports.erase(p.first);
     if (target->inports.find(p.first) != target->inports.cend()) {
+      source_ports.erase(p.first);
       incounter* in = p.first;
       auto ports = in->increment(p.second);
       source_ports.insert(std::make_pair(p.first, ports.first));
@@ -2100,8 +2100,7 @@ public:
         auto loop_body = [=] (int i) {
           return new future_reader<node>(f, i);
         };
-        node* b = new parallel_for<decltype(loop_body), node>(0, n, loop_body);
-        node::call(b,
+        node::call(new parallel_for<decltype(loop_body), node>(0, n, loop_body),
                    future_pool_exit);
         break;
       }
