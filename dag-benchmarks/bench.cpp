@@ -1380,11 +1380,13 @@ public:
   
   void deallocate_outset_tree() {
     std::vector<ostnode*> todo;
+    todo.push_back(root);
+    root = nullptr;
     while (! todo.empty()) {
       ostnode* n = todo.back();
       todo.pop_back();
       for (int i = 0; i < 2; i++) {
-        ostnode* child = n->children[i].load();
+        ostnode* child = tagged_pointer_of(n->children[i].load());
         if (child != nullptr) {
           todo.push_back(child);
         }
@@ -1667,6 +1669,7 @@ outset::insert_result_type insert_outedge(node* caller,
 }
   
 void add_node(node* n) {
+  delete n->in;
   pasl::sched::instrategy::schedule(n);
 }
   
