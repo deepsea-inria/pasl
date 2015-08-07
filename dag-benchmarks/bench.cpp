@@ -1333,7 +1333,15 @@ public:
     deallocate_outset_tree();
   }
   
+  bool is_finished() const {
+    int tag = tagged_tag_of(root->children[0].load());
+    return tag == frozen_tag;
+  }
+  
   insert_result_type insert(ostnode* outport, node* target, ictnode* inport) {
+    if (is_finished()) {
+      return std::make_pair(insert_fail, nullptr);
+    }
     ostnode* next = new ostnode;
     next->target = target;
     next->port = inport;
@@ -1385,13 +1393,7 @@ public:
     }
   }
   
-  bool is_finished() const {
-    int tag = tagged_tag_of(root->children[0].load());
-    return tag == frozen_tag;
-  }
-  
   std::pair<ostnode*, ostnode*> fork2(ostnode* port) const {
-    assert(root != nullptr);
     assert(port != nullptr);
     ostnode* branches[2];
     branches[0] = new ostnode;
@@ -1399,13 +1401,13 @@ public:
     for (int i = 1; i >= 0; i--) {
       ostnode* orig = nullptr;
       if (! port->children[i].compare_exchange_strong(orig, branches[i])) {
-        for (int j = 0; j <= i; j++) {
+        for (int j = i; j >= 0; j--) {
           delete branches[j];
           branches[j] = port;
         }
+        break;
       }
     }
-    assert(root != nullptr);
     return std::make_pair(branches[0], branches[1]);
   }
   
@@ -1507,17 +1509,8 @@ public:
     prepare_node(producer);
     outset* producer_out = (outset*)producer->out;
     producer_out->should_deallocate = false;
-    assert(producer_out->root != nullptr);
     node* caller = this;
-    assert(producer_out->root != nullptr);
-    
-    //create_fresh_ports(caller, producer);
-    create_fresh_inports(caller, producer);
-    assert(producer_out->root != nullptr);
-
-    create_fresh_outports(caller, producer);
-    assert(producer_out->root != nullptr);
-
+    create_fresh_ports(caller, producer);
     insert_outport(caller, producer, producer_out->root);
     caller->jump_to(continuation_block_id);
     add_node(producer);
