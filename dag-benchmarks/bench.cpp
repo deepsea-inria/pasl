@@ -1199,7 +1199,9 @@ void insert_inport(node*, node*, ictnode*);
 void insert_outport(node*, outset*, ostnode*);
 void insert_outport(node*, node*, ostnode*);
 void deallocate_future(node*, outset*);
-
+void notify_outset_tree_nodes(ostnode*);
+void deallocate_outset_tree(ostnode*);
+  
 class ictnode {
 public:
   
@@ -1326,7 +1328,7 @@ public:
   }
   
   ~outset() {
-    deallocate_outset_tree();
+    deallocate_outset_tree(root);
   }
   
   bool is_finished() const {
@@ -1347,48 +1349,6 @@ public:
       return std::make_pair(insert_fail, nullptr);
     }
     return std::make_pair(insert_success, next);
-  }
-  
-  void notify_outset_nodes() {
-    std::vector<ostnode*> todo;
-    todo.push_back(root);
-    while (! todo.empty()) {
-      ostnode* n = todo.back();
-      todo.pop_back();
-      if (n->target != nullptr) {
-        decrement_incounter(n->target, n->port);
-      }
-      for (int i = 0; i < 2; i++) {
-        ostnode* orig;
-        while (true) {
-          orig = n->children[i].load();
-          ostnode* next = tagged_tag_with((ostnode*)nullptr, frozen_tag);
-          if (n->children[i].compare_exchange_strong(orig, next)) {
-            break;
-          }
-        }
-        if (orig != nullptr) {
-          todo.push_back(orig);
-        }
-      }
-    }
-  }
-  
-  void deallocate_outset_tree() {
-    std::vector<ostnode*> todo;
-    todo.push_back(root);
-    root = nullptr;
-    while (! todo.empty()) {
-      ostnode* n = todo.back();
-      todo.pop_back();
-      for (int i = 0; i < 2; i++) {
-        ostnode* child = tagged_pointer_of(n->children[i].load());
-        if (child != nullptr) {
-          todo.push_back(child);
-        }
-      }
-      delete n;
-    }
   }
   
   std::pair<ostnode*, ostnode*> fork2(ostnode* port) const {
@@ -1414,7 +1374,7 @@ public:
   }
   
   void finished() {
-    notify_outset_nodes();
+    notify_outset_tree_nodes(root);
     if (n != nullptr) {
       decrement_inports(n);
     }
@@ -1690,6 +1650,48 @@ void deallocate_future(node* caller, outset* future) {
   assert(caller->outports.find(future) != caller->outports.end());
   caller->outports.erase(future);
   delete future;
+}
+  
+void notify_outset_tree_nodes(ostnode* root) {
+  std::vector<ostnode*> todo;
+  todo.push_back(root);
+  while (! todo.empty()) {
+    ostnode* n = todo.back();
+    todo.pop_back();
+    if (n->target != nullptr) {
+      decrement_incounter(n->target, n->port);
+    }
+    for (int i = 0; i < 2; i++) {
+      ostnode* orig;
+      while (true) {
+        orig = n->children[i].load();
+        ostnode* next = tagged_tag_with((ostnode*)nullptr, outset::frozen_tag);
+        if (n->children[i].compare_exchange_strong(orig, next)) {
+          break;
+        }
+      }
+      if (orig != nullptr) {
+        todo.push_back(orig);
+      }
+    }
+  }
+}
+  
+void deallocate_outset_tree(ostnode* root) {
+  std::vector<ostnode*> todo;
+  todo.push_back(root);
+  root = nullptr;
+  while (! todo.empty()) {
+    ostnode* n = todo.back();
+    todo.pop_back();
+    for (int i = 0; i < 2; i++) {
+      ostnode* child = tagged_pointer_of(n->children[i].load());
+      if (child != nullptr) {
+        todo.push_back(child);
+      }
+    }
+    delete n;
+  }
 }
   
 } // end namespace
