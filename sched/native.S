@@ -16,11 +16,12 @@
         /* _pasl_cxt_save(__jmp_buf env) */
 #ifdef TARGET_MAC_OS
 .globl __pasl_cxt_save
+        .align 4
 #else
 .globl _pasl_cxt_save
         .type _pasl_cxt_save, @function
-#endif
         .align 16
+#endif
 #ifdef TARGET_MAC_OS
 __pasl_cxt_save:
 #else
@@ -53,11 +54,12 @@ _pasl_cxt_save:
         /* _pasl_cxt_restore(__jmp_buf env, void* val) */
 #ifdef TARGET_MAC_OS
 .globl __pasl_cxt_restore
+        .align 4
 #else
 .globl _pasl_cxt_restore
         .type _pasl_cxt_restore, @function
-#endif
         .align 16
+#endif
 #ifdef TARGET_MAC_OS
 __pasl_cxt_restore:
 #else        
