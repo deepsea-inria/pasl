@@ -1185,6 +1185,10 @@ void prepare_node(node*, outset*);
 void prepare_node(node*, incounter*, outset*);
 void add_node(node* n);
 void create_fresh_ports(node*, node*);
+  void create_fresh_inports(node*, node*);
+
+  void create_fresh_outports(node*, node*);
+
 outset* capture_outset();
 void join_with(node*, incounter*);
 void continue_with(node*);
@@ -1204,11 +1208,11 @@ class ictnode {
 public:
   
   ictnode* parent;
-  std::atomic<int> counter;
+  std::atomic<int> nb_removed_children;
   
   ictnode() {
     parent = nullptr;
-    counter.store(0);
+    nb_removed_children.store(0);
   }
   
 };
@@ -1232,6 +1236,11 @@ public:
 
 class incounter : public pasl::sched::instrategy::common {
 public:
+  
+  using status_type = enum {
+    activated,
+    not_activated
+  };
   
   node* n;
   
@@ -1263,19 +1272,28 @@ public:
     return increment((ictnode*)nullptr).first;
   }
   
-  ictnode* decrement(ictnode* port) const {
-    ictnode* cur = port;
-    while (cur->parent != nullptr) {
-      ictnode* tmp2 = cur;
-      cur = cur->parent;
-      int count = cur->counter.load();
-      delete tmp2;
-      int orig = 0;
-      if ( (count == 0) && cur->counter.compare_exchange_strong(orig, 1)) {
-        return cur;
+  status_type decrement(ictnode* port) const {
+    assert(port != nullptr);
+    ictnode* current = port;
+    ictnode* next = current->parent;
+    while (next != nullptr) {
+      delete current;
+      while (true) {
+        if (next->nb_removed_children.load() != 0) {
+          break;
+        }
+        int orig = 0;
+        if (next->nb_removed_children.compare_exchange_strong(orig, 1)) {
+          return not_activated;
+        }
       }
+      current = next;
+      next = next->parent;
     }
-    return cur;
+    assert(current != nullptr);
+    assert(next == nullptr);
+    delete current;
+    return activated;
   }
   
   void check(pasl::sched::thread_p t) {
@@ -1367,19 +1385,27 @@ public:
     }
   }
   
-  std::pair<ostnode*, ostnode*> fork2(ostnode* port) {
+  bool is_finished() const {
+    int tag = tagged_tag_of(root->children[0].load());
+    return tag == frozen_tag;
+  }
+  
+  std::pair<ostnode*, ostnode*> fork2(ostnode* port) const {
+    assert(root != nullptr);
+    assert(port != nullptr);
     ostnode* branches[2];
     branches[0] = new ostnode;
     branches[1] = new ostnode;
-    for (int i = 0; i < 2; i++) {
+    for (int i = 1; i >= 0; i--) {
       ostnode* orig = nullptr;
       if (! port->children[i].compare_exchange_strong(orig, branches[i])) {
-        for (int j = 0; j < 2; j++) {
+        for (int j = 0; j <= i; j++) {
           delete branches[j];
-          branches[j] = nullptr;
+          branches[j] = port;
         }
       }
     }
+    assert(root != nullptr);
     return std::make_pair(branches[0], branches[1]);
   }
   
@@ -1444,6 +1470,7 @@ public:
       node* n_in = in->n;
       decrement_incounter(n_in, in, in_port);
     }
+    inports.clear();
   }
   
   void prepare_for_transfer(int target) {
@@ -1459,6 +1486,7 @@ public:
   void async(node* producer, node* consumer, int continuation_block_id) {
     prepare_node(producer);
     node* caller = this;
+    insert_inport(producer, (incounter*)consumer->in, (ictnode*)nullptr);
     create_fresh_ports(caller, producer);
     caller->jump_to(continuation_block_id);
     add_node(producer);
@@ -1477,10 +1505,19 @@ public:
   
   outset* future(node* producer, int continuation_block_id) {
     prepare_node(producer);
-    node* caller = this;
-    create_fresh_ports(caller, producer);
     outset* producer_out = (outset*)producer->out;
     producer_out->should_deallocate = false;
+    assert(producer_out->root != nullptr);
+    node* caller = this;
+    assert(producer_out->root != nullptr);
+    
+    //create_fresh_ports(caller, producer);
+    create_fresh_inports(caller, producer);
+    assert(producer_out->root != nullptr);
+
+    create_fresh_outports(caller, producer);
+    assert(producer_out->root != nullptr);
+
     insert_outport(caller, producer, producer_out->root);
     caller->jump_to(continuation_block_id);
     add_node(producer);
@@ -1542,6 +1579,7 @@ void insert_inport(node* caller, node* target, ictnode* target_inport) {
 }
 
 void insert_outport(node* caller, outset* target_out, ostnode* target_outport) {
+  assert(target_outport != nullptr);
   caller->outports.insert(std::make_pair(target_out, target_outport));
 }
   
@@ -1566,6 +1604,7 @@ void create_fresh_inports(node* source, node* target) {
   inport_map_type target_ports;
   for (auto it = source->inports.cbegin(); it != source->inports.cend(); it++) {
     auto p = *it;
+    source_ports.erase(p.first);
     if (target->inports.find(p.first) != target->inports.cend()) {
       incounter* in = p.first;
       auto ports = in->increment(p.second);
@@ -1582,12 +1621,11 @@ void create_fresh_outports(node* source, node* target) {
   outport_map_type target_ports;
   for (auto it = source->outports.cbegin(); it != source->outports.cend(); it++) {
     auto p = *it;
-    if (target->outports.find(p.first) != target->outports.cend()) {
-      outset* out = p.first;
-      auto ports = out->fork2(p.second);
-      source_ports.insert(std::make_pair(p.first, ports.first));
-      target_ports.insert(std::make_pair(p.first, ports.second));
-    }
+    source_ports.erase(p.first);
+    outset* out = p.first;
+    auto ports = out->fork2(p.second);
+    source_ports.insert(std::make_pair(p.first, ports.first));
+    target_ports.insert(std::make_pair(p.first, ports.second));
   }
   source->outports.swap(source_ports);
   target->outports.swap(target_ports);
@@ -1614,9 +1652,8 @@ std::pair<ictnode*, ictnode*> increment_incounter(node* caller, node* target) {
 }
 
 void decrement_incounter(node* n, incounter* n_in, ictnode* n_port) {
-  n_port = n_in->decrement(n_port);
-  if (n_in->is_activated(n_port)) {
-    delete n_port;
+  incounter::status_type status = n_in->decrement(n_port);
+  if (status == incounter::activated) {
     n_in->start(n);
   }
 }
