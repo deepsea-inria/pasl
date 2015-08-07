@@ -53,6 +53,14 @@ int random_int(int lo, int hi) {
 
 
 /*---------------------------------------------------------------------*/
+/* Global parameters */
+
+int communication_delay = 100;
+
+/*---------------------------------------------------------------------*/
+
+
+/*---------------------------------------------------------------------*/
 /* The top-down algorithm */
 
 namespace topdown {
@@ -329,7 +337,6 @@ public:
 namespace tree {
   
 int branching_factor = 2;
-int communication_delay = 100;
   
 class tree_incounter;
 class tree_outset;
@@ -1652,10 +1659,9 @@ void deallocate_future(node* caller, outset* future) {
   delete future;
 }
   
-void notify_outset_tree_nodes(ostnode* root) {
-  std::vector<ostnode*> todo;
-  todo.push_back(root);
-  while (! todo.empty()) {
+void notify_outset_tree_nodes_partial(std::deque<ostnode*>& todo) {
+  int k = 0;
+  while ( (k < communication_delay) && (! todo.empty()) ) {
     ostnode* n = todo.back();
     todo.pop_back();
     if (n->target != nullptr) {
@@ -1674,14 +1680,21 @@ void notify_outset_tree_nodes(ostnode* root) {
         todo.push_back(orig);
       }
     }
+    k++;
   }
 }
   
-void deallocate_outset_tree(ostnode* root) {
-  std::vector<ostnode*> todo;
+void notify_outset_tree_nodes(ostnode* root) {
+  std::deque<ostnode*> todo;
   todo.push_back(root);
-  root = nullptr;
   while (! todo.empty()) {
+    notify_outset_tree_nodes_partial(todo);
+  }
+}
+  
+void deallocate_outset_tree_partial(std::deque<ostnode*>& todo) {
+  int k = 0;
+  while ( (k < communication_delay) && (! todo.empty()) ) {
     ostnode* n = todo.back();
     todo.pop_back();
     for (int i = 0; i < 2; i++) {
@@ -1691,6 +1704,15 @@ void deallocate_outset_tree(ostnode* root) {
       }
     }
     delete n;
+    k++;
+  }
+}
+  
+void deallocate_outset_tree(ostnode* root) {
+  std::deque<ostnode*> todo;
+  todo.push_back(root);
+  while (! todo.empty()) {
+    deallocate_outset_tree_partial(todo);
   }
 }
   
@@ -2137,10 +2159,9 @@ void choose_edge_algorithm() {
   });
   c.add("tree", [&] {
     topdown::edge_algorithm = topdown::edge_algorithm_tree;
-    topdown::tree::branching_factor = cmdline::parse_or_default_int("branching_factor",
-                                                                    topdown::tree::branching_factor);
-    topdown::tree::communication_delay = cmdline::parse_or_default_int("communication_delay",
-                                                                       topdown::tree::communication_delay);
+    topdown::tree::branching_factor =
+    cmdline::parse_or_default_int("branching_factor",
+                                  topdown::tree::branching_factor);
   });
   c.find("edge_algo", "tree")();
 }
@@ -2167,6 +2188,8 @@ pasl::sched::thread_p choose_command() {
 }
 
 void launch() {
+  communication_delay = cmdline::parse_or_default_int("communication_delay",
+                                                      communication_delay);
   pasl::sched::thread_p t = nullptr;
   cmdline::argmap_dispatch c;
   c.add("topdown", [&] {
