@@ -1185,10 +1185,6 @@ void prepare_node(node*, outset*);
 void prepare_node(node*, incounter*, outset*);
 void add_node(node* n);
 void create_fresh_ports(node*, node*);
-  void create_fresh_inports(node*, node*);
-
-  void create_fresh_outports(node*, node*);
-
 outset* capture_outset();
 void join_with(node*, incounter*);
 void continue_with(node*);
