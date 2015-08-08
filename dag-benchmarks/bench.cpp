@@ -1206,7 +1206,7 @@ void insert_inport(node*, node*, ictnode*);
 void insert_outport(node*, outset*, ostnode*);
 void insert_outport(node*, node*, ostnode*);
 void deallocate_future(node*, outset*);
-void notify_outset_tree_nodes(ostnode*);
+void notify_outset_tree_nodes(outset*);
 void deallocate_outset_tree(ostnode*);
   
 class ictnode {
@@ -1381,13 +1381,10 @@ public:
   }
   
   void finished() {
-    notify_outset_tree_nodes(root);
     if (n != nullptr) {
       decrement_inports(n);
     }
-    if (should_deallocate) {
-      delete this;
-    }
+    notify_outset_tree_nodes(this);
   }
   
 };
@@ -1684,11 +1681,117 @@ void notify_outset_tree_nodes_partial(std::deque<ostnode*>& todo) {
   }
 }
   
-void notify_outset_tree_nodes(ostnode* root) {
+class notify_outset_tree_nodes_par_rec : public node {
+public:
+  
+  using self_type = notify_outset_tree_nodes_par_rec;
+  
+  enum {
+    process_block=0,
+    repeat_block,
+    exit_block
+  };
+  
+  node* join;
   std::deque<ostnode*> todo;
-  todo.push_back(root);
-  while (! todo.empty()) {
-    notify_outset_tree_nodes_partial(todo);
+  
+  notify_outset_tree_nodes_par_rec(node* join, ostnode* n)
+  : join(join) {
+    todo.push_back(n);
+  }
+  
+  notify_outset_tree_nodes_par_rec(node* join, std::deque<ostnode*>& _todo)
+  : join(join) {
+    _todo.swap(todo);
+  }
+  
+  void body() {
+    switch (current_block_id) {
+      case process_block: {
+        notify_outset_tree_nodes_partial(todo);
+        jump_to(repeat_block);
+        break;
+      }
+      case repeat_block: {
+        if (! todo.empty()) {
+          jump_to(process_block);
+        }
+        break;
+      }
+      default:
+        break;
+    }
+  }
+  
+  size_t size() const {
+    return todo.size();
+  }
+  
+  pasl::sched::thread_p split() {
+    assert(size() >= 2);
+    auto n = todo.front();
+    todo.pop_front();
+    node* consumer = join;
+    node* caller = this;
+    auto producer = new self_type(join, n);
+    prepare_node(producer);
+    insert_inport(producer, (incounter*)consumer->in, (ictnode*)nullptr);
+    create_fresh_ports(caller, producer);
+    return producer;
+  }
+  
+};
+  
+class notify_outset_tree_nodes_par : public node {
+public:
+  
+  using self_type = notify_outset_tree_nodes_par;
+  
+  enum {
+    entry_block=0,
+    exit_block
+  };
+  
+  outset* out;
+  std::deque<ostnode*> todo;
+  
+  notify_outset_tree_nodes_par(outset* out, std::deque<ostnode*>& _todo)
+  : out(out) {
+    todo.swap(_todo);
+  }
+  
+  void body() {
+    switch (current_block_id) {
+      case entry_block: {
+        finish(new notify_outset_tree_nodes_par_rec(this, todo),
+               exit_block);
+        break;
+      }
+      case exit_block: {
+        if (out->should_deallocate) {
+          delete out;
+        }
+        break;
+      }
+      default:
+        break;
+    }
+  }
+  
+};
+  
+void notify_outset_tree_nodes(outset* out) {
+  std::deque<ostnode*> todo;
+  todo.push_back(out->root);
+  notify_outset_tree_nodes_partial(todo);
+  if (! todo.empty()) {
+    auto n = new notify_outset_tree_nodes_par(out, todo);
+    prepare_node(n);
+    add_node(n);
+  } else {
+    if (out->should_deallocate) {
+      delete out;
+    }
   }
 }
   
@@ -1707,12 +1810,61 @@ void deallocate_outset_tree_partial(std::deque<ostnode*>& todo) {
     k++;
   }
 }
+
+class deallocate_outset_tree_par : public node {
+public:
+  
+  using self_type = deallocate_outset_tree_par;
+  
+  enum {
+    process_block=0,
+    repeat_block
+  };
+  
+  std::deque<ostnode*> todo;
+  
+  void body() {
+    switch (current_block_id) {
+      case process_block: {
+        deallocate_outset_tree_partial(todo);
+        jump_to(repeat_block);
+        break;
+      }
+      case repeat_block: {
+        if (! todo.empty()) {
+          jump_to(process_block);
+        }
+        break;
+      }
+      default:
+        break;
+    }
+  }
+  
+  size_t size() const {
+    return todo.size();
+  }
+  
+  pasl::sched::thread_p split() {
+    assert(size() >= 2);
+    auto n = todo.front();
+    todo.pop_front();
+    auto t = new self_type();
+    prepare_node(t);
+    t->todo.push_back(n);
+    return t;
+  }
+  
+};
   
 void deallocate_outset_tree(ostnode* root) {
-  std::deque<ostnode*> todo;
-  todo.push_back(root);
-  while (! todo.empty()) {
-    deallocate_outset_tree_partial(todo);
+  deallocate_outset_tree_par d;
+  d.todo.push_back(root);
+  deallocate_outset_tree_partial(d.todo);
+  if (! d.todo.empty()) {
+    node* n = new deallocate_outset_tree_par(d);
+    prepare_node(n);
+    add_node(n);
   }
 }
   
