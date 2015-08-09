@@ -1190,6 +1190,13 @@ void prepare_node(node*);
 void prepare_node(node*, incounter*);
 void prepare_node(node*, outset*);
 void prepare_node(node*, incounter*, outset*);
+incounter* incounter_ready();
+incounter* incounter_unary();
+incounter* incounter_fetch_add();
+incounter* incounter_new(node*);
+outset* outset_unary();
+outset* outset_noop();
+outset* outset_new(node*);
 void add_node(node* n);
 void create_fresh_ports(node*, node*);
 outset* capture_outset();
@@ -1448,7 +1455,7 @@ public:
   }
   
   void async(node* producer, node* consumer, int continuation_block_id) {
-    prepare_node(producer);
+    prepare_node(producer, incounter_ready());
     node* caller = this;
     insert_inport(producer, (incounter*)consumer->in, (ictnode*)nullptr);
     create_fresh_ports(caller, producer);
@@ -1457,7 +1464,7 @@ public:
   }
   
   void finish(node* producer, int continuation_block_id) {
-    prepare_node(producer);
+    prepare_node(producer, incounter_ready());
     node* consumer = this;
     join_with(consumer, new incounter(consumer));
     create_fresh_ports(consumer, producer);
@@ -1482,15 +1489,14 @@ public:
   void force(outset* producer_out, int continuation_block_id) {
     node* consumer = this;
     prepare_for_transfer(continuation_block_id);
-    join_with(consumer, new incounter(consumer));
-    ictnode* consumer_inport = increment_incounter(consumer);
-    auto insert_result = insert_outedge(consumer, producer_out, consumer, consumer_inport);
+    join_with(consumer, incounter_unary());
+    auto insert_result = insert_outedge(consumer, producer_out, consumer, (ictnode*)nullptr);
     outset::insert_status_type insert_status = insert_result.first;
     if (insert_status == outset::insert_success) {
       ostnode* producer_outport = insert_result.second;
       insert_outport(consumer, producer_out, producer_outport);
     } else if (insert_status == outset::insert_fail) {
-      decrement_incounter(consumer, consumer_inport);
+      add_node(consumer);
     } else {
       assert(false);
     }
@@ -1509,20 +1515,48 @@ public:
 };
   
 void prepare_node(node* n) {
-  prepare_node(n, new incounter(n), new outset(n));
+  prepare_node(n, incounter_new(n), outset_new(n));
 }
 
 void prepare_node(node* n, incounter* in) {
-  prepare_node(n, in, new outset(n));
+  prepare_node(n, in, outset_new(n));
 }
 
 void prepare_node(node* n, outset* out) {
-  prepare_node(n, new incounter(n), out);
+  prepare_node(n, incounter_new(n), out);
 }
 
 void prepare_node(node* n, incounter* in, outset* out) {
   n->set_instrategy(in);
   n->set_outstrategy(out);
+}
+  
+incounter* incounter_ready() {
+  return (incounter*)pasl::sched::instrategy::ready_new();
+}
+
+incounter* incounter_unary() {
+  return (incounter*)pasl::sched::instrategy::unary_new();
+}
+
+incounter* incounter_fetch_add() {
+  return (incounter*)pasl::sched::instrategy::fetch_add_new();
+}
+  
+incounter* incounter_new(node* n) {
+  return new incounter(n);
+}
+
+outset* outset_unary() {
+  return (outset*)pasl::sched::outstrategy::unary_new();
+}
+
+outset* outset_noop() {
+  return (outset*)pasl::sched::outstrategy::noop_new();
+}
+  
+outset* outset_new(node* n) {
+  return new outset(n);
 }
   
 void insert_inport(node* caller, incounter* target_in, ictnode* target_inport) {
@@ -1597,8 +1631,19 @@ ictnode* increment_incounter(node* n) {
 }
   
 std::pair<ictnode*, ictnode*> increment_incounter(node* n, ictnode* n_port) {
-  incounter* in = (incounter*)n->in;
-  return in->increment(n_port);
+  incounter* n_in = (incounter*)n->in;
+  long tag = pasl::sched::instrategy::extract_tag(n_in);
+  assert(tag != pasl::sched::instrategy::READY_TAG);
+  if (tag == pasl::sched::instrategy::UNARY_TAG) {
+    // nothing to do
+    return std::make_pair(nullptr, nullptr);
+  } else if (tag == pasl::sched::instrategy::FETCH_ADD_TAG) {
+    pasl::data::tagged::atomic_fetch_and_add<pasl::sched::instrategy_p>(&(n->in), 1l);
+    return std::make_pair(nullptr, nullptr);
+  } else {
+    incounter* in = (incounter*)n->in;
+    return in->increment(n_port);
+  }
 }
   
 std::pair<ictnode*, ictnode*> increment_incounter(node* caller, node* target) {
@@ -1607,9 +1652,20 @@ std::pair<ictnode*, ictnode*> increment_incounter(node* caller, node* target) {
 }
 
 void decrement_incounter(node* n, incounter* n_in, ictnode* n_port) {
-  incounter::status_type status = n_in->decrement(n_port);
-  if (status == incounter::activated) {
-    n_in->start(n);
+  long tag = pasl::sched::instrategy::extract_tag(n_in);
+  assert(tag != pasl::sched::instrategy::READY_TAG);
+  if (tag == pasl::sched::instrategy::UNARY_TAG) {
+    pasl::sched::instrategy::schedule(n);
+  } else if (tag == pasl::sched::instrategy::FETCH_ADD_TAG) {
+    int64_t old = pasl::data::tagged::atomic_fetch_and_add<pasl::sched::instrategy_p>(&(n->in), -1l);
+    if (old == 1) {
+      pasl::sched::instrategy::schedule(n);
+    }
+  } else {
+    incounter::status_type status = n_in->decrement(n_port);
+    if (status == incounter::activated) {
+      n_in->start(n);
+    }
   }
 }
   
@@ -1629,7 +1685,16 @@ outset::insert_result_type insert_outedge(node* caller,
 }
   
 void add_node(node* n) {
-  delete n->in;
+  incounter* n_in = (incounter*)n->in;
+  long tag = pasl::sched::instrategy::extract_tag(n_in);
+  if (   (tag == pasl::sched::instrategy::UNARY_TAG)
+      || (tag == pasl::sched::instrategy::READY_TAG)) {
+    // nothing to do
+  } else if (tag == pasl::sched::instrategy::FETCH_ADD_TAG) {
+    // nothing to do
+  } else {
+    delete n->in;
+  }
   pasl::sched::instrategy::schedule(n);
 }
   
@@ -1637,7 +1702,7 @@ outset* capture_outset() {
   auto sched = pasl::sched::threaddag::my_sched();
   outset* out = (outset*)sched->get_outstrategy();
   assert(out != nullptr);
-  sched->set_outstrategy(new outset(nullptr));
+  sched->set_outstrategy(outset_noop());
   return out;
 }
   
@@ -1646,7 +1711,7 @@ void join_with(node* n, incounter* in) {
 }
 
 void continue_with(node* n) {
-  join_with(n, new incounter(n));
+  join_with(n, incounter_ready());
   add_node(n);
 }
   
@@ -2181,7 +2246,7 @@ static long fib (long n){
     return fib (n - 1) + fib (n - 2);
 }
 
-int fib_input = 20;
+int fib_input = 22;
 
 long fib_result;
 
