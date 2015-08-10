@@ -841,7 +841,7 @@ void add_edge(node* source, outset* source_out, node* target, incounter* target_
 }
   
 void add_edge(node* source, node* target) {
-  add_edge(target, (outset*)source->out, source, (incounter*)target->in);
+  add_edge(source, (outset*)source->out, target, (incounter*)target->in);
 }
   
 void prepare_node(node* n) {
