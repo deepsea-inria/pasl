@@ -214,7 +214,9 @@ public:
       decrement_incounter(n);
       todo = next;
     }
-    common::finished();
+    if (should_deallocate) {
+      common::finished();
+    }
   }
 
   
