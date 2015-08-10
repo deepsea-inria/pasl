@@ -1194,7 +1194,7 @@ incounter* incounter_ready();
 incounter* incounter_unary();
 incounter* incounter_fetch_add();
 incounter* incounter_new(node*);
-outset* outset_unary();
+outset* outset_unary(node*);
 outset* outset_noop();
 outset* outset_new(node*);
 void add_node(node* n);
@@ -1455,7 +1455,7 @@ public:
   }
   
   void async(node* producer, node* consumer, int continuation_block_id) {
-    prepare_node(producer, incounter_ready());
+    prepare_node(producer, incounter_ready(), outset_unary(producer));
     node* caller = this;
     insert_inport(producer, (incounter*)consumer->in, (ictnode*)nullptr);
     create_fresh_ports(caller, producer);
@@ -1464,7 +1464,7 @@ public:
   }
   
   void finish(node* producer, int continuation_block_id) {
-    prepare_node(producer, incounter_ready());
+    prepare_node(producer, incounter_ready(), outset_unary(producer));
     node* consumer = this;
     join_with(consumer, new incounter(consumer));
     create_fresh_ports(consumer, producer);
@@ -1547,8 +1547,8 @@ incounter* incounter_new(node* n) {
   return new incounter(n);
 }
 
-outset* outset_unary() {
-  return (outset*)pasl::sched::outstrategy::unary_new();
+outset* outset_unary(node* n) {
+  return (outset*)pasl::sched::outstrategy::bottomup_unary_new((pasl::sched::thread_p)n);
 }
 
 outset* outset_noop() {
@@ -1713,6 +1713,11 @@ void join_with(node* n, incounter* in) {
 void continue_with(node* n) {
   join_with(n, incounter_ready());
   add_node(n);
+}
+  
+void bottomup_finished(pasl::sched::thread_p t) {
+  node* n = tagged_pointer_of((node*)t);
+  n->decrement_inports();
 }
   
 void deallocate_future(node* caller, outset* future) {
