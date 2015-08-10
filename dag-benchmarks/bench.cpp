@@ -71,7 +71,7 @@ class outset;
 
 void add_node(node*);
 void add_edge(node*, node*);
-void add_edge(node*, node*, outset*, incounter*);
+void add_edge(node*, outset*, node*, incounter*);
 void prepare_node(node*);
 void prepare_node(node*, incounter*);
 void prepare_node(node*, outset*);
@@ -719,7 +719,8 @@ public:
     prepare_for_transfer(continuation_block_id);
     incounter* consumer_in = incounter_unary();
     join_with(consumer, consumer_in);
-    add_edge(consumer, nullptr, producer_out, consumer_in);
+    node* producer = nullptr; // dummy value
+    add_edge(producer, producer_out, consumer, consumer_in);
   }
   
   void call(node* target, int continuation_block_id) {
@@ -821,19 +822,20 @@ void add_node(node* n) {
   pasl::sched::threaddag::add_thread(n);
 }
   
-outset::insert_status_type add_to_outset(node* n, outset* out, node* m) {
-  long tag = pasl::sched::outstrategy::extract_tag(out);
+outset::insert_status_type add_to_outset(node* source, outset* source_out, node* target) {
+  long tag = pasl::sched::outstrategy::extract_tag(source_out);
   assert(tag != pasl::sched::outstrategy::NOOP_TAG);
   if (tag == pasl::sched::outstrategy::UNARY_TAG) {
-    n->out = pasl::data::tagged::create<pasl::sched::thread_p, pasl::sched::outstrategy_p>(m, tag);
+    source->out = pasl::data::tagged::create<pasl::sched::thread_p, pasl::sched::outstrategy_p>(target, tag);
     return outset::insert_success;
   } else {
     assert(tag == 0);
-    return out->insert(m);
+    return source_out->insert(target);
   }
 }
 
-void add_edge(node* target, node* source, outset* source_out, incounter* target_in) {
+void add_edge(node* source, outset* source_out, node* target, incounter* target_in) {
+  assert(target != nullptr);
   increment_incounter(target, target_in);
   if (add_to_outset(source, source_out, target) == outset::insert_fail) {
     decrement_incounter(target, target_in);
@@ -841,7 +843,7 @@ void add_edge(node* target, node* source, outset* source_out, incounter* target_
 }
   
 void add_edge(node* source, node* target) {
-  add_edge(target, source, (outset*)source->out, (incounter*)target->in);
+  add_edge(target, (outset*)source->out, source, (incounter*)target->in);
 }
   
 void prepare_node(node* n) {
