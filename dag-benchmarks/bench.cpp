@@ -2390,7 +2390,7 @@ void choose_edge_algorithm() {
     cmdline::parse_or_default_int("branching_factor",
                                   topdown::tree::branching_factor);
   });
-  c.find_by_arg_or_default_key("edge_algo", "tree");
+  c.find_by_arg_or_default_key("edge_algo", "tree")();
 }
 
 template <class node>
