@@ -1475,7 +1475,7 @@ public:
   }
   
   outset* future(node* producer, int continuation_block_id) {
-    prepare_node(producer);
+    prepare_node(producer, incounter_ready());
     outset* producer_out = (outset*)producer->out;
     producer_out->should_deallocate = false;
     node* caller = this;
