@@ -542,9 +542,10 @@ public:
     init();
   }
   
-  ostnode(tagged_pointer_type pointer) {
+  ostnode(tagged_pointer_type child1, tagged_pointer_type child2) {
     init();
-    children[0].store(pointer);
+    children[0].store(child1);
+    children[1].store(child2);
   }
   
   ~ostnode() {
@@ -608,7 +609,7 @@ public:
         }
         if (tag == ostnode::leaf) {
           ostnode::tagged_pointer_type orig = n;
-          ostnode* tmp = new ostnode(val);
+          ostnode* tmp = new ostnode(val, n);
           ostnode::tagged_pointer_type next;
           next.interior = tagged_tag_with(tmp, ostnode::interior);
           if (current->children[i].compare_exchange_strong(orig, next)) {
@@ -774,6 +775,7 @@ outset* outset_new() {
     return new perprocessor::perprocessor_outset;
   } else if (edge_algorithm == edge_algorithm_tree) {
     return new tree::tree_outset;
+    //return new simple::simple_outset;
   } else {
     assert(false);
     return nullptr;
@@ -970,8 +972,7 @@ void notify_outset_tree_nodes_partial(std::deque<ostnode*>& todo) {
       int tag = tagged_tag_of(n.leaf);
       if (tag == ostnode::leaf) {
         decrement_incounter(tagged_pointer_of(n.leaf));
-      }
-      if (tag == ostnode::interior) {
+      } else if (tag == ostnode::interior) {
         todo.push_back(tagged_pointer_of(n.interior));
       }
     }
