@@ -214,6 +214,7 @@ public:
       decrement_incounter(n);
       todo = next;
     }
+    common::finished();
   }
 
   
