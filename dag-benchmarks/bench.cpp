@@ -184,7 +184,6 @@ public:
       if (tagged_tag_of(orig) == finished_code) {
         result = insert_fail;
         delete cell;
-        decrement_incounter(n);
         break;
       } else {
         cell->next = orig;
@@ -835,7 +834,6 @@ outset::insert_status_type add_to_outset(node* source, outset* source_out, node*
 }
 
 void add_edge(node* source, outset* source_out, node* target, incounter* target_in) {
-  assert(target != nullptr);
   increment_incounter(target, target_in);
   if (add_to_outset(source, source_out, target) == outset::insert_fail) {
     decrement_incounter(target, target_in);
