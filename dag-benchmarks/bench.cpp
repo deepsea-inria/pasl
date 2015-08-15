@@ -82,7 +82,7 @@ void decrement_incounter(node*);
 incounter* incounter_ready();
 incounter* incounter_unary();
 incounter* incounter_fetch_add();
-incounter* incounter_new();
+incounter* incounter_new(node*);
 outset* outset_unary();
 outset* outset_noop();
 outset* outset_new();
@@ -225,21 +225,187 @@ public:
   
 namespace perprocessor {
   
-class perprocessor_incounter : public incounter, public pasl::util::worker::periodic_t {
+namespace snzi {
+
+class node {
+public:
+  
+  using contents_type = struct {
+    int c; // counter value
+    int v; // version number
+  };
+  
+  static constexpr int one_half = -1;
+  
+  std::atomic<contents_type> X;
+  
+  node* parent; // == nullptr, if root node
+  
+  node(node* parent = nullptr)
+  : parent(parent) {
+    contents_type init;
+    init.c = 0;
+    init.v = 0;
+    X.store(init);
+  }
+  
+  void arrive() {
+    bool succ = false;
+    int undo_arr = 0;
+    while (! succ) {
+      contents_type x = X.load();
+      if (x.c >= 1) {
+        contents_type orig = x;
+        contents_type next = x;
+        next.c++;
+        succ = X.compare_exchange_strong(orig, next);
+      }
+      if (x.c == 0) {
+        contents_type orig = x;
+        contents_type next = x;
+        next.c = one_half;
+        next.v++;
+        if (X.compare_exchange_strong(orig, next)) {
+          succ = true;
+          x.c = one_half;
+          x.v++;
+        }
+      }
+      if (x.c == one_half) {
+        if (parent != nullptr) {
+          parent->arrive();
+        }
+        contents_type orig = x;
+        contents_type next = x;
+        next.c = 1;
+        if (! X.compare_exchange_strong(orig, next)) {
+          undo_arr++;
+        }
+      }
+    }
+    if (parent == nullptr) {
+      return;
+    }
+    while (undo_arr > 0) {
+      parent->depart();
+      undo_arr--;
+    }
+  }
+  
+  void depart() {
+    while (true) {
+      contents_type x = X.load();
+      assert(x.c >= 1);
+      contents_type orig = x;
+      contents_type next = x;
+      next.c--;
+      if (X.compare_exchange_strong(orig, next)) {
+        if (parent == nullptr) {
+          // nothing to do
+        } else if (x.c == 1) {
+          parent->depart();
+        }
+        return;
+      }
+    }
+  }
+  
+  bool is_nonzero() const {
+    return (X.load().c > 0);
+  }
+  
+};
+  
+int default_branching_factor = 2;
+int default_nb_levels = 8;
+
+class tree {
+public:
+  
+  int branching_factor;
+  int nb_levels;
+  
+  std::vector<node*> nodes;
+  
+  tree(int branching_factor = default_branching_factor,
+       int nb_levels = default_nb_levels)
+  : branching_factor(branching_factor), nb_levels(nb_levels) {
+    build();
+  }
+  
+  ~tree() {
+    for (auto it = nodes.cbegin(); it != nodes.cend(); it++) {
+      delete *it;
+    }
+  }
+  
+  void build() {
+    nodes.push_back(new node);
+    for (int i = 1; i < nb_levels; i++) {
+      int e = (int)nodes.size();
+      int s = e - std::pow(branching_factor, i - 1);
+      for (int j = s; j < e; j++) {
+        for (int k = 0; k < branching_factor; k++) {
+          nodes.push_back(new node(nodes[j]));
+        }
+      }
+    }
+  }
+  
+  int get_nb_leaf_nodes() const {
+    return std::pow(branching_factor, nb_levels - 1);
+  }
+  
+  node* ith_leaf_node(int i) const {
+    assert((i >= 0) && (i < get_nb_leaf_nodes()));
+    int n = (int)nodes.size();
+    int j = n - (i + 1);
+    return nodes[j];
+  }
+  
+  void arrive(int i) {
+    ith_leaf_node(i)->arrive();
+  }
+  
+  void depart(int i) {
+    ith_leaf_node(i)->depart();
+  }
+  
+  bool is_nonzero() const {
+    return nodes[0]->is_nonzero();
+  }
+  
+};
+
+} // end namespace
+
+inline unsigned int hashu(unsigned int a) {
+  a = (a+0x7ed55d16) + (a<<12);
+  a = (a^0xc761c23c) ^ (a>>19);
+  a = (a+0x165667b1) + (a<<5);
+  a = (a+0xd3a2646c) ^ (a<<9);
+  a = (a+0xfd7046c5) + (a<<3);
+  a = (a^0xb55a4f09) ^ (a>>16);
+  return a;
+}
+  
+class perprocessor_incounter : public incounter {
 public:
       
-  pasl::data::perworker::counter::carray<int64_t> counter;
+  snzi::tree counter;
       
   node* n;
 
   void init(pasl::sched::thread_p t) {
     n = (node*)t;
-    counter.init(0);
-    pasl::sched::scheduler::get_mine()->add_periodic(this);
+  }
+  
+  perprocessor_incounter(node* n) {
+    init((pasl::sched::thread_p)n);
   }
   
   bool is_activated() const {
-    return (counter.sum() == 0);
+    return (! counter.is_nonzero());
   }
   
   void increment() {
@@ -248,13 +414,12 @@ public:
   
   status_type decrement() {
     delta((pasl::sched::thread_p)n, -1L);
-    return is_activated() ? activated: not_activated;
+    return is_activated() ? activated : not_activated;
   }
   
   void check(node* _n) {
     assert(_n == n);
-    if (counter.sum() == 0) {
-      pasl::sched::scheduler::get_mine()->rem_periodic(this);
+    if (is_activated()) {
       start((pasl::sched::thread_p)n);
     }
   }
@@ -264,9 +429,29 @@ public:
   }
   
   void delta(pasl::sched::thread_p t, int64_t d) {
+    delta(t, d, 0);
+  }
+  
+  void delta(pasl::sched::thread_p source, pasl::sched::thread_p target, int64_t d) {
+    union {
+      pasl::sched::thread_p pointer;
+      long bits;
+    } source_bits;
+    source_bits.pointer = source;
+    int h = hashu((unsigned int)source_bits.bits);
+    int leaf = h % counter.get_nb_leaf_nodes();
+    delta(target, d, leaf);
+  }
+  
+  void delta(pasl::sched::thread_p t, int64_t d, int leaf) {
     assert((node*)t == n);
-    pasl::worker_id_t my_id = pasl::util::worker::get_my_id();
-    counter.delta(my_id, d);
+    if (d == +1L) {
+      counter.arrive(leaf);
+    } else if (d == -1L) {
+      counter.depart(leaf);
+    } else {
+      assert(false);
+    }
   }
   
 };
@@ -278,20 +463,21 @@ public:
   
   pasl::data::perworker::array<node_buffer_type> nodes;
   
-  // to count the number of processors that are participating
-  pasl::data::perworker::counter::carray<int64_t> counter;
+  snzi::tree counter;
   
   bool finished_indicator = false;
   
-  perprocessor_outset() {
-    counter.init(0);
+  perprocessor_outset()
+  : counter(snzi::default_branching_factor, pasl::util::worker::get_nb()) {
+    add_calling_processor();
   }
   
   insert_status_type insert(node* n) {
+    add_calling_processor();
     if (finished_indicator) {
+      remove_calling_processor();
       return insert_fail;
     }
-    add_calling_processor();
     node_buffer_type& buffer = nodes.mine();
     buffer.push_back(n);
     return insert_success;
@@ -319,15 +505,15 @@ public:
   
   void add_calling_processor() {
     pasl::worker_id_t my_id = pasl::util::worker::get_my_id();
-    counter.delta(my_id, +1);
+    counter.arrive((int)my_id);
     pasl::sched::scheduler::get_mine()->add_periodic(this);
   }
   
   void remove_calling_processor() {
     pasl::sched::scheduler::get_mine()->rem_periodic(this);
     pasl::worker_id_t my_id = pasl::util::worker::get_my_id();
-    counter.delta(my_id, -1);
-    if (should_deallocate && counter.sum() == 0) {
+    counter.depart((int)my_id);
+    if (should_deallocate && (! counter.is_nonzero())) {
       delete this;
     }
   }
@@ -699,7 +885,7 @@ public:
     node* consumer = this;
     prepare_node(producer, incounter_ready(), outset_unary());
     prepare_for_transfer(continuation_block_id);
-    join_with(consumer, incounter_new());
+    join_with(consumer, incounter_new(this));
     add_edge(producer, consumer);
     add_node(producer);
   }
@@ -747,11 +933,11 @@ incounter* incounter_fetch_add() {
   return (incounter*)pasl::sched::instrategy::fetch_add_new();
 }
   
-incounter* incounter_new() {
+incounter* incounter_new(node* n) {
   if (edge_algorithm == edge_algorithm_simple) {
     return incounter_fetch_add();
   } else if (edge_algorithm == edge_algorithm_perprocessor) {
-    return new perprocessor::perprocessor_incounter;
+    return new perprocessor::perprocessor_incounter(n);
   } else if (edge_algorithm == edge_algorithm_tree) {
     return new tree::tree_incounter;
   } else {
@@ -775,7 +961,6 @@ outset* outset_new() {
     return new perprocessor::perprocessor_outset;
   } else if (edge_algorithm == edge_algorithm_tree) {
     return new tree::tree_outset;
-    //return new simple::simple_outset;
   } else {
     assert(false);
     return nullptr;
@@ -847,7 +1032,7 @@ void add_edge(node* source, node* target) {
 }
   
 void prepare_node(node* n) {
-  prepare_node(n, incounter_new(), outset_new());
+  prepare_node(n, incounter_new(n), outset_new());
 }
 
 void prepare_node(node* n, incounter* in) {
@@ -855,7 +1040,7 @@ void prepare_node(node* n, incounter* in) {
 }
 
 void prepare_node(node* n, outset* out) {
-  prepare_node(n, incounter_new(), out);
+  prepare_node(n, incounter_new(n), out);
 }
   
 void prepare_node(node* n, incounter* in, outset* out) {
@@ -2365,6 +2550,8 @@ public:
   }
   
 };
+  
+
 
 } // end namespace
 
