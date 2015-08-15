@@ -11,6 +11,7 @@
 #include <random>
 #include <map>
 #include <set>
+#include <cmath>
 
 #include "pasl.hpp"
 #include "tagged.hpp"
@@ -2550,8 +2551,226 @@ public:
   }
   
 };
-  
 
+int nb_levels(int n) {
+  assert(n >= 1);
+  return 2 * (n - 1) + 1;
+}
+
+int nb_cells_in_level(int n, int l) {
+  assert((l >= 1) && (l <= nb_levels(n)));
+  return (l <= n) ? l : (nb_levels(n) + 1) - l;
+}
+
+std::pair<int, int> index_of_cell_at_pos(int n, int l, int pos) {
+  assert((pos >= 0) && (pos < nb_cells_in_level(n, l)));
+  int i;
+  int j;
+  if (l <= n) { // either on or above the diagonal
+    i = pos;
+    j = l - (pos + 1);
+  } else {      // below the diagonal
+    i = (l - n) + pos;
+    j = n - (pos + 1);
+  }
+  return std::make_pair(i, j);
+}
+
+int row_major_index_of(int n, int i, int j) {
+  return i * n + j;
+}
+
+template <class Item>
+Item& row_major_address_of(Item* items, int n, int i, int j) {
+  assert(i >= 0 && i < n);
+  assert(j >= 0 && j < n);
+  return items[row_major_index_of(n, i, j)];
+}
+
+template <class Item>
+class matrix_type {
+public:
+  
+  using value_type = Item;
+  
+  class Deleter {
+  public:
+    void operator()(value_type* ptr) {
+      free(ptr);
+    }
+  };
+  
+  std::unique_ptr<value_type[], Deleter> items;
+  int n;
+  
+  void fill(value_type val) {
+    for (int i = 0; i < n*n; i++) {
+      items[i] = val;
+    }
+  }
+  
+  void init(value_type val) {
+    value_type* ptr = (value_type*)malloc(sizeof(value_type) * (n*n));
+    assert(ptr != nullptr);
+    items.reset(ptr);
+    fill(val);
+  }
+  
+  matrix_type(int n, value_type val)
+  : n(n) {
+    init(val);
+  }
+  
+  value_type& subscript(std::pair<int, int> pos) const {
+    return subscript(pos.first, pos.second);
+  }
+  
+  value_type& subscript(int i, int j) const {
+    return row_major_address_of(&items[0], n, i, j);
+  }
+  
+};
+
+template <class Item>
+std::ostream& operator<<(std::ostream& out, const matrix_type<Item>& xs) {
+  out << "{\n";
+  for (int i = 0; i < xs.n; i++) {
+    out << "{ ";
+    for (int j = 0; j < xs.n; j++) {
+      if (j+1 < xs.n) {
+        out << xs.subscript(i, j) << ",\t";
+      } else {
+        out << xs.subscript(i, j);
+      }
+    }
+    out << " }\n";
+  }
+  out << "}\n";
+  return out;
+}
+
+template <class Item, class Body>
+void matrix_apply_to_each_cell(matrix_type<Item>& mtx, Body body) {
+  int n = mtx.n;
+  int xx = nb_levels(n);
+  for (int l = 1; l <= xx; l++) {
+    int yy = nb_cells_in_level(n, l);
+    for (int i = 0; i < yy; i++) {
+      auto idx = index_of_cell_at_pos(n, l, i);
+      body(idx.first, idx.second, mtx.subscript(idx));
+    }
+  }
+}
+
+bool check(int n) {
+  int val = 123;
+  matrix_type<int> orig(n, val);
+  matrix_type<int> test(n, 0);
+  for (int i = 0; i < n*n; i++) {
+    orig.items[i] = i;
+  }
+  matrix_apply_to_each_cell(test, [&] (int i,int j,int& x) {
+    x = i*n+j;
+  });
+  std::cout << orig << std::endl;
+  std::cout << test << std::endl;
+  bool result = true;
+  for (int i = 0; i < n; i++) {
+    for (int j = 0; j < n; j++) {
+      if (orig.subscript(i, j) != test.subscript(i, j)) {
+        result = false;
+      }
+    }
+  }
+  return result;
+}
+
+void gauss_seidel_block(int N, double* a, int block_size) {
+  for (int i = 1; i <= block_size; i++) {
+    for (int j = 1; j <= block_size; j++) {
+      a[i*N+j] = 0.2 * (a[i*N+j] + a[(i-1)*N+j] + a[(i+1)*N+j] + a[i*N+j-1] + a[i*N+j+1]);
+    }
+  }
+}
+
+void gauss_seidel_sequential(int numiters, int N, int M, int block_size, double* data) {
+  for (int iter = 0; iter < numiters; iter++) {
+    for (int i = 0; i < N; i += block_size) {
+      for (int j = 0; j < N; j += block_size) {
+        gauss_seidel_block(M, &data[M * i + j], block_size);
+      }
+    }
+  }
+}
+
+void gauss_seidel_parallel(int numiters, int N, int M, int block_size, double* data) {
+  assert((N % block_size) == 0);
+  int n = N / block_size;
+  for (int l = 1; l <= nb_levels(n); l++) {
+    for (int c = 0; c < nb_cells_in_level(n, l); c++) { // todo: parallel_for here
+      auto idx = index_of_cell_at_pos(n, l, c);
+      int i = idx.first * block_size;
+      int j = idx.second * block_size;
+      gauss_seidel_block(M, &data[M * i + j], block_size);
+    }
+  }
+}
+
+void gauss_seidel_initialize(matrix_type<double>& mtx) {
+  int N = mtx.n;
+  for (int i = 0; i < N; ++i) {
+    for (int j = 0; j < N; ++j) {
+      mtx.subscript(i, j) = (double) ((i == 25 && j == 25) || (i == N-25 && j == N-25)) ? 500 : 0;
+    }
+  }
+}
+
+double epsilon = 0.001;
+
+bool same_contents(const matrix_type<double>& lhs,
+                   const matrix_type<double>& rhs,
+                   const matrix_type<bool>& d, int& nb) {
+  if (lhs.n != rhs.n) {
+    return false;
+  }
+  int n = lhs.n;
+  for (int i = 0; i < n; i++) {
+    for (int j = 0; j < n; j++) {
+      double diff = std::abs(lhs.subscript(i, j) - rhs.subscript(i, j));
+      if (diff > epsilon) {
+        d.subscript(i, j) = false;
+        nb++;
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
+void gauss_seidel_test(int N, int block_size, int numiters) {
+  int M = N + 2;
+  matrix_type<bool> diff(M, true);
+  matrix_type<double> reference_mtx(M, 0.0);
+  {
+    gauss_seidel_initialize(reference_mtx);
+    //std::cout << reference_mtx << std::endl;
+    gauss_seidel_sequential(numiters, N, M, block_size, &reference_mtx.items[0]);
+    //std::cout << reference_mtx << std::endl;
+  }
+  
+  matrix_type<double> test_mtx(M, 0.0);
+  {
+    gauss_seidel_initialize(test_mtx);
+    //std::cout << reference_mtx << std::endl;
+    gauss_seidel_parallel(numiters, N, M, block_size, &test_mtx.items[0]);
+    //std::cout << reference_mtx << std::endl;
+  }
+  
+  int nb_diffs = 0;
+  bool success = same_contents(reference_mtx, test_mtx, diff, nb_diffs);
+  std::cout << "nb_diffs = " << nb_diffs << std::endl;
+  assert(nb_diffs < 2);
+}
 
 } // end namespace
 
