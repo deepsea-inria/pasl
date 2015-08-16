@@ -2609,16 +2609,21 @@ public:
     }
   }
   
-  void init(value_type val) {
+  void init() {
     value_type* ptr = (value_type*)malloc(sizeof(value_type) * (n*n));
     assert(ptr != nullptr);
     items.reset(ptr);
-    fill(val);
   }
   
   matrix_type(int n, value_type val)
   : n(n) {
-    init(val);
+    init();
+    fill(val);
+  }
+  
+  matrix_type(int n)
+  : n(n) {
+    init();
   }
   
   value_type& subscript(std::pair<int, int> pos) const {
@@ -2702,16 +2707,183 @@ void gauss_seidel_sequential(int numiters, int N, int M, int block_size, double*
     }
   }
 }
+  
+template <class node>
+using futures_matrix_type = matrix_type<outset_of<node>*>;
 
-void gauss_seidel_parallel(int numiters, int N, int M, int block_size, double* data) {
+template <class node>
+class gauss_seidel_loop_future_body : public node {
+public:
+  
+  enum {
+    gauss_seidel_loop_future_body_entry,
+    gauss_seidel_loop_future_body_force,
+    gauss_seidel_loop_future_body_exit
+  };
+  
+  futures_matrix_type<node>* futures;
+  int i, j;
+  int M; int block_size; double* data;
+  
+  gauss_seidel_loop_future_body(futures_matrix_type<node>* futures, int i, int j,
+                                int M, int block_size, double* data)
+  : futures(futures), i(i), j(j),
+  M(M), block_size(block_size), data(data) { }
+  
+  void body() {
+    switch (node::current_block_id) {
+      case gauss_seidel_loop_future_body_entry: {
+        node::force(futures->subscript(i, j - 1),
+                    gauss_seidel_loop_future_body_force);
+        break;
+      }
+      case gauss_seidel_loop_future_body_force: {
+        node::force(futures->subscript(i - 1, j),
+                    gauss_seidel_loop_future_body_exit);
+        break;
+      }
+      case gauss_seidel_loop_future_body_exit: {
+        int ii = i * block_size;
+        int jj = j * block_size;
+        gauss_seidel_block(M, &data[M * ii + jj], block_size);
+        break;
+      }
+    }
+  }
+  
+};
+
+template <class node>
+class gauss_seidel_loop_body : public node {
+public:
+  
+  enum {
+    gauss_seidel_loop_body_entry,
+    gauss_seidel_loop_body_exit
+  };
+  
+  futures_matrix_type<node>* futures;
+  int i, j;
+  int M; int block_size; double* data;
+  
+  gauss_seidel_loop_body(futures_matrix_type<node>* futures, int i, int j,
+                         int M, int block_size, double* data)
+  : futures(futures), i(i), j(j),
+  M(M), block_size(block_size), data(data) { }
+  
+  void body() {
+    switch (node::current_block_id) {
+      case gauss_seidel_loop_body_entry: {
+        node* f = new gauss_seidel_loop_future_body<node>(futures, i, j, M, block_size, data);
+        outset_of<node>*& cell = futures->subscript(i, j);
+        cell = node::future(f,
+                            gauss_seidel_loop_body_entry);
+        break;
+      }
+      case gauss_seidel_loop_body_exit: {
+        break;
+      }
+    }
+  }
+  
+};
+
+template <class node>
+class gauss_seidel_parallel : public node {
+  
+  enum {
+    gauss_seidel_parallel_entry,
+    gauss_seidel_parallel_iter_loop_body,
+    gauss_seidel_parallel_iter_loop_test,
+    gauss_seidel_parallel_level_loop_body,
+    gauss_seidel_parallel_level_loop_test,
+    gauss_seidel_parallel_exit
+  };
+  
+  futures_matrix_type<node>* futures;
+  int numiters; int N; int M; int block_size; double* data;
+  
+  int n; int l; int iter;
+  
+  gauss_seidel_parallel(int numiters, int N, int M, int block_size, double* data)
+  : numiters(numiters), N(N), M(M), block_size(block_size), data(data) { }
+  
+  void body() {
+    switch (node::current_block_id) {
+      case gauss_seidel_parallel_entry: {
+        n = N / block_size;
+        futures = new futures_matrix_type<node>(n);
+        iter = 0;
+        if (iter < numiters) {
+          node::jump_to(gauss_seidel_parallel_iter_loop_body);
+        } else {
+          node::jump_to(gauss_seidel_parallel_exit);
+        }
+        break;
+      }
+      case gauss_seidel_parallel_iter_loop_body: {
+        l = 1;
+        if (l <= nb_levels(n)) {
+          node::jump_to(gauss_seidel_parallel_level_loop_body);
+        } else {
+          node::jump_to(gauss_seidel_parallel_iter_loop_test);
+        }
+        break;
+      }
+      case gauss_seidel_parallel_iter_loop_test: {
+        if (iter < numiters) {
+          iter++;
+          node::jump_to(gauss_seidel_parallel_iter_loop_body);
+        } else {
+          node::jump_to(gauss_seidel_parallel_exit);
+        }
+        break;
+      }
+      case gauss_seidel_parallel_level_loop_body: {
+        auto loop_body = [=] (int c) {
+          auto idx = index_of_cell_at_pos(n, l, c);
+          return new gauss_seidel_loop_body<node>(futures, idx.first, idx.second,
+                                                  M, block_size, data);
+        };
+        node::call(new parallel_for<decltype(loop_body), node>(0, n, loop_body),
+                   gauss_seidel_parallel_exit);
+        break;
+      }
+      case gauss_seidel_parallel_level_loop_test: {
+        if (l <= nb_levels(n)) {
+          l++;
+          node::jump_to(gauss_seidel_parallel_level_loop_body);
+        } else {
+          node::jump_to(gauss_seidel_parallel_iter_loop_test);
+        }
+        break;
+      }
+      case gauss_seidel_parallel_exit: {
+        // later: parallelize
+        int nn = futures->n * futures->n;
+        for (int i = 0; i < nn; i++) {
+          node::deallocate_future(futures->items[i]);
+        }
+        delete futures;
+        break;
+      }
+    }
+  }
+  
+};
+
+  // for reference
+void _gauss_seidel_parallel(int numiters, int N, int M, int block_size, double* data) {
   assert((N % block_size) == 0);
   int n = N / block_size;
-  for (int l = 1; l <= nb_levels(n); l++) {
-    for (int c = 0; c < nb_cells_in_level(n, l); c++) { // todo: parallel_for here
-      auto idx = index_of_cell_at_pos(n, l, c);
-      int i = idx.first * block_size;
-      int j = idx.second * block_size;
-      gauss_seidel_block(M, &data[M * i + j], block_size);
+  for (int iter = 0; iter < numiters; iter++) {
+    for (int l = 1; l <= nb_levels(n); l++) {
+      for (int c = 0; c < nb_cells_in_level(n, l); c++) {
+        auto idx = index_of_cell_at_pos(n, l, c);
+        int i = idx.first * block_size;
+        int j = idx.second * block_size;
+        gauss_seidel_block(M, &data[M * i + j], block_size);
+      }
     }
   }
 }
@@ -2762,14 +2934,13 @@ void gauss_seidel_test(int N, int block_size, int numiters) {
   {
     gauss_seidel_initialize(test_mtx);
     //std::cout << reference_mtx << std::endl;
-    gauss_seidel_parallel(numiters, N, M, block_size, &test_mtx.items[0]);
+    _gauss_seidel_parallel(numiters, N, M, block_size, &test_mtx.items[0]);
     //std::cout << reference_mtx << std::endl;
   }
   
   int nb_diffs = 0;
   bool success = same_contents(reference_mtx, test_mtx, diff, nb_diffs);
-  std::cout << "nb_diffs = " << nb_diffs << std::endl;
-  assert(nb_diffs < 2);
+  assert(success);
 }
 
 } // end namespace
