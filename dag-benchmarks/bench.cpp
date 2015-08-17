@@ -2721,6 +2721,34 @@ void gauss_seidel_sequential(int numiters, int N, int M, int block_size, double*
 }
   
 template <class node>
+class gauss_seidel_sequential_node : public node {
+public:
+  
+  enum {
+    gauss_seidel_sequential_node_entry,
+    gauss_seidel_sequential_node_exit
+  };
+  
+  int numiters; int N; int M; int block_size; double* data;
+
+  gauss_seidel_sequential_node(int numiters, int N, int M, int block_size, double* data)
+  : numiters(numiters), N(N), M(M), block_size(block_size), data(data) { }
+  
+  void body() {
+    switch (node::current_block_id) {
+      case gauss_seidel_sequential_node_entry: {
+        gauss_seidel_sequential(numiters, N, M, block_size, data);
+        break;
+      }
+      case gauss_seidel_sequential_node_exit: {
+        break;
+      }
+    }
+  }
+  
+};
+  
+template <class node>
 using futures_matrix_type = matrix_type<outset_of<node>*>;
 
 template <class node>
@@ -2802,6 +2830,7 @@ public:
 
 template <class node>
 class gauss_seidel_parallel : public node {
+public:
   
   enum {
     gauss_seidel_parallel_entry,
@@ -2912,8 +2941,7 @@ void gauss_seidel_initialize(matrix_type<double>& mtx) {
 double epsilon = 0.001;
 
 bool same_contents(const matrix_type<double>& lhs,
-                   const matrix_type<double>& rhs,
-                   const matrix_type<bool>& d, int& nb) {
+                   const matrix_type<double>& rhs,int& nb) {
   if (lhs.n != rhs.n) {
     return false;
   }
@@ -2922,7 +2950,6 @@ bool same_contents(const matrix_type<double>& lhs,
     for (int j = 0; j < n; j++) {
       double diff = std::abs(lhs.subscript(i, j) - rhs.subscript(i, j));
       if (diff > epsilon) {
-        d.subscript(i, j) = false;
         nb++;
         return false;
       }
@@ -2931,10 +2958,19 @@ bool same_contents(const matrix_type<double>& lhs,
   return true;
 }
 
+} // end namespace
+
+/*---------------------------------------------------------------------*/
+
+
+/*---------------------------------------------------------------------*/
+
+namespace cmdline = pasl::util::cmdline;
+
+/*
 void gauss_seidel_test(int N, int block_size, int numiters) {
   int M = N + 2;
-  matrix_type<bool> diff(M, true);
-  matrix_type<double> reference_mtx(M, 0.0);
+  tests::matrix_type<double> reference_mtx(M, 0.0);
   {
     gauss_seidel_initialize(reference_mtx);
     //std::cout << reference_mtx << std::endl;
@@ -2951,18 +2987,9 @@ void gauss_seidel_test(int N, int block_size, int numiters) {
   }
   
   int nb_diffs = 0;
-  bool success = same_contents(reference_mtx, test_mtx, diff, nb_diffs);
+  bool success = same_contents(reference_mtx, test_mtx, nb_diffs);
   assert(success);
-}
-
-} // end namespace
-
-/*---------------------------------------------------------------------*/
-
-
-/*---------------------------------------------------------------------*/
-
-namespace cmdline = pasl::util::cmdline;
+} */
 
 void choose_edge_algorithm() {
   cmdline::argmap_dispatch c;
@@ -2987,6 +3014,15 @@ void choose_edge_algorithm() {
   c.find_by_arg_or_default_key("edge_algo", "tree")();
 }
 
+void read_gauss_seidel_params(int& numiters, int& N, int& block_size) {
+  numiters = cmdline::parse_or_default_int("numiters", 3);
+  N = cmdline::parse_or_default_int("N", 128);
+  block_size = cmdline::parse_or_default_int("block_size", 2);
+}
+
+// later: handle post-benchmarking operations by using a buffer of
+// lambda objects to execute after launch() returns
+
 template <class node>
 pasl::sched::thread_p choose_command() {
   pasl::sched::thread_p t;
@@ -3003,6 +3039,24 @@ pasl::sched::thread_p choose_command() {
     int n = cmdline::parse_or_default_int("n", 1);
     tests::fib_input = cmdline::parse_or_default_int("fib_input", tests::fib_input);
     t = new tests::future_pool<node>(n);
+  });
+  c.add("seidel_parallel", [&] {
+    int numiters;
+    int N;
+    int block_size;
+    read_gauss_seidel_params(numiters, N, block_size);
+    int M = N + 2;
+    tests::matrix_type<double> test_mtx(M, 0.0);
+    t = new tests::gauss_seidel_parallel<node>(numiters, N, M, block_size, &test_mtx.items[0]);
+  });
+  c.add("seidel_sequential", [&] {
+    int numiters;
+    int N;
+    int block_size;
+    read_gauss_seidel_params(numiters, N, block_size);
+    int M = N + 2;
+    tests::matrix_type<double> test_mtx(M, 0.0);
+    t = new tests::gauss_seidel_sequential_node<node>(numiters, N, M, block_size, &test_mtx.items[0]);
   });
   c.find_by_arg("cmd")();
   return t;
