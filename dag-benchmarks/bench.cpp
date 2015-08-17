@@ -293,7 +293,8 @@ public:
     }
   }
   
-  void depart() {
+  // returns true if this call to depart caused a zero count, false otherwise
+  bool depart() {
     while (true) {
       contents_type x = X.load();
       assert(x.c >= 1);
@@ -301,12 +302,13 @@ public:
       contents_type next = x;
       next.c--;
       if (X.compare_exchange_strong(orig, next)) {
+        bool s = (x.c == 1);
         if (parent == nullptr) {
-          // nothing to do
-        } else if (x.c == 1) {
+          return s;
+        } else if (s) {
           parent->depart();
+          return false;
         }
-        return;
       }
     }
   }
@@ -320,7 +322,7 @@ public:
 int default_branching_factor = 2;
 int default_nb_levels = 8;
 
-class snzi_tree {
+class tree {
 public:
   
   int branching_factor;
@@ -328,13 +330,13 @@ public:
   
   std::vector<node*> nodes;
   
-  snzi_tree(int branching_factor = default_branching_factor,
-            int nb_levels = default_nb_levels)
+  tree(int branching_factor = default_branching_factor,
+       int nb_levels = default_nb_levels)
   : branching_factor(branching_factor), nb_levels(nb_levels) {
     build();
   }
   
-  ~snzi_tree() {
+  ~tree() {
     for (auto it = nodes.cbegin(); it != nodes.cend(); it++) {
       delete *it;
     }
@@ -368,8 +370,8 @@ public:
     ith_leaf_node(i)->arrive();
   }
   
-  void depart(int i) {
-    ith_leaf_node(i)->depart();
+  bool depart(int i) {
+    return ith_leaf_node(i)->depart();
   }
   
   bool is_nonzero() const {
@@ -390,10 +392,21 @@ inline unsigned int hashu(unsigned int a) {
   return a;
 }
   
+snzi::node* random_leaf_of(snzi::tree& tree, node* source) {
+  union {
+    node* p;
+    long b;
+  } source_bits;
+  source_bits.p = source;
+  int h = std::abs((int)hashu((unsigned int)source_bits.b));
+  int l = h % tree.get_nb_leaf_nodes();
+  return tree.ith_leaf_node(l);
+}
+  
 class distributed_incounter : public incounter {
 public:
       
-  snzi::snzi_tree counter;
+  snzi::tree counter;
       
   node* n;
 
@@ -410,12 +423,20 @@ public:
   }
   
   void increment() {
-    delta((pasl::sched::thread_p)n, +1L);
+    increment((node*)nullptr);
   }
   
   status_type decrement() {
-    delta((pasl::sched::thread_p)n, -1L);
-    return is_activated() ? activated : not_activated;
+    return decrement((node*)nullptr);
+  }
+  
+  void increment(node* source) {
+    random_leaf_of(counter, source)->arrive();
+  }
+  
+  status_type decrement(node* source) {
+    bool b = random_leaf_of(counter, source)->depart();
+    return b ? incounter::activated : incounter::not_activated;
   }
   
   void check(node* _n) {
@@ -429,32 +450,6 @@ public:
     check(n);
   }
   
-  void delta(pasl::sched::thread_p t, int64_t d) {
-    delta(t, d, 0);
-  }
-  
-  void delta(pasl::sched::thread_p source, pasl::sched::thread_p target, int64_t d) {
-    union {
-      pasl::sched::thread_p pointer;
-      long bits;
-    } source_bits;
-    source_bits.pointer = source;
-    int h = hashu((unsigned int)source_bits.bits);
-    int leaf = h % counter.get_nb_leaf_nodes();
-    delta(target, d, leaf);
-  }
-  
-  void delta(pasl::sched::thread_p t, int64_t d, int leaf) {
-    assert((node*)t == n);
-    if (d == +1L) {
-      counter.arrive(leaf);
-    } else if (d == -1L) {
-      counter.depart(leaf);
-    } else {
-      assert(false);
-    }
-  }
-  
 };
 
 class distributed_outset : public outset, public pasl::util::worker::periodic_t {
@@ -464,7 +459,7 @@ public:
   
   pasl::data::perworker::array<node_buffer_type> nodes;
   
-  snzi::snzi_tree counter;
+  snzi::tree counter;
   
   bool finished_indicator = false;
   
