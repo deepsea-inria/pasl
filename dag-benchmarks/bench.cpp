@@ -215,7 +215,7 @@ public:
       todo = next;
     }
     if (should_deallocate) {
-      common::finished();
+      delete this;
     }
   }
 
