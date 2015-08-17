@@ -499,6 +499,10 @@ public:
   }
   
   void destroy() {
+    if (should_deallocate) {
+      delete this;
+      return;
+    }
     while (true) {
       if (ready_to_deallocate.load()) {
         delete this;
@@ -522,11 +526,7 @@ public:
     pasl::sched::scheduler::get_mine()->rem_periodic(this);
     pasl::worker_id_t my_id = pasl::util::worker::get_my_id();
     if (counter.depart((int)my_id)) {
-      if (should_deallocate) {
-        delete this;
-      } else {
-        destroy();
-      }
+      destroy();
     }
   }
   
