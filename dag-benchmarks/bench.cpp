@@ -503,6 +503,7 @@ public:
       delete this;
       return;
     }
+    // otherwise, second call to destroy() actually deallocates
     while (true) {
       if (ready_to_deallocate.load()) {
         delete this;
