@@ -152,7 +152,7 @@ public:
 
 using edge_algorithm_type = enum {
   edge_algorithm_simple,
-  edge_algorithm_perprocessor,
+  edge_algorithm_distributed,
   edge_algorithm_tree
 };
   
@@ -224,7 +224,7 @@ public:
   
 } // end namespace
   
-namespace perprocessor {
+namespace distributed {
   
 namespace snzi {
 
@@ -320,7 +320,7 @@ public:
 int default_branching_factor = 2;
 int default_nb_levels = 8;
 
-class tree {
+class snzi_tree {
 public:
   
   int branching_factor;
@@ -328,13 +328,13 @@ public:
   
   std::vector<node*> nodes;
   
-  tree(int branching_factor = default_branching_factor,
-       int nb_levels = default_nb_levels)
+  snzi_tree(int branching_factor = default_branching_factor,
+            int nb_levels = default_nb_levels)
   : branching_factor(branching_factor), nb_levels(nb_levels) {
     build();
   }
   
-  ~tree() {
+  ~snzi_tree() {
     for (auto it = nodes.cbegin(); it != nodes.cend(); it++) {
       delete *it;
     }
@@ -390,10 +390,10 @@ inline unsigned int hashu(unsigned int a) {
   return a;
 }
   
-class perprocessor_incounter : public incounter {
+class distributed_incounter : public incounter {
 public:
       
-  snzi::tree counter;
+  snzi::snzi_tree counter;
       
   node* n;
 
@@ -401,7 +401,7 @@ public:
     n = (node*)t;
   }
   
-  perprocessor_incounter(node* n) {
+  distributed_incounter(node* n) {
     init((pasl::sched::thread_p)n);
   }
   
@@ -457,18 +457,18 @@ public:
   
 };
 
-class perprocessor_outset : public outset, public pasl::util::worker::periodic_t {
+class distributed_outset : public outset, public pasl::util::worker::periodic_t {
 public:
   
   using node_buffer_type = std::vector<node*>;
   
   pasl::data::perworker::array<node_buffer_type> nodes;
   
-  snzi::tree counter;
+  snzi::snzi_tree counter;
   
   bool finished_indicator = false;
   
-  perprocessor_outset()
+  distributed_outset()
   : counter(snzi::default_branching_factor, pasl::util::worker::get_nb()) {
     add_calling_processor();
   }
@@ -523,17 +523,17 @@ public:
   
 } // end namespace
   
-namespace tree {
+namespace dyntree {
   
 int branching_factor = 2;
   
-class tree_incounter;
-class tree_outset;
+class dyntree_incounter;
+class dyntree_outset;
 class ictnode;
 class ostnode;
 
 void deallocate_incounter_tree(ictnode*);
-void notify_outset_nodes(tree_outset*);
+void notify_outset_nodes(dyntree_outset*);
 void deallocate_outset_tree(ostnode*);
   
 class ictnode {
@@ -574,7 +574,7 @@ public:
   
 };
 
-class tree_incounter : public incounter {
+class dyntree_incounter : public incounter {
 public:
   
   ictnode* in;
@@ -584,13 +584,13 @@ public:
     return tagged_tag_with((ictnode*)nullptr, ictnode::minus_tag);
   }
   
-  tree_incounter() {
+  dyntree_incounter() {
     in = nullptr;
     out = new ictnode(minus());
     out = tagged_tag_with(out, ictnode::minus_tag);
   }
   
-  ~tree_incounter() {
+  ~dyntree_incounter() {
     assert(is_activated());
     deallocate_incounter_tree(tagged_pointer_of(out));
     out = nullptr;
@@ -759,16 +759,16 @@ public:
   
 };
   
-class tree_outset : public outset {
+class dyntree_outset : public outset {
 public:
  
   ostnode* root;
   
-  tree_outset() {
+  dyntree_outset() {
     root = new ostnode;
   }
   
-  ~tree_outset() {
+  ~dyntree_outset() {
     deallocate_outset_tree(root);
   }
   
@@ -937,10 +937,10 @@ incounter* incounter_fetch_add() {
 incounter* incounter_new(node* n) {
   if (edge_algorithm == edge_algorithm_simple) {
     return incounter_fetch_add();
-  } else if (edge_algorithm == edge_algorithm_perprocessor) {
-    return new perprocessor::perprocessor_incounter(n);
+  } else if (edge_algorithm == edge_algorithm_distributed) {
+    return new distributed::distributed_incounter(n);
   } else if (edge_algorithm == edge_algorithm_tree) {
-    return new tree::tree_incounter;
+    return new dyntree::dyntree_incounter;
   } else {
     assert(false);
     return nullptr;
@@ -958,10 +958,10 @@ outset* outset_noop() {
 outset* outset_new() {
   if (edge_algorithm == edge_algorithm_simple) {
     return new simple::simple_outset;
-  } else if (edge_algorithm == edge_algorithm_perprocessor) {
-    return new perprocessor::perprocessor_outset;
+  } else if (edge_algorithm == edge_algorithm_distributed) {
+    return new distributed::distributed_outset;
   } else if (edge_algorithm == edge_algorithm_tree) {
-    return new tree::tree_outset;
+    return new dyntree::dyntree_outset;
   } else {
     assert(false);
     return nullptr;
@@ -1066,7 +1066,7 @@ void continue_with(node* n) {
   add_node(n);
 }
   
-namespace tree {
+namespace dyntree {
   
 void deallocate_incounter_tree_partial(std::deque<ictnode*>& todo) {
   int k = 0;
@@ -1233,10 +1233,10 @@ public:
     exit_block
   };
   
-  tree_outset* out;
+  dyntree_outset* out;
   std::deque<ostnode*> todo;
   
-  notify_outset_tree_nodes_par(tree_outset* out, std::deque<ostnode*>& _todo)
+  notify_outset_tree_nodes_par(dyntree_outset* out, std::deque<ostnode*>& _todo)
   : out(out) {
     todo.swap(_todo);
   }
@@ -1261,7 +1261,7 @@ public:
   
 };
   
-void notify_outset_nodes(tree_outset* out) {
+void notify_outset_nodes(dyntree_outset* out) {
   std::deque<ostnode*> todo;
   todo.push_back(out->root);
   notify_outset_tree_nodes_partial(todo);
@@ -2957,14 +2957,20 @@ void choose_edge_algorithm() {
   c.add("simple", [&] {
     topdown::edge_algorithm = topdown::edge_algorithm_simple;
   });
-  c.add("perprocessor", [&] {
-    topdown::edge_algorithm = topdown::edge_algorithm_perprocessor;
-  });
-  c.add("tree", [&] {
-    topdown::edge_algorithm = topdown::edge_algorithm_tree;
-    topdown::tree::branching_factor =
+  c.add("distributed", [&] {
+    topdown::distributed::snzi::default_branching_factor =
     cmdline::parse_or_default_int("branching_factor",
-                                  topdown::tree::branching_factor);
+                                  topdown::distributed::snzi::default_branching_factor);
+    topdown::distributed::snzi::default_nb_levels =
+    cmdline::parse_or_default_int("nb_levels",
+                                  topdown::distributed::snzi::default_nb_levels);
+    topdown::edge_algorithm = topdown::edge_algorithm_distributed;
+  });
+  c.add("dyntree", [&] {
+    topdown::edge_algorithm = topdown::edge_algorithm_tree;
+    topdown::dyntree::branching_factor =
+    cmdline::parse_or_default_int("branching_factor",
+                                  topdown::dyntree::branching_factor);
   });
   c.find_by_arg_or_default_key("edge_algo", "tree")();
 }
