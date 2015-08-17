@@ -463,9 +463,12 @@ public:
   
   bool finished_indicator = false;
   
+  std::atomic<bool> ready_to_deallocate;
+  
   distributed_outset()
   : counter(snzi::default_branching_factor, pasl::util::worker::get_nb()) {
     add_calling_processor();
+    ready_to_deallocate.store(false);
   }
   
   insert_status_type insert(node* n) {
@@ -496,7 +499,17 @@ public:
   }
   
   void destroy() {
-    should_deallocate = true;
+    while (true) {
+      if (ready_to_deallocate.load()) {
+        delete this;
+        return;
+      }
+      bool orig = false;
+      bool next = true;
+      if (ready_to_deallocate.compare_exchange_strong(orig, next)) {
+        return;
+      }
+    }
   }
   
   void add_calling_processor() {
@@ -508,9 +521,12 @@ public:
   void remove_calling_processor() {
     pasl::sched::scheduler::get_mine()->rem_periodic(this);
     pasl::worker_id_t my_id = pasl::util::worker::get_my_id();
-    counter.depart((int)my_id);
-    if (should_deallocate && (! counter.is_nonzero())) {
-      delete this;
+    if (counter.depart((int)my_id)) {
+      if (should_deallocate) {
+        delete this;
+      } else {
+        destroy();
+      }
     }
   }
   
