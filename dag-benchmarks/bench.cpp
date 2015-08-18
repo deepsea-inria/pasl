@@ -12,6 +12,7 @@
 #include <map>
 #include <set>
 #include <cmath>
+#include <memory>
 
 #include "pasl.hpp"
 #include "tagged.hpp"
