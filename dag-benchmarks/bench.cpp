@@ -505,7 +505,6 @@ public:
     assert(finished_indicator);
     assert(pasl::sched::scheduler::get_mine()->is_in_periodic(this));
     pasl::sched::scheduler::get_mine()->rem_periodic(this);
-    process_buffer();
     depart(pasl::util::worker::get_my_id());
   }
   
@@ -514,6 +513,7 @@ public:
   }
   
   void depart(pasl::worker_id_t my_id) {
+    process_buffer();
     if (counter.depart((int)my_id)) {
       delete this;
     }
