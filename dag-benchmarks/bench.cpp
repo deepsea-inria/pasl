@@ -1590,7 +1590,7 @@ public:
   bool should_deallocate_automatically = true;
   
   void enable_future() {
-    should_deallocate_automatically = true;
+    should_deallocate_automatically = false;
   }
   
 };
