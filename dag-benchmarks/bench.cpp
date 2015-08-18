@@ -131,7 +131,7 @@ public:
     insert_fail
   };
   
-  bool should_deallocate = true;
+  bool should_deallocate_automatically = true;
   
   virtual insert_status_type insert(node*) = 0;
   
@@ -215,7 +215,7 @@ public:
       decrement_incounter(n);
       todo = next;
     }
-    if (should_deallocate) {
+    if (should_deallocate_automatically) {
       delete this;
     }
   }
@@ -484,7 +484,7 @@ public:
   }
   
   void destroy() {
-    if (should_deallocate) {
+    if (should_deallocate_automatically) {
       delete this;
       return;
     }
@@ -898,7 +898,7 @@ public:
     node* consumer = this;
     prepare_node(producer, incounter_ready());
     outset* producer_out = (outset*)producer->out;
-    producer_out->should_deallocate = false;
+    producer_out->should_deallocate_automatically = false;
     consumer->jump_to(continuation_block_id);
     add_node(producer);
     return producer_out;
@@ -1253,7 +1253,7 @@ public:
         break;
       }
       case exit_block: {
-        if (out->should_deallocate) {
+        if (out->should_deallocate_automatically) {
           delete out;
         }
         break;
@@ -1274,7 +1274,7 @@ void notify_outset_nodes(dyntree_outset* out) {
     prepare_node(n);
     add_node(n);
   } else {
-    if (out->should_deallocate) {
+    if (out->should_deallocate_automatically) {
       delete out;
     }
   }
@@ -1528,7 +1528,7 @@ public:
   
   node* n;
   
-  bool should_deallocate = true;
+  bool should_deallocate_automatically = true;
   
   outset(node* n)
   : n(n) {
@@ -1671,7 +1671,7 @@ public:
   outset* future(node* producer, int continuation_block_id) {
     prepare_node(producer, incounter_ready());
     outset* producer_out = (outset*)producer->out;
-    producer_out->should_deallocate = false;
+    producer_out->should_deallocate_automatically = false;
     node* caller = this;
     create_fresh_ports(caller, producer);
     insert_outport(caller, producer, producer_out->root);
@@ -2032,7 +2032,7 @@ public:
         break;
       }
       case exit_block: {
-        if (out->should_deallocate) {
+        if (out->should_deallocate_automatically) {
           delete out;
         }
         break;
@@ -2053,7 +2053,7 @@ void notify_outset_tree_nodes(outset* out) {
     prepare_node(n);
     add_node(n);
   } else {
-    if (out->should_deallocate) {
+    if (out->should_deallocate_automatically) {
       delete out;
     }
   }
