@@ -304,10 +304,12 @@ public:
       if (X.compare_exchange_strong(orig, next)) {
         bool s = (x.c == 1);
         if (parent == nullptr) {
+          if (s) {
+            assert(X.load().c ==0);
+          }
           return s;
         } else if (s) {
-          parent->depart();
-          return false;
+          return parent->depart();
         }
       }
     }
@@ -320,7 +322,7 @@ public:
 };
   
 int default_branching_factor = 2;
-int default_nb_levels = 8;
+int default_nb_levels = 3;
 
 class tree {
 public:
@@ -399,7 +401,8 @@ snzi::node* random_leaf_of(snzi::tree& tree, node* source) {
   } source_bits;
   source_bits.p = source;
   int h = std::abs((int)hashu((unsigned int)source_bits.b));
-  int l = h % tree.get_nb_leaf_nodes();
+  int n = tree.get_nb_leaf_nodes();
+  int l = h % n;
   return tree.ith_leaf_node(l);
 }
   
@@ -407,16 +410,6 @@ class distributed_incounter : public incounter {
 public:
       
   snzi::tree counter;
-      
-  node* n;
-
-  void init(pasl::sched::thread_p t) {
-    n = (node*)t;
-  }
-  
-  distributed_incounter(node* n) {
-    init((pasl::sched::thread_p)n);
-  }
   
   bool is_activated() const {
     return (! counter.is_nonzero());
@@ -437,17 +430,6 @@ public:
   status_type decrement(node* source) {
     bool b = random_leaf_of(counter, source)->depart();
     return b ? incounter::activated : incounter::not_activated;
-  }
-  
-  void check(node* _n) {
-    assert(_n == n);
-    if (is_activated()) {
-      start((pasl::sched::thread_p)n);
-    }
-  }
-  
-  void check() {
-    check(n);
   }
   
 };
@@ -950,7 +932,7 @@ incounter* incounter_new(node* n) {
   if (edge_algorithm == edge_algorithm_simple) {
     return incounter_fetch_add();
   } else if (edge_algorithm == edge_algorithm_distributed) {
-    return new distributed::distributed_incounter(n);
+    return new distributed::distributed_incounter;
   } else if (edge_algorithm == edge_algorithm_tree) {
     return new dyntree::dyntree_incounter;
   } else {
@@ -971,7 +953,8 @@ outset* outset_new() {
   if (edge_algorithm == edge_algorithm_simple) {
     return new simple::simple_outset;
   } else if (edge_algorithm == edge_algorithm_distributed) {
-    return new distributed::distributed_outset;
+    //return new distributed::distributed_outset;
+    return new simple::simple_outset;
   } else if (edge_algorithm == edge_algorithm_tree) {
     return new dyntree::dyntree_outset;
   } else {
@@ -2226,7 +2209,7 @@ public:
         async_leaf_counter.store(0);
         async_interior_counter.store(0);
         node::finish(new async_loop_rec<node>(0, n, this),
-               async_loop_exit);
+                     async_loop_exit);
         break;
       }
       case async_loop_exit: {
@@ -3055,7 +3038,7 @@ pasl::sched::thread_p choose_command() {
     int block_size;
     read_gauss_seidel_params(numiters, N, block_size);
     int M = N + 2;
-    tests::matrix_type<double> test_mtx(M, 0.0);
+    tests::matrix_type<double> test_mtx(M, 0.0); // bogus!!! will create a dangling pointer
     t = new tests::gauss_seidel_sequential_node<node>(numiters, N, M, block_size, &test_mtx.items[0]);
   });
   c.find_by_arg("cmd")();
