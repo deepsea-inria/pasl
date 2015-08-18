@@ -131,8 +131,6 @@ public:
     insert_fail
   };
   
-  bool should_deallocate_automatically = true;
-  
   virtual insert_status_type insert(node*) = 0;
   
   virtual void finish() = 0;
@@ -147,6 +145,12 @@ public:
   
   void finished() {
     finish();
+  }
+  
+  bool should_deallocate_automatically = true;
+  
+  virtual void enable_future() {
+    should_deallocate_automatically = false;
   }
   
 };
@@ -445,12 +449,9 @@ public:
   
   bool finished_indicator = false;
   
-  std::atomic<bool> ready_to_deallocate;
-  
   distributed_outset()
   : counter(snzi::default_branching_factor, pasl::util::worker::get_nb()) {
     add_calling_processor();
-    ready_to_deallocate.store(false);
   }
   
   insert_status_type insert(node* n) {
@@ -464,7 +465,21 @@ public:
     return insert_success;
   }
   
-  void active_all_nodes() {
+  void finish() {
+    finished_indicator = true;
+  }
+  
+  void destroy() {
+    assert(! should_deallocate_automatically);
+    depart(0);
+  }
+  
+  void enable_future() {
+    should_deallocate_automatically = false;
+    arrive(0);
+  }
+  
+  void process_buffer() {
     node_buffer_type& buffer = nodes.mine();
     while (! buffer.empty()) {
       node* n = buffer.back();
@@ -479,35 +494,12 @@ public:
     }
   }
   
-  void finish() {
-    finished_indicator = true;
-  }
-  
-  void destroy() {
-    if (should_deallocate_automatically) {
-      delete this;
-      return;
-    }
-    // otherwise, second call to destroy() actually deallocates
-    while (true) {
-      if (ready_to_deallocate.load()) {
-        delete this;
-        return;
-      }
-      bool orig = false;
-      bool next = true;
-      if (ready_to_deallocate.compare_exchange_strong(orig, next)) {
-        return;
-      }
-    }
-  }
-  
   void add_calling_processor() {
     if (pasl::sched::scheduler::get_mine()->is_in_periodic(this)) {
       return;
     }
     pasl::worker_id_t my_id = pasl::util::worker::get_my_id();
-    counter.arrive((int)my_id);
+    arrive(my_id);
     pasl::sched::scheduler::get_mine()->add_periodic(this);
   }
   
@@ -515,10 +507,18 @@ public:
     assert(finished_indicator);
     assert(pasl::sched::scheduler::get_mine()->is_in_periodic(this));
     pasl::sched::scheduler::get_mine()->rem_periodic(this);
+    process_buffer();
     pasl::worker_id_t my_id = pasl::util::worker::get_my_id();
-    active_all_nodes();
+    depart(my_id);
+  }
+  
+  void arrive(pasl::worker_id_t my_id) {
+    counter.arrive((int)my_id);
+  }
+  
+  void depart(pasl::worker_id_t my_id) {
     if (counter.depart((int)my_id)) {
-      destroy();
+      delete this;
     }
   }
   
@@ -898,7 +898,7 @@ public:
     node* consumer = this;
     prepare_node(producer, incounter_ready());
     outset* producer_out = (outset*)producer->out;
-    producer_out->should_deallocate_automatically = false;
+    producer_out->enable_future();
     consumer->jump_to(continuation_block_id);
     add_node(producer);
     return producer_out;
@@ -918,6 +918,7 @@ public:
   }
   
   void deallocate_future(outset* future) const {
+    assert(! future->should_deallocate_automatically);
     future->destroy();
   }
   
@@ -1528,8 +1529,6 @@ public:
   
   node* n;
   
-  bool should_deallocate_automatically = true;
-  
   outset(node* n)
   : n(n) {
     root = new ostnode;
@@ -1586,6 +1585,12 @@ public:
       decrement_inports(n);
     }
     notify_outset_tree_nodes(this);
+  }
+  
+  bool should_deallocate_automatically = true;
+  
+  void enable_future() {
+    should_deallocate_automatically = true;
   }
   
 };
@@ -1671,7 +1676,7 @@ public:
   outset* future(node* producer, int continuation_block_id) {
     prepare_node(producer, incounter_ready());
     outset* producer_out = (outset*)producer->out;
-    producer_out->should_deallocate_automatically = false;
+    producer_out->enable_future();
     node* caller = this;
     create_fresh_ports(caller, producer);
     insert_outport(caller, producer, producer_out->root);
@@ -1915,6 +1920,7 @@ void bottomup_finished(pasl::sched::thread_p t) {
 }
   
 void deallocate_future(node* caller, outset* future) {
+  assert(! future->should_deallocate_automatically);
   assert(caller->outports.find(future) != caller->outports.end());
   caller->outports.erase(future);
   delete future;
