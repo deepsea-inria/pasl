@@ -455,11 +455,10 @@ public:
   }
   
   insert_status_type insert(node* n) {
-    add_calling_processor();
     if (finished_indicator) {
-      remove_calling_processor();
       return insert_fail;
     }
+    add_calling_processor();
     node_buffer_type& buffer = nodes.mine();
     buffer.push_back(n);
     return insert_success;
@@ -498,8 +497,7 @@ public:
     if (pasl::sched::scheduler::get_mine()->is_in_periodic(this)) {
       return;
     }
-    pasl::worker_id_t my_id = pasl::util::worker::get_my_id();
-    arrive(my_id);
+    arrive(pasl::util::worker::get_my_id());
     pasl::sched::scheduler::get_mine()->add_periodic(this);
   }
   
@@ -508,8 +506,7 @@ public:
     assert(pasl::sched::scheduler::get_mine()->is_in_periodic(this));
     pasl::sched::scheduler::get_mine()->rem_periodic(this);
     process_buffer();
-    pasl::worker_id_t my_id = pasl::util::worker::get_my_id();
-    depart(my_id);
+    depart(pasl::util::worker::get_my_id());
   }
   
   void arrive(pasl::worker_id_t my_id) {
@@ -963,8 +960,7 @@ outset* outset_new() {
   if (edge_algorithm == edge_algorithm_simple) {
     return new simple::simple_outset;
   } else if (edge_algorithm == edge_algorithm_distributed) {
-    //return new distributed::distributed_outset;
-    return new simple::simple_outset;
+    return new distributed::distributed_outset;
   } else if (edge_algorithm == edge_algorithm_tree) {
     return new dyntree::dyntree_outset;
   } else {
