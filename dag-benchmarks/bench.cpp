@@ -305,12 +305,11 @@ public:
       if (X.compare_exchange_strong(orig, next)) {
         bool s = (x.c == 1);
         if (parent == nullptr) {
-          if (s) {
-            assert(X.load().c ==0);
-          }
           return s;
         } else if (s) {
           return parent->depart();
+        } else {
+          return false;
         }
       }
     }
