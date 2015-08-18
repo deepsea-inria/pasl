@@ -143,6 +143,8 @@ public:
   void add_periodic(periodic_p p);
   /*! \brief Removes from the set of periodic checks the check `p`. */
   void rem_periodic(periodic_p p);
+  /*! \brief Returns true if `p` is already in the periodic set, and false otherwise. */
+  bool is_in_periodic(periodic_p p);
   /*! \brief Runs all the checks in the set of periodic checks.
    *  \warning May be called asynchronously by the worker's signal
    *   handler.

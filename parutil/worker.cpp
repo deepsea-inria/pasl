@@ -248,6 +248,13 @@ void controller_t::add_periodic(periodic_p p) {
 void controller_t::rem_periodic(periodic_p p) {
   remove_buffer.insert(p);
 }
+  
+bool controller_t::is_in_periodic(periodic_p p) {
+  if (remove_buffer.find(p) != remove_buffer.end()) {
+    return false;
+  }
+  return periodic_set.find(p) != periodic_set.end();
+}
 
 void controller_t::check_periodic() {
   double delay = ticks::microseconds_since(last_check_periodic);

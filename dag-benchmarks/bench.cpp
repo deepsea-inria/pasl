@@ -464,14 +464,17 @@ public:
     return insert_success;
   }
   
+  void active_all_nodes() {
+    node_buffer_type& buffer = nodes.mine();
+    while (! buffer.empty()) {
+      node* n = buffer.back();
+      buffer.pop_back();
+      decrement_incounter(n);
+    }
+  }
+  
   void check() {
     if (finished_indicator) {
-      node_buffer_type& buffer = nodes.mine();
-      while (! buffer.empty()) {
-        node* n = buffer.back();
-        buffer.pop_back();
-        decrement_incounter(n);
-      }
       remove_calling_processor();
     }
   }
@@ -500,14 +503,20 @@ public:
   }
   
   void add_calling_processor() {
+    if (pasl::sched::scheduler::get_mine()->is_in_periodic(this)) {
+      return;
+    }
     pasl::worker_id_t my_id = pasl::util::worker::get_my_id();
     counter.arrive((int)my_id);
     pasl::sched::scheduler::get_mine()->add_periodic(this);
   }
   
   void remove_calling_processor() {
+    assert(finished_indicator);
+    assert(pasl::sched::scheduler::get_mine()->is_in_periodic(this));
     pasl::sched::scheduler::get_mine()->rem_periodic(this);
     pasl::worker_id_t my_id = pasl::util::worker::get_my_id();
+    active_all_nodes();
     if (counter.depart((int)my_id)) {
       destroy();
     }
