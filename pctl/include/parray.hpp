@@ -17,7 +17,6 @@
 #include "pmem.hpp"
 #include <cmath>
 #include <memory>
-#include <type_traits>
 
 namespace pasl {
 namespace pctl {
@@ -188,7 +187,8 @@ public:
   parray(const parray& other)
   : content(nullptr, deleter(other.content.get_deleter())) {
     allocate(other.size());
-    if(!std::is_trivially_copyable<value_type>::value)
+    using namespace pmem::_detail;
+    if(!is_trivially_copyable<value_type>::value)
       pmem::tabulate(begin(), end(), [&other](size_type i) {
         return other[i];
       }, get_allocator());
@@ -203,7 +203,8 @@ public:
     if (n < 0)
       return;
     allocate(n);
-    if(!std::is_trivially_copyable<value_type>::value)
+    using namespace pmem::_detail;
+    if(!is_trivially_copyable<value_type>::value)
       pmem::tabulate(begin(), end(), [lo](size_type i) {
         return *(lo + i);
       }, get_allocator());
@@ -219,7 +220,8 @@ public:
     if (&other == this)
       return *this;
     realloc(other.size());
-    if(std::is_trivially_constructible<value_type>::value)
+    using namespace pmem::_detail;
+    if(is_trivially_copyable<value_type>::value)
       pmem::copy(other.cbegin(), other.cend(), begin());
     else
       pmem::tabulate(begin(), end(), [&other](size_type i) {
