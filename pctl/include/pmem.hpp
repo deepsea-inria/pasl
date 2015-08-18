@@ -155,7 +155,22 @@ struct is_valid_estimator<
 /**
  * \endcond
  */
+
+// checks whether we use an old version of libstdc++
+// (for g++ 4.8.3 compatibility)
+#if !defined(__GLIBCXX__) || __GLIBCXX__ > 20140911
+template<class T>
+using is_trivially_copy_constructible = std::is_trivially_copy_constructible<T>;
   
+template<class T>
+using is_trivially_copyable = std::is_trivially_copyable<T>;
+#else
+template<class T>
+using is_trivially_copy_constructible = std::is_trivial<T>;
+
+template<class T>
+using is_trivially_copyable = std::is_trivial<T>;
+#endif
 } // namespace _detail
 
 /**
@@ -240,8 +255,8 @@ typename std::enable_if<
   using namespace _detail;
   // implementation
   Iter offset = low;
-  if(std::is_trivially_copy_constructible<value_type>::value &&
-     std::is_trivially_copyable<value_type>::value) {
+  if(is_trivially_copy_constructible<value_type>::value &&
+     is_trivially_copyable<value_type>::value) {
     range::parallel_for(low, high, range_work_function,
     [&, offset] (Iter emplace_iter) {
       *emplace_iter = provider(index_of<index_t, Iter>(offset, emplace_iter));
@@ -298,7 +313,10 @@ void fill(Iter low, Iter high, const Item& value,
   std::allocator_traits<typename std::remove_reference<Allocator>::type>;
   using value_type = typename std::iterator_traits<Iter>::value_type;
   static_assert(std::is_convertible<Item, value_type>::value,
-                "fill(Iter, Iter, const Item&, Allocator&&) requires Item to be convertible to typename std::iterator_traits<Iter>::value_type.");
+                "fill(Iter, Iter, const Item&, Allocator&&) requires Item to "
+                "be convertible to typename "
+                "std::iterator_traits<Iter>::value_type.");
+  using namespace _detail;
   // implementation
   if(std::is_trivially_copy_constructible<value_type>::value &&
      std::is_trivially_copyable<value_type>::value) {

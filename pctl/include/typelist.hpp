@@ -405,7 +405,7 @@ namespace util {
            call(std::forward<Args>(args)...)) {
     return _detail::get_arg_helper<n, Args...>::
            call(std::forward<Args>(args)...);
-  };
+  }
   
   /*! Given a function, a list of arguments, and a compile-time list of
    *  positions, call the function with the arguments at the aforementioned
