@@ -318,8 +318,8 @@ void fill(Iter low, Iter high, const Item& value,
                 "std::iterator_traits<Iter>::value_type.");
   using namespace _detail;
   // implementation
-  if(std::is_trivially_copy_constructible<value_type>::value &&
-     std::is_trivially_copyable<value_type>::value) {
+  if(is_trivially_copy_constructible<value_type>::value &&
+     is_trivially_copyable<value_type>::value) {
     range::parallel_for(low, high, [] (Iter low, Iter high) {
       return high - low;
     }, [&value] (Iter emplace_iter) {
