@@ -1054,7 +1054,7 @@ outset* capture_outset() {
   auto sched = pasl::sched::threaddag::my_sched();
   outset* out = (outset*)sched->get_outstrategy();
   assert(out != nullptr);
-  sched->set_outstrategy(outset_new());
+  sched->set_outstrategy(outset_noop());
   return out;
 }
 
