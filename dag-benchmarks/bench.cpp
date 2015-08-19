@@ -963,48 +963,48 @@ outset* outset_new() {
   }
 }
   
-void increment_incounter(node* n, incounter* n_in) {
-  long tag = pasl::sched::instrategy::extract_tag(n_in);
+void increment_incounter(node* target, incounter* target_in) {
+  long tag = pasl::sched::instrategy::extract_tag(target_in);
   assert(tag != pasl::sched::instrategy::READY_TAG);
   if (tag == pasl::sched::instrategy::UNARY_TAG) {
     // nothing to do
   } else if (tag == pasl::sched::instrategy::FETCH_ADD_TAG) {
-    pasl::data::tagged::atomic_fetch_and_add<pasl::sched::instrategy_p>(&(n->in), 1l);
+    pasl::data::tagged::atomic_fetch_and_add<pasl::sched::instrategy_p>(&(target->in), 1l);
   } else {
     assert(tag == 0);
-    n_in->delta(n, +1L);
+    target_in->delta(target, +1L);
   }
 }
   
-void increment_incounter(node* n) {
-  increment_incounter(n, (incounter*)n->in);
+void increment_incounter(node* target) {
+  increment_incounter(target, (incounter*)target->in);
 }
   
-void decrement_incounter(node* n, incounter* n_in) {
-  long tag = pasl::sched::instrategy::extract_tag(n_in);
+void decrement_incounter(node* target, incounter* target_in) {
+  long tag = pasl::sched::instrategy::extract_tag(target_in);
   assert(tag != pasl::sched::instrategy::READY_TAG);
   if (tag == pasl::sched::instrategy::UNARY_TAG) {
-    pasl::sched::instrategy::schedule(n);
+    pasl::sched::instrategy::schedule(target);
   } else if (tag == pasl::sched::instrategy::FETCH_ADD_TAG) {
-    int64_t old = pasl::data::tagged::atomic_fetch_and_add<pasl::sched::instrategy_p>(&(n->in), -1l);
+    int64_t old = pasl::data::tagged::atomic_fetch_and_add<pasl::sched::instrategy_p>(&(target->in), -1l);
     if (old == 1) {
-      pasl::sched::instrategy::schedule(n);
+      pasl::sched::instrategy::schedule(target);
     }
   } else {
     assert(tag == 0);
-    n->in->delta(n, -1L);
+    target_in->delta(target, -1L);
   }
 }
 
-void decrement_incounter(node* n) {
-  decrement_incounter(n, (incounter*)n->in);
+void decrement_incounter(node* target) {
+  decrement_incounter(target, (incounter*)target->in);
 }
   
 void add_node(node* n) {
   pasl::sched::threaddag::add_thread(n);
 }
   
-outset::insert_status_type add_to_outset(node* source, outset* source_out, node* target) {
+outset::insert_status_type outset_insert(node* source, outset* source_out, node* target) {
   long tag = pasl::sched::outstrategy::extract_tag(source_out);
   assert(tag != pasl::sched::outstrategy::NOOP_TAG);
   if (tag == pasl::sched::outstrategy::UNARY_TAG) {
@@ -1018,7 +1018,7 @@ outset::insert_status_type add_to_outset(node* source, outset* source_out, node*
 
 void add_edge(node* source, outset* source_out, node* target, incounter* target_in) {
   increment_incounter(target, target_in);
-  if (add_to_outset(source, source_out, target) == outset::insert_fail) {
+  if (outset_insert(source, source_out, target) == outset::insert_fail) {
     decrement_incounter(target, target_in);
   }
 }
