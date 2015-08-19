@@ -138,12 +138,14 @@ void cas_si_private::acquire() {
   assert(shared->states[my_id].load() == WORKING);
   shared->states[my_id].store(WAITING);
   while (true) {
-    if (shared->states[my_id].load() == WAITING || shared->states[my_id].load() == INCOMING) {
+    auto s = shared->states[my_id].load();
+    if (s == WAITING || s == INCOMING) {
       if (! stay_in_acquire()) {
         cancel_acquire();
         return;
-      } else
+      } else {
         util::worker::controller_t::yield();
+      }
     } else {
       thread_p thread = (thread_p) shared->states[my_id].load();
       shared->states[my_id].store(WORKING);
@@ -159,13 +161,14 @@ void cas_si_private::acquire() {
  * still some incomplete threads around
  */
 void cas_si_private::cancel_acquire() {
-  bool s = false;
   cas_si_shared::state_t state;
-  while (! s) {
+  while (true) {
     state = shared->states[my_id].load();
-    s = shared->states[my_id].compare_exchange_strong(state, WORKING);
+    if (shared->states[my_id].compare_exchange_strong(state, WORKING)) {
+      break;
+    }
   }
-  if (state != WAITING && state != WORKING && state != INCOMING) {
+  if ((state != WAITING) && (state != WORKING) && (state != INCOMING)) {
     remote_push(state);
     STAT_COUNT(THREAD_RECOVER);
   }
@@ -182,9 +185,7 @@ void cas_si_private::communicate() {
     worker_id_t id = random_other();
     if (shared->states[id].load() != WAITING) continue;
     thread_p orig = WAITING;
-    bool s = shared->states[id].compare_exchange_strong(orig, INCOMING);
-    if (! s) continue;
-    else {
+    if (shared->states[id].compare_exchange_strong(orig, INCOMING)) {
       shared->states[id].store(remote_pop());
       return;
     }
@@ -198,8 +199,9 @@ void cas_si_private::run() {
       should_communicate = false;
       exec(t);
       check();
-    } else
+    } else {
       wait();
+    }
   }
 }
 
