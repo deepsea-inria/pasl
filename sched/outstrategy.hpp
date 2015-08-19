@@ -22,6 +22,11 @@ namespace bottomup {
 void bottomup_finished(pasl::sched::thread_p);
 }
 
+namespace topdown {
+namespace distributed {
+void unary_finished(pasl::sched::thread_p t);
+}}
+
 namespace pasl {
 namespace sched {
 namespace outstrategy {
@@ -371,6 +376,7 @@ public:
 const long NOOP_TAG = 1;
 const long UNARY_TAG = 2;
 const long BOTTOMUP_UNARY_TAG = 3;
+const long TOPDOWN_DISTRIBUTED_UNARY_TAG = 4;
   
 static inline long extract_tag(outstrategy_p out) {
   return data::tagged::extract_tag<thread_p, outstrategy_p>(out);
@@ -401,11 +407,21 @@ static inline outstrategy_p bottomup_unary_new(thread_p t) {
 #endif
 }
   
+  static inline outstrategy_p topdown_distributed_unary_new(thread_p t) {
+#ifndef DEBUG_OPTIM_STRATEGY
+    return data::tagged::create<thread_p, outstrategy_p>(t, TOPDOWN_DISTRIBUTED_UNARY_TAG);
+#else
+    assert(false);
+    return nullptr;
+#endif
+  }
+  
 /*---------------------------------------------------------------------*/
 
 static inline void add(outstrategy_p& out, thread_p td) {
   long tag = extract_tag(out);
   assert(tag != BOTTOMUP_UNARY_TAG);
+  assert(tag != TOPDOWN_DISTRIBUTED_UNARY_TAG);
   if (tag > 0) {
     assert(   tag == UNARY_TAG);
     out = data::tagged::create<thread_p, outstrategy_p>(td, tag);
@@ -429,6 +445,8 @@ static inline void finished(thread_p t, outstrategy_p out) {
       decr_dependencies(tjoin);
     else if (tag == BOTTOMUP_UNARY_TAG)
       bottomup::bottomup_finished(tjoin);
+    else if (tag == TOPDOWN_DISTRIBUTED_UNARY_TAG)
+      topdown::distributed::unary_finished(tjoin);
     else
       util::atomic::die("bogus tag (finished)");
   } else {

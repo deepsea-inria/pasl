@@ -85,7 +85,7 @@ incounter* incounter_ready();
 incounter* incounter_unary();
 incounter* incounter_fetch_add();
 incounter* incounter_new(node*);
-outset* outset_unary();
+outset* outset_unary(node*, node*);
 outset* outset_noop();
 outset* outset_new();
   
@@ -243,12 +243,23 @@ public:
   
   static constexpr int one_half = -1;
   
+  static constexpr int root_node_tag = 1;
+  
   std::atomic<contents_type> X;
   
-  node* parent; // == nullptr, if root node
+  node* parent;
   
-  node(node* parent = nullptr)
-  : parent(parent) {
+  static bool is_root_node(const node* n) {
+    return tagged_tag_of(n) == 1;
+  }
+  
+  template <class Item>
+  static node* create_root_node(Item x) {
+    return tagged_tag_with(x, root_node_tag);
+  }
+  
+  node(node* _parent = nullptr) {
+    parent = (_parent == nullptr) ? create_root_node(_parent) : _parent;
     contents_type init;
     init.c = 0;
     init.v = 0;
@@ -278,7 +289,7 @@ public:
         }
       }
       if (x.c == one_half) {
-        if (parent != nullptr) {
+        if (! is_root_node(parent)) {
           parent->arrive();
         }
         contents_type orig = x;
@@ -289,7 +300,7 @@ public:
         }
       }
     }
-    if (parent == nullptr) {
+    if (is_root_node(parent)) {
       return;
     }
     while (undo_arr > 0) {
@@ -308,7 +319,7 @@ public:
       next.c--;
       if (X.compare_exchange_strong(orig, next)) {
         bool s = (x.c == 1);
-        if (parent == nullptr) {
+        if (is_root_node(parent)) {
           return s;
         } else if (s) {
           return parent->depart();
@@ -321,6 +332,27 @@ public:
   
   bool is_nonzero() const {
     return (X.load().c > 0);
+  }
+  
+  template <class Item>
+  static void set_root_annotation(node* n, Item x) {
+    node* m = n;
+    assert(! is_root_node(m));
+    while (! is_root_node(m->parent)) {
+      m = m->parent;
+    }
+    assert(is_root_node(m->parent));
+    m->parent = create_root_node(x);
+  }
+  
+  template <class Item>
+  static Item get_root_annotation(node* n) {
+    node* m = n;
+    while (! is_root_node(m)) {
+      m = m->parent;
+    }
+    assert(is_root_node(m));
+    return tagged_pointer_of(m);
   }
   
 };
@@ -514,6 +546,11 @@ public:
   }
   
 };
+  
+void unary_finished(pasl::sched::thread_p t) {
+  snzi::node* leaf = (snzi::node*)t;
+  leaf->depart();
+}
   
 } // end namespace
   
@@ -870,7 +907,7 @@ public:
   }
   
   void async(node* producer, node* consumer, int continuation_block_id) {
-    prepare_node(producer, incounter_ready(), outset_unary());
+    prepare_node(producer, incounter_ready(), outset_unary(producer, consumer));
     add_edge(producer, consumer);
     jump_to(continuation_block_id);
     add_node(producer);
@@ -878,7 +915,7 @@ public:
   
   void finish(node* producer, int continuation_block_id) {
     node* consumer = this;
-    prepare_node(producer, incounter_ready(), outset_unary());
+    prepare_node(producer, incounter_ready(), outset_unary(producer, consumer));
     prepare_for_transfer(continuation_block_id);
     join_with(consumer, incounter_new(this));
     add_edge(producer, consumer);
@@ -942,7 +979,15 @@ incounter* incounter_new(node* n) {
   }
 }
 
-outset* outset_unary() {
+outset* outset_unary(node* source, node* target) {
+  /*
+  auto target_in = (distributed::distributed_incounter*)target->in;
+  long tag = pasl::sched::instrategy::extract_tag(target_in);
+  if ((tag == 0) && (edge_algorithm == edge_algorithm_distributed)) {
+    auto leaf = target_in->nzi.random_leaf_of(source);
+    auto t = (pasl::sched::thread_p)leaf;
+    return (outset*)pasl::sched::outstrategy::topdown_distributed_unary_new(t);
+  } */
   return (outset*)pasl::sched::outstrategy::unary_new();
 }
   
