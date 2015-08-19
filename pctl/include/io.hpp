@@ -22,9 +22,10 @@ namespace pctl {
 
 template <class Item>
 std::ostream& operator<<(std::ostream& out, const parray<Item>& xs) {
+  using size_type = typename parray<Item>::size_type;
   out << "{ ";
-  size_t sz = xs.size();
-  for (long i = 0; i < sz; i++) {
+  size_type sz = xs.size();
+  for (size_type i = 0; i < sz; i++) {
     out << xs[i];
     if (i+1 < sz)
       out << ", ";
@@ -35,9 +36,10 @@ std::ostream& operator<<(std::ostream& out, const parray<Item>& xs) {
   
 template <class Item, class Weight>
 std::ostream& operator<<(std::ostream& out, const weighted::parray<Item, Weight>& xs) {
+  using size_type = typename weighted::parray<Item>::size_type;
   out << "{ ";
-  size_t sz = xs.size();
-  for (long i = 0; i < sz; i++) {
+  size_type sz = xs.size();
+  for (size_type i = 0; i < sz; i++) {
     out << xs[i];
     if (i+1 < sz)
       out << ", ";
@@ -48,9 +50,10 @@ std::ostream& operator<<(std::ostream& out, const weighted::parray<Item, Weight>
   
 template <class Item>
 std::ostream& operator<<(std::ostream& out, const pchunkedseq<Item>& xs) {
+  using size_type = typename pchunkedseq<Item>::size_type;
   out << "{ ";
-  size_t sz = xs.seq.size();
-  for (long i = 0; i < sz; i++) {
+  size_type sz = xs.seq.size();
+  for (size_type i = 0; i < sz; i++) {
     out << xs.seq[i];
     if (i+1 < sz)
       out << ", ";

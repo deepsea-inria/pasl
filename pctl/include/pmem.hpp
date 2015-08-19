@@ -100,14 +100,9 @@ struct is_valid_provider<
                     >::value &&
                     ::util::callable_traits<Provider>::argument_count == 1 &&
                     (std::is_same<
-                       typename ::util::callable_traits<Provider>::
-                                template argument_type<0>,
-                       Iterator
+                       ::util::argument_t<Provider, 0>, Iterator
                      >::value ||
-                     std::is_integral<
-                       typename ::util::callable_traits<Provider>::
-                                template argument_type<0>
-                     >::value)
+                     std::is_integral<::util::argument_t<Provider, 0>>::value)
                   >::type
        > : std::true_type {};
 /**
@@ -145,10 +140,12 @@ struct is_valid_estimator<
                       typename ::util::callable_traits<WorkEstimator>::
                                return_type
                     >::value &&
-                    std::is_same<
-                      typename ::util::callable_traits<WorkEstimator>::
-                               argument_typelist,
-                      ::util::type_list<Iterator, Iterator>
+                    ::util::callable_traits<WorkEstimator>::argument_count == 2 &&
+                    std::is_convertible<
+                      Iterator, ::util::argument_t<WorkEstimator, 0>
+                    >::value &&
+                    std::is_convertible<
+                      Iterator, ::util::argument_t<WorkEstimator, 1>
                     >::value
                   >::type
        > : std::true_type {};

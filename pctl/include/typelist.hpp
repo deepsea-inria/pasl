@@ -145,29 +145,35 @@ namespace util {
       typedef int_list<T> type;
     };
     
-    template<std::size_t n, class S>
-    struct get_template;
+    template<std::size_t Idx, class S>
+    struct get_template {};
     
-    template<std::size_t n, class T, T Elt, T... Seq>
-    struct get_template<n, int_list<T, Elt, Seq...>> :
-    get_template<n - 1, int_list<T, Seq...>> {};
+    template<std::size_t Idx, class T, T Elt, T... Seq>
+    struct get_template<Idx, int_list<T, Elt, Seq...>> :
+    get_template<Idx - 1, int_list<T, Seq...>> {};
     
     template<class T, T Elt, T... Seq>
     struct get_template<0, int_list<T, Elt, Seq...>> {
       static const T value;
     };
     
+    template<std::size_t Idx, class T>
+    struct get_template<Idx, int_list<T>> {};
+    
     template<class T, T Elt, T... Seq>
     const T get_template<0, int_list<T, Elt, Seq...>>::value = Elt;
     
-    template<std::size_t n, class T, class... Seq>
-    struct get_template<n, type_list<T, Seq...>> :
-    get_template<n - 1, type_list<Seq...>> {};
+    template<std::size_t Idx, class T, class... Seq>
+    struct get_template<Idx, type_list<T, Seq...>> :
+    get_template<Idx - 1, type_list<Seq...>> {};
     
     template<class T, class... Seq>
     struct get_template<0, type_list<T, Seq...>> {
       typedef T type;
     };
+    
+    template<std::size_t Idx>
+    struct get_template<Idx, type_list<>> {};
     
     template<template<class...> class Predicate, class Seq>
     struct split;

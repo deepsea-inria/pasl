@@ -139,7 +139,7 @@ namespace util {
     struct call_operator_traits_helper<ReturnType(&&)(Arguments...)> :
     call_operator_traits_final<ReturnType, Arguments...> {};
   } // namespace _detail
-
+  
   /**
    * \brief This struct helps determining if a specific overload exists.
    */
@@ -153,6 +153,14 @@ namespace util {
    */
   template<class Callable>
   struct callable_traits : _detail::call_operator_traits_helper<Callable> {};
+  
+  /**
+   * \brief The <tt>Index</tt>th argument's type of \c Callable if it exists,
+   *        ill-formed otherwise.
+   */
+  template<class Callable, std::size_t Index>
+  using argument_t =
+  typename callable_traits<Callable>::template argument_type<Index>;
 } // namespace util
 
 #endif // _PASLEXAMPLES_CALLABLE_H_
