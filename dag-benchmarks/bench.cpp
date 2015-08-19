@@ -329,24 +329,12 @@ int default_branching_factor = 2;
 int default_nb_levels = 3;
 
 class tree {
-public:
+private:
   
   int branching_factor;
   int nb_levels;
   
   std::vector<node*> nodes;
-  
-  tree(int branching_factor = default_branching_factor,
-       int nb_levels = default_nb_levels)
-  : branching_factor(branching_factor), nb_levels(nb_levels) {
-    build();
-  }
-  
-  ~tree() {
-    for (node* n : nodes) {
-      delete n;
-    }
-  }
   
   void build() {
     nodes.push_back(new node);
@@ -372,6 +360,43 @@ public:
     return nodes[j];
   }
   
+  static unsigned int hashu(unsigned int a) {
+    a = (a+0x7ed55d16) + (a<<12);
+    a = (a^0xc761c23c) ^ (a>>19);
+    a = (a+0x165667b1) + (a<<5);
+    a = (a+0xd3a2646c) ^ (a<<9);
+    a = (a+0xfd7046c5) + (a<<3);
+    a = (a^0xb55a4f09) ^ (a>>16);
+    return a;
+  }
+  
+public:
+  
+  tree(int branching_factor = default_branching_factor,
+       int nb_levels = default_nb_levels)
+  : branching_factor(branching_factor), nb_levels(nb_levels) {
+    build();
+  }
+  
+  ~tree() {
+    for (node* n : nodes) {
+      delete n;
+    }
+  }
+  
+  template <class Item>
+  node* random_leaf_of(Item x) const {
+    union {
+      Item x;
+      long b;
+    } bits;
+    bits.x = x;
+    int h = std::abs((int)hashu((unsigned int)bits.b));
+    int n = get_nb_leaf_nodes();
+    int l = h % n;
+    return ith_leaf_node(l);
+  }
+  
   bool is_nonzero() const {
     return nodes[0]->is_nonzero();
   }
@@ -379,37 +404,14 @@ public:
 };
 
 } // end namespace
-
-inline unsigned int hashu(unsigned int a) {
-  a = (a+0x7ed55d16) + (a<<12);
-  a = (a^0xc761c23c) ^ (a>>19);
-  a = (a+0x165667b1) + (a<<5);
-  a = (a+0xd3a2646c) ^ (a<<9);
-  a = (a+0xfd7046c5) + (a<<3);
-  a = (a^0xb55a4f09) ^ (a>>16);
-  return a;
-}
-  
-template <class Item>
-snzi::node* random_snzi_leaf_of(snzi::tree& t, Item x) {
-  union {
-    Item x;
-    long b;
-  } bits;
-  bits.x = x;
-  int h = std::abs((int)hashu((unsigned int)bits.b));
-  int n = t.get_nb_leaf_nodes();
-  int l = h % n;
-  return t.ith_leaf_node(l);
-}
   
 class distributed_incounter : public incounter {
 public:
       
-  snzi::tree counter;
+  snzi::tree nzi;
   
   bool is_activated() const {
-    return (! counter.is_nonzero());
+    return (! nzi.is_nonzero());
   }
   
   void increment() {
@@ -421,11 +423,11 @@ public:
   }
   
   void increment(node* source) {
-    random_snzi_leaf_of(counter, source)->arrive();
+    nzi.random_leaf_of(source)->arrive();
   }
   
   status_type decrement(node* source) {
-    bool b = random_snzi_leaf_of(counter, source)->depart();
+    bool b = nzi.random_leaf_of(source)->depart();
     return b ? incounter::activated : incounter::not_activated;
   }
   
@@ -438,7 +440,7 @@ public:
   
   pasl::data::perworker::array<node_buffer_type> nodes;
   
-  snzi::tree counter;
+  snzi::tree nzi;
   
   bool finished_indicator = false;
   
@@ -501,12 +503,12 @@ public:
   }
   
   void arrive(pasl::worker_id_t my_id) {
-    random_snzi_leaf_of(counter, my_id)->arrive();
+    nzi.random_leaf_of(my_id)->arrive();
   }
   
   void depart(pasl::worker_id_t my_id) {
     process_buffer();
-    if (random_snzi_leaf_of(counter, my_id)->depart()) {
+    if (nzi.random_leaf_of(my_id)->depart()) {
       delete this;
     }
   }
