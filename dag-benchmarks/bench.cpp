@@ -255,7 +255,7 @@ public:
   
   template <class Item>
   static node* create_root_node(Item x) {
-    return tagged_tag_with(x, root_node_tag);
+    return (node*)tagged_tag_with(x, root_node_tag);
   }
   
   node(node* _parent = nullptr) {
@@ -352,7 +352,7 @@ public:
       m = m->parent;
     }
     assert(is_root_node(m));
-    return tagged_pointer_of(m);
+    return (Item)tagged_pointer_of(m);
   }
   
 };
@@ -433,6 +433,11 @@ public:
     return nodes[0]->is_nonzero();
   }
   
+  template <class Item>
+  void set_root_annotation(Item x) {
+    node::set_root_annotation(nodes[0], x);
+  }
+  
 };
 
 } // end namespace
@@ -441,6 +446,10 @@ class distributed_incounter : public incounter {
 public:
       
   snzi::tree nzi;
+  
+  distributed_incounter(node* n) {
+    nzi.set_root_annotation(n);
+  }
   
   bool is_activated() const {
     return (! nzi.is_nonzero());
@@ -549,7 +558,10 @@ public:
   
 void unary_finished(pasl::sched::thread_p t) {
   snzi::node* leaf = (snzi::node*)t;
-  leaf->depart();
+  if (leaf->depart()) {
+    node* n = snzi::node::get_root_annotation<node*>(leaf);
+    pasl::sched::instrategy::schedule((pasl::sched::thread_p)n);
+  }
 }
   
 } // end namespace
@@ -970,7 +982,7 @@ incounter* incounter_new(node* n) {
   if (edge_algorithm == edge_algorithm_simple) {
     return incounter_fetch_add();
   } else if (edge_algorithm == edge_algorithm_distributed) {
-    return new distributed::distributed_incounter;
+    return new distributed::distributed_incounter(n);
   } else if (edge_algorithm == edge_algorithm_tree) {
     return new dyntree::dyntree_incounter;
   } else {
