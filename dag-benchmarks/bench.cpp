@@ -85,7 +85,7 @@ incounter* incounter_ready();
 incounter* incounter_unary();
 incounter* incounter_fetch_add();
 incounter* incounter_new(node*);
-outset* outset_unary(node*, node*);
+outset* outset_unary();
 outset* outset_noop();
 outset* outset_new();
   
@@ -99,9 +99,9 @@ public:
   
   virtual bool is_activated() const = 0;
   
-  virtual void increment() = 0;
+  virtual void increment(node* source) = 0;
   
-  virtual status_type decrement() = 0;
+  virtual status_type decrement(node* source) = 0;
   
   void check(pasl::sched::thread_p t) {
     if (is_activated()) {
@@ -109,16 +109,20 @@ public:
     }
   }
   
-  void delta(pasl::sched::thread_p t, int64_t d) {
+  void delta(node* source, pasl::sched::thread_p target, int64_t d) {
     if (d == -1L) {
-      if (decrement() == activated) {
-        start(t);
+      if (decrement(source) == activated) {
+        start(target);
       }
     } else if (d == +1L) {
-      increment();
+      increment(source);
     } else {
       assert(false);
     }
+  }
+  
+  void delta(pasl::sched::thread_p target, int64_t d) {
+    delta(nullptr, target, d);
   }
   
 };
@@ -643,7 +647,7 @@ public:
     return in == nullptr;
   }
   
-  void increment() {
+  void increment(node*) {
     ictnode* leaf = new ictnode;
     while (true) {
       if (in == nullptr) {
@@ -672,7 +676,7 @@ public:
     }
   }
   
-  status_type decrement() {
+  status_type decrement(node*) {
     while (true) {
       ictnode* current = in;
       assert(current != nullptr);
@@ -919,7 +923,7 @@ public:
   }
   
   void async(node* producer, node* consumer, int continuation_block_id) {
-    prepare_node(producer, incounter_ready(), outset_unary(producer, consumer));
+    prepare_node(producer, incounter_ready(), outset_unary());
     add_edge(producer, consumer);
     jump_to(continuation_block_id);
     add_node(producer);
@@ -927,7 +931,7 @@ public:
   
   void finish(node* producer, int continuation_block_id) {
     node* consumer = this;
-    prepare_node(producer, incounter_ready(), outset_unary(producer, consumer));
+    prepare_node(producer, incounter_ready(), outset_unary());
     prepare_for_transfer(continuation_block_id);
     join_with(consumer, incounter_new(this));
     add_edge(producer, consumer);
@@ -990,17 +994,15 @@ incounter* incounter_new(node* n) {
     return nullptr;
   }
 }
+  
+const bool enable_distributed = true;
 
-outset* outset_unary(node* source, node* target) {
-  /*
-  auto target_in = (distributed::distributed_incounter*)target->in;
-  long tag = pasl::sched::instrategy::extract_tag(target_in);
-  if ((tag == 0) && (edge_algorithm == edge_algorithm_distributed)) {
-    auto leaf = target_in->nzi.random_leaf_of(source);
-    auto t = (pasl::sched::thread_p)leaf;
-    return (outset*)pasl::sched::outstrategy::topdown_distributed_unary_new(t);
-  } */
-  return (outset*)pasl::sched::outstrategy::unary_new();
+outset* outset_unary() {
+  if (enable_distributed && edge_algorithm == edge_algorithm_distributed) {
+    return (outset*)pasl::sched::outstrategy::topdown_distributed_unary_new(nullptr);
+  } else {
+    return (outset*)pasl::sched::outstrategy::unary_new();
+  }
 }
   
 outset* outset_noop() {
@@ -1020,7 +1022,7 @@ outset* outset_new() {
   }
 }
   
-void increment_incounter(node* target, incounter* target_in) {
+void increment_incounter(node* source, node* target, incounter* target_in) {
   long tag = pasl::sched::instrategy::extract_tag(target_in);
   assert(tag != pasl::sched::instrategy::READY_TAG);
   if (tag == pasl::sched::instrategy::UNARY_TAG) {
@@ -1029,15 +1031,16 @@ void increment_incounter(node* target, incounter* target_in) {
     pasl::data::tagged::atomic_fetch_and_add<pasl::sched::instrategy_p>(&(target->in), 1l);
   } else {
     assert(tag == 0);
-    target_in->delta(target, +1L);
+    source = enable_distributed ? source : nullptr;
+    target_in->delta(source, target, +1L);
   }
 }
   
-void increment_incounter(node* target) {
-  increment_incounter(target, (incounter*)target->in);
+void increment_incounter(node* source, node* target) {
+  increment_incounter(source, target, (incounter*)target->in);
 }
   
-void decrement_incounter(node* target, incounter* target_in) {
+void decrement_incounter(node* source, node* target, incounter* target_in) {
   long tag = pasl::sched::instrategy::extract_tag(target_in);
   assert(tag != pasl::sched::instrategy::READY_TAG);
   if (tag == pasl::sched::instrategy::UNARY_TAG) {
@@ -1049,12 +1052,17 @@ void decrement_incounter(node* target, incounter* target_in) {
     }
   } else {
     assert(tag == 0);
-    target_in->delta(target, -1L);
+    source = enable_distributed ? source : nullptr;
+    target_in->delta(source, target, -1L);
   }
 }
 
+void decrement_incounter(node* source, node* target) {
+  decrement_incounter(source, target, (incounter*)target->in);
+}
+  
 void decrement_incounter(node* target) {
-  decrement_incounter(target, (incounter*)target->in);
+  decrement_incounter((node*)nullptr, target);
 }
   
 void add_node(node* n) {
@@ -1067,6 +1075,18 @@ outset::insert_status_type outset_insert(node* source, outset* source_out, node*
   if (tag == pasl::sched::outstrategy::UNARY_TAG) {
     source->out = pasl::data::tagged::create<pasl::sched::thread_p, pasl::sched::outstrategy_p>(target, tag);
     return outset::insert_success;
+  } else if (tag == pasl::sched::outstrategy::TOPDOWN_DISTRIBUTED_UNARY_TAG) {
+    auto target_in = (distributed::distributed_incounter*)target->in;
+    long tg = pasl::sched::instrategy::extract_tag(target_in);
+    if ((tg == 0) && (edge_algorithm == edge_algorithm_distributed)) {
+      auto leaf = target_in->nzi.random_leaf_of(source);
+      auto t = (pasl::sched::thread_p)leaf;
+      source->out = pasl::sched::outstrategy::topdown_distributed_unary_new(t);
+    } else {
+      tag = pasl::sched::outstrategy::UNARY_TAG;
+      source->out = pasl::data::tagged::create<pasl::sched::thread_p, pasl::sched::outstrategy_p>(target, tag);
+    }
+    return outset::insert_success;
   } else {
     assert(tag == 0);
     return source_out->insert(target);
@@ -1074,9 +1094,9 @@ outset::insert_status_type outset_insert(node* source, outset* source_out, node*
 }
 
 void add_edge(node* source, outset* source_out, node* target, incounter* target_in) {
-  increment_incounter(target, target_in);
+  increment_incounter(source, target, target_in);
   if (outset_insert(source, source_out, target) == outset::insert_fail) {
-    decrement_incounter(target, target_in);
+    decrement_incounter(source, target, target_in);
   }
 }
   
