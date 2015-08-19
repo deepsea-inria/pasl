@@ -343,14 +343,14 @@ public:
   }
   
   ~tree() {
-    for (auto it = nodes.cbegin(); it != nodes.cend(); it++) {
-      delete *it;
+    for (node* n : nodes) {
+      delete n;
     }
   }
   
   void build() {
     nodes.push_back(new node);
-    for (int i = 1; i < nb_levels; i++) {
+    for (int i = 1; i <= nb_levels; i++) {
       int e = (int)nodes.size();
       int s = e - std::pow(branching_factor, i - 1);
       for (int j = s; j < e; j++) {
@@ -372,14 +372,6 @@ public:
     return nodes[j];
   }
   
-  void arrive(int i) {
-    ith_leaf_node(i)->arrive();
-  }
-  
-  bool depart(int i) {
-    return ith_leaf_node(i)->depart();
-  }
-  
   bool is_nonzero() const {
     return nodes[0]->is_nonzero();
   }
@@ -398,16 +390,17 @@ inline unsigned int hashu(unsigned int a) {
   return a;
 }
   
-snzi::node* random_leaf_of(snzi::tree& tree, node* source) {
+template <class Item>
+snzi::node* random_snzi_leaf_of(snzi::tree& t, Item x) {
   union {
-    node* p;
+    Item x;
     long b;
-  } source_bits;
-  source_bits.p = source;
-  int h = std::abs((int)hashu((unsigned int)source_bits.b));
-  int n = tree.get_nb_leaf_nodes();
+  } bits;
+  bits.x = x;
+  int h = std::abs((int)hashu((unsigned int)bits.b));
+  int n = t.get_nb_leaf_nodes();
   int l = h % n;
-  return tree.ith_leaf_node(l);
+  return t.ith_leaf_node(l);
 }
   
 class distributed_incounter : public incounter {
@@ -428,11 +421,11 @@ public:
   }
   
   void increment(node* source) {
-    random_leaf_of(counter, source)->arrive();
+    random_snzi_leaf_of(counter, source)->arrive();
   }
   
   status_type decrement(node* source) {
-    bool b = random_leaf_of(counter, source)->depart();
+    bool b = random_snzi_leaf_of(counter, source)->depart();
     return b ? incounter::activated : incounter::not_activated;
   }
   
@@ -449,8 +442,7 @@ public:
   
   bool finished_indicator = false;
   
-  distributed_outset()
-  : counter(snzi::default_branching_factor, pasl::util::worker::get_nb()) {
+  distributed_outset() {
     add_calling_processor();
   }
   
@@ -509,12 +501,12 @@ public:
   }
   
   void arrive(pasl::worker_id_t my_id) {
-    counter.arrive((int)my_id);
+    random_snzi_leaf_of(counter, my_id)->arrive();
   }
   
   void depart(pasl::worker_id_t my_id) {
     process_buffer();
-    if (counter.depart((int)my_id)) {
+    if (random_snzi_leaf_of(counter, my_id)->depart()) {
       delete this;
     }
   }
