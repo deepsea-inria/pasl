@@ -1622,9 +1622,9 @@ public:
   }
   
   void decrement_inports() {
-    for (auto it = inports.cbegin(); it != inports.cend(); it++) {
-      incounter* in = it->first;
-      ictnode* in_port = it->second;
+    for (auto p : inports) {
+      incounter* in = p.first;
+      ictnode* in_port = p.second;
       node* n_in = in->n;
       decrement_incounter(n_in, in, in_port);
     }
@@ -1778,8 +1778,7 @@ ostnode* find_outport(node* caller, outset* target_out) {
 void create_fresh_inports(node* source, node* target) {
   inport_map_type source_ports = source->inports;
   inport_map_type target_ports;
-  for (auto it = source->inports.cbegin(); it != source->inports.cend(); it++) {
-    auto p = *it;
+  for (auto p : source->inports) {
     if (target->inports.find(p.first) != target->inports.cend()) {
       source_ports.erase(p.first);
       incounter* in = p.first;
@@ -1795,8 +1794,7 @@ void create_fresh_inports(node* source, node* target) {
 void create_fresh_outports(node* source, node* target) {
   outport_map_type source_ports = source->outports;
   outport_map_type target_ports;
-  for (auto it = source->outports.cbegin(); it != source->outports.cend(); it++) {
-    auto p = *it;
+  for (auto p : source->outports) {
     source_ports.erase(p.first);
     outset* out = p.first;
     auto ports = out->fork2(p.second);
