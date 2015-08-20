@@ -2333,15 +2333,13 @@ public:
           future_leaf_counter.fetch_add(1);
         } else {
           mid = (lo + hi) / 2;
-          node* branch1 = new future_loop_rec<node>(lo, mid);
-          branch1_out = node::future(branch1,
+          branch1_out = node::future(new future_loop_rec<node>(lo, mid),
                                      future_loop_branch2);
         }
         break;
       }
       case future_loop_branch2: {
-        node* branch2 = new future_loop_rec<node>(mid, hi);
-        branch2_out = node::future(branch2,
+        branch2_out = node::future(new future_loop_rec<node>(mid, hi),
                                    future_loop_force1);
         break;
       }
@@ -2390,8 +2388,7 @@ public:
       case future_loop_entry: {
         future_leaf_counter.store(0);
         future_interior_counter.store(0);
-        node* root = new future_loop_rec<node>(0, n);
-        root_out = node::future(root,
+        root_out = node::future(new future_loop_rec<node>(0, n),
                                 future_loop_force);
         break;
       }
@@ -2595,8 +2592,7 @@ public:
   void body() {
     switch (node::current_block_id) {
       case future_pool_entry: {
-        node* fut = new future_body<node>;
-        f = node::future(fut,
+        f = node::future(new future_body<node>,
                          future_pool_call);
         break;
       }
@@ -2870,9 +2866,8 @@ public:
   void body() {
     switch (node::current_block_id) {
       case gauss_seidel_loop_body_entry: {
-        node* f = new gauss_seidel_loop_future_body<node>(futures, i, j, M, block_size, data);
         outset_of<node>*& cell = futures->subscript(i, j);
-        cell = node::future(f,
+        cell = node::future(new gauss_seidel_loop_future_body<node>(futures, i, j, M, block_size, data),
                             gauss_seidel_loop_body_entry);
         break;
       }
@@ -2943,7 +2938,7 @@ public:
                                                   M, block_size, data);
         };
         node::call(new parallel_for<decltype(loop_body), node>(0, n, loop_body),
-                   gauss_seidel_parallel_exit);
+                   gauss_seidel_parallel_level_loop_test);
         break;
       }
       case gauss_seidel_parallel_level_loop_test: {
