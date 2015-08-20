@@ -140,13 +140,19 @@ struct is_valid_estimator<
                       typename ::util::callable_traits<WorkEstimator>::
                                return_type
                     >::value &&
-                    ::util::callable_traits<WorkEstimator>::argument_count == 2 &&
+                    ::util::callable_traits<WorkEstimator>::argument_count == 2
+// the following cause errors with g++ 4.8.3 (not fully c++11 compliant)
+// this relax the WorkEstimator constraints and may cause ambiguous calls
+#if !defined(__GNUG__) || defined(__clang__) || defined(__INTEL_COMPILER) ||  \
+    (__GNUC__ * 10000 + __GNUC_MINOR__ * 100 + __GNUC_PATCHLEVEL__) >= 40900
+                    &&
                     std::is_convertible<
                       Iterator, ::util::argument_t<WorkEstimator, 0>
                     >::value &&
                     std::is_convertible<
                       Iterator, ::util::argument_t<WorkEstimator, 1>
                     >::value
+#endif
                   >::type
        > : std::true_type {};
 /**
@@ -422,6 +428,5 @@ typename std::enable_if<
 } // end namespace
 } // end namespace
 } // end namespace
-
 
 #endif /*! _PCTL_PMEM_H_ */
