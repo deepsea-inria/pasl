@@ -11,6 +11,7 @@
 #include <random>
 #include <map>
 #include <set>
+#include <deque>
 #include <cmath>
 #include <memory>
 
@@ -2996,7 +2997,8 @@ void gauss_seidel_initialize(matrix_type<double>& mtx) {
 double epsilon = 0.001;
 
 bool same_contents(const matrix_type<double>& lhs,
-                   const matrix_type<double>& rhs,int& nb) {
+                   const matrix_type<double>& rhs,
+                   int& nb) {
   if (lhs.n != rhs.n) {
     return false;
   }
@@ -3021,30 +3023,6 @@ bool same_contents(const matrix_type<double>& lhs,
 /*---------------------------------------------------------------------*/
 
 namespace cmdline = pasl::util::cmdline;
-
-/*
-void gauss_seidel_test(int N, int block_size, int numiters) {
-  int M = N + 2;
-  tests::matrix_type<double> reference_mtx(M, 0.0);
-  {
-    gauss_seidel_initialize(reference_mtx);
-    //std::cout << reference_mtx << std::endl;
-    gauss_seidel_sequential(numiters, N, M, block_size, &reference_mtx.items[0]);
-    //std::cout << reference_mtx << std::endl;
-  }
-  
-  matrix_type<double> test_mtx(M, 0.0);
-  {
-    gauss_seidel_initialize(test_mtx);
-    //std::cout << reference_mtx << std::endl;
-    _gauss_seidel_parallel(numiters, N, M, block_size, &test_mtx.items[0]);
-    //std::cout << reference_mtx << std::endl;
-  }
-  
-  int nb_diffs = 0;
-  bool success = same_contents(reference_mtx, test_mtx, nb_diffs);
-  assert(success);
-} */
 
 void choose_edge_algorithm() {
   cmdline::argmap_dispatch c;
@@ -3075,25 +3053,49 @@ void read_gauss_seidel_params(int& numiters, int& N, int& block_size) {
   block_size = cmdline::parse_or_default_int("block_size", 2);
 }
 
-// later: handle post-benchmarking operations by using a buffer of
-// lambda objects to execute after launch() returns
+std::deque<pasl::sched::thread_p> todo;
+
+void add_todo(pasl::sched::thread_p t) {
+  todo.push_back(t);
+}
+
+template <class Body>
+class todo_function : public pasl::sched::thread {
+public:
+  
+  Body body;
+  
+  todo_function(Body body) : body(body) { }
+  
+  void run() {
+    body();
+  }
+  
+  THREAD_COST_UNKNOWN
+  
+};
+
+void add_todo(std::function<void()> f) {
+  add_todo(new todo_function<decltype(f)>(f));
+}
+
+bool do_consistency_check;
 
 template <class node>
-pasl::sched::thread_p choose_command() {
-  pasl::sched::thread_p t;
+void choose_command() {
   cmdline::argmap_dispatch c;
   c.add("async_loop", [&] {
     int n = cmdline::parse_or_default_int("n", 1);
-    t = new tests::async_loop<node>(n);
+    add_todo(new tests::async_loop<node>(n));
   });
   c.add("future_loop", [&] {
     int n = cmdline::parse_or_default_int("n", 1);
-    t = new tests::future_loop<node>(n);
+    add_todo(new tests::future_loop<node>(n));
   });
   c.add("future_pool", [&] {
     int n = cmdline::parse_or_default_int("n", 1);
     tests::fib_input = cmdline::parse_or_default_int("fib_input", tests::fib_input);
-    t = new tests::future_pool<node>(n);
+    add_todo(new tests::future_pool<node>(n));
   });
   c.add("seidel_parallel", [&] {
     int numiters;
@@ -3101,8 +3103,19 @@ pasl::sched::thread_p choose_command() {
     int block_size;
     read_gauss_seidel_params(numiters, N, block_size);
     int M = N + 2;
-    tests::matrix_type<double> test_mtx(M, 0.0);
-    t = new tests::gauss_seidel_parallel<node>(numiters, N, M, block_size, &test_mtx.items[0]);
+    tests::matrix_type<double>* test_mtx = new tests::matrix_type<double>(M, 0.0);
+    add_todo(new tests::gauss_seidel_parallel<node>(numiters, N, M, block_size, &(test_mtx->items[0])));
+    add_todo([&] {
+      if (do_consistency_check) {
+        tests::matrix_type<double> reference_mtx(M, 0.0);
+        tests::gauss_seidel_initialize(reference_mtx);
+        tests::gauss_seidel_sequential(numiters, N, M, block_size, &reference_mtx.items[0]);
+        int nb_diffs = 0;
+        bool success = tests::same_contents(reference_mtx, *test_mtx, nb_diffs);
+        assert(success);
+      }
+      delete test_mtx;
+    });
   });
   c.add("seidel_sequential", [&] {
     int numiters;
@@ -3110,28 +3123,33 @@ pasl::sched::thread_p choose_command() {
     int block_size;
     read_gauss_seidel_params(numiters, N, block_size);
     int M = N + 2;
-    tests::matrix_type<double> test_mtx(M, 0.0); // bogus!!! will create a dangling pointer
-    t = new tests::gauss_seidel_sequential_node<node>(numiters, N, M, block_size, &test_mtx.items[0]);
+    tests::matrix_type<double>* test_mtx = new tests::matrix_type<double>(M, 0.0);
+    add_todo(new tests::gauss_seidel_sequential_node<node>(numiters, N, M, block_size, &test_mtx->items[0]));
+    add_todo([&] {
+      delete test_mtx;
+    });
   });
   c.find_by_arg("cmd")();
-  return t;
 }
 
 void launch() {
+  do_consistency_check = cmdline::parse_or_default_bool("consistency_check", false);
   communication_delay = cmdline::parse_or_default_int("communication_delay",
                                                       communication_delay);
-  pasl::sched::thread_p t = nullptr;
   cmdline::argmap_dispatch c;
   c.add("topdown", [&] {
     choose_edge_algorithm();
-    t = choose_command<topdown::node>();
+    choose_command<topdown::node>();
   });
   c.add("bottomup", [&] {
-    t = choose_command<bottomup::node>();
+    choose_command<bottomup::node>();
   });
   c.find_by_arg("algo")();
-  assert(t != nullptr);
-  pasl::sched::threaddag::launch(t);
+  while (! todo.empty()) {
+    pasl::sched::thread_p t = todo.front();
+    todo.pop_front();
+    pasl::sched::threaddag::launch(t);
+  }
 }
 
 int main(int argc, char** argv) {
