@@ -459,14 +459,6 @@ public:
     return (! nzi.is_nonzero());
   }
   
-  void increment() {
-    increment((node*)nullptr);
-  }
-  
-  status_type decrement() {
-    return decrement((node*)nullptr);
-  }
-  
   void increment(node* source) {
     nzi.random_leaf_of(source)->arrive();
   }
