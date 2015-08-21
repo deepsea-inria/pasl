@@ -18,11 +18,11 @@
 #include "messagestrategy.hpp"
 #include "tagged.hpp"
 
-namespace bottomup {
-void bottomup_finished(pasl::sched::thread_p);
+namespace portpassing {
+void portpassing_finished(pasl::sched::thread_p);
 }
 
-namespace topdown {
+namespace direct {
 namespace distributed {
 void unary_finished(pasl::sched::thread_p t);
 }}
@@ -375,8 +375,8 @@ public:
   
 const long NOOP_TAG = 1;
 const long UNARY_TAG = 2;
-const long BOTTOMUP_UNARY_TAG = 3;
-const long TOPDOWN_DISTRIBUTED_UNARY_TAG = 4;
+const long PORTPASSING_UNARY_TAG = 3;
+const long DIRECT_DISTRIBUTED_UNARY_TAG = 4;
   
 static inline long extract_tag(outstrategy_p out) {
   return data::tagged::extract_tag<thread_p, outstrategy_p>(out);
@@ -398,18 +398,18 @@ static inline outstrategy_p noop_new() {
 #endif
 }
   
-static inline outstrategy_p bottomup_unary_new(thread_p t) {
+static inline outstrategy_p portpassing_unary_new(thread_p t) {
 #ifndef DEBUG_OPTIM_STRATEGY
-  return data::tagged::create<thread_p, outstrategy_p>(t, BOTTOMUP_UNARY_TAG);
+  return data::tagged::create<thread_p, outstrategy_p>(t, PORTPASSING_UNARY_TAG);
 #else
   assert(false);
   return nullptr;
 #endif
 }
   
-  static inline outstrategy_p topdown_distributed_unary_new(thread_p t) {
+  static inline outstrategy_p direct_distributed_unary_new(thread_p t) {
 #ifndef DEBUG_OPTIM_STRATEGY
-    return data::tagged::create<thread_p, outstrategy_p>(t, TOPDOWN_DISTRIBUTED_UNARY_TAG);
+    return data::tagged::create<thread_p, outstrategy_p>(t, DIRECT_DISTRIBUTED_UNARY_TAG);
 #else
     assert(false);
     return nullptr;
@@ -420,8 +420,8 @@ static inline outstrategy_p bottomup_unary_new(thread_p t) {
 
 static inline void add(outstrategy_p& out, thread_p td) {
   long tag = extract_tag(out);
-  assert(tag != BOTTOMUP_UNARY_TAG);
-  assert(tag != TOPDOWN_DISTRIBUTED_UNARY_TAG);
+  assert(tag != PORTPASSING_UNARY_TAG);
+  assert(tag != DIRECT_DISTRIBUTED_UNARY_TAG);
   if (tag > 0) {
     assert(   tag == UNARY_TAG);
     out = data::tagged::create<thread_p, outstrategy_p>(td, tag);
@@ -443,10 +443,10 @@ static inline void finished(thread_p t, outstrategy_p out) {
     thread_p tjoin = data::tagged::extract_value<thread_p, outstrategy_p>(out);
     if (tag == UNARY_TAG)
       decr_dependencies(tjoin);
-    else if (tag == BOTTOMUP_UNARY_TAG)
-      bottomup::bottomup_finished(tjoin);
-    else if (tag == TOPDOWN_DISTRIBUTED_UNARY_TAG)
-      topdown::distributed::unary_finished(tjoin);
+    else if (tag == PORTPASSING_UNARY_TAG)
+      portpassing::portpassing_finished(tjoin);
+    else if (tag == DIRECT_DISTRIBUTED_UNARY_TAG)
+      direct::distributed::unary_finished(tjoin);
     else
       util::atomic::die("bogus tag (finished)");
   } else {

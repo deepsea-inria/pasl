@@ -66,7 +66,7 @@ int communication_delay = 100;
 /*---------------------------------------------------------------------*/
 /* The top-down algorithm */
 
-namespace topdown {
+namespace direct {
 
 class node;
 class incounter;
@@ -910,7 +910,7 @@ const bool enable_distributed = true;
 
 outset* outset_unary() {
   if (enable_distributed && edge_algorithm == edge_algorithm_distributed) {
-    return (outset*)pasl::sched::outstrategy::topdown_distributed_unary_new(nullptr);
+    return (outset*)pasl::sched::outstrategy::direct_distributed_unary_new(nullptr);
   } else {
     return (outset*)pasl::sched::outstrategy::unary_new();
   }
@@ -986,13 +986,13 @@ outset::insert_status_type outset_insert(node* source, outset* source_out, node*
   if (tag == pasl::sched::outstrategy::UNARY_TAG) {
     source->out = pasl::data::tagged::create<pasl::sched::thread_p, pasl::sched::outstrategy_p>(target, tag);
     return outset::insert_success;
-  } else if (tag == pasl::sched::outstrategy::TOPDOWN_DISTRIBUTED_UNARY_TAG) {
+  } else if (tag == pasl::sched::outstrategy::DIRECT_DISTRIBUTED_UNARY_TAG) {
     auto target_in = (distributed::distributed_incounter*)target->in;
     long tg = pasl::sched::instrategy::extract_tag(target_in);
     if ((tg == 0) && (edge_algorithm == edge_algorithm_distributed)) {
       auto leaf = target_in->nzi.random_leaf_of(source);
       auto t = (pasl::sched::thread_p)leaf;
-      source->out = pasl::sched::outstrategy::topdown_distributed_unary_new(t);
+      source->out = pasl::sched::outstrategy::direct_distributed_unary_new(t);
     } else {
       tag = pasl::sched::outstrategy::UNARY_TAG;
       source->out = pasl::data::tagged::create<pasl::sched::thread_p, pasl::sched::outstrategy_p>(target, tag);
@@ -1348,7 +1348,7 @@ void deallocate_outset_tree(ostnode* root) {
 /*---------------------------------------------------------------------*/
 /* The bottom-up algorithm */
 
-namespace bottomup {
+namespace portpassing {
   
 class node;
 class incounter;
@@ -1680,7 +1680,7 @@ public:
   }
   
   void deallocate_future(outset* future) {
-    bottomup::deallocate_future(this, future);
+    portpassing::deallocate_future(this, future);
   }
   
   void call(node* target, int continuation_block_id) {
@@ -1725,7 +1725,7 @@ incounter* incounter_new(node* n) {
 }
 
 outset* outset_unary(node* n) {
-  return (outset*)pasl::sched::outstrategy::bottomup_unary_new((pasl::sched::thread_p)n);
+  return (outset*)pasl::sched::outstrategy::portpassing_unary_new((pasl::sched::thread_p)n);
 }
 
 outset* outset_noop() {
@@ -1890,7 +1890,7 @@ void continue_with(node* n) {
   add_node(n);
 }
   
-void bottomup_finished(pasl::sched::thread_p t) {
+void portpassing_finished(pasl::sched::thread_p t) {
   node* n = tagged_pointer_of((node*)t);
   n->decrement_inports();
 }
@@ -2940,23 +2940,23 @@ namespace cmdline = pasl::util::cmdline;
 void choose_edge_algorithm() {
   cmdline::argmap_dispatch c;
   c.add("simple", [&] {
-    topdown::edge_algorithm = topdown::edge_algorithm_simple;
+    direct::edge_algorithm = direct::edge_algorithm_simple;
   });
   c.add("distributed", [&] {
-    topdown::distributed::snzi::default_branching_factor =
+    direct::distributed::snzi::default_branching_factor =
     cmdline::parse_or_default_int("branching_factor",
-                                  topdown::distributed::snzi::default_branching_factor);
-    topdown::dyntree::branching_factor = topdown::distributed::snzi::default_branching_factor;
-    topdown::distributed::snzi::default_nb_levels =
+                                  direct::distributed::snzi::default_branching_factor);
+    direct::dyntree::branching_factor = direct::distributed::snzi::default_branching_factor;
+    direct::distributed::snzi::default_nb_levels =
     cmdline::parse_or_default_int("nb_levels",
-                                  topdown::distributed::snzi::default_nb_levels);
-    topdown::edge_algorithm = topdown::edge_algorithm_distributed;
+                                  direct::distributed::snzi::default_nb_levels);
+    direct::edge_algorithm = direct::edge_algorithm_distributed;
   });
   c.add("dyntree", [&] {
-    topdown::edge_algorithm = topdown::edge_algorithm_tree;
-    topdown::dyntree::branching_factor =
+    direct::edge_algorithm = direct::edge_algorithm_tree;
+    direct::dyntree::branching_factor =
     cmdline::parse_or_default_int("branching_factor",
-                                  topdown::dyntree::branching_factor);
+                                  direct::dyntree::branching_factor);
   });
   c.find_by_arg_or_default_key("edge_algo", "tree")();
 }
@@ -3051,12 +3051,12 @@ void launch() {
   communication_delay = cmdline::parse_or_default_int("communication_delay",
                                                       communication_delay);
   cmdline::argmap_dispatch c;
-  c.add("topdown", [&] {
+  c.add("direct", [&] {
     choose_edge_algorithm();
-    choose_command<topdown::node>();
+    choose_command<direct::node>();
   });
-  c.add("bottomup", [&] {
-    choose_command<bottomup::node>();
+  c.add("portpassing", [&] {
+    choose_command<portpassing::node>();
   });
   c.find_by_arg("algo")();
   while (! todo.empty()) {
