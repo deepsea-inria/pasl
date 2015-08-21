@@ -849,13 +849,22 @@ public:
     add_node(producer);
   }
   
-  outset* future(node* producer, int continuation_block_id) {
+  outset* allocate_future() {
+    outset* out = outset_new();
+    out->enable_future();
+    return out;
+  }
+  
+  void future(node* producer, outset* producer_out, int continuation_block_id) {
     node* consumer = this;
-    prepare_node(producer, incounter_ready());
-    outset* producer_out = (outset*)producer->out;
-    producer_out->enable_future();
+    prepare_node(producer, incounter_ready(), producer_out);
     consumer->jump_to(continuation_block_id);
     add_node(producer);
+  }
+  
+  outset* future(node* producer, int continuation_block_id) {
+    outset* producer_out = allocate_future();
+    future(producer, producer_out, continuation_block_id);
     return producer_out;
   }
   
@@ -1571,6 +1580,12 @@ public:
     should_deallocate_automatically = false;
   }
   
+  void set_node(node* _n) {
+    assert(n == nullptr);
+    assert(_n != nullptr);
+    n = _n;
+  }
+  
 };
   
 outset::insert_result_type insert_outedge(node*,
@@ -1651,15 +1666,25 @@ public:
     add_node(producer);
   }
   
-  outset* future(node* producer, int continuation_block_id) {
-    prepare_node(producer, incounter_ready());
-    outset* producer_out = (outset*)producer->out;
-    producer_out->enable_future();
+  outset* allocate_future() {
+    outset* out = outset_new(nullptr);
+    out->enable_future();
+    return out;
+  }
+  
+  void future(node* producer, outset* producer_out, int continuation_block_id) {
+    prepare_node(producer, incounter_ready(), producer_out);
+    producer_out->set_node(producer);
     node* caller = this;
     create_fresh_ports(caller, producer);
     insert_outport(caller, producer, producer_out->root);
     caller->jump_to(continuation_block_id);
     add_node(producer);
+  }
+  
+  outset* future(node* producer, int continuation_block_id) {
+    outset* producer_out = allocate_future();
+    future(producer, producer_out, continuation_block_id);
     return producer_out;
   }
   
@@ -2883,6 +2908,7 @@ public:
 };
 
   // for reference
+  /*
 void _gauss_seidel_parallel(int numiters, int N, int M, int block_size, double* data) {
   assert((N % block_size) == 0);
   int n = N / block_size;
@@ -2897,6 +2923,7 @@ void _gauss_seidel_parallel(int numiters, int N, int M, int block_size, double* 
     }
   }
 }
+   */
 
 void gauss_seidel_initialize(matrix_type<double>& mtx) {
   int N = mtx.n;
