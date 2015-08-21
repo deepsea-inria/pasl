@@ -470,88 +470,6 @@ public:
   }
   
 };
-
-class distributed_outset : public outset, public pasl::util::worker::periodic_t {
-public:
-  
-  using node_buffer_type = std::vector<node*>;
-  
-  pasl::data::perworker::array<node_buffer_type> nodes;
-  
-  snzi::tree nzi;
-  
-  bool finished_indicator = false;
-  
-  distributed_outset() {
-    add_calling_processor();
-  }
-  
-  insert_status_type insert(node* n) {
-    if (finished_indicator) {
-      return insert_fail;
-    }
-    add_calling_processor();
-    node_buffer_type& buffer = nodes.mine();
-    buffer.push_back(n);
-    return insert_success;
-  }
-  
-  void finish() {
-    finished_indicator = true;
-  }
-  
-  void destroy() {
-    assert(! should_deallocate_automatically);
-    depart(0);
-  }
-  
-  void enable_future() {
-    should_deallocate_automatically = false;
-    arrive(0);
-  }
-  
-  void process_buffer() {
-    node_buffer_type& buffer = nodes.mine();
-    while (! buffer.empty()) {
-      node* n = buffer.back();
-      buffer.pop_back();
-      decrement_incounter(n);
-    }
-  }
-  
-  void check() {
-    if (finished_indicator) {
-      remove_calling_processor();
-    }
-  }
-  
-  void add_calling_processor() {
-    if (pasl::sched::scheduler::get_mine()->is_in_periodic(this)) {
-      return;
-    }
-    arrive(pasl::util::worker::get_my_id());
-    pasl::sched::scheduler::get_mine()->add_periodic(this);
-  }
-  
-  void remove_calling_processor() {
-    assert(finished_indicator);
-    assert(pasl::sched::scheduler::get_mine()->is_in_periodic(this));
-    pasl::sched::scheduler::get_mine()->rem_periodic(this);
-    depart(pasl::util::worker::get_my_id());
-  }
-  
-  void arrive(pasl::worker_id_t my_id) {
-    nzi.random_leaf_of(my_id)->arrive();
-  }
-  
-  void depart(pasl::worker_id_t my_id) {
-    process_buffer();
-    if (nzi.random_leaf_of(my_id)->depart()) {
-      delete this;
-    }
-  }
-  
-};
   
 void unary_finished(pasl::sched::thread_p t) {
   snzi::node* leaf = (snzi::node*)t;
@@ -1006,7 +924,7 @@ outset* outset_new() {
   if (edge_algorithm == edge_algorithm_simple) {
     return new simple::simple_outset;
   } else if (edge_algorithm == edge_algorithm_distributed) {
-    return new distributed::distributed_outset;
+    return new dyntree::dyntree_outset;
   } else if (edge_algorithm == edge_algorithm_tree) {
     return new dyntree::dyntree_outset;
   } else {
@@ -3028,6 +2946,7 @@ void choose_edge_algorithm() {
     topdown::distributed::snzi::default_branching_factor =
     cmdline::parse_or_default_int("branching_factor",
                                   topdown::distributed::snzi::default_branching_factor);
+    topdown::dyntree::branching_factor = topdown::distributed::snzi::default_branching_factor;
     topdown::distributed::snzi::default_nb_levels =
     cmdline::parse_or_default_int("nb_levels",
                                   topdown::distributed::snzi::default_nb_levels);
