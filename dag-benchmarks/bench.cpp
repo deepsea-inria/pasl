@@ -1210,8 +1210,9 @@ void notify_outset_tree_nodes_partial(std::deque<ostnode*>& todo) {
     ostnode* current = todo.back();
     todo.pop_back();
     for (int i = 0; i < branching_factor; i++) {
-      ostnode::tagged_pointer_type n = current->children[i].load();
+      ostnode::tagged_pointer_type n;
       while (true) {
+        n = current->children[i].load();
         ostnode::tagged_pointer_type orig = n;
         ostnode::tagged_pointer_type next = ostnode::make_finished(n);
         if (current->children[i].compare_exchange_strong(orig, next)) {
