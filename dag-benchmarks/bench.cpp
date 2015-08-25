@@ -2127,7 +2127,7 @@ void notify_outset_tree_nodes_partial(std::deque<ostnode*>& todo) {
       ostnode* orig;
       while (true) {
         orig = n->children[i].load();
-        ostnode* next = tagged_tag_with((ostnode*)nullptr, outset::frozen_tag);
+        ostnode* next = tagged_tag_with(orig, outset::frozen_tag);
         if (n->children[i].compare_exchange_strong(orig, next)) {
           break;
         }
