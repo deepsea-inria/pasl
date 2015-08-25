@@ -1806,6 +1806,7 @@ public:
     } else {
       assert(false);
     }
+    consumer->outports.erase(producer_out);
   }
   
   void deallocate_future(outset* future) {
