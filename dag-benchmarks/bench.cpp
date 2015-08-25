@@ -857,6 +857,10 @@ public:
     return out;
   }
   
+  void listen_on(outset*) {
+    // nothing to do
+  }
+  
   void future(node* producer, outset* producer_out, int continuation_block_id) {
     node* consumer = this;
     prepare_node(producer, incounter_ready(), producer_out);
@@ -893,6 +897,10 @@ public:
     join_with(consumer, incounter_new(this));
     add_edge(producer, consumer);
     add_node(producer);
+  }
+  
+  void split_with(node*) {
+    // nothing to do
   }
   
   void call(node* target, int continuation_block_id) {
@@ -1092,7 +1100,7 @@ public:
   void body() {
     switch (node::current_block_id) {
       case process_block: {
-        int n = std::min(hi, lo + communication_delay);
+        long n = std::min(hi, lo + (long)communication_delay);
         int i;
         for (i = lo; i < n; i++) {
           _body(i);
@@ -1599,6 +1607,23 @@ public:
     deallocate_outset_tree(root);
   }
   
+  ostnode* find_leaf() const {
+    ostnode* current = root;
+    while (true) {
+      int i;
+      for (i = 0; i < 2; i++) {
+        if (current->children[i].load() != nullptr) {
+          break;
+        }
+      }
+      if (i == 2) {
+        return current;
+      } else {
+        current = current->children[i].load();
+      }
+    }
+  }
+  
   bool is_finished() const {
     int tag = tagged_tag_of(root->children[0].load());
     return tag == frozen_tag;
@@ -1746,12 +1771,17 @@ public:
     return out;
   }
   
+  void listen_on(outset* out) {
+    node* caller = this;
+    insert_outport(caller, out, out->find_leaf());
+  }
+  
   void future(node* producer, outset* producer_out, int continuation_block_id) {
     prepare_node(producer, incounter_ready(), producer_out);
     producer_out->set_node(producer);
     node* caller = this;
     create_fresh_ports(caller, producer);
-    insert_outport(caller, producer, producer_out->root);
+    listen_on(producer_out);
     caller->jump_to(continuation_block_id);
     add_node(producer);
   }
@@ -1793,6 +1823,12 @@ public:
     insert_inport(producer, consumer, consumer_inport);
     consumer->prepare_for_transfer(continuation_block_id);
     add_node(producer);
+  }
+  
+  void split_with(node* new_sibling) {
+    node* caller = this;
+    prepare_node(new_sibling);
+    create_fresh_ports(caller, new_sibling);
   }
   
   void call(node* target, int continuation_block_id) {
@@ -2009,7 +2045,6 @@ void portpassing_finished(pasl::sched::thread_p t) {
   
 void deallocate_future(node* caller, outset* future) {
   assert(! future->should_deallocate_automatically);
-  assert(caller->outports.find(future) != caller->outports.end());
   caller->outports.erase(future);
   delete future;
 }
@@ -2035,8 +2070,8 @@ public:
   void body() {
     switch (node::current_block_id) {
       case process_block: {
-        int n = std::min(hi, lo + communication_delay);
-        int i;
+        long n = std::min(hi, lo + communication_delay);
+        long i;
         for (i = lo; i < n; i++) {
           _body(i);
         }
@@ -3030,8 +3065,10 @@ public:
     int c_lo2 = mid;
     int c_hi2 = c_hi;
     c_hi = mid;
-    return new gauss_seidel_generator(futures, N, block_size, data,
-                                      l, c_lo2, c_hi2);
+    auto n = new gauss_seidel_generator(futures, N, block_size, data,
+                                        l, c_lo2, c_hi2);
+    node::split_with(n);
+    return n;
   }
   
 };
@@ -3076,6 +3113,7 @@ public:
         break;
       }
       case start_iter: {
+        node::listen_on(futures->subscript(n - 1, n - 1));
         node::call(new gauss_seidel_generator<node>(futures, N, block_size, data),
                    end_iter);
         break;
