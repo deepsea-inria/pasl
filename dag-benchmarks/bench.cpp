@@ -3198,9 +3198,9 @@ public:
         break;
       }
       case start_iter: {
-        node::listen_on(futures->subscript(n - 1, n - 1));
         node::call(new gauss_seidel_generator<node>(futures, N, block_size, data),
                    end_iter);
+        node::listen_on(futures->subscript(n - 1, n - 1));
         break;
       }
       case end_iter: {
