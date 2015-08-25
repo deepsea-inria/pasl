@@ -2003,6 +2003,9 @@ void decrement_inports(node* n) {
 outset::insert_result_type insert_outedge(node* caller,
                                           outset* source_out,
                                           node* target, ictnode* target_inport) {
+  if (source_out->is_finished()) {
+    return std::make_pair(outset::insert_fail, nullptr);
+  }
   auto source_outport = find_outport(caller, source_out);
   return source_out->insert(source_outport, target, target_inport);
 }
@@ -2973,37 +2976,92 @@ public:
   }
   
 };
+  
+int pipeline_window_capacity = 4096;
+int pipeline_burst_rate = std::max(1, pipeline_window_capacity/8);
 
 template <class node>
 class gauss_seidel_generator : public node {
 public:
   
-  futures_matrix_type<node>* futures;
-  int N; int block_size; double* data;
-  
   static constexpr int uninitialized = -1;
-  
-  gauss_seidel_generator(futures_matrix_type<node>* futures, int N, int block_size, double* data)
-  : futures(futures), N(N), block_size(block_size), data(data),
-  l(uninitialized), c_lo(uninitialized), c_hi(uninitialized) { }
-  
-  gauss_seidel_generator(futures_matrix_type<node>* futures, int N, int block_size, double* data,
-                         int l, int c_lo, int c_hi)
-  : futures(futures), N(N), block_size(block_size), data(data),
-  l(l), c_lo(c_lo), c_hi(c_hi) { }
-  
-  int l;
-  int c_lo;
-  int c_hi;
-  int n;
   
   enum {
     level_loop_entry,
     level_loop_test,
     diagonal_loop_entry,
     diagonal_loop_body,
-    diagonal_loop_test
+    diagonal_loop_test,
+    throttle_loop_entry,
+    throttle_loop_body,
+    throttle_loop_test
   };
+  
+  futures_matrix_type<node>* futures;
+  int N; int block_size; double* data;
+  
+  int l;
+  int c_lo;
+  int c_hi;
+  int n;
+  
+  using token_type = struct {
+    int l;
+    int c_lo;
+    int c_hi;
+  };
+  
+  std::deque<token_type> tokens;
+  int nb_tokens = 0;
+  int nb_tokens_to_pop;
+  
+  bool need_to_throttle() const {
+    return (nb_tokens >= pipeline_window_capacity);
+  }
+  
+  void push_token(int l, int c) {
+    token_type t;
+    t.l = l;
+    t.c_lo = c;
+    t.c_hi = c + 1;
+    if (! tokens.empty()) {
+      token_type s = tokens.back();
+      if (s.l == l) {
+        tokens.pop_back();
+        assert(s.c_hi == c);
+        t.c_lo = s.c_lo;
+      }
+    }
+    tokens.push_back(t);
+    nb_tokens++;
+  }
+  
+  outset_of<node>* pop_token() {
+    assert(! tokens.empty());
+    token_type t = tokens.front();
+    tokens.pop_front();
+    nb_tokens--;
+    assert(t.c_hi - t.c_lo > 0);
+    int l = t.l;
+    int c_lo = t.c_lo++;
+    if (t.c_hi - t.c_lo > 0) {
+      tokens.push_front(t);
+    }
+    std::pair<int, int> idx = index_of_cell_at_pos(n, l, c_lo);
+    int i = idx.first;
+    int j = idx.second;
+    return futures->subscript(i, j);
+  }
+  
+  gauss_seidel_generator(futures_matrix_type<node>* futures, int N, int block_size, double* data)
+  : futures(futures), N(N), block_size(block_size), data(data),
+  l(uninitialized), c_lo(uninitialized), c_hi(uninitialized) { }
+  
+  gauss_seidel_generator(futures_matrix_type<node>* futures, int N, int block_size, double* data,
+                         int l, int c_lo, int c_hi,
+                         const std::deque<token_type>& tokens, int nb_tokens)
+  : futures(futures), N(N), block_size(block_size), data(data),
+  l(l), c_lo(c_lo), c_hi(c_hi), tokens(tokens), nb_tokens(nb_tokens) { }
   
   void body() {
     switch (node::current_block_id) {
@@ -3032,14 +3090,40 @@ public:
         break;
       }
       case diagonal_loop_body: {
+        push_token(l, c_lo);
         std::pair<int, int> idx = index_of_cell_at_pos(n, l, c_lo);
         int i = idx.first;
         int j = idx.second;
         node* f = new gauss_seidel_future_body<node>(futures, i, j, N, block_size, data);
         outset_of<node>* f_out = futures->subscript(i, j);
-        node::future(f, f_out,
-                     diagonal_loop_test);
         c_lo++;
+        if (need_to_throttle()) {
+          node::future(f, f_out,
+                       throttle_loop_entry);
+        } else {
+          node::future(f, f_out,
+                       diagonal_loop_test);
+        }
+        break;
+      }
+      case throttle_loop_entry: {
+        nb_tokens_to_pop = pipeline_burst_rate;
+        node::jump_to(throttle_loop_test);
+        break;
+      }
+      case throttle_loop_body: {
+        outset_of<node>* f_out = pop_token();
+        nb_tokens_to_pop--;
+        node::force(f_out,
+                    throttle_loop_test);
+        break;
+      }
+      case throttle_loop_test: {
+        if ((tokens.empty()) || (nb_tokens_to_pop == 0)) {
+          node::jump_to(diagonal_loop_test);
+        } else {
+          node::jump_to(throttle_loop_body);
+        }
         break;
       }
       case diagonal_loop_test: {
@@ -3066,7 +3150,7 @@ public:
     int c_hi2 = c_hi;
     c_hi = mid;
     auto n = new gauss_seidel_generator(futures, N, block_size, data,
-                                        l, c_lo2, c_hi2);
+                                        l, c_lo2, c_hi2, tokens, nb_tokens);
     node::split_with(n);
     return n;
   }
@@ -3319,6 +3403,10 @@ void choose_command() {
 void launch() {
   communication_delay = cmdline::parse_or_default_int("communication_delay",
                                                       communication_delay);
+  tests::pipeline_window_capacity = cmdline::parse_or_default_int("pipeline_window_capacity",
+                                                              tests::pipeline_window_capacity);
+  tests::pipeline_burst_rate = cmdline::parse_or_default_int("pipeline_burst_rate",
+                                                              tests::pipeline_burst_rate);
   cmdline::argmap_dispatch c;
   c.add("direct", [&] {
     choose_edge_algorithm();
