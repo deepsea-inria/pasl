@@ -1647,16 +1647,12 @@ public:
   std::pair<ostnode*, ostnode*> fork2(ostnode* port) const {
     assert(port != nullptr);
     ostnode* branches[2];
-    branches[0] = new ostnode;
-    branches[1] = new ostnode;
     for (int i = 1; i >= 0; i--) {
+      branches[i] = new ostnode;
       ostnode* orig = nullptr;
       if (! port->children[i].compare_exchange_strong(orig, branches[i])) {
-        for (int j = i; j >= 0; j--) {
-          delete branches[j];
-          branches[j] = port;
-        }
-        break;
+        delete branches[i];
+        return std::make_pair(nullptr, nullptr);
       }
     }
     return std::make_pair(branches[0], branches[1]);
@@ -1687,8 +1683,7 @@ public:
   
 };
   
-outset::insert_result_type insert_outedge(node*,
-                                          outset*,
+outset::insert_result_type insert_outedge(node*, outset*,
                                           node*, ictnode*);
   
 class node : public pasl::sched::thread {
@@ -1727,10 +1722,7 @@ public:
   
   void decrement_inports() {
     for (auto p : inports) {
-      incounter* in = p.first;
-      ictnode* in_port = p.second;
-      node* n_in = in->n;
-      decrement_incounter(n_in, in, in_port);
+      decrement_incounter(p.first->n, p.first, p.second);
     }
     inports.clear();
   }
@@ -1933,12 +1925,21 @@ void create_fresh_inports(node* source, node* target) {
 void create_fresh_outports(node* source, node* target) {
   outport_map_type source_ports = source->outports;
   outport_map_type target_ports;
+  std::deque<outset*> to_erase;
   for (auto p : source->outports) {
     source_ports.erase(p.first);
     outset* out = p.first;
     auto ports = out->fork2(p.second);
+    if (ports.first == nullptr) {
+      to_erase.push_back(p.first);
+      continue;
+    }
     source_ports.insert(std::make_pair(p.first, ports.first));
     target_ports.insert(std::make_pair(p.first, ports.second));
+  }
+  for (auto p : to_erase) {
+    source_ports.erase(p);
+    target_ports.erase(p);
   }
   source->outports.swap(source_ports);
   target->outports.swap(target_ports);
