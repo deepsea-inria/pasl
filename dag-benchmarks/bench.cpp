@@ -9,7 +9,7 @@
  */
 
 #include <random>
-#include <map>
+#include <unordered_map>
 #include <set>
 #include <deque>
 #include <cmath>
@@ -1445,8 +1445,8 @@ class outset;
 class ictnode;
 class ostnode;
   
-using inport_map_type = std::map<incounter*, ictnode*>;
-using outport_map_type = std::map<outset*, ostnode*>;
+using inport_map_type = std::unordered_map<incounter*, ictnode*>;
+using outport_map_type = std::unordered_map<outset*, ostnode*>;
   
 void prepare_node(node*);
 void prepare_node(node*, incounter*);
