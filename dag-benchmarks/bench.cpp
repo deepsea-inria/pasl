@@ -489,42 +489,42 @@ int branching_factor = 2;
   
 class dyntree_incounter;
 class dyntree_outset;
-class ictnode;
-class ostnode;
+class incounter_node;
+class outset_node;
 
-void deallocate_incounter_tree(ictnode*);
+void deallocate_incounter_tree(incounter_node*);
 void notify_outset_nodes(dyntree_outset*);
-void deallocate_outset_tree(ostnode*);
+void deallocate_outset_tree(outset_node*);
   
-class ictnode {
+class incounter_node {
 public:
   
   static constexpr int minus_tag = 1;
   
-  std::atomic<ictnode*>* children;
+  std::atomic<incounter_node*>* children;
   
-  void init(ictnode* v) {
-    children = new std::atomic<ictnode*>[branching_factor];
+  void init(incounter_node* v) {
+    children = new std::atomic<incounter_node*>[branching_factor];
     for (int i = 0; i < branching_factor; i++) {
       children[i].store(v);
     }
   }
   
-  ictnode() {
+  incounter_node() {
     init(nullptr);
   }
   
-  ictnode(ictnode* i) {
+  incounter_node(incounter_node* i) {
     init(i);
   }
   
-  ~ictnode() {
+  ~incounter_node() {
     delete [] children;
   }
   
   bool is_leaf() const {
     for (int i = 0; i < branching_factor; i++) {
-      ictnode* child = tagged_pointer_of(children[i].load());
+      incounter_node* child = tagged_pointer_of(children[i].load());
       if (child != nullptr) {
         return false;
       }
@@ -537,17 +537,17 @@ public:
 class dyntree_incounter : public incounter {
 public:
   
-  ictnode* in;
-  ictnode* out;
+  incounter_node* in;
+  incounter_node* out;
   
-  ictnode* minus() const {
-    return tagged_tag_with((ictnode*)nullptr, ictnode::minus_tag);
+  incounter_node* minus() const {
+    return tagged_tag_with((incounter_node*)nullptr, incounter_node::minus_tag);
   }
   
   dyntree_incounter() {
     in = nullptr;
-    out = new ictnode(minus());
-    out = tagged_tag_with(out, ictnode::minus_tag);
+    out = new incounter_node(minus());
+    out = tagged_tag_with(out, incounter_node::minus_tag);
   }
   
   ~dyntree_incounter() {
@@ -561,23 +561,23 @@ public:
   }
   
   void increment(node*) {
-    ictnode* leaf = new ictnode;
+    incounter_node* leaf = new incounter_node;
     while (true) {
       if (in == nullptr) {
         in = leaf;
         return;
       }
       assert(in != nullptr);
-      ictnode* current = in;
+      incounter_node* current = in;
       while (true) {
         int i = random_int(0, branching_factor);
-        std::atomic<ictnode*>& branch = current->children[i];
-        ictnode* next = branch.load();
-        if (tagged_tag_of(next) == ictnode::minus_tag) {
+        std::atomic<incounter_node*>& branch = current->children[i];
+        incounter_node* next = branch.load();
+        if (tagged_tag_of(next) == incounter_node::minus_tag) {
           break;
         }
         if (next == nullptr) {
-          ictnode* orig = nullptr;
+          incounter_node* orig = nullptr;
           if (branch.compare_exchange_strong(orig, leaf)) {
             return;
           } else {
@@ -591,7 +591,7 @@ public:
   
   status_type decrement(node*) {
     while (true) {
-      ictnode* current = in;
+      incounter_node* current = in;
       assert(current != nullptr);
       if (current->is_leaf()) {
         if (try_to_detatch(current)) {
@@ -602,10 +602,10 @@ public:
       }
       while (true) {
         int i = random_int(0, branching_factor);
-        std::atomic<ictnode*>& branch = current->children[i];
-        ictnode* next = branch.load();
+        std::atomic<incounter_node*>& branch = current->children[i];
+        incounter_node* next = branch.load();
         if (   (next == nullptr)
-            || (tagged_tag_of(next) == ictnode::minus_tag) ) {
+            || (tagged_tag_of(next) == incounter_node::minus_tag) ) {
           break;
         }
         if (next->is_leaf()) {
@@ -622,9 +622,9 @@ public:
     return not_activated;
   }
   
-  bool try_to_detatch(ictnode* n) {
+  bool try_to_detatch(incounter_node* n) {
     for (int i = 0; i < branching_factor; i++) {
-      ictnode* orig = nullptr;
+      incounter_node* orig = nullptr;
       if (! (n->children[i].compare_exchange_strong(orig, minus()))) {
         for (int j = i - 1; j >= 0; j--) {
           n->children[j].store(nullptr);
@@ -635,16 +635,16 @@ public:
     return true;
   }
   
-  void add_to_out(ictnode* n) {
-    n = tagged_tag_with(n, ictnode::minus_tag);
+  void add_to_out(incounter_node* n) {
+    n = tagged_tag_with(n, incounter_node::minus_tag);
     while (true) {
-      ictnode* current = tagged_pointer_of(out);
+      incounter_node* current = tagged_pointer_of(out);
       while (true) {
         int i = random_int(0, branching_factor);
-        std::atomic<ictnode*>& branch = current->children[i];
-        ictnode* next = branch.load();
+        std::atomic<incounter_node*>& branch = current->children[i];
+        incounter_node* next = branch.load();
         if (tagged_pointer_of(next) == nullptr) {
-          ictnode* orig = next;
+          incounter_node* orig = next;
           if (branch.compare_exchange_strong(orig, n)) {
             return;
           }
@@ -657,7 +657,7 @@ public:
   
 };
   
-class ostnode {
+class outset_node {
 public:
   
   enum {
@@ -670,7 +670,7 @@ public:
   };
   
   using tagged_pointer_type = union {
-    ostnode* interior;
+    outset_node* interior;
     node* leaf;
   };
   
@@ -680,22 +680,22 @@ public:
     children = new std::atomic<tagged_pointer_type>[branching_factor];
     for (int i = 0; i < branching_factor; i++) {
       tagged_pointer_type p;
-      p.interior = tagged_tag_with((ostnode*)nullptr, empty);
+      p.interior = tagged_tag_with((outset_node*)nullptr, empty);
       children[i].store(p);
     }
   }
   
-  ostnode() {
+  outset_node() {
     init();
   }
   
-  ostnode(tagged_pointer_type child1, tagged_pointer_type child2) {
+  outset_node(tagged_pointer_type child1, tagged_pointer_type child2) {
     init();
     children[0].store(child1);
     children[1].store(child2);
   }
   
-  ~ostnode() {
+  ~outset_node() {
     delete [] children;
   }
   
@@ -703,13 +703,13 @@ public:
     tagged_pointer_type result;
     int tag = tagged_tag_of(p.interior);
     if (tag == empty) {
-      ostnode* n = tagged_pointer_of(p.interior);
+      outset_node* n = tagged_pointer_of(p.interior);
       result.interior = tagged_tag_with(n, finished_empty);
     } else if (tag == leaf) {
       node* n = tagged_pointer_of(p.leaf);
       result.leaf = tagged_tag_with(n, finished_leaf);
     } else if (tag == interior) {
-      ostnode* n = tagged_pointer_of(p.interior);
+      outset_node* n = tagged_pointer_of(p.interior);
       result.interior = tagged_tag_with(n, finished_interior);
     } else {
       assert(false);
@@ -722,43 +722,43 @@ public:
 class dyntree_outset : public outset {
 public:
  
-  ostnode* root;
+  outset_node* root;
   
   dyntree_outset() {
-    root = new ostnode;
+    root = new outset_node;
   }
   
   ~dyntree_outset() {
     deallocate_outset_tree(root);
   }
   
-  insert_status_type insert(ostnode::tagged_pointer_type val) {
-    ostnode* current = root;
-    ostnode* next = nullptr;
+  insert_status_type insert(outset_node::tagged_pointer_type val) {
+    outset_node* current = root;
+    outset_node* next = nullptr;
     while (true) {
-      ostnode::tagged_pointer_type n;
+      outset_node::tagged_pointer_type n;
       while (true) {
         int i = random_int(0, branching_factor);
         n = current->children[i].load();
         int tag = tagged_tag_of(n.interior);
-        if (   (tag == ostnode::finished_empty)
-            || (tag == ostnode::finished_leaf)
-            || (tag == ostnode::finished_interior) ) {
+        if (   (tag == outset_node::finished_empty)
+            || (tag == outset_node::finished_leaf)
+            || (tag == outset_node::finished_interior) ) {
           return insert_fail;
         }
-        if (tag == ostnode::empty) {
-          ostnode::tagged_pointer_type orig = n;
+        if (tag == outset_node::empty) {
+          outset_node::tagged_pointer_type orig = n;
           if (current->children[i].compare_exchange_strong(orig, val)) {
             return insert_success;
           }
           n = current->children[i].load();
           tag = tagged_tag_of(n.interior);
         }
-        if (tag == ostnode::leaf) {
-          ostnode::tagged_pointer_type orig = n;
-          ostnode* tmp = new ostnode(val, n);
-          ostnode::tagged_pointer_type next;
-          next.interior = tagged_tag_with(tmp, ostnode::interior);
+        if (tag == outset_node::leaf) {
+          outset_node::tagged_pointer_type orig = n;
+          outset_node* tmp = new outset_node(val, n);
+          outset_node::tagged_pointer_type next;
+          next.interior = tagged_tag_with(tmp, outset_node::interior);
           if (current->children[i].compare_exchange_strong(orig, next)) {
             return insert_success;
           }
@@ -766,7 +766,7 @@ public:
           n = current->children[i].load();
           tag = tagged_tag_of(n.interior);
         }
-        if (tag == ostnode::interior) {
+        if (tag == outset_node::interior) {
           next = tagged_pointer_of(n.interior);
           break;
         }
@@ -778,8 +778,8 @@ public:
   }
   
   insert_status_type insert(node* leaf) {
-    ostnode::tagged_pointer_type val;
-    val.leaf = tagged_tag_with(leaf, ostnode::leaf);
+    outset_node::tagged_pointer_type val;
+    val.leaf = tagged_tag_with(leaf, outset_node::leaf);
     return insert(val);
   }
 
@@ -1139,13 +1139,13 @@ node* new_parallel_for(long lo, long hi, node* join, const Body& body) {
   
 namespace dyntree {
   
-void deallocate_incounter_tree_partial(std::deque<ictnode*>& todo) {
+void deallocate_incounter_tree_partial(std::deque<incounter_node*>& todo) {
   int k = 0;
   while ( (k < communication_delay) && (! todo.empty()) ) {
-    ictnode* current = todo.back();
+    incounter_node* current = todo.back();
     todo.pop_back();
     for (int i = 0; i < branching_factor; i++) {
-      ictnode* child = tagged_pointer_of(current->children[i].load());
+      incounter_node* child = tagged_pointer_of(current->children[i].load());
       if (child == nullptr) {
         continue;
       }
@@ -1166,7 +1166,7 @@ public:
     repeat_block
   };
   
-  std::deque<ictnode*> todo;
+  std::deque<incounter_node*> todo;
   
   void body() {
     switch (current_block_id) {
@@ -1201,7 +1201,7 @@ public:
   
 };
   
-void deallocate_incounter_tree(ictnode* root) {
+void deallocate_incounter_tree(incounter_node* root) {
   deallocate_incounter_tree_par d;
   d.todo.push_back(root);
   deallocate_incounter_tree_partial(d.todo);
@@ -1212,25 +1212,25 @@ void deallocate_incounter_tree(ictnode* root) {
   }
 }
   
-void notify_outset_tree_nodes_partial(std::deque<ostnode*>& todo) {
+void notify_outset_tree_nodes_partial(std::deque<outset_node*>& todo) {
   int k = 0;
   while ( (k < communication_delay) && (! todo.empty()) ) {
-    ostnode* current = todo.back();
+    outset_node* current = todo.back();
     todo.pop_back();
     for (int i = 0; i < branching_factor; i++) {
-      ostnode::tagged_pointer_type n;
+      outset_node::tagged_pointer_type n;
       while (true) {
         n = current->children[i].load();
-        ostnode::tagged_pointer_type orig = n;
-        ostnode::tagged_pointer_type next = ostnode::make_finished(n);
+        outset_node::tagged_pointer_type orig = n;
+        outset_node::tagged_pointer_type next = outset_node::make_finished(n);
         if (current->children[i].compare_exchange_strong(orig, next)) {
           break;
         }
       }
       int tag = tagged_tag_of(n.leaf);
-      if (tag == ostnode::leaf) {
+      if (tag == outset_node::leaf) {
         decrement_incounter(tagged_pointer_of(n.leaf));
-      } else if (tag == ostnode::interior) {
+      } else if (tag == outset_node::interior) {
         todo.push_back(tagged_pointer_of(n.interior));
       }
     }
@@ -1250,14 +1250,14 @@ public:
   };
 
   node* join;
-  std::deque<ostnode*> todo;
+  std::deque<outset_node*> todo;
   
-  notify_outset_tree_nodes_par_rec(node* join, ostnode* n)
+  notify_outset_tree_nodes_par_rec(node* join, outset_node* n)
   : join(join) {
     todo.push_back(n);
   }
   
-  notify_outset_tree_nodes_par_rec(node* join, std::deque<ostnode*>& _todo)
+  notify_outset_tree_nodes_par_rec(node* join, std::deque<outset_node*>& _todo)
   : join(join) {
     _todo.swap(todo);
   }
@@ -1306,9 +1306,9 @@ public:
   };
   
   dyntree_outset* out;
-  std::deque<ostnode*> todo;
+  std::deque<outset_node*> todo;
   
-  notify_outset_tree_nodes_par(dyntree_outset* out, std::deque<ostnode*>& _todo)
+  notify_outset_tree_nodes_par(dyntree_outset* out, std::deque<outset_node*>& _todo)
   : out(out) {
     todo.swap(_todo);
   }
@@ -1334,7 +1334,7 @@ public:
 };
   
 void notify_outset_nodes(dyntree_outset* out) {
-  std::deque<ostnode*> todo;
+  std::deque<outset_node*> todo;
   todo.push_back(out->root);
   notify_outset_tree_nodes_partial(todo);
   if (! todo.empty()) {
@@ -1348,18 +1348,18 @@ void notify_outset_nodes(dyntree_outset* out) {
   }
 }
   
-void deallocate_outset_tree_partial(std::deque<ostnode*>& todo) {
+void deallocate_outset_tree_partial(std::deque<outset_node*>& todo) {
   int k = 0;
   while ( (k < communication_delay) && (! todo.empty()) ) {
-    ostnode* n = todo.back();
+    outset_node* n = todo.back();
     todo.pop_back();
     for (int i = 0; i < branching_factor; i++) {
-      ostnode::tagged_pointer_type c = n->children[i].load();
+      outset_node::tagged_pointer_type c = n->children[i].load();
       int tag = tagged_tag_of(c.interior);
-      if (   (tag == ostnode::finished_empty)
-          || (tag == ostnode::finished_leaf) ) {
+      if (   (tag == outset_node::finished_empty)
+          || (tag == outset_node::finished_leaf) ) {
         // nothing to do
-      } else if (tag == ostnode::finished_interior) {
+      } else if (tag == outset_node::finished_interior) {
         todo.push_back(tagged_pointer_of(c.interior));
       } else {
         // should not occur, given that finished() has been called
@@ -1381,7 +1381,7 @@ public:
     repeat_block
   };
   
-  std::deque<ostnode*> todo;
+  std::deque<outset_node*> todo;
   
   void body() {
     switch (current_block_id) {
@@ -1416,7 +1416,7 @@ public:
   
 };
   
-void deallocate_outset_tree(ostnode* root) {
+void deallocate_outset_tree(outset_node* root) {
   deallocate_outset_tree_par d;
   d.todo.push_back(root);
   deallocate_outset_tree_partial(d.todo);
@@ -1442,11 +1442,11 @@ namespace portpassing {
 class node;
 class incounter;
 class outset;
-class ictnode;
-class ostnode;
+class incounter_node;
+class outset_node;
   
-using inport_map_type = std::unordered_map<incounter*, ictnode*>;
-using outport_map_type = std::unordered_map<outset*, ostnode*>;
+using inport_map_type = std::unordered_map<incounter*, incounter_node*>;
+using outport_map_type = std::unordered_map<outset*, outset_node*>;
   
 void prepare_node(node*);
 void prepare_node(node*, incounter*);
@@ -1464,43 +1464,43 @@ void create_fresh_ports(node*, node*);
 outset* capture_outset();
 void join_with(node*, incounter*);
 void continue_with(node*);
-ictnode* increment_incounter(node*);
-std::pair<ictnode*, ictnode*> increment_incounter(node*, ictnode*);
-std::pair<ictnode*, ictnode*> increment_incounter(node*, node*);
-void decrement_incounter(node*, ictnode*);
-void decrement_incounter(node*, incounter*, ictnode*);
+incounter_node* increment_incounter(node*);
+std::pair<incounter_node*, incounter_node*> increment_incounter(node*, incounter_node*);
+std::pair<incounter_node*, incounter_node*> increment_incounter(node*, node*);
+void decrement_incounter(node*, incounter_node*);
+void decrement_incounter(node*, incounter*, incounter_node*);
 void decrement_inports(node*);
-void insert_inport(node*, incounter*, ictnode*);
-void insert_inport(node*, node*, ictnode*);
-void insert_outport(node*, outset*, ostnode*);
-void insert_outport(node*, node*, ostnode*);
+void insert_inport(node*, incounter*, incounter_node*);
+void insert_inport(node*, node*, incounter_node*);
+void insert_outport(node*, outset*, outset_node*);
+void insert_outport(node*, node*, outset_node*);
 void deallocate_future(node*, outset*);
 void notify_outset_tree_nodes(outset*);
-void deallocate_outset_tree(ostnode*);
+void deallocate_outset_tree(outset_node*);
 template <class Body>
 node* new_parallel_for(long, long, node*, const Body&);
   
-class ictnode {
+class incounter_node {
 public:
   
-  ictnode* parent;
+  incounter_node* parent;
   std::atomic<int> nb_removed_children;
   
-  ictnode() {
+  incounter_node() {
     parent = nullptr;
     nb_removed_children.store(0);
   }
   
 };
 
-class ostnode {
+class outset_node {
 public:
   
   node* target;
-  ictnode* port;
-  std::atomic<ostnode*> children[2];
+  incounter_node* port;
+  std::atomic<outset_node*> children[2];
   
-  ostnode() {
+  outset_node() {
     target = nullptr;
     port = nullptr;
     for (int i = 0; i < 2; i++) {
@@ -1525,33 +1525,33 @@ public:
     assert(n != nullptr);
   }
   
-  bool is_activated(ictnode* port) const {
+  bool is_activated(incounter_node* port) const {
     return port->parent == nullptr;
   }
   
-  std::pair<ictnode*, ictnode*> increment(ictnode* port) const {
-    ictnode* branch1;
-    ictnode* branch2;
+  std::pair<incounter_node*, incounter_node*> increment(incounter_node* port) const {
+    incounter_node* branch1;
+    incounter_node* branch2;
     if (port == nullptr) {
-      branch1 = new ictnode;
+      branch1 = new incounter_node;
       branch2 = nullptr;
     } else {
-      branch1 = new ictnode;
-      branch2 = new ictnode;
+      branch1 = new incounter_node;
+      branch2 = new incounter_node;
       branch1->parent = port;
       branch2->parent = port;
     }
     return std::make_pair(branch1, branch2);
   }
   
-  ictnode* increment() const {
-    return increment((ictnode*)nullptr).first;
+  incounter_node* increment() const {
+    return increment((incounter_node*)nullptr).first;
   }
   
-  status_type decrement(ictnode* port) const {
+  status_type decrement(incounter_node* port) const {
     assert(port != nullptr);
-    ictnode* current = port;
-    ictnode* next = current->parent;
+    incounter_node* current = port;
+    incounter_node* next = current->parent;
     while (next != nullptr) {
       delete current;
       while (true) {
@@ -1590,25 +1590,25 @@ public:
     insert_fail
   };
   
-  using insert_result_type = std::pair<insert_status_type, ostnode*>;
+  using insert_result_type = std::pair<insert_status_type, outset_node*>;
   
   static constexpr int frozen_tag = 1;
   
-  ostnode* root;
+  outset_node* root;
   
   node* n;
   
   outset(node* n)
   : n(n) {
-    root = new ostnode;
+    root = new outset_node;
   }
   
   ~outset() {
     deallocate_outset_tree(root);
   }
   
-  ostnode* find_leaf() const {
-    ostnode* current = root;
+  outset_node* find_leaf() const {
+    outset_node* current = root;
     while (true) {
       int i;
       for (i = 0; i < 2; i++) {
@@ -1629,14 +1629,14 @@ public:
     return tag == frozen_tag;
   }
   
-  insert_result_type insert(ostnode* outport, node* target, ictnode* inport) {
+  insert_result_type insert(outset_node* outport, node* target, incounter_node* inport) {
     if (is_finished()) {
       return std::make_pair(insert_fail, nullptr);
     }
-    ostnode* next = new ostnode;
+    outset_node* next = new outset_node;
     next->target = target;
     next->port = inport;
-    ostnode* orig = nullptr;
+    outset_node* orig = nullptr;
     if (! (outport->children[0].compare_exchange_strong(orig, next))) {
       delete next;
       return std::make_pair(insert_fail, nullptr);
@@ -1644,12 +1644,12 @@ public:
     return std::make_pair(insert_success, next);
   }
   
-  std::pair<ostnode*, ostnode*> fork2(ostnode* port) const {
+  std::pair<outset_node*, outset_node*> fork2(outset_node* port) const {
     assert(port != nullptr);
-    ostnode* branches[2];
+    outset_node* branches[2];
     for (int i = 1; i >= 0; i--) {
-      branches[i] = new ostnode;
-      ostnode* orig = nullptr;
+      branches[i] = new outset_node;
+      outset_node* orig = nullptr;
       if (! port->children[i].compare_exchange_strong(orig, branches[i])) {
         delete branches[i];
         return std::make_pair(nullptr, nullptr);
@@ -1684,7 +1684,7 @@ public:
 };
   
 outset::insert_result_type insert_outedge(node*, outset*,
-                                          node*, ictnode*);
+                                          node*, incounter_node*);
   
 class node : public pasl::sched::thread {
 public:
@@ -1740,7 +1740,7 @@ public:
   void async(node* producer, node* consumer, int continuation_block_id) {
     prepare_node(producer, incounter_ready(), outset_unary(producer));
     node* caller = this;
-    insert_inport(producer, (incounter*)consumer->in, (ictnode*)nullptr);
+    insert_inport(producer, (incounter*)consumer->in, (incounter_node*)nullptr);
     create_fresh_ports(caller, producer);
     caller->jump_to(continuation_block_id);
     add_node(producer);
@@ -1751,7 +1751,7 @@ public:
     node* consumer = this;
     join_with(consumer, new incounter(consumer));
     create_fresh_ports(consumer, producer);
-    ictnode* consumer_inport = increment_incounter(consumer);
+    incounter_node* consumer_inport = increment_incounter(consumer);
     insert_inport(producer, consumer, consumer_inport);
     consumer->prepare_for_transfer(continuation_block_id);
     add_node(producer);
@@ -1788,10 +1788,10 @@ public:
     node* consumer = this;
     prepare_for_transfer(continuation_block_id);
     join_with(consumer, incounter_unary());
-    auto insert_result = insert_outedge(consumer, producer_out, consumer, (ictnode*)nullptr);
+    auto insert_result = insert_outedge(consumer, producer_out, consumer, (incounter_node*)nullptr);
     outset::insert_status_type insert_status = insert_result.first;
     if (insert_status == outset::insert_success) {
-      ostnode* producer_outport = insert_result.second;
+      outset_node* producer_outport = insert_result.second;
       insert_outport(consumer, producer_out, producer_outport);
     } else if (insert_status == outset::insert_fail) {
       add_node(consumer);
@@ -1812,7 +1812,7 @@ public:
     prepare_node(producer, incounter_ready(), outset_unary(producer));
     join_with(consumer, new incounter(consumer));
     create_fresh_ports(consumer, producer);
-    ictnode* consumer_inport = increment_incounter(consumer);
+    incounter_node* consumer_inport = increment_incounter(consumer);
     insert_inport(producer, consumer, consumer_inport);
     consumer->prepare_for_transfer(continuation_block_id);
     add_node(producer);
@@ -1877,30 +1877,30 @@ outset* outset_new(node* n) {
   return new outset(n);
 }
   
-void insert_inport(node* caller, incounter* target_in, ictnode* target_inport) {
+void insert_inport(node* caller, incounter* target_in, incounter_node* target_inport) {
   caller->inports.insert(std::make_pair(target_in, target_inport));
 }
   
-void insert_inport(node* caller, node* target, ictnode* target_inport) {
+void insert_inport(node* caller, node* target, incounter_node* target_inport) {
   insert_inport(caller, (incounter*)target->in, target_inport);
 }
 
-void insert_outport(node* caller, outset* target_out, ostnode* target_outport) {
+void insert_outport(node* caller, outset* target_out, outset_node* target_outport) {
   assert(target_outport != nullptr);
   caller->outports.insert(std::make_pair(target_out, target_outport));
 }
   
-void insert_outport(node* caller, node* target, ostnode* target_outport) {
+void insert_outport(node* caller, node* target, outset_node* target_outport) {
   insert_outport(caller, (outset*)target->out, target_outport);
 }
 
-ictnode* find_inport(node* caller, incounter* target_in) {
+incounter_node* find_inport(node* caller, incounter* target_in) {
   auto target_inport_result = caller->inports.find(target_in);
   assert(target_inport_result != caller->inports.end());
   return target_inport_result->second;
 }
 
-ostnode* find_outport(node* caller, outset* target_out) {
+outset_node* find_outport(node* caller, outset* target_out) {
   auto target_outport_result = caller->outports.find(target_out);
   assert(target_outport_result != caller->outports.end());
   return target_outport_result->second;
@@ -1950,12 +1950,12 @@ void create_fresh_ports(node* source, node* target) {
   create_fresh_outports(source, target);
 }
   
-ictnode* increment_incounter(node* n) {
+incounter_node* increment_incounter(node* n) {
   incounter* in = (incounter*)n->in;
   return in->increment();
 }
   
-std::pair<ictnode*, ictnode*> increment_incounter(node* n, ictnode* n_port) {
+std::pair<incounter_node*, incounter_node*> increment_incounter(node* n, incounter_node* n_port) {
   incounter* n_in = (incounter*)n->in;
   long tag = pasl::sched::instrategy::extract_tag(n_in);
   assert(tag != pasl::sched::instrategy::READY_TAG);
@@ -1971,12 +1971,12 @@ std::pair<ictnode*, ictnode*> increment_incounter(node* n, ictnode* n_port) {
   }
 }
   
-std::pair<ictnode*, ictnode*> increment_incounter(node* caller, node* target) {
-  ictnode* target_inport = find_inport(caller, (incounter*)target->in);
+std::pair<incounter_node*, incounter_node*> increment_incounter(node* caller, node* target) {
+  incounter_node* target_inport = find_inport(caller, (incounter*)target->in);
   return increment_incounter(target, target_inport);
 }
 
-void decrement_incounter(node* n, incounter* n_in, ictnode* n_port) {
+void decrement_incounter(node* n, incounter* n_in, incounter_node* n_port) {
   long tag = pasl::sched::instrategy::extract_tag(n_in);
   assert(tag != pasl::sched::instrategy::READY_TAG);
   if (tag == pasl::sched::instrategy::UNARY_TAG) {
@@ -1994,7 +1994,7 @@ void decrement_incounter(node* n, incounter* n_in, ictnode* n_port) {
   }
 }
   
-void decrement_incounter(node* n, ictnode* n_port) {
+void decrement_incounter(node* n, incounter_node* n_port) {
   decrement_incounter(n, (incounter*)n->in, n_port);
 }
   
@@ -2004,7 +2004,7 @@ void decrement_inports(node* n) {
   
 outset::insert_result_type insert_outedge(node* caller,
                                           outset* source_out,
-                                          node* target, ictnode* target_inport) {
+                                          node* target, incounter_node* target_inport) {
   if (source_out->is_finished()) {
     return std::make_pair(outset::insert_fail, nullptr);
   }
@@ -2104,7 +2104,7 @@ public:
     lazy_parallel_for_rec producer = new lazy_parallel_for_rec(mid, hi, join, _body);
     hi = mid;
     prepare_node(producer);
-    insert_inport(producer, (incounter*)consumer->in, (ictnode*)nullptr);
+    insert_inport(producer, (incounter*)consumer->in, (incounter_node*)nullptr);
     create_fresh_ports(caller, producer);
     return producer;
   }
@@ -2116,19 +2116,19 @@ node* new_parallel_for(long lo, long hi, node* join, const Body& body) {
   return new lazy_parallel_for_rec<Body>(lo, hi, join, body);
 }
   
-void notify_outset_tree_nodes_partial(std::deque<ostnode*>& todo) {
+void notify_outset_tree_nodes_partial(std::deque<outset_node*>& todo) {
   int k = 0;
   while ( (k < communication_delay) && (! todo.empty()) ) {
-    ostnode* n = todo.back();
+    outset_node* n = todo.back();
     todo.pop_back();
     if (n->target != nullptr) {
       decrement_incounter(n->target, n->port);
     }
     for (int i = 0; i < 2; i++) {
-      ostnode* orig;
+      outset_node* orig;
       while (true) {
         orig = n->children[i].load();
-        ostnode* next = tagged_tag_with(orig, outset::frozen_tag);
+        outset_node* next = tagged_tag_with(orig, outset::frozen_tag);
         if (n->children[i].compare_exchange_strong(orig, next)) {
           break;
         }
@@ -2153,14 +2153,14 @@ public:
   };
   
   node* join;
-  std::deque<ostnode*> todo;
+  std::deque<outset_node*> todo;
   
-  notify_outset_tree_nodes_par_rec(node* join, ostnode* n)
+  notify_outset_tree_nodes_par_rec(node* join, outset_node* n)
   : join(join) {
     todo.push_back(n);
   }
   
-  notify_outset_tree_nodes_par_rec(node* join, std::deque<ostnode*>& _todo)
+  notify_outset_tree_nodes_par_rec(node* join, std::deque<outset_node*>& _todo)
   : join(join) {
     _todo.swap(todo);
   }
@@ -2195,7 +2195,7 @@ public:
     node* caller = this;
     auto producer = new self_type(join, n);
     prepare_node(producer);
-    insert_inport(producer, (incounter*)consumer->in, (ictnode*)nullptr);
+    insert_inport(producer, (incounter*)consumer->in, (incounter_node*)nullptr);
     create_fresh_ports(caller, producer);
     return producer;
   }
@@ -2213,9 +2213,9 @@ public:
   };
   
   outset* out;
-  std::deque<ostnode*> todo;
+  std::deque<outset_node*> todo;
   
-  notify_outset_tree_nodes_par(outset* out, std::deque<ostnode*>& _todo)
+  notify_outset_tree_nodes_par(outset* out, std::deque<outset_node*>& _todo)
   : out(out) {
     todo.swap(_todo);
   }
@@ -2241,7 +2241,7 @@ public:
 };
   
 void notify_outset_tree_nodes(outset* out) {
-  std::deque<ostnode*> todo;
+  std::deque<outset_node*> todo;
   todo.push_back(out->root);
   notify_outset_tree_nodes_partial(todo);
   if (! todo.empty()) {
@@ -2255,13 +2255,13 @@ void notify_outset_tree_nodes(outset* out) {
   }
 }
   
-void deallocate_outset_tree_partial(std::deque<ostnode*>& todo) {
+void deallocate_outset_tree_partial(std::deque<outset_node*>& todo) {
   int k = 0;
   while ( (k < communication_delay) && (! todo.empty()) ) {
-    ostnode* n = todo.back();
+    outset_node* n = todo.back();
     todo.pop_back();
     for (int i = 0; i < 2; i++) {
-      ostnode* child = tagged_pointer_of(n->children[i].load());
+      outset_node* child = tagged_pointer_of(n->children[i].load());
       if (child != nullptr) {
         todo.push_back(child);
       }
@@ -2281,7 +2281,7 @@ public:
     repeat_block
   };
   
-  std::deque<ostnode*> todo;
+  std::deque<outset_node*> todo;
   
   void body() {
     switch (current_block_id) {
@@ -2317,7 +2317,7 @@ public:
   
 };
   
-void deallocate_outset_tree(ostnode* root) {
+void deallocate_outset_tree(outset_node* root) {
   deallocate_outset_tree_par d;
   d.todo.push_back(root);
   deallocate_outset_tree_partial(d.todo);
