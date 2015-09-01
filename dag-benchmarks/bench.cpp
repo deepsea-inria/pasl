@@ -60,6 +60,12 @@ int random_int(int lo, int hi) {
 
 int communication_delay = 100;
 
+using port_passing_mode = enum {
+  port_passing_default,
+  port_passing_intersection,
+  port_passing_difference
+};
+
 /*---------------------------------------------------------------------*/
 
 
@@ -907,6 +913,14 @@ public:
     finish(target, continuation_block_id);
   }
   
+  void set_inport_mode(port_passing_mode mode) {
+    // nothing to do
+  }
+  
+  void set_outport_mode(port_passing_mode mode) {
+    // nothing to do
+  }
+  
   THREAD_COST_UNKNOWN
   
 };
@@ -1101,7 +1115,7 @@ public:
     switch (node::current_block_id) {
       case process_block: {
         long n = std::min(hi, lo + (long)communication_delay);
-        int i;
+        long i;
         for (i = lo; i < n; i++) {
           _body(i);
         }
@@ -1123,7 +1137,7 @@ public:
   }
   
   pasl::sched::thread_p split() {
-    int mid = (hi + lo) / 2;
+    long mid = (hi + lo) / 2;
     lazy_parallel_for_rec n = new lazy_parallel_for_rec(mid, hi, join, _body);
     hi = mid;
     add_edge(n, join);
@@ -1460,7 +1474,7 @@ outset* outset_unary(node*);
 outset* outset_noop();
 outset* outset_new(node*);
 void add_node(node* n);
-void create_fresh_ports(node*, node*);
+void propagate_ports_for(node*, node*);
 outset* capture_outset();
 void join_with(node*, incounter*);
 void continue_with(node*);
@@ -1703,6 +1717,17 @@ private:
   
 public:
   
+  port_passing_mode inport_mode = port_passing_default;
+  port_passing_mode outport_mode = port_passing_default;
+  
+  void set_inport_mode(port_passing_mode mode) {
+    inport_mode = mode;
+  }
+  
+  void set_outport_mode(port_passing_mode mode) {
+    outport_mode = mode;
+  }
+  
   inport_map_type inports;
   outport_map_type outports;
   
@@ -1741,7 +1766,7 @@ public:
     prepare_node(producer, incounter_ready(), outset_unary(producer));
     node* caller = this;
     insert_inport(producer, (incounter*)consumer->in, (incounter_node*)nullptr);
-    create_fresh_ports(caller, producer);
+    propagate_ports_for(caller, producer);
     caller->jump_to(continuation_block_id);
     add_node(producer);
   }
@@ -1750,7 +1775,7 @@ public:
     prepare_node(producer, incounter_ready(), outset_unary(producer));
     node* consumer = this;
     join_with(consumer, new incounter(consumer));
-    create_fresh_ports(consumer, producer);
+    propagate_ports_for(consumer, producer);
     incounter_node* consumer_inport = increment_incounter(consumer);
     insert_inport(producer, consumer, consumer_inport);
     consumer->prepare_for_transfer(continuation_block_id);
@@ -1772,7 +1797,7 @@ public:
     prepare_node(producer, incounter_ready(), producer_out);
     producer_out->set_node(producer);
     node* caller = this;
-    create_fresh_ports(caller, producer);
+    propagate_ports_for(caller, producer);
     listen_on(producer_out);
     caller->jump_to(continuation_block_id);
     add_node(producer);
@@ -1811,7 +1836,7 @@ public:
     node* producer = new_parallel_for(lo, hi, consumer, body);
     prepare_node(producer, incounter_ready(), outset_unary(producer));
     join_with(consumer, new incounter(consumer));
-    create_fresh_ports(consumer, producer);
+    propagate_ports_for(consumer, producer);
     incounter_node* consumer_inport = increment_incounter(consumer);
     insert_inport(producer, consumer, consumer_inport);
     consumer->prepare_for_transfer(continuation_block_id);
@@ -1821,7 +1846,7 @@ public:
   void split_with(node* new_sibling) {
     node* caller = this;
     prepare_node(new_sibling);
-    create_fresh_ports(caller, new_sibling);
+    propagate_ports_for(caller, new_sibling);
   }
   
   void call(node* target, int continuation_block_id) {
@@ -1905,51 +1930,89 @@ outset_node* find_outport(node* caller, outset* target_out) {
   assert(target_outport_result != caller->outports.end());
   return target_outport_result->second;
 }
-
-void create_fresh_inports(node* source, node* target) {
-  inport_map_type source_ports = source->inports;
-  inport_map_type target_ports;
-  for (auto p : source->inports) {
-    if (target->inports.find(p.first) != target->inports.cend()) {
-      source_ports.erase(p.first);
-      incounter* in = p.first;
-      auto ports = in->increment(p.second);
-      source_ports.insert(std::make_pair(p.first, ports.first));
-      target_ports.insert(std::make_pair(p.first, ports.second));
+  
+template <class Map>
+void intersect_with(const Map& source, Map& destination) {
+  Map result;
+  for (auto item : source) {
+    if (destination.find(item.first) != destination.cend()) {
+      result.insert(item);
     }
   }
-  source->inports.swap(source_ports);
-  target->inports.swap(target_ports);
+  result.swap(destination);
+}
+  
+template <class Map>
+void difference_with(const Map& source, Map& destination) {
+  Map result;
+  for (auto item : source) {
+    if (destination.find(item.first) == destination.cend()) {
+      result.insert(item);
+    }
+  }
+  result.swap(destination);
+}
+  
+template <class Map>
+void propagate_ports_for(port_passing_mode mode, const Map& parent_ports, Map& child_ports) {
+  switch (mode) {
+    case port_passing_default: {
+      child_ports = parent_ports;
+      break;
+    }
+    case port_passing_intersection: {
+      intersect_with(parent_ports, child_ports);
+      break;
+    }
+    case port_passing_difference: {
+      difference_with(parent_ports, child_ports);
+      break;
+    }
+  }
+}
+  
+void fork_in_ports_for(inport_map_type& parent_ports, inport_map_type& child_ports) {
+  for (auto item : parent_ports) {
+    if (child_ports.find(item.first) != child_ports.cend()) {
+      incounter* in = item.first;
+      incounter_node* port = item.second;
+      auto new_ports = in->increment(port);
+      parent_ports[in] = new_ports.first;
+      child_ports[in] = new_ports.second;
+    }
+  }
 }
 
-void create_fresh_outports(node* source, node* target) {
-  outport_map_type source_ports = source->outports;
-  outport_map_type target_ports;
-  std::deque<outset*> to_erase;
-  for (auto p : source->outports) {
-    source_ports.erase(p.first);
-    outset* out = p.first;
-    auto ports = out->fork2(p.second);
-    if (ports.first == nullptr) {
-      to_erase.push_back(p.first);
-      continue;
+void fork_out_ports_for(outport_map_type& parent_ports, outport_map_type& child_ports) {
+  std::vector<outset*> to_erase;
+  for (auto item : parent_ports) {
+    if (child_ports.find(item.first) != child_ports.cend()) {
+      outset* out = item.first;
+      outset_node* port = item.second;
+      auto new_ports = out->fork2(port);
+      if (new_ports.first == nullptr) {
+        to_erase.push_back(out);
+      } else {
+        parent_ports[out] = new_ports.first;
+        child_ports[out] = new_ports.second;
+      }
     }
-    source_ports.insert(std::make_pair(p.first, ports.first));
-    target_ports.insert(std::make_pair(p.first, ports.second));
   }
-  for (auto p : to_erase) {
-    source_ports.erase(p);
-    target_ports.erase(p);
+  for (outset* out : to_erase) {
+    parent_ports.erase(out);
+    child_ports.erase(out);
   }
-  source->outports.swap(source_ports);
-  target->outports.swap(target_ports);
 }
   
-void create_fresh_ports(node* source, node* target) {
-  create_fresh_inports(source, target);
-  create_fresh_outports(source, target);
+void propagate_ports_for(node* parent, node* child) {
+  port_passing_mode in_port_mode = child->inport_mode;
+  port_passing_mode out_port_mode = child->outport_mode;
+  propagate_ports_for(in_port_mode, parent->inports, child->inports);
+  fork_in_ports_for(parent->inports, child->inports);
+  propagate_ports_for(out_port_mode, parent->outports, child->outports);
+  fork_out_ports_for(parent->outports, child->outports);
 }
-  
+
 incounter_node* increment_incounter(node* n) {
   incounter* in = (incounter*)n->in;
   return in->increment();
@@ -2105,7 +2168,7 @@ public:
     hi = mid;
     prepare_node(producer);
     insert_inport(producer, (incounter*)consumer->in, (incounter_node*)nullptr);
-    create_fresh_ports(caller, producer);
+    propagate_ports_for(caller, producer);
     return producer;
   }
   
@@ -2196,7 +2259,7 @@ public:
     auto producer = new self_type(join, n);
     prepare_node(producer);
     insert_inport(producer, (incounter*)consumer->in, (incounter_node*)nullptr);
-    create_fresh_ports(caller, producer);
+    propagate_ports_for(caller, producer);
     return producer;
   }
   
