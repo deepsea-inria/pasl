@@ -194,7 +194,7 @@ double since(double start) {
 
 /*---------------------------------------------------------------------*/
 #ifdef DUAL
-perworker::cell<bool>cant_predict;
+perworker::cell<bool>cant_predict(false);
 #endif
 /*---------------------------------------------------------------------*/
 /* Granularity controller */
@@ -430,6 +430,7 @@ void cstmt_base_with_reporting_unknown(cmeasure_type m, Seq_body_fct& seq_body_f
   if (!estimator.constant_is_known()) { // || estimator.can_predict_unknown()) {
 #endif
     estimator.report(m, elapsed);
+//    std::cerr << "Good with me! " << estimator.get_minimal_estimations_nb_left() << " " << estimator.constant_is_known() << std::endl;
   }
 }
 

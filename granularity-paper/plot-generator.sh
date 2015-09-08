@@ -11,10 +11,12 @@ for n in "${ns[@]}"
 do
    for proc in "${procs[@]}"
    do
+       echo $n $proc
+
        ./bench.log -n ${n} -c ${c} -bench synthetic -algo parallel_for -proc ${proc} --log_estims --log_text
-       python ../granularity/plot.py -d ../granularity-paper/ -p normal-$n -proc ${proc}
+       python ../granularity/plot.py -d ../granularity-paper/ -p normal-$n -proc ${proc} -s
                                                                                     
        ./bench.dlog -n ${n} -c ${c} -bench synthetic -algo parallel_for -proc ${proc} --log_estims --log_text
-       python ../granularity/plot.py -d ../granularity-paper/ -p dual-$n -proc ${proc}
+       python ../granularity/plot.py -d ../granularity-paper/ -p dual-$n -proc ${proc} -s
    done
 done

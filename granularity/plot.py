@@ -22,7 +22,8 @@ if __name__ == "__main__":
     parser.add_argument('-d', '--dir', default='.', dest = 'dir')
     parser.add_argument('-p', '--prefix', default = '', dest = 'prefix', help='prefix of the files to be written')
     parser.add_argument('-proc', dest='proc', help='the number of proc')
-    parser.add_argument('-b', '--binary', help='read from binary', action='store_true')
+    parser.add_argument('-b', '--binary', help='read from binary', dest='binary', action='store_true')
+    parser.add_argument('-s', '--shared', help='only shared constant', dest='shared', action='store_true')
     args = parser.parse_args()
 
     inf = open(args.dir + "LOG", 'r')
@@ -38,7 +39,7 @@ if __name__ == "__main__":
     for line in inf.readlines():
         a = line.split('\t')
         a = list(filter(None, [a[i].strip(' \t\n\r') for i in range(len(a))]))
-        if (a[2] == 'estim_name'):
+        if (a[2] == 'estim_name' ):
             names[a[3]] = a[4]
         a[3] = names[a[3]]
         if (a[2] == 'estim_update'):
@@ -68,19 +69,20 @@ if __name__ == "__main__":
         plt.ylabel('Constant')
         plt.title(ofname)    
         
-        cur_color = 0
         leg = []
-        for procname in plots[ofname]:
-            x = sorted(plots[ofname][procname].keys())
-            y = [plots[ofname][procname][i] for i in x]
-            plt.plot(x, y, '-', color=cmap(cur_color))
-            leg.append(procname)
-            cur_color += 1
+        if not args.shared:
+            cur_color = 0
+            for procname in plots[ofname]:
+                x = sorted(plots[ofname][procname].keys())
+                y = [plots[ofname][procname][i] for i in x]
+                plt.plot(x, y, '-', color=cmap(cur_color))
+                leg.append(procname)
+                cur_color += 1
             
         x = sorted(shared_plot[ofname].keys())
         y = [shared_plot[ofname][i] for i in x]
         plt.plot(x, y, '^k')
         leg.append('shared')
         plt.legend(leg, loc='best')
-        plt.savefig(args.dir + "plots/" + args.proc + "/" + ofname + "/" + args.prefix + ".png")
+        plt.savefig(args.dir + "plots/" + args.proc + "/" + ofname + "/" + args.prefix + ("-shared" if args.shared else "") + ".png")
         plt.close()
