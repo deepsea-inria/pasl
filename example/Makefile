@@ -28,12 +28,7 @@ VERBOSE_MAKE=0
 VERBOSE_DEPENDENCIES=0
 
 PROGRAMS=\
-	fib.cpp \
-	hull.cpp \
-	bhut.cpp \
-	sequence.cpp \
-	graph.cpp \
-	cholesky.cpp
+	rake-compress-construction.cpp \
 #       add reference to your cpp source here
 
 ####################################################################
