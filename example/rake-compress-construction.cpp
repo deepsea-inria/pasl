@@ -2,9 +2,17 @@
 #include <set>
 #include <vector>
 #include "sparray.hpp"
+#include "sequence.hpp"
 #include "hash.hpp"
 #include "cmdline.hpp"
 #include "benchmark.hpp"
+
+void print_array(int* a, int n) {
+  for (int i = 0; i < n; i++) {
+    std::cerr << a[i] << " ";
+  }
+  std::cerr << std::endl;
+}
 
 struct Node;
 
@@ -13,11 +21,11 @@ struct State {
   std::set<Node*> children;
   Node* parent;
 
-  State(int _vertex) : vertex(_vertex) {}
+  State(int _vertex) : vertex(_vertex), children() {}
 
-  State(const State &state) {
+  State(const State &state) : children(state.children) {
     vertex = state.vertex;
-    children = state.children;
+//    children = state.children;
     parent = state.parent;
   }
 
@@ -53,14 +61,14 @@ struct Node {
   }
 
   bool is_root() {
-    return state.children.size() == 0 && get_parent() == state.vertex;
+    return state.children.size() == 0 && get_parent()->get_vertex() == state.vertex;
   }
 
-  int get_parent() {
-    return state.parent->get_vertex();
+  Node* get_parent() {
+    return state.parent;
   }
 
-  int set_parent(Node* parent) {
+  void set_parent(Node* parent) {
     state.parent = parent;
   }
 
@@ -85,6 +93,8 @@ struct Node {
 
 Node** lists;
 bool* root;
+int* live[2];
+int len[2];
 
 void initialization(int n, std::vector<int>* children, int* parent) {
   lists = new Node*[n];
@@ -99,6 +109,14 @@ void initialization(int n, std::vector<int>* children, int* parent) {
       lists[i]->add_child(lists[child]);
     }
   }
+
+  root = new bool[n];
+
+  live[0] = new int[n];
+  for (int i = 0; i < n; i++)
+    live[0][i] = i;
+  live[1] = new int[n];
+  len[0] = n;
 }
 
 bool hash(int a, int b) {
@@ -115,7 +133,7 @@ bool is_contracted(int v, int round) {
   }
   if (lists[v]->degree() == 1) {
     Node* u = lists[v]->get_first_child();
-    int p = lists[v]->get_parent();
+    int p = lists[v]->get_parent()->get_vertex();
     if (v != p && u->degree() > 0 && flips(p, v, u->get_vertex(), round)) {
       return true;
     }
@@ -130,12 +148,12 @@ void copy_node(int v) {
 }
 
 void delete_node(int v) {
-  int p = lists[v]->get_parent();
-  lists[p]->remove_child(lists[v]);
+  Node* p = lists[v]->get_parent();
+  lists[p->get_vertex()]->remove_child(lists[v]);
   if (lists[v]->degree() == 1) {
-    int c = lists[v]->get_first_child()->get_vertex();
-    lists[p]->add_child(lists[c]);
-    lists[c]->set_parent(lists[p]);
+    Node* c = lists[v]->get_first_child();
+    lists[p->get_vertex()]->add_child(c);
+    lists[c->get_vertex()]->set_parent(p);
   }
 }
 
@@ -145,7 +163,7 @@ void contract(int v, int round) {
   }
 }
 
-void round(sparray& live, int round) {
+void round(int round) {
 //  std::cerr << live.size() << " " << live << std::endl;
 //  for (int i  =0; i < live.size(); i++) {
 //    std::cerr << "link from " << i << " : ";
@@ -154,24 +172,35 @@ void round(sparray& live, int round) {
 //    }
 //    std::cerr << "\nparent " << lists[i]->get_parent() << std::endl;
 //  }
-  pasl::sched::native::parallel_for(0, (int)live.size(), [&] (int i) {
-    int v = live[i];
+
+  print_array(live[round % 2], len[round % 2]);
+
+  std::cerr << "Contracted: " << std::endl;
+  pasl::sched::native::parallel_for(0, len[round % 2], [&] (int i) {
+    int v = live[round % 2][i];
     bool is_contr = is_contracted(v, round);
     bool is_root = lists[v]->is_root();
     if (!is_contr && !is_root) {
       copy_node(v);
     } else {
+      std::cerr << v << " ";
       root[v] = is_root;
     }
   });
+  std::cerr << std::endl;
 
-  live = filter([&] (int i) {
-    int v = live[i];
+  len[1 - round % 2] = pbbs::sequence::filter(live[round % 2], live[1 - round % 2], len[round % 2], [&] (int i) {
+    int v = live[round % 2][i];
+    std::cerr << v << " " << (!is_contracted(v, round) && !root[v]) << std::endl;
     return !is_contracted(v, round) && !root[v];
-  }, live);
+  });
 
-  pasl::sched::native::parallel_for(0, (int)live.size(), [&] (int i) {
-    int v = live[i];
+  print_array(live[1 - round % 2], len[1 - round % 2]);
+
+  std::cerr << "Here1\n" << std::endl;
+
+  pasl::sched::native::parallel_for(0, len[1 - round % 2], [&] (int i) {
+    int v = live[1 - round % 2][i];
     std::set<Node*> copy_children = lists[v]->get_children();
     for (auto child : copy_children) {
       int u = child->get_vertex();
@@ -179,10 +208,11 @@ void round(sparray& live, int round) {
     }
   });
 
-  pasl::sched::native::parallel_for(0, (int)live.size(), [&] (int i) {
-    int v = live[i];
-    lists[v]->set_parent(lists[lists[v]->get_parent()]);
-    ;
+  std::cerr << "Here2\n" << std::endl;
+
+  pasl::sched::native::parallel_for(0, len[1 - round % 2], [&] (int i) {
+    int v = live[1 - round % 2][i];
+    lists[v]->set_parent(lists[v]->get_parent()->next);
     std::set<Node*> new_children;
     for (Node* child : lists[v]->get_children()) {
       new_children.insert(child->next);
@@ -192,26 +222,27 @@ void round(sparray& live, int round) {
 }
 
 void construction(int n) {
-  sparray live(n);
-  for (int i = 0; i < n; i++) {
-    live[i] = i;
-  }
-  root = new bool[n];
   int round_no = 0;
-  while (live.size() > 0) {
-    round(live, round_no);
+  while (len[round_no % 2] > 0) {
+    round(round_no);
     round_no++;
+    std::cerr << round_no << "\n";
   }
 
-  sparray roots(n);
+  int* roots = new int[n];
   for (int i = 0; i < n; i++) {
     roots[i] = i;
   }
 
-  roots = filter([&] (int v) {
+  int* result = new int[n];
+  int roots_number = pbbs::sequence::filter(roots, result, n, [&] (int v) {
     return root[v];
-  }, roots);
-  std::cerr << roots << std::endl;
+  });
+  std::cout << "Number of rounds: " << round_no << std::endl;
+  std::cout << "number of roots: " << roots_number << std::endl;
+  for (int i = 0; i < roots_number; i++)
+    std::cout << result[i] << " ";
+  std::cout << std::endl;
 }
 
 int cutoff, n;
@@ -224,15 +255,25 @@ int main(int argc, char** argv) {
 
      std::vector<int>* children = new std::vector<int>[n];
      int* parent = new int[n];
-     // let us firstly think about binary tree
-     for (int i = 0; i < n; i++) {
-       parent[i] = i == 0 ? 0 : (i - 1) / 2;
-       children[i] = std::vector<int>();
-       if (2 * i + 1 < n) {
-         children[i].push_back(2 * i + 1);
+     if (false) {
+       // let us firstly think about binary tree
+       for (int i = 0; i < n; i++) {
+         parent[i] = i == 0 ? 0 : (i - 1) / 2;
+         children[i] = std::vector<int>();
+         if (2 * i + 1 < n) {
+           children[i].push_back(2 * i + 1);
+         }
+         if (2 * i + 2 < n) {
+           children[i].push_back(2 * i + 2);
+         }
        }
-       if (2 * i + 2 < n) {
-         children[i].push_back(2 * i + 2);
+     } else {
+       // bambooooooo
+       for (int i = 0; i < n; i++) {
+         parent[i] = i == 0 ? 0 : i - 1;
+         children[i] = std::vector<int>();
+         if (i + 1 < n)
+           children[i].push_back(i + 1);
        }
      }
 
