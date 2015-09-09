@@ -262,10 +262,11 @@ void round_seq(int round) {
   }
 }
 
-void construction(int n) {
+template<typename Round>
+void construction(int n, Round round_function) {
   int round_no = 0;
   while (len[round_no % 2] > 0) {
-    round_seq(round_no);
+    round_function(round_no);
     round_no++;
   }
 
@@ -286,14 +287,16 @@ void construction(int n) {
 }
 
 int main(int argc, char** argv) {
-   int cutoff, n;
+   bool seq;
+   int n;
    auto init = [&] {
-     cutoff = (long)pasl::util::cmdline::parse_or_default_int("cutoff", 25);
      n = (long)pasl::util::cmdline::parse_or_default_int("n", 24);
+     std::string graph = pasl::util::cmdline::parse_or_default_string("graph", std::string("bamboo"));
+     seq = pasl::util::cmdline::parse_or_default_int("seq", 1) == 1;
 
      std::vector<int>* children = new std::vector<int>[n];
      int* parent = new int[n];
-     if (true) {
+     if (graph.compare("binary_tree") == 0) {
        // let us firstly think about binary tree
        for (int i = 0; i < n; i++) {
          parent[i] = i == 0 ? 0 : (i - 1) / 2;
@@ -319,7 +322,13 @@ int main(int argc, char** argv) {
    };
 
    auto run = [&] (bool sequential) {
-     construction(n);
+     if (seq) {
+       std::cerr << "Sequential run" << std::endl;
+       construction(n, [&] (int round_no) {round_seq(round_no);});
+     } else {
+       std::cerr << "Parallel run" << std::endl;
+       construction(n, [&] (int round_no) {round(round_no);});
+     }
    };
 
    auto output = [&] {
