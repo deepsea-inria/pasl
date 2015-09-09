@@ -37,10 +37,13 @@ struct Node {
   State state;
   int* proposals;
 
-  Node(int _vertex) : state(_vertex) { }
+  Node(int _vertex) : state(_vertex) {
+    proposals = NULL;
+  }
 
   Node(const Node &node) : state(node.state) {
     head = node.head;
+    proposals = NULL;
   }
 
   void add_child(Node* child) {
@@ -184,4 +187,4 @@ void contract(int v, int round) {
   if (is_contracted(v, round)) {
     delete_node(v);
   }
-}                
+}

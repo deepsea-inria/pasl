@@ -18,6 +18,13 @@ void construction_round(int round) {
     return !lists[v]->is_contracted() && !lists[v]->is_known_root();
   });
 
+/*  len[1 - round % 2] = 0;
+  for (int i = 0; i < len[round % 2]; i++) {
+    int v = live[round % 2][i];
+    if (!lists[v]->is_contracted() && !lists[v]->is_known_root())
+        live[1 - round % 2][len[1 - round % 2]++] = v;
+  }*/
+
   pasl::sched::native::parallel_for(0, len[1 - round % 2], [&] (int i) {
     int v = live[1 - round % 2][i];
     std::set<Node*> copy_children = lists[v]->get_children();
@@ -35,6 +42,7 @@ void construction_round(int round) {
       new_children.insert(child->next);
     }
     lists[v]->set_children(new_children);
+    lists[v]->prepare();
   });
 }
 
