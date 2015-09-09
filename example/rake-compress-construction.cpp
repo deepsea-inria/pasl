@@ -1,91 +1,6 @@
 #include "cmdline.hpp"
 #include "benchmark.hpp"
-#include "rake-compress-primitives.hpp"
-
-void round(int round) {
-//  std::cerr << live.size() << " " << live << std::endl;
-//  for (int i  =0; i < live.size(); i++) {
-//    std::cerr << "link from " << i << " : ";
-//    for (Node* node : lists[i]->get_children()) {
-//      std::cerr << node << " ";
-//    }
-//    std::cerr << "\nparent " << lists[i]->get_parent() << std::endl;
-//  }
-  if (round % 100 == 0) {
-    std::cerr << round << " " << len[round % 2] << std::endl;
-  }
-//  print_array(live[round % 2], len[round % 2]);
-
-  pasl::sched::native::parallel_for(0, len[round % 2], [&] (int i) {
-    int v = live[round % 2][i];
-    bool is_contr = is_contracted(v, round);
-    bool is_root = lists[v]->is_root();
-    if (!is_contr && !is_root) {
-      copy_node(v);
-    }
-  });
-
-  len[1 - round % 2] = pbbs::sequence::filter(live[round % 2], live[1 - round % 2], len[round % 2], [&] (int v) {
-    return !lists[v]->is_contracted() && !lists[v]->is_known_root();
-  });
-
-//  print_array(live[1 - round % 2], len[1 - round % 2]);
-
-  pasl::sched::native::parallel_for(0, len[1 - round % 2], [&] (int i) {
-    int v = live[1 - round % 2][i];
-    std::set<Node*> copy_children = lists[v]->get_children();
-    for (auto child : copy_children) {
-      if (child->is_contracted())
-        delete_node(child->get_vertex());
-    }
-  });
-
-  pasl::sched::native::parallel_for(0, len[1 - round % 2], [&] (int i) {
-    int v = live[1 - round % 2][i];
-    lists[v]->set_parent(lists[v]->get_parent()->next);
-    std::set<Node*> new_children;
-    for (Node* child : lists[v]->get_children()) {
-      new_children.insert(child->next);
-    }
-    lists[v]->set_children(new_children);
-  });
-}
-
-void round_seq(int round) {
-  if (round % 100 == 0) {
-    std::cerr << round << " " << len[round % 2] << std::endl;
-  }
-
-  for (int i = 0; i < len[round % 2]; i++) {
-    int v = live[round % 2][i];
-    bool is_contr = is_contracted(v, round);
-    bool is_root = lists[v]->is_root();
-    if (!is_contr && !is_root) {
-      copy_node(v);
-    }
-  }
-
-  len[1 - round % 2] = 0;
-  for (int i = 0; i < len[round % 2]; i++) {
-    int v = live[round % 2][i];
-    if (lists[v]->is_contracted()) {
-      delete_node(v);
-    } else {
-      if (!lists[v]->is_known_root())
-        live[1 - round % 2][len[1 - round % 2]++] = v;
-    }
-  }
-
-  for (int i = 0; i < len[1 - round % 2]; i++) {
-    int v = live[1 - round % 2][i];
-    lists[v]->set_parent(lists[v]->get_parent()->next);
-    std::set<Node*> new_children;
-    for (Node* child : lists[v]->get_children()) {
-      new_children.insert(child->next);
-    }
-    lists[v]->set_children(new_children);
-  }
-}
+#include "rake-compress-round-functions.hpp"
 
 template<typename Round>
 void construction(int n, Round round_function) {
@@ -149,10 +64,10 @@ int main(int argc, char** argv) {
    auto run = [&] (bool sequential) {
      if (seq) {
        std::cerr << "Sequential run" << std::endl;
-       construction(n, [&] (int round_no) {round_seq(round_no);});
+       construction(n, [&] (int round_no) {construction_round_seq(round_no);});
      } else {
        std::cerr << "Parallel run" << std::endl;
-       construction(n, [&] (int round_no) {round(round_no);});
+       construction(n, [&] (int round_no) {construction_round(round_no);});
      }
    };
 
