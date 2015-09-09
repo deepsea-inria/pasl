@@ -93,6 +93,7 @@ struct Node {
 };
 
 Node** lists;
+bool* contracted;
 bool* root;
 int* live[2];
 int len[2];
@@ -110,9 +111,10 @@ void initialization(int n, std::vector<int>* children, int* parent) {
       lists[i]->add_child(lists[child]);
     }
   }
-
+  contracted = new bool[n];
   root = new bool[n];
   for (int i = 0; i < n; i++) {
+    contracted[i] = 0;
     root[i] = false;
   }
 
@@ -190,6 +192,7 @@ void round(int round) {
       copy_node(v);
     } else {
       root[v] = is_root;
+      contracted[v] = is_contr;
     }
   });
 
@@ -204,7 +207,8 @@ void round(int round) {
     std::set<Node*> copy_children = lists[v]->get_children();
     for (auto child : copy_children) {
       int u = child->get_vertex();
-      contract(u, round);
+      if (contracted[u])
+        delete_node(u);
     }
   });
 
@@ -219,10 +223,49 @@ void round(int round) {
   });
 }
 
+void round_seq(int round) {
+  if (round % 100 == 0) {
+    std::cerr << round << " " << len[round % 2] << std::endl;
+  }
+
+  for (int i = 0; i < len[round % 2]; i++) {
+    int v = live[round % 2][i];
+    bool is_contr = is_contracted(v, round);
+    bool is_root = lists[v]->is_root();
+    if (!is_contr && !is_root) {
+      copy_node(v);
+    } else {
+      root[v] = is_root;
+      contracted[v] = is_contr;
+    }
+  }
+
+  len[1 - round % 2] = 0;
+  for (int i = 0; i < len[round % 2]; i++) {
+    int v = live[round % 2][i];
+    if (contracted[v]) {
+      delete_node(v);
+    } else {
+      if (!root[v])
+        live[1 - round % 2][len[1 - round % 2]++] = v;
+    }
+  }
+
+  for (int i = 0; i < len[1 - round % 2]; i++) {
+    int v = live[1 - round % 2][i];
+    lists[v]->set_parent(lists[v]->get_parent()->next);
+    std::set<Node*> new_children;
+    for (Node* child : lists[v]->get_children()) {
+      new_children.insert(child->next);
+    }
+    lists[v]->set_children(new_children);
+  }
+}
+
 void construction(int n) {
   int round_no = 0;
   while (len[round_no % 2] > 0) {
-    round(round_no);
+    round_seq(round_no);
     round_no++;
   }
 
