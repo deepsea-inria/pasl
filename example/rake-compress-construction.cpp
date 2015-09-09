@@ -1,7 +1,8 @@
 #include <iostream>
+#include <stdio.h>
 #include <set>
 #include <vector>
-#include "sparray.hpp"
+//#include "sparray.hpp"
 #include "sequence.hpp"
 #include "hash.hpp"
 #include "cmdline.hpp"
@@ -111,16 +112,20 @@ void initialization(int n, std::vector<int>* children, int* parent) {
   }
 
   root = new bool[n];
+  for (int i = 0; i < n; i++) {
+    root[i] = false;
+  }
 
   live[0] = new int[n];
   for (int i = 0; i < n; i++)
     live[0][i] = i;
   live[1] = new int[n];
+  for (int i = 0; i < n; i++) live[1][i] = i;
   len[0] = n;
 }
 
 bool hash(int a, int b) {
-  return (hash_signed(a) + hash_signed(b)) % 2 == 0;
+  return (pbbs::utils::hash(a * 100000 + b)) % 2 == 0;
 }
 
 bool flips(int p, int v, int u, int round) {
@@ -172,10 +177,11 @@ void round(int round) {
 //    }
 //    std::cerr << "\nparent " << lists[i]->get_parent() << std::endl;
 //  }
+  if (round % 100 == 0) {
+    std::cerr << round << " " << len[round % 2] << std::endl;
+  }
+//  print_array(live[round % 2], len[round % 2]);
 
-  print_array(live[round % 2], len[round % 2]);
-
-  std::cerr << "Contracted: " << std::endl;
   pasl::sched::native::parallel_for(0, len[round % 2], [&] (int i) {
     int v = live[round % 2][i];
     bool is_contr = is_contracted(v, round);
@@ -183,21 +189,15 @@ void round(int round) {
     if (!is_contr && !is_root) {
       copy_node(v);
     } else {
-      std::cerr << v << " ";
       root[v] = is_root;
     }
   });
-  std::cerr << std::endl;
 
-  len[1 - round % 2] = pbbs::sequence::filter(live[round % 2], live[1 - round % 2], len[round % 2], [&] (int i) {
-    int v = live[round % 2][i];
-    std::cerr << v << " " << (!is_contracted(v, round) && !root[v]) << std::endl;
+  len[1 - round % 2] = pbbs::sequence::filter(live[round % 2], live[1 - round % 2], len[round % 2], [&] (int v) {
     return !is_contracted(v, round) && !root[v];
   });
 
-  print_array(live[1 - round % 2], len[1 - round % 2]);
-
-  std::cerr << "Here1\n" << std::endl;
+//  print_array(live[1 - round % 2], len[1 - round % 2]);
 
   pasl::sched::native::parallel_for(0, len[1 - round % 2], [&] (int i) {
     int v = live[1 - round % 2][i];
@@ -207,8 +207,6 @@ void round(int round) {
       contract(u, round);
     }
   });
-
-  std::cerr << "Here2\n" << std::endl;
 
   pasl::sched::native::parallel_for(0, len[1 - round % 2], [&] (int i) {
     int v = live[1 - round % 2][i];
@@ -226,7 +224,6 @@ void construction(int n) {
   while (len[round_no % 2] > 0) {
     round(round_no);
     round_no++;
-    std::cerr << round_no << "\n";
   }
 
   int* roots = new int[n];
@@ -245,8 +242,6 @@ void construction(int n) {
   std::cout << std::endl;
 }
 
-int cutoff, n;
-
 int main(int argc, char** argv) {
    int cutoff, n;
    auto init = [&] {
@@ -255,7 +250,7 @@ int main(int argc, char** argv) {
 
      std::vector<int>* children = new std::vector<int>[n];
      int* parent = new int[n];
-     if (false) {
+     if (true) {
        // let us firstly think about binary tree
        for (int i = 0; i < n; i++) {
          parent[i] = i == 0 ? 0 : (i - 1) / 2;
@@ -276,7 +271,7 @@ int main(int argc, char** argv) {
            children[i].push_back(i + 1);
        }
      }
-
+  
      initialization(n, children, parent);
    };
 
