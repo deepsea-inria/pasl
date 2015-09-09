@@ -24,6 +24,8 @@ void construction(int n, Round round_function) {
   for (int i = 0; i < roots_number; i++)
     std::cout << result[i] << " ";
   std::cout << std::endl;
+  delete [] roots;
+  delete [] result;
 }
 
 int main(int argc, char** argv) {
@@ -59,6 +61,8 @@ int main(int argc, char** argv) {
      }
   
      initialization(n, children, parent);
+     delete [] children;
+     delete [] parent;
    };
 
    auto run = [&] (bool sequential) {
@@ -76,7 +80,19 @@ int main(int argc, char** argv) {
    };
 
    auto destroy = [&] {
-     ;
+     delete [] live[0];
+     delete [] live[1];
+
+     for (int i = 0; i < n; i++) {
+       Node* start = lists[i]->head;
+       while (start != NULL) {
+         Node* next = start->next;
+         delete start;
+         start = next;
+       }
+     }
+
+     delete [] lists;
    };
 
    pasl::sched::launch(argc, argv, init, run, output, destroy);

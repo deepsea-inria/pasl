@@ -38,11 +38,14 @@ struct Node {
   int* proposals;
 
   Node(int _vertex) : state(_vertex) {
+    head = NULL;
+    next = NULL;
     proposals = NULL;
   }
 
   Node(const Node &node) : state(node.state) {
     head = node.head;
+    next = NULL;
     proposals = NULL;
   }
 
@@ -83,7 +86,7 @@ struct Node {
     return state.children;
   }
 
-  void set_children(std::set<Node*> children) {
+  void set_children(std::set<Node*>& children) {
     state.children = children;
   }
 
@@ -109,11 +112,13 @@ struct Node {
 
   void prepare() {
     if (proposals != NULL)
-      delete proposals;
+      delete [] proposals;
     proposals = new int[state.children.size()];
   }
 
-  ~Node() { }
+  ~Node() {
+    delete [] proposals;
+  }
 };
 
 Node** lists;
@@ -124,6 +129,7 @@ void initialization(int n, std::vector<int>* children, int* parent) {
   lists = new Node*[n];
   for (int i = 0; i < n; i++) {
     lists[i] = new Node(i);
+    lists[i]->head = lists[i];
     lists[i]->set_parent(lists[i]);
   }
 
@@ -186,5 +192,11 @@ void delete_node(int v) {
 void contract(int v, int round) {
   if (is_contracted(v, round)) {
     delete_node(v);
+  }
+}
+
+void setProposal(Node* v, Node* u, int id) {
+  for (;;) {
+
   }
 }
