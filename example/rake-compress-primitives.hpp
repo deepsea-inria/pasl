@@ -86,6 +86,14 @@ struct Node {
     return state.children;
   }
 
+  void advance() {
+    state.parent = state.parent->next;
+    std::set<Node*> new_children();
+    for (Node* c : state.children)
+      new_children.insert(c->next);
+    state_children.swap(new_children);
+  }
+
   void set_children(std::set<Node*>& children) {
     state.children = children;
   }
@@ -111,9 +119,31 @@ struct Node {
   }
 
   void prepare() {
-    if (proposals != NULL)
-      delete [] proposals;
-    proposals = new int[state.children.size()];
+    if (proposals != NULL) {
+      for (int i = 0; i < state.children.size(); i++) {
+        proposals[i] = 0;
+      }
+    } else {
+      proposals = new int[state.children.size()];
+    }
+  }
+
+  void set_proposal(Node* v, int id) {
+    int i = 0;
+    for (Node* u : state.children) {
+      if (u == v) {
+        proposals[i] = id + 1;
+      }
+      i++;
+    }
+  }
+
+  int get_proposal() {
+    int id = 0;
+    for (int i = 0; i < state.children.size(); i++) {
+      id = std::max(id, proposals[i]);
+    }
+    return id - 1;
   }
 
   ~Node() {
@@ -125,29 +155,6 @@ Node** lists;
 int* live[2];
 int len[2];
 
-void initialization(int n, std::vector<int>* children, int* parent) {
-  lists = new Node*[n];
-  for (int i = 0; i < n; i++) {
-    lists[i] = new Node(i);
-    lists[i]->head = lists[i];
-    lists[i]->set_parent(lists[i]);
-  }
-
-  for (int i = 0; i < n; i++) {
-    lists[i]->state.parent = lists[parent[i]];
-    for (int child : children[i]) {
-      lists[i]->add_child(lists[child]);
-    }
-  }
-
-  live[0] = new int[n];
-  for (int i = 0; i < n; i++)
-    live[0][i] = i;
-  live[1] = new int[n];
-  for (int i = 0; i < n; i++) live[1][i] = i;
-  len[0] = n;
-}
-
 bool hash(int a, int b) {
   return (pbbs::utils::hash(a * 100000 + b)) % 2 == 0;
 }
@@ -156,20 +163,20 @@ bool flips(int p, int v, int u, int round) {
   return (hash(p, round) && !hash(v, round) && hash(u, round));
 }
 
-bool is_contracted(int v, int round) {
-  if (lists[v]->degree() == 0 && !lists[v]->is_root()) {
-    lists[v]->set_contracted(true);
+bool is_contracted(Node* v, int round) {
+  if (v->degree() == 0 && !v->is_root()) {
+    v->set_contracted(true);
     return true;
   }
-  if (lists[v]->degree() == 1) {
-    Node* u = lists[v]->get_first_child();
-    int p = lists[v]->get_parent()->get_vertex();
-    if (v != p && u->degree() > 0 && flips(p, v, u->get_vertex(), round)) {
-      lists[v]->set_contracted(true);
+  if (v->degree() == 1) {
+    Node* u = v->get_first_child();
+    int p = v->get_parent()->get_vertex();
+    if (v->get_vertex() != p && u->degree() > 0 && flips(p, v, u->get_vertex(), round)) {
+      v->set_contracted(true);
       return true;
     }
   }
-  lists[v]->set_contracted(false);
+  v->set_contracted(false);
   return false;
 }
 
@@ -179,24 +186,65 @@ void copy_node(int v) {
   lists[v] = new_node;
 }
 
-void delete_node(int v) {
-  Node* p = lists[v]->get_parent();
-  lists[p->get_vertex()]->remove_child(lists[v]);
-  if (lists[v]->degree() == 1) {
-    Node* c = lists[v]->get_first_child();
-    lists[p->get_vertex()]->add_child(c);
-    lists[c->get_vertex()]->set_parent(p);
-  }
+void delete_node(Node* v) {
+  Node* p = v->get_parent();
+  p->next->remove_child(v);
+  if (v->degree() == 1) {
+    Node* c = v->get_first_child();
+    p->next->add_child(c);
+    c->next->set_parent(p);
+  }             
 }
 
-void contract(int v, int round) {
+void contract(Node* v, int round) {
   if (is_contracted(v, round)) {
     delete_node(v);
   }
 }
 
-void setProposal(Node* v, Node* u, int id) {
-  for (;;) {
+std::unordered_set<Node*>* live_affected_sets;
+std::unordered_set<Node*>* deleted_affected_sets;
+int* vertex_thread;
+int set_number;
 
+Node* make_affected(Node* u, int id, bool to_copy) {
+  if (vertex_thread[u->get_vertex()] == -1) {
+    return;
   }
+  lists[u->get_vertex()] = u;
+  u->set_contracted(false);
+  u->set_root(false);
+  u->prepare();
+  vertex_thread[u->get_vertex()] = id;
+  Node* next = u->next;
+  u->next = NULL;
+  if (next != NULL)
+    deleted_affected_sets[id].insert(next);
+  if (top_copy) {
+    copy_node(u->get_vertex());
+    u = u->next;
+  }
+  live_affected_sets[id].insert(u);
+  return next;
+}
+
+int get_thread_id(Node* v) {
+  if (vertex_thread[v->get_vertex()] == -1) {
+    return v->get_proposal();
+  } else {
+    return vertex_tread[v->get_vertex()];
+  }
+}
+
+void on_frontier(Node* v) {
+  if (get_thread_id(v->get_parent()) == -1) {
+    return true;
+  }
+
+  for (Node* u : v->get_children()) {
+    if (get_thread_id(v->get_parent()) == -1) {
+      return true;
+    }
+  }
+  return false;
 }

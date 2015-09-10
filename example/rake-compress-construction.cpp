@@ -1,6 +1,6 @@
 #include "cmdline.hpp"
 #include "benchmark.hpp"
-#include "rake-compress-round-functions.hpp"
+#include "rake-compress-construction-functions.hpp"
 
 template<typename Round>
 void construction(int n, Round round_function) {
@@ -60,7 +60,7 @@ int main(int argc, char** argv) {
        }
      }
   
-     initialization(n, children, parent);
+     initialization_construction(n, children, parent);
      delete [] children;
      delete [] parent;
    };
