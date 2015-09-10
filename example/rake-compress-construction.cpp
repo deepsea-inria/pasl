@@ -1,5 +1,6 @@
 #include "cmdline.hpp"
 #include "benchmark.hpp"
+#include "rake-compress-generators.hpp"
 #include "rake-compress-construction-functions.hpp"
 
 int main(int argc, char** argv) {
@@ -12,28 +13,7 @@ int main(int argc, char** argv) {
 
      std::vector<int>* children = new std::vector<int>[n];
      int* parent = new int[n];
-     if (graph.compare("binary_tree") == 0) {
-       // let us firstly think about binary tree
-       for (int i = 0; i < n; i++) {
-         parent[i] = i == 0 ? 0 : (i - 1) / 2;
-         children[i] = std::vector<int>();
-         if (2 * i + 1 < n) {
-           children[i].push_back(2 * i + 1);
-         }
-         if (2 * i + 2 < n) {
-           children[i].push_back(2 * i + 2);
-         }
-       }
-     } else {
-       // bambooooooo
-       for (int i = 0; i < n; i++) {
-         parent[i] = i == 0 ? 0 : i - 1;
-         children[i] = std::vector<int>();
-         if (i + 1 < n)
-           children[i].push_back(i + 1);
-       }
-     }
-  
+     generate_graph(graph, n, children, parent);
      initialization_construction(n, children, parent);
      delete [] children;
      delete [] parent;
@@ -50,6 +30,7 @@ int main(int argc, char** argv) {
    };
 
    auto output = [&] {
+     print_roots(n);
      std::cout << "the construction has finished." << std::endl;
    };
 

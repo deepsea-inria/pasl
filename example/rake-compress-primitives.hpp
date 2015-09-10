@@ -5,6 +5,9 @@
 #include "sequence.hpp"
 #include "hash.hpp"
 
+#ifndef _RAKE_COMPRESS_PRIMITIVES_
+#define _RAKE_COMPRESS_PRIMITIVES_
+
 void print_array(int* a, int n) {
   for (int i = 0; i < n; i++) {
     std::cerr << a[i] << " ";
@@ -210,7 +213,7 @@ int* vertex_thread;
 int set_number;
 
 void make_affected(Node* u, int id, bool to_copy) {
-  if (vertex_thread[u->get_vertex()] == -1) {
+  if (vertex_thread[u->get_vertex()] != -1) {
     return;
   }
   lists[u->get_vertex()] = u;
@@ -250,3 +253,24 @@ bool on_frontier(Node* v) {
   }
   return false;
 }
+
+void print_roots(int n) {
+  int* roots = new int[n];
+  for (int i = 0; i < n; i++) {
+    roots[i] = i;
+  }
+
+  int* result = new int[n];
+  int roots_number = pbbs::sequence::filter(roots, result, n, [&] (int v) {
+    return lists[v]->is_known_root();
+  });
+
+  std::cout << "number of roots: " << roots_number << std::endl;
+  for (int i = 0; i < roots_number; i++)
+    std::cout << result[i] << " ";
+  std::cout << std::endl;
+  delete [] roots;
+  delete [] result;
+}
+
+#endif

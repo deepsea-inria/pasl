@@ -29,6 +29,7 @@ VERBOSE_DEPENDENCIES=0
 
 PROGRAMS=\
 	rake-compress-construction.cpp \
+	rake-compress-update.cpp
 #       add reference to your cpp source here
 
 ####################################################################
@@ -53,12 +54,13 @@ include $(TOOLS_BUILD_FOLDER)/Makefile_options
 # (If extending the list, need to add cases for the definition
 # of COMPILE_OPTIONS_FOR further below, and also for "clean".
 
-MODES=dbg log sta opt seq cilk
+MODES=dbg log sta opt seq cilk dbgfs
 
 # Compilation options for each mode
 
 COMPILE_OPTIONS_COMMON=-DDISABLE_INTERRUPTS -DSTATS_IDLE $(OPTIONS_ALL)
 COMPILE_OPTIONS_FOR_dbg=$(OPTIONS_DEBUG) -DSTATS -DDEBUG # -DUSE_UCONTEXT  -DLOGGING
+COMPILE_OPTIONS_FOR_dbgfs=$(OPTIONS_DEBUG) -DSTATS -DDEBUG -DCONTROL_BY_FORCE_SEQUENTIAL # -DUSE_UCONTEXT  -DLOGGING
 COMPILE_OPTIONS_FOR_log=$(OPTIONS_O2) -DSTATS -DLOGGING
 COMPILE_OPTIONS_FOR_sta=$(OPTIONS_O2) -DSTATS
 COMPILE_OPTIONS_FOR_seq=$(OPTIONS_O2) -DSTATS -DSEQUENTIAL_ELISION

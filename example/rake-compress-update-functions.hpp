@@ -12,42 +12,38 @@ void initialization_update_seq(int n, int add_no, int* add_p, int* add_v, int de
   live_affected_sets[0] = std::unordered_set<Node*>();
   deleted_affected_sets[0] = std::unordered_set<Node*>();
 
-  if (seq) {
-    for (int i = 0; i < delete_no; i++) {
-      Node* p = lists[delete_p[i]]->head;
-      Node* v = lists[delete_v[i]]->head;
+  for (int i = 0; i < delete_no; i++) {
+    Node* p = lists[delete_p[i]]->head;
+    Node* v = lists[delete_v[i]]->head;
 
-      v->set_parent(v);
-      p->remove_children(v);
+    v->set_parent(v);
+    p->remove_child(v);
 
-      make_affected(p, 0, false);
-      make_affected(v, 0, false);
-    }
+    make_affected(p, 0, false);
+    make_affected(v, 0, false);
+  }
 
-    for (int i = 0; i < add_no; i++) {
-      Node* p = lists[add_p[i]]->head;
-      Node* v = lists[add_v[i]]->head;
+  for (int i = 0; i < add_no; i++) {
+    ;
+    Node* p = lists[add_p[i]]->head;
+    Node* v = lists[add_v[i]]->head;
 
-      v->set_parent(p);
-      p->add_children(v);
+    v->set_parent(p);
+    p->add_child(v);
+//    std::cerr << "Edge: " << p->get_vertex() << " " << v->get_vertex() << std::endl;
 
-      make_affected(p, 0, false);
-      make_affected(v, 0, false);
-    }
+    make_affected(p, 0, false);
+    make_affected(v, 0, false);
   }
 }
 
 void update_round_seq(int round) {
-  if (round % 100 == 0) {
-    std::cerr << round << " " << len[round % 2] << std::endl;
-  }
-
-  std::unordered_set<Node*> old_live_affected_set();
-  std::unordered_set<Node*> old_deleted_affected_set();
+  std::unordered_set<Node*> old_live_affected_set;
+  std::unordered_set<Node*> old_deleted_affected_set;
   old_live_affected_set.swap(live_affected_sets[0]);
   old_deleted_affected_set.swap(deleted_affected_sets[0]);
   for (Node* v : old_live_affected_set) {
-    if (is_contracted(u, round)) {
+    if (is_contracted(v, round)) {
       v->set_contracted(true);
       if (on_frontier(v)) {
         if (v->get_parent()->next != NULL) {
@@ -88,4 +84,19 @@ void update_round_seq(int round) {
       deleted_affected_sets[0].insert(v->next);
     delete v;
   }
+}
+
+bool end_condition_seq() {
+  return live_affected_sets[0].size() + deleted_affected_sets[0].size();
+}
+
+template <typename Round, typename Condition>
+void update(int n, Round round_function, Condition condition_function) {
+  int round_no = 0;
+  while (condition_function() > 0) {
+    round_function(round_no);
+    round_no++;
+  }
+
+  std::cerr << "Number of rounds: " << round_no << std::endl;
 }

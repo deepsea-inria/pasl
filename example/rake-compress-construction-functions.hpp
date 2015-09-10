@@ -96,21 +96,6 @@ void construction(int n, Round round_function) {
     round_function(round_no);
     round_no++;
   }
-
-  int* roots = new int[n];
-  for (int i = 0; i < n; i++) {
-    roots[i] = i;
-  }
-
-  int* result = new int[n];
-  int roots_number = pbbs::sequence::filter(roots, result, n, [&] (int v) {
-    return lists[v]->is_known_root();
-  });
   std::cout << "Number of rounds: " << round_no << std::endl;
-  std::cout << "number of roots: " << roots_number << std::endl;
-  for (int i = 0; i < roots_number; i++)
-    std::cout << result[i] << " ";
-  std::cout << std::endl;
-  delete [] roots;
-  delete [] result;
 }
+
