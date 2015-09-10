@@ -28,15 +28,15 @@ void construction_round(int round) {
     std::cerr << round << " " << len[round % 2] << std::endl;
   }
 
-  for (int i = 0; i < len[round % 2]; i++) {
-//  pasl::sched::native::parallel_for(0, len[round % 2], [&] (int i) {
+//  for (int i = 0; i < len[round % 2]; i++) {
+  pasl::sched::native::parallel_for(0, len[round % 2], [&] (int i) {
     int v = live[round % 2][i];
     bool is_contr = is_contracted(lists[v], round);
     bool is_root = lists[v]->is_root();
     if (!is_contr && !is_root) {
       copy_node(v);
     }
-  }//);
+  });
 
   len[1 - round % 2] = pbbs::sequence::filter(live[round % 2], live[1 - round % 2], len[round % 2], [&] (int v) {
     return !lists[v]->is_contracted() && !lists[v]->is_known_root();
