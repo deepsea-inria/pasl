@@ -1,6 +1,7 @@
 #include <iostream>
 #include <set>
 #include <vector>
+#include <unordered_set>
 #include "sequence.hpp"
 #include "hash.hpp"
 
@@ -88,10 +89,11 @@ struct Node {
 
   void advance() {
     state.parent = state.parent->next;
-    std::set<Node*> new_children();
-    for (Node* c : state.children)
+    std::set<Node*> new_children;
+    for (Node* c : state.children) {
       new_children.insert(c->next);
-    state_children.swap(new_children);
+    }
+    state.children.swap(new_children);
   }
 
   void set_children(std::set<Node*>& children) {
@@ -171,7 +173,7 @@ bool is_contracted(Node* v, int round) {
   if (v->degree() == 1) {
     Node* u = v->get_first_child();
     int p = v->get_parent()->get_vertex();
-    if (v->get_vertex() != p && u->degree() > 0 && flips(p, v, u->get_vertex(), round)) {
+    if (v->get_vertex() != p && u->degree() > 0 && flips(p, v->get_vertex(), u->get_vertex(), round)) {
       v->set_contracted(true);
       return true;
     }
@@ -207,7 +209,7 @@ std::unordered_set<Node*>* deleted_affected_sets;
 int* vertex_thread;
 int set_number;
 
-Node* make_affected(Node* u, int id, bool to_copy) {
+void make_affected(Node* u, int id, bool to_copy) {
   if (vertex_thread[u->get_vertex()] == -1) {
     return;
   }
@@ -220,23 +222,23 @@ Node* make_affected(Node* u, int id, bool to_copy) {
   u->next = NULL;
   if (next != NULL)
     deleted_affected_sets[id].insert(next);
-  if (top_copy) {
+  if (to_copy) {
     copy_node(u->get_vertex());
     u = u->next;
   }
   live_affected_sets[id].insert(u);
-  return next;
+  return;
 }
 
 int get_thread_id(Node* v) {
   if (vertex_thread[v->get_vertex()] == -1) {
     return v->get_proposal();
   } else {
-    return vertex_tread[v->get_vertex()];
+    return vertex_thread[v->get_vertex()];
   }
 }
 
-void on_frontier(Node* v) {
+bool on_frontier(Node* v) {
   if (get_thread_id(v->get_parent()) == -1) {
     return true;
   }
