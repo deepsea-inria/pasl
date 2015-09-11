@@ -130,14 +130,9 @@ void update_round_seq(int round) {
   old_live_affected_set.swap(live_affected_sets[0]);
   old_deleted_affected_set.swap(deleted_affected_sets[0]);
 
-//  std::cout << "Graph:\n";
-//  print_graph(6);
-
   for (Node* v : old_live_affected_set) {
     is_contracted(v, round);
     if (on_frontier(v)) {
-      std::cerr << v->get_vertex() << std::endl;
-      std::cerr << v->get_parent()->get_vertex() << std::endl;
       if (v->is_contracted() || v->get_parent()->is_affected()) {
         make_affected(v->get_parent(), 0, true);
       }
@@ -166,12 +161,12 @@ void update_round_seq(int round) {
     if (!v->is_contracted()) {
       Node* p = v->get_parent();
       if (p->is_contracted()) {
-        delete_node(p);
+        delete_node_for(p, v);
       }
       std::set<Node*> copy_children = v->get_children();
       for (auto u : copy_children) {
         if (u->is_contracted()) {
-          delete_node(u);
+          delete_node_for(u, v);
         }
       }
     }
@@ -179,6 +174,7 @@ void update_round_seq(int round) {
 
   for (Node* v : live_affected_sets[0]) {
     v->advance();
+    v->prepare();
   }
 
   for (Node* v : old_deleted_affected_set) {
@@ -258,6 +254,7 @@ void update_round(int round) {
   pasl::sched::native::parallel_for(0, set_number, [&] (int i) {
     for (Node* v : live_affected_sets[i]) {
       v->advance();
+      v->prepare();
     }
   });
 

@@ -125,7 +125,8 @@ struct Node {
   }
 
   bool is_affected() {
-    return state.affected;// = (state.affected || get_proposal() > 0);
+    return state.affected = (state.affected || get_proposal() > 0);
+//    return get_proposal() >= 0;
   }
 
   void set_affected(bool value) {
@@ -145,9 +146,6 @@ struct Node {
   }
 
   void set_proposal(Node* v, int id) {
-    if (id >= 0) {
-      id++;
-    } 
     if (state.parent == v) {
       proposals[0] = id + 1;
       return;
@@ -155,7 +153,7 @@ struct Node {
     int i = 1;
     for (Node* u : state.children) {
       if (u == v) {
-        proposals[i + 1] = id + 1;
+        proposals[i] = id + 1;
         return;
       }
       i++;
@@ -261,10 +259,10 @@ void make_affected(Node* u, int id, bool to_copy) {
   //need to affect vertex, which will not be contracted later
   if (lists[u->get_vertex()]->is_contracted()) {
     Node* v = lists[u->get_vertex()];
-//    v->get_parent()->set_proposal(u, vertex_thread[v->get_vertex()]);
+//    v->get_parent()->set_proposal(v, id);
     v->get_parent()->set_affected(true);
     for (Node* c : v->get_children()) {
-//      c->set_proposal(u, vertex_thread[v->get_vertex()]);
+//      c->set_proposal(v, id);
       c->set_affected(true);
     }
   }
