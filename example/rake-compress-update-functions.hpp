@@ -170,14 +170,16 @@ void update_round_seq(int round) {
 }
 
 void update_round(int round) {
-  for (int i = 0; i < set_number; i++) {
+//  for (int i = 0; i < set_number; i++) {
+  pasl::sched::native::parallel_for(0, set_number, [&] (int i) {
     old_live_affected_sets[i].clear();
     live_affected_sets[i].swap(old_live_affected_sets[i]);
     old_deleted_affected_sets[i].clear();
     deleted_affected_sets[i].swap(old_deleted_affected_sets[i]);
-  }
+  });
 
-  for (int i = 0; i < set_number; i++) {
+//  for (int i = 0; i < set_number; i++) {
+  pasl::sched::native::parallel_for(0, set_number, [&] (int i) {
     for (Node* v : old_live_affected_sets[i]) {
       if (is_contracted(v, round)) {
         v->set_contracted(true);
@@ -194,9 +196,10 @@ void update_round(int round) {
         live_affected_sets[i].insert(v->next);
       }
     }
-  }
+  });
 
-  for (int i = 0; i < set_number; i++) {
+//  for (int i = 0; i < set_number; i++) {
+  pasl::sched::native::parallel_for(0, set_number, [&] (int i) {
     for (Node* v : old_live_affected_sets[i]) {
       if (is_contracted(v, round)) {
         if (get_thread_id(v->get_parent()) == i) {
@@ -208,9 +211,10 @@ void update_round(int round) {
         }
       }
     }
-  }
+  });
 
-  for (int i = 0; i < set_number; i++) {
+//  for (int i = 0; i < set_number; i++) {
+  pasl::sched::native::parallel_for(0, set_number, [&] (int i) {
     for (Node* v : live_affected_sets[i]) {
       if (v->get_parent()->is_contracted()) {
         delete_node_for(v->get_parent(), v);
@@ -221,21 +225,23 @@ void update_round(int round) {
         }
       }
     }
-  }
+  });
 
-  for (int i = 0; i < set_number; i++) {
+//  for (int i = 0; i < set_number; i++) {
+  pasl::sched::native::parallel_for(0, set_number, [&] (int i) {
     for (Node* v : live_affected_sets[i]) {
       v->advance();
     }
-  }
+  });
 
-  for (int i = 0; i < set_number; i++) {
+//  for (int i = 0; i < set_number; i++) {
+  pasl::sched::native::parallel_for(0, set_number, [&] (int i) {
     for (Node* v : old_deleted_affected_sets[i]) {
       if (v->next != NULL)
         deleted_affected_sets[i].insert(v->next);
       delete v;
     }
-  }
+  });
 }
 
 bool end_condition_seq() {
