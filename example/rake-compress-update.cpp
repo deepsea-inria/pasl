@@ -91,6 +91,8 @@ int main(int argc, char** argv) {
 //     print_roots(n);
      if (seq) {
        initialization_update_seq(n, add_no, add_p, add_v, delete_no, delete_p, delete_v);
+     } else {
+       initialization_update(n, add_no, add_p, add_v, delete_no, delete_p, delete_v);
      }
 
      delete [] children;
@@ -108,10 +110,10 @@ int main(int argc, char** argv) {
        std::cerr << "Sequential run" << std::endl;
 //       update(n, [&] (int round_no) {update_round_seq(round_no);}, [&] () {});
        update(n, std::bind(update_round_seq, std::placeholders::_1), std::bind(end_condition_seq));
-     }/* else {
+     } else {
        std::cerr << "Parallel run" << std::endl;
-       update(n, std::bind(update_roun, _1), std::bind(end_condition));
-     }*/
+       update(n, std::bind(update_round, std::placeholders::_1), std::bind(end_condition));
+     }
    };
 
    auto output = [&] {

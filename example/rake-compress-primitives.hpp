@@ -134,10 +134,15 @@ struct Node {
   }
 
   void set_proposal(Node* v, int id) {
-    int i = 0;
+    if (state.parent == v) {
+      proposals[0] = id + 1;
+      return;
+    }
+    int i = 1;
     for (Node* u : state.children) {
       if (u == v) {
-        proposals[i] = id + 1;
+        proposals[i + 1] = id + 1;
+        return;
       }
       i++;
     }
@@ -199,6 +204,19 @@ void delete_node(Node* v) {
     p->next->add_child(c);
     c->next->set_parent(p);
   }             
+}
+
+void delete_node_for(Node* v, Node* u) {
+  Node* p = v->get_parent();
+  if (p->next == u)
+    p->next->remove_child(v);
+  if (v->degree() == 1) {
+    Node* c = v->get_first_child();
+    if (p->next == u)
+      p->next->add_child(c);
+    if (c->next == u)
+      c->next->set_parent(p);
+  }
 }
 
 void contract(Node* v, int round) {
