@@ -132,6 +132,12 @@ int main(int argc, char** argv) {
      }
 
      delete [] lists;
+     delete [] live_affected_sets;
+     delete [] deleted_affected_sets;
+     delete [] old_live_affected_sets;
+     delete [] old_deleted_affected_sets;
+     delete [] ids;
+     delete [] vertex_thread;
    };
 
    pasl::sched::launch(argc, argv, init, run, output, destroy);
