@@ -25,9 +25,9 @@ struct State {
   bool root;
   bool affected;
 
-  State(int _vertex) : vertex(_vertex), children(), contracted(false), root(false) {}
+  State(int _vertex) : vertex(_vertex), children(), contracted(false), root(false), affected(false) {}
 
-  State(const State &state) : children(state.children), contracted(false), root(false) {
+  State(const State &state) : children(state.children), contracted(false), root(false), affected(false) {
     vertex = state.vertex;
 //    children = state.children;
     parent = state.parent;
@@ -125,7 +125,7 @@ struct Node {
   }
 
   bool is_affected() {
-    return state.affected = (state.affected || get_proposal() > 0);
+    return state.affected;// = (state.affected || get_proposal() > 0);
   }
 
   void set_affected(bool value) {
@@ -170,12 +170,8 @@ struct Node {
     return id - 1;
   }
 
-  void copy_from(Node* u) {
-    state.parent = u->get_parent();
-    state.children = u->get_children();
-    state.root = false;
-    state.contracted = false;
-    state.affected = false;
+  void copy_state(Node* u) {
+    state = u->state;
   }
 
   ~Node() {
@@ -218,7 +214,7 @@ void copy_node(Node* v) {
     v->next = new_node;
     lists[v->get_vertex()] = new_node;
   } else {
-    v->next->copy_from(v);
+    v->next->copy_state(v);
     lists[v->get_vertex()] = v->next;
   }
   lists[v->get_vertex()]->prepare();
@@ -265,9 +261,12 @@ void make_affected(Node* u, int id, bool to_copy) {
   //need to affect vertex, which will not be contracted later
   if (lists[u->get_vertex()]->is_contracted()) {
     Node* v = lists[u->get_vertex()];
-    v->get_parent()->set_proposal(u, vertex_thread[v->get_vertex()]);
-    for (Node* c : v->get_children())
-      c->set_proposal(u, vertex_thread[v->get_vertex()]);
+//    v->get_parent()->set_proposal(u, vertex_thread[v->get_vertex()]);
+    v->get_parent()->set_affected(true);
+    for (Node* c : v->get_children()) {
+//      c->set_proposal(u, vertex_thread[v->get_vertex()]);
+      c->set_affected(true);
+    }
   }
 
   lists[u->get_vertex()] = u;

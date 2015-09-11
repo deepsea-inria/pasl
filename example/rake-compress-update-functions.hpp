@@ -130,11 +130,11 @@ void update_round_seq(int round) {
   old_live_affected_set.swap(live_affected_sets[0]);
   old_deleted_affected_set.swap(deleted_affected_sets[0]);
 
-  std::cout << "Graph:\n";
-  print_graph(6);
+//  std::cout << "Graph:\n";
+//  print_graph(6);
 
   for (Node* v : old_live_affected_set) {
-    v->set_contracted(is_contracted(v, round));
+    is_contracted(v, round);
     if (on_frontier(v)) {
       std::cerr << v->get_vertex() << std::endl;
       std::cerr << v->get_parent()->get_vertex() << std::endl;
