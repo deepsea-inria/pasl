@@ -26,6 +26,23 @@ void generate_bamboo(int n, std::vector<int>* children, int* parent)  {
   }
 }
 
+void generate_two_bamboos(int n, std::vector<int>* children, int* parent) {
+  int l1 = n / 2;
+  int l2 = n - l1;
+  for (int i = 0; i < l1; i++) {
+    parent[i] = i == 0 ? 0 : i - 1;
+    children[i] = std::vector<int>();
+    if (i + 1 < l1)
+      children[i].push_back(i + 1);
+  }
+  for (int i = 0; i < l2; i++) {
+    parent[i + l1] = (i == 0 ? 0 : i - 1) + l1;
+    children[i + l1] = std::vector<int>();
+    if (i + 1 < l2)
+      children[i + l1].push_back(i + l1 + 1);
+  }
+}
+
 void generate_empty_graph(int n, std::vector<int>* children, int* parent) {
   for (int i = 0; i < n; i++) {
     parent[i] = i;
@@ -40,8 +57,10 @@ void generate_graph(std::string type, int n, std::vector<int>* children, int* pa
   } else if (type.compare("bamboo") == 0) {
     // bambooooooo
     generate_bamboo(n, children, parent);
-  } else {
+  } else if (type.compare("empty_graph") == 0) {
     generate_empty_graph(n, children, parent);
+  } else {
+    generate_two_bamboos(n, children, parent);
   }
 }
 

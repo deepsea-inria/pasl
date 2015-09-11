@@ -23,72 +23,93 @@ int main(int argc, char** argv) {
      int add_no, delete_no;
 
      if (type.compare("add") == 0) { 
-       generate_graph("empty_graph", n, children, parent);
- 
-       add_no = n - 1;
-       delete_no = 0;
-       add_p = new int[n - 1];
-       add_v = new int[n - 1];
-       delete_p = new int[0];
-       delete_v = new int[0];
-       if (graph.compare("binary_tree") == 0) {
-         // let us firstly think about binary tree
-         int id = 0;
-         for (int i = 0; i < n; i++) {
-           if (2 * i + 1 < n) {
-             add_p[id] = i;
-             add_v[id] = 2 * i + 1;
-             id++;
-           }
-           if (2 * i + 2 < n) {
-             add_p[id] = i;
-             add_v[id] = 2 * i + 2;
-             id++;
-           }
-         }
+       if (graph.compare("two_bamboos") == 0) {
+         generate_graph("two_bamboos", n, children, parent);
+         add_no = 1;
+         delete_no = 0;
+         add_p = new int[1];
+         add_v = new int[1];
+         delete_p = new int[0];
+         delete_v = new int[0];
+         add_p[0] = n / 2 - 1;
+         add_v[0] = add_p[0] + 1;
        } else {
-         // bambooooooo
-         for (int i = 0; i < n - 1; i++) {
-           add_p[i] = i;
-           add_v[i] = i + 1;
+         generate_graph("empty_graph", n, children, parent);
+ 
+         add_no = n - 1;
+         delete_no = 0;
+         add_p = new int[n - 1];
+         add_v = new int[n - 1];
+         delete_p = new int[0];
+         delete_v = new int[0];
+         if (graph.compare("binary_tree") == 0) {
+           // let us firstly think about binary tree
+           int id = 0;
+           for (int i = 0; i < n; i++) {
+             if (2 * i + 1 < n) {
+               add_p[id] = i;
+               add_v[id] = 2 * i + 1;
+               id++;
+             }
+             if (2 * i + 2 < n) {
+               add_p[id] = i;
+               add_v[id] = 2 * i + 2;
+               id++;
+             }
+           }
+         } else if (graph.compare("bamboo")) {
+           // bambooooooo
+           for (int i = 0; i < n - 1; i++) {
+             add_p[i] = i;
+             add_v[i] = i + 1;
+           }
          }
        }
      } else {
-       generate_graph(graph, n, children, parent);
-
-       add_no = 0;
-       delete_no = n - 1;
-       add_p = new int[0];
-       add_v = new int[0];
-       delete_p = new int[n - 1];
-       delete_v = new int[n - 1];
-       if (graph.compare("binary_tree") == 0) {
-         // let us firstly think about binary tree
-         int id = 0;
-         for (int i = 0; i < n; i++) {
-           if (2 * i + 1 < n) {
-             delete_p[id] = i;
-             delete_v[id] = 2 * i + 1;
-             id++;
-           }
-           if (2 * i + 2 < n) {
-             delete_p[id] = i;
-             delete_v[id] = 2 * i + 2;
-             id++;
-           }
-         }
+       if (graph.compare("two_bamboos") == 0) {
+         generate_graph("bamboo", n, children, parent);
+         add_p = new int[0];
+         add_v = new int[0];
+         delete_p = new int[1];
+         delete_v = new int[1];
+         delete_p[0] = n / 2 - 1;
+         delete_v[0] = delete_p[0] + 1;
        } else {
-         // bambooooooo
-         for (int i = 0; i < n - 1; i++) {
-           delete_p[i] = i;
-           delete_v[i] = i + 1;
+         generate_graph(graph, n, children, parent);
+
+         add_no = 0;
+         delete_no = n - 1;
+         add_p = new int[0];
+         add_v = new int[0];
+         delete_p = new int[n - 1];
+         delete_v = new int[n - 1];
+         if (graph.compare("binary_tree") == 0) {
+           // let us firstly think about binary tree
+           int id = 0;
+           for (int i = 0; i < n; i++) {
+             if (2 * i + 1 < n) {
+               delete_p[id] = i;
+               delete_v[id] = 2 * i + 1;
+               id++;
+             }
+             if (2 * i + 2 < n) {
+               delete_p[id] = i;
+               delete_v[id] = 2 * i + 2;
+               id++;
+            }
+           }
+         } else {
+           // bambooooooo
+           for (int i = 0; i < n - 1; i++) {
+             delete_p[i] = i;
+             delete_v[i] = i + 1;
+           }
          }
        }
      }
-  
      initialization_construction(n, children, parent);
      construction(n, [&] (int round_no) {construction_round_seq(round_no);});
-//     print_roots(n);
+     print_roots(n);
      if (seq) {
        initialization_update_seq(n, add_no, add_p, add_v, delete_no, delete_p, delete_v);
      } else {

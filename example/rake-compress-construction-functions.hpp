@@ -13,6 +13,7 @@ void initialization_construction(int n, std::vector<int>* children, int* parent)
     for (int child : children[i]) {
       lists[i]->add_child(lists[child]);
     }
+    lists[i]->prepare();
   }
 
   live[0] = new int[n];
@@ -34,7 +35,7 @@ void construction_round(int round) {
     bool is_contr = is_contracted(lists[v], round);
     bool is_root = lists[v]->is_root();
     if (!is_contr && !is_root) {
-      copy_node(v);
+      copy_node(lists[v]);
     }
   });
 
@@ -68,7 +69,7 @@ void construction_round_seq(int round) {
     bool is_contr = is_contracted(lists[v], round);
     bool is_root = lists[v]->is_root();
     if (!is_contr && !is_root) {
-      copy_node(v);
+      copy_node(lists[v]);
     }
   }
 
@@ -86,6 +87,7 @@ void construction_round_seq(int round) {
   for (int i = 0; i < len[1 - round % 2]; i++) {
     int v = live[1 - round % 2][i];
     lists[v]->advance();
+    lists[v]->prepare();
   }
 }
 

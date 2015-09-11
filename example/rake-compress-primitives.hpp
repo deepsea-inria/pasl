@@ -23,6 +23,7 @@ struct State {
   Node* parent;
   bool contracted;
   bool root;
+  bool affected;
 
   State(int _vertex) : vertex(_vertex), children(), contracted(false), root(false) {}
 
@@ -123,17 +124,30 @@ struct Node {
     return state.root;
   }
 
+  bool is_affected() {
+    return state.affected = (state.affected || get_proposal() > 0);
+  }
+
+  void set_affected(bool value) {
+    state.affected = value;
+  }
+
   void prepare() {
     if (proposals != NULL) {
-      for (int i = 0; i < state.children.size(); i++) {
+      for (int i = 0; i < state.children.size() + 1; i++) {
         proposals[i] = 0;
       }
     } else {
-      proposals = new int[state.children.size()];
+      proposals = new int[state.children.size() + 1];
+      for (int i = 0; i < state.children.size() + 1; i++)
+        proposals[i] = 0;
     }
   }
 
   void set_proposal(Node* v, int id) {
+    if (id >= 0) {
+      id++;
+    } 
     if (state.parent == v) {
       proposals[0] = id + 1;
       return;
@@ -150,10 +164,18 @@ struct Node {
 
   int get_proposal() {
     int id = 0;
-    for (int i = 0; i < state.children.size(); i++) {
+    for (int i = 0; i < state.children.size() + 1; i++) {
       id = std::max(id, proposals[i]);
     }
     return id - 1;
+  }
+
+  void copy_from(Node* u) {
+    state.parent = u->get_parent();
+    state.children = u->get_children();
+    state.root = false;
+    state.contracted = false;
+    state.affected = false;
   }
 
   ~Node() {
@@ -190,10 +212,16 @@ bool is_contracted(Node* v, int round) {
   return false;
 }
 
-void copy_node(int v) {
-  Node* new_node = new Node(*lists[v]);
-  lists[v]->next = new_node;
-  lists[v] = new_node;
+void copy_node(Node* v) {
+  if (v->next == NULL) {
+    Node* new_node = new Node(*v);
+    v->next = new_node;
+    lists[v->get_vertex()] = new_node;
+  } else {
+    v->next->copy_from(v);
+    lists[v->get_vertex()] = v->next;
+  }
+  lists[v->get_vertex()]->prepare();
 }
 
 void delete_node(Node* v) {
@@ -234,17 +262,22 @@ void make_affected(Node* u, int id, bool to_copy) {
   if (vertex_thread[u->get_vertex()] != -1) {
     return;
   }
+  //need to affect vertex, which will not be contracted later
+  if (lists[u->get_vertex()]->is_contracted()) {
+    Node* v = lists[u->get_vertex()];
+    v->get_parent()->set_proposal(u, vertex_thread[v->get_vertex()]);
+    for (Node* c : v->get_children())
+      c->set_proposal(u, vertex_thread[v->get_vertex()]);
+  }
+
   lists[u->get_vertex()] = u;
   u->set_contracted(false);
   u->set_root(false);
+  u->set_affected(false);
   u->prepare();
   vertex_thread[u->get_vertex()] = id;
-  Node* next = u->next;
-  u->next = NULL;
-  if (next != NULL)
-    deleted_affected_sets[id].insert(next);
   if (to_copy) {
-    copy_node(u->get_vertex());
+    copy_node(u);
     u = u->next;
   }
   live_affected_sets[id].insert(u);
@@ -260,12 +293,12 @@ int get_thread_id(Node* v) {
 }
 
 bool on_frontier(Node* v) {
-  if (get_thread_id(v->get_parent()) == -1) {
+  if (vertex_thread[v->get_parent()->get_vertex()] == -1) {
     return true;
   }
 
   for (Node* u : v->get_children()) {
-    if (get_thread_id(v->get_parent()) == -1) {
+    if (vertex_thread[u->get_vertex()] == -1) {
       return true;
     }
   }
@@ -289,6 +322,18 @@ void print_roots(int n) {
   std::cout << std::endl;
   delete [] roots;
   delete [] result;
+}
+
+void print_graph(int n) {
+  for (int i = 0; i < n; i++) {
+    if (!lists[i]->is_contracted() && !lists[i]->is_root()) {
+      std::cout << lists[i]->get_vertex() << " (" << lists[i]->get_parent()->get_vertex() << "): ";
+      for (Node* child : lists[i]->get_children()) {
+        std::cout << child->get_vertex() << " ";
+      }
+      std::cout << std::endl;
+    }
+  }
 }
 
 #endif
