@@ -1,0 +1,9 @@
+_build/log/samplesort.o: _build/log/randperm.p
+_build/log/samplesort.ok: _build/log/randperm.ok
+_build/log/samplesort.o: _build/log/sequenceio.p
+_build/log/samplesort.ok: _build/log/sequenceio.ok
+_build/log/samplesort.o: _build/log/samplesort.p
+_build/log/samplesort.o: _build/log/sequencedata.p
+_build/log/samplesort.ok: _build/log/sequencedata.ok
+_build/log/samplesort.o: _build/log/benchmark.p
+_build/log/samplesort.ok: _build/log/benchmark.ok

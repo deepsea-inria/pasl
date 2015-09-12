@@ -1,0 +1,1748 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+  <meta http-equiv="Content-Style-Type" content="text/css" />
+  <meta name="generator" content="pandoc" />
+  <meta name="author" content="Deepsea Project" />
+  <meta name="date" content="2015-02-10" />
+  <title>The Parallel-Container Template Library User's Guide</title>
+  <style type="text/css">code{white-space: pre;}</style>
+  <style type="text/css">
+table.sourceCode, tr.sourceCode, td.lineNumbers, td.sourceCode {
+  margin: 0; padding: 0; vertical-align: baseline; border: none; }
+table.sourceCode { width: 100%; line-height: 100%; }
+td.lineNumbers { text-align: right; padding-right: 4px; padding-left: 4px; color: #aaaaaa; border-right: 1px solid #aaaaaa; }
+td.sourceCode { padding-left: 5px; }
+code > span.kw { color: #007020; font-weight: bold; }
+code > span.dt { color: #902000; }
+code > span.dv { color: #40a070; }
+code > span.bn { color: #40a070; }
+code > span.fl { color: #40a070; }
+code > span.ch { color: #4070a0; }
+code > span.st { color: #4070a0; }
+code > span.co { color: #60a0b0; font-style: italic; }
+code > span.ot { color: #007020; }
+code > span.al { color: #ff0000; font-weight: bold; }
+code > span.fu { color: #06287e; }
+code > span.er { color: #ff0000; font-weight: bold; }
+  </style>
+  <link rel="stylesheet" href="pctl.css" type="text/css" />
+  <script src="http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML" type="text/javascript"></script>
+</head>
+<body>
+<div id="header">
+<h1 class="title">The Parallel-Container Template Library User's Guide</h1>
+<h2 class="author">Deepsea Project</h2>
+<h3 class="date">10 February 2015</h3>
+</div>
+<div id="TOC">
+<ul>
+<li><a href="#introduction"><span class="toc-section-number">1</span> Introduction</a></li>
+<li><a href="#containers"><span class="toc-section-number">2</span> Containers</a><ul>
+<li><a href="#sequence-containers"><span class="toc-section-number">2.1</span> Sequence containers</a></li>
+<li><a href="#associative-containers"><span class="toc-section-number">2.2</span> Associative containers</a></li>
+</ul></li>
+<li><a href="#parray"><span class="toc-section-number">3</span> Parallel array</a><ul>
+<li><a href="#template-parameters"><span class="toc-section-number">3.1</span> Template parameters</a><ul>
+<li><a href="#pa-item"><span class="toc-section-number">3.1.1</span> Item type</a></li>
+<li><a href="#pa-alloc"><span class="toc-section-number">3.1.2</span> Allocator</a></li>
+</ul></li>
+<li><a href="#pa-iter"><span class="toc-section-number">3.2</span> Iterator</a></li>
+<li><a href="#constructors-and-destructors"><span class="toc-section-number">3.3</span> Constructors and destructors</a><ul>
+<li><a href="#pa-e-c-c"><span class="toc-section-number">3.3.1</span> Empty container constructor</a></li>
+<li><a href="#pa-e-f-c"><span class="toc-section-number">3.3.2</span> Fill container</a></li>
+<li><a href="#pa-e-p-c"><span class="toc-section-number">3.3.3</span> Populate constructor</a></li>
+<li><a href="#pa-e-cp-c"><span class="toc-section-number">3.3.4</span> Copy constructor</a></li>
+<li><a href="#pa-i-l-c"><span class="toc-section-number">3.3.5</span> Initializer-list constructor</a></li>
+<li><a href="#pa-m-c"><span class="toc-section-number">3.3.6</span> Move constructor</a></li>
+<li><a href="#pa-destr"><span class="toc-section-number">3.3.7</span> Destructor</a></li>
+</ul></li>
+<li><a href="#operations"><span class="toc-section-number">3.4</span> Operations</a><ul>
+<li><a href="#pa-i-o"><span class="toc-section-number">3.4.1</span> Indexing operator</a></li>
+<li><a href="#pa-si"><span class="toc-section-number">3.4.2</span> Size operator</a></li>
+<li><a href="#pa-rsz"><span class="toc-section-number">3.4.3</span> Resize</a></li>
+<li><a href="#pa-sw"><span class="toc-section-number">3.4.4</span> Exchange operation</a></li>
+<li><a href="#pa-beg"><span class="toc-section-number">3.4.5</span> Iterator begin</a></li>
+<li><a href="#pa-end"><span class="toc-section-number">3.4.6</span> Iterator end</a></li>
+</ul></li>
+</ul></li>
+<li><a href="#pchunkedseq"><span class="toc-section-number">4</span> Parallel chunked sequence</a><ul>
+<li><a href="#template-parameters-1"><span class="toc-section-number">4.1</span> Template parameters</a><ul>
+<li><a href="#cs-item"><span class="toc-section-number">4.1.1</span> Item type</a></li>
+<li><a href="#cs-alloc"><span class="toc-section-number">4.1.2</span> Allocator</a></li>
+</ul></li>
+<li><a href="#iterator"><span class="toc-section-number">4.2</span> Iterator</a></li>
+<li><a href="#constructors-and-destructors-1"><span class="toc-section-number">4.3</span> Constructors and destructors</a><ul>
+<li><a href="#cs-e-c-c"><span class="toc-section-number">4.3.1</span> Empty container constructor</a></li>
+<li><a href="#cs-e-f-c"><span class="toc-section-number">4.3.2</span> Fill container</a></li>
+<li><a href="#cs-e-p-c"><span class="toc-section-number">4.3.3</span> Populate constructor</a></li>
+<li><a href="#cs-e-cp-c"><span class="toc-section-number">4.3.4</span> Copy constructor</a></li>
+<li><a href="#cs-i-l-c"><span class="toc-section-number">4.3.5</span> Initializer-list constructor</a></li>
+<li><a href="#cs-m-c"><span class="toc-section-number">4.3.6</span> Move constructor</a></li>
+<li><a href="#cs-destr"><span class="toc-section-number">4.3.7</span> Destructor</a></li>
+</ul></li>
+<li><a href="#sequential-operations"><span class="toc-section-number">4.4</span> Sequential operations</a><ul>
+<li><a href="#cs-i-o"><span class="toc-section-number">4.4.1</span> Indexing operator</a></li>
+<li><a href="#cs-si"><span class="toc-section-number">4.4.2</span> Size operator</a></li>
+<li><a href="#cs-sw"><span class="toc-section-number">4.4.3</span> Exchange operation</a></li>
+</ul></li>
+<li><a href="#parallel-operations"><span class="toc-section-number">4.5</span> Parallel operations</a><ul>
+<li><a href="#cs-rbld"><span class="toc-section-number">4.5.1</span> Tabulate</a></li>
+<li><a href="#cs-rsz"><span class="toc-section-number">4.5.2</span> Resize</a></li>
+</ul></li>
+</ul></li>
+<li><a href="#data-parallel-operations"><span class="toc-section-number">5</span> Data-parallel operations</a><ul>
+<li><a href="#indexed-based-for-loop"><span class="toc-section-number">5.1</span> Indexed-based for loop</a><ul>
+<li><a href="#template-parameters-2"><span class="toc-section-number">5.1.1</span> Template parameters</a></li>
+<li><a href="#instances"><span class="toc-section-number">5.1.2</span> Instances</a></li>
+</ul></li>
+<li><a href="#reduction"><span class="toc-section-number">5.2</span> Reduction</a><ul>
+<li><a href="#red-l-0"><span class="toc-section-number">5.2.1</span> Level 0</a></li>
+<li><a href="#red-l-1"><span class="toc-section-number">5.2.2</span> Level 1</a></li>
+<li><a href="#red-l-2"><span class="toc-section-number">5.2.3</span> Level 2</a></li>
+<li><a href="#red-l-3"><span class="toc-section-number">5.2.4</span> Level 3</a></li>
+<li><a href="#red-l-4"><span class="toc-section-number">5.2.5</span> Level 4</a></li>
+</ul></li>
+<li><a href="#derived-operations"><span class="toc-section-number">5.3</span> Derived operations</a></li>
+</ul></li>
+<li><a href="#sorting"><span class="toc-section-number">6</span> Sorting</a><ul>
+<li><a href="#merge-sort"><span class="toc-section-number">6.1</span> Merge sort</a></li>
+<li><a href="#quick-sort"><span class="toc-section-number">6.2</span> Quick sort</a></li>
+<li><a href="#sample-sort"><span class="toc-section-number">6.3</span> Sample sort</a></li>
+<li><a href="#radix-sort"><span class="toc-section-number">6.4</span> Radix sort</a></li>
+</ul></li>
+</ul>
+</div>
+<h1 id="introduction"><span class="header-section-number">1</span> Introduction</h1>
+<p>The purpose of this document is to serve as a working draft of the design and implementation of the Parallel Container Template Library (PCTL).</p>
+<p><strong><em>Essential terminology.</em></strong></p>
+<p>A <em>function call operator</em> (or, just &quot;call operator&quot;) is a member function of a C++ class that is specified by the name <code>operator()</code>.</p>
+<p>A <em>functor</em> is a C++ class which defines a call operator.</p>
+<p>A <em>right-open range</em> is ...</p>
+<p><em>work</em> <em>span</em></p>
+<h1 id="containers"><span class="header-section-number">2</span> Containers</h1>
+<h2 id="sequence-containers"><span class="header-section-number">2.1</span> Sequence containers</h2>
+<table>
+<caption>Sequence containers that are provided by pctl.</caption>
+<thead>
+<tr class="header">
+<th align="left">Class name</th>
+<th align="left">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left"><a href="#parray"><code>parray</code></a></td>
+<td align="left">Array class</td>
+</tr>
+<tr class="even">
+<td align="left"><a href="#pchunkedseq"><code>pchunkedseq</code></a></td>
+<td align="left">Parallel chunked sequence class</td>
+</tr>
+</tbody>
+</table>
+<h2 id="associative-containers"><span class="header-section-number">2.2</span> Associative containers</h2>
+<table>
+<caption>Associative containers that are provided by pctl.</caption>
+<thead>
+<tr class="header">
+<th align="left">Class name</th>
+<th align="left">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">set</td>
+<td align="left">Set class</td>
+</tr>
+<tr class="even">
+<td align="left">map</td>
+<td align="left">Associative map class</td>
+</tr>
+</tbody>
+</table>
+<h1 id="parray"><span class="header-section-number">3</span> Parallel array</h1>
+<table>
+<caption>Template parameters for the <code>parray</code> class.</caption>
+<colgroup>
+<col width="50%" />
+<col width="50%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th align="left">Template parameter</th>
+<th align="left">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left"><p><a href="#pa-item"><code>Item</code></a></p></td>
+<td align="left"><p>Type of the objects to be stored in the container</p></td>
+</tr>
+<tr class="even">
+<td align="left"><p><a href="#pa-alloc"><code>Alloc</code></a></p></td>
+<td align="left"><p>Allocator to be used by the container to construct and destruct objects of type <code>Item</code></p></td>
+</tr>
+</tbody>
+</table>
+<pre class="sourceCode cpp"><code class="sourceCode cpp"><span class="kw">namespace</span> pasl {
+<span class="kw">namespace</span> data {
+
+<span class="kw">template</span> &lt;<span class="kw">class</span> Item, <span class="kw">class</span> Alloc = std::allocator&lt;Item&gt;&gt;
+<span class="kw">class</span> parray;
+
+} }</code></pre>
+<table>
+<caption>Parallel-array type definitions.</caption>
+<colgroup>
+<col width="50%" />
+<col width="50%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th align="left">Type</th>
+<th align="left">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left"><p><code>value_type</code></p></td>
+<td align="left"><p>Alias for template parameter <code>Item</code></p></td>
+</tr>
+<tr class="even">
+<td align="left"><p><code>reference</code></p></td>
+<td align="left"><p>Alias for <code>value_type&amp;</code></p></td>
+</tr>
+<tr class="odd">
+<td align="left"><p><code>const_reference</code></p></td>
+<td align="left"><p>Alias for <code>const value_type&amp;</code></p></td>
+</tr>
+<tr class="even">
+<td align="left"><p><code>pointer</code></p></td>
+<td align="left"><p>Alias for <code>value_type*</code></p></td>
+</tr>
+<tr class="odd">
+<td align="left"><p><code>const_pointer</code></p></td>
+<td align="left"><p>Alias for <code>const value_type*</code></p></td>
+</tr>
+<tr class="even">
+<td align="left"><p><a href="#pa-iter"><code>iterator</code></a></p></td>
+<td align="left"><p>Iterator</p></td>
+</tr>
+<tr class="odd">
+<td align="left"><p><a href="#pa-iter"><code>const_iterator</code></a></p></td>
+<td align="left"><p>Const iterator</p></td>
+</tr>
+</tbody>
+</table>
+<table>
+<caption>Parallel-array constructors and destructors.</caption>
+<colgroup>
+<col width="50%" />
+<col width="50%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th align="left">Constructor</th>
+<th align="left">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left"><p><a href="#pa-e-c-c">empty container constructor</a> (default constructor)</p></td>
+<td align="left"><p>constructs an empty container with no items</p></td>
+</tr>
+<tr class="even">
+<td align="left"><p><a href="#pa-e-f-c">fill constructor</a></p></td>
+<td align="left"><p>constructs a container with a specified number of copies of a given item</p></td>
+</tr>
+<tr class="odd">
+<td align="left"><p><a href="#pa-e-p-c">populate constructor</a></p></td>
+<td align="left"><p>constructs a container with a specified number of values that are computed by a specified function</p></td>
+</tr>
+<tr class="even">
+<td align="left"><p><a href="#pa-e-cp-c">copy constructor</a></p></td>
+<td align="left"><p>constructs a container with a copy of each of the items in the given container, in the same order</p></td>
+</tr>
+<tr class="odd">
+<td align="left"><p><a href="#pa-i-l-c">initializer list</a></p></td>
+<td align="left"><p>constructs a container with the items specified in a given initializer list</p></td>
+</tr>
+<tr class="even">
+<td align="left"><p><a href="#pa-m-c">move constructor</a></p></td>
+<td align="left"><p>constructs a container that acquires the items of a given parallel array</p></td>
+</tr>
+<tr class="odd">
+<td align="left"><p><a href="#pa-destr">destructor</a></p></td>
+<td align="left"><p>destructs a container</p></td>
+</tr>
+</tbody>
+</table>
+<h2 id="template-parameters"><span class="header-section-number">3.1</span> Template parameters</h2>
+<h3 id="pa-item"><span class="header-section-number">3.1.1</span> Item type</h3>
+<pre class="sourceCode cpp"><code class="sourceCode cpp"><span class="kw">class</span> Item;</code></pre>
+<p>Type of the items to be stored in the container.</p>
+<p>Objects of type <code>Item</code> should be default constructable.</p>
+<h3 id="pa-alloc"><span class="header-section-number">3.1.2</span> Allocator</h3>
+<pre class="sourceCode cpp"><code class="sourceCode cpp"><span class="kw">class</span> Alloc;</code></pre>
+<p>Allocator class.</p>
+<h2 id="pa-iter"><span class="header-section-number">3.2</span> Iterator</h2>
+<p>The type <code>iterator</code> and <code>const_iterator</code> are instances of the <a href="http://en.cppreference.com/w/cpp/concept/RandomAccessIterator">random-access iterator</a> concept.</p>
+<h2 id="constructors-and-destructors"><span class="header-section-number">3.3</span> Constructors and destructors</h2>
+<h3 id="pa-e-c-c"><span class="header-section-number">3.3.1</span> Empty container constructor</h3>
+<pre class="sourceCode cpp"><code class="sourceCode cpp">parray();</code></pre>
+<p><strong><em>Complexity.</em></strong> Constant time.</p>
+<p>Constructs an empty container with no items;</p>
+<h3 id="pa-e-f-c"><span class="header-section-number">3.3.2</span> Fill container</h3>
+<pre class="sourceCode cpp"><code class="sourceCode cpp">parray(<span class="dt">long</span> n, <span class="dt">const</span> value_type&amp; val);</code></pre>
+<p>Constructs a container with <code>n</code> copies of <code>val</code>.</p>
+<p><strong><em>Complexity.</em></strong> Work and span are linear and logarithmic in the size of the resulting container, respectively.</p>
+<h3 id="pa-e-p-c"><span class="header-section-number">3.3.3</span> Populate constructor</h3>
+<pre class="sourceCode cpp"><code class="sourceCode cpp"><span class="co">// (1) Constant-time body</span>
+parray(<span class="dt">long</span> n, std::function&lt;Item(<span class="dt">long</span>)&gt; body);
+<span class="co">// (2) Non-constant-time body</span>
+parray(<span class="dt">long</span> n,
+       std::function&lt;<span class="dt">long</span>(<span class="dt">long</span>)&gt; body_comp,
+       std::function&lt;Item(<span class="dt">long</span>)&gt; body);
+<span class="co">// (3) Non-constant-time body along with range-based complexity function</span>
+parray(<span class="dt">long</span> n,
+       std::function&lt;<span class="dt">long</span>(<span class="dt">long</span>,<span class="dt">long</span>)&gt; body_comp_rng,
+       std::function&lt;Item(<span class="dt">long</span>)&gt; body);</code></pre>
+<p>Constructs a container with <code>n</code> cells, populating those cells with values returned by the <code>n</code> calls, <code>body(0)</code>, <code>body(1)</code>, ..., <code>body(n-1)</code>, in that order.</p>
+<p>In the second version, the value returned by <code>body_comp(i)</code> is used by the constructor as the complexity estimate for the call <code>body(i)</code>.</p>
+<p>In the third version, the value returned by <code>body_comp(lo, hi)</code> is used by the constructor as the complexity estimate for the calls <code>body(lo)</code>, <code>body(lo+1)</code>, ... <code>body(hi-1)</code>.</p>
+<p><strong><em>Complexity.</em></strong> TODO</p>
+<h3 id="pa-e-cp-c"><span class="header-section-number">3.3.4</span> Copy constructor</h3>
+<pre class="sourceCode cpp"><code class="sourceCode cpp">parray(<span class="dt">const</span> parray&amp; other);</code></pre>
+<p>Constructs a container with a copy of each of the items in <code>other</code>, in the same order.</p>
+<p><strong><em>Complexity.</em></strong> Work and span are linear and logarithmic in the size of the resulting container, respectively.</p>
+<h3 id="pa-i-l-c"><span class="header-section-number">3.3.5</span> Initializer-list constructor</h3>
+<pre class="sourceCode cpp"><code class="sourceCode cpp">parray(initializer_list&lt;value_type&gt; il);</code></pre>
+<p>Constructs a container with the items in <code>il</code>.</p>
+<p><strong><em>Complexity.</em></strong> Work and span are linear in the size of the resulting container.</p>
+<h3 id="pa-m-c"><span class="header-section-number">3.3.6</span> Move constructor</h3>
+<pre class="sourceCode cpp"><code class="sourceCode cpp">parray(parray&amp;&amp; x);</code></pre>
+<p>Constructs a container that acquires the items of <code>other</code>.</p>
+<p><strong><em>Complexity.</em></strong> Constant time.</p>
+<h3 id="pa-destr"><span class="header-section-number">3.3.7</span> Destructor</h3>
+<pre class="sourceCode cpp"><code class="sourceCode cpp">~parray();</code></pre>
+<p>Destructs the container.</p>
+<p><strong><em>Complexity.</em></strong> Work and span are linear and logarithmic in the size of the container, respectively.</p>
+<h2 id="operations"><span class="header-section-number">3.4</span> Operations</h2>
+<table>
+<caption>Parallel-array member functions.</caption>
+<colgroup>
+<col width="34%" />
+<col width="54%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th align="left">Operation</th>
+<th align="left">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left"><p><a href="#pa-i-o"><code>operator[]</code></a></p></td>
+<td align="left"><p>Access member item</p></td>
+</tr>
+<tr class="even">
+<td align="left"><p><a href="#pa-si"><code>size</code></a></p></td>
+<td align="left"><p>Return size</p></td>
+</tr>
+<tr class="odd">
+<td align="left"><p><a href="#pa-rsz"><code>resize</code></a></p></td>
+<td align="left"><p>Change size</p></td>
+</tr>
+<tr class="even">
+<td align="left"><p><a href="#pa-sw"><code>swap</code></a></p></td>
+<td align="left"><p>Exchange contents</p></td>
+</tr>
+<tr class="odd">
+<td align="left"><p><a href="#pa-beg"><code>begin</code></a> <a href="#pa-beg"><code>cbegin</code></a></p></td>
+<td align="left"><p>Returns an iterator to the beginning</p></td>
+</tr>
+<tr class="even">
+<td align="left"><p><a href="#pa-end"><code>end</code></a> <a href="#pa-end"><code>cend</code></a></p></td>
+<td align="left"><p>Returns an iterator to the end</p></td>
+</tr>
+</tbody>
+</table>
+<h3 id="pa-i-o"><span class="header-section-number">3.4.1</span> Indexing operator</h3>
+<pre class="sourceCode cpp"><code class="sourceCode cpp">reference <span class="kw">operator</span>[](<span class="dt">long</span> i);
+const_reference <span class="kw">operator</span>[](<span class="dt">long</span> i) <span class="dt">const</span>;</code></pre>
+<p>Returns a reference at the specified location <code>i</code>. No bounds check is performed.</p>
+<p><strong><em>Complexity.</em></strong> Constant time.</p>
+<h3 id="pa-si"><span class="header-section-number">3.4.2</span> Size operator</h3>
+<pre class="sourceCode cpp"><code class="sourceCode cpp"><span class="dt">long</span> size() <span class="dt">const</span>;</code></pre>
+<p>Returns the size of the container.</p>
+<p><strong><em>Complexity.</em></strong> Constant time.</p>
+<h3 id="pa-rsz"><span class="header-section-number">3.4.3</span> Resize</h3>
+<pre class="sourceCode cpp"><code class="sourceCode cpp"><span class="dt">void</span> resize(<span class="dt">long</span> n, <span class="dt">const</span> value_type&amp; val); <span class="co">// (1)</span>
+<span class="dt">void</span> resize(<span class="dt">long</span> n) {                       <span class="co">// (2)</span>
+  value_type val;
+  resize(n, val);
+}</code></pre>
+<p>Resizes the container to contain <code>n</code> items.</p>
+<p>If the current size is greater than <code>n</code>, the container is reduced to its first <code>n</code> elements.</p>
+<p>If the current size is less than <code>n</code>,</p>
+<ol style="list-style-type: decimal">
+<li>additional copies of <code>val</code> are appended</li>
+<li>additional default-inserted elements are appended</li>
+</ol>
+<p><strong><em>Complexity.</em></strong> Let <span class="math">\(m\)</span> be the size of the container just before and <span class="math">\(n\)</span> just after the resize operation. Then, the work and span are linear and logarithmic in <span class="math">\(\max(m, n)\)</span>, respectively.</p>
+<h3 id="pa-sw"><span class="header-section-number">3.4.4</span> Exchange operation</h3>
+<pre class="sourceCode cpp"><code class="sourceCode cpp"><span class="dt">void</span> swap(parray&amp; other);</code></pre>
+<p>Exchanges the contents of the container with those of <code>other</code>. Does not invoke any move, copy, or swap operations on individual items.</p>
+<p><strong><em>Complexity.</em></strong> Constant time.</p>
+<h3 id="pa-beg"><span class="header-section-number">3.4.5</span> Iterator begin</h3>
+<pre class="sourceCode cpp"><code class="sourceCode cpp">iterator begin() <span class="dt">const</span>;
+const_iterator cbegin() <span class="dt">const</span>;</code></pre>
+<p>Returns an iterator to the first item of the container.</p>
+<p>If the container is empty, the returned iterator will be equal to end().</p>
+<p><strong><em>Complexity.</em></strong> Constant time.</p>
+<h3 id="pa-end"><span class="header-section-number">3.4.6</span> Iterator end</h3>
+<pre class="sourceCode cpp"><code class="sourceCode cpp">iterator end() <span class="dt">const</span>;
+const_iterator cend() <span class="dt">const</span>;</code></pre>
+<p>Returns an iterator to the element following the last item of the container.</p>
+<p>This element acts as a placeholder; attempting to access it results in undefined behavior.</p>
+<p><strong><em>Complexity.</em></strong> Constant time.</p>
+<h1 id="pchunkedseq"><span class="header-section-number">4</span> Parallel chunked sequence</h1>
+<table>
+<caption>Template parameters for the <code>pchunkedseq</code> class.</caption>
+<colgroup>
+<col width="50%" />
+<col width="50%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th align="left">Template parameter</th>
+<th align="left">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left"><p><a href="#cs-item"><code>Item</code></a></p></td>
+<td align="left"><p>Type of the objects to be stored in the container</p></td>
+</tr>
+<tr class="even">
+<td align="left"><p><a href="#cs-alloc"><code>Alloc</code></a></p></td>
+<td align="left"><p>Allocator to be used by the container to construct and destruct objects of type <code>Item</code></p></td>
+</tr>
+</tbody>
+</table>
+<pre class="sourceCode cpp"><code class="sourceCode cpp"><span class="kw">namespace</span> pasl {
+<span class="kw">namespace</span> data {
+
+<span class="kw">template</span> &lt;<span class="kw">class</span> Item, <span class="kw">class</span> Alloc = std::allocator&lt;Item&gt;&gt;
+<span class="kw">class</span> pchunkedseq;
+
+} }</code></pre>
+<table>
+<caption>Parallel chunked sequence type definitions.</caption>
+<colgroup>
+<col width="50%" />
+<col width="50%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th align="left">Type</th>
+<th align="left">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left"><p><code>value_type</code></p></td>
+<td align="left"><p>Alias for template parameter <code>Item</code></p></td>
+</tr>
+<tr class="even">
+<td align="left"><p><code>reference</code></p></td>
+<td align="left"><p>Alias for <code>value_type&amp;</code></p></td>
+</tr>
+<tr class="odd">
+<td align="left"><p><code>const_reference</code></p></td>
+<td align="left"><p>Alias for <code>const value_type&amp;</code></p></td>
+</tr>
+</tbody>
+</table>
+<table>
+<caption>Parallel chunked sequence constructors and destructors.</caption>
+<colgroup>
+<col width="50%" />
+<col width="50%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th align="left">Constructor</th>
+<th align="left">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left"><p><a href="#cs-e-c-c">empty container constructor</a> (default constructor)</p></td>
+<td align="left"><p>constructs an empty container with no items</p></td>
+</tr>
+<tr class="even">
+<td align="left"><p><a href="#cs-e-f-c">fill constructor</a></p></td>
+<td align="left"><p>constructs a container with a specified number of copies of a given item</p></td>
+</tr>
+<tr class="odd">
+<td align="left"><p><a href="#cs-e-p-c">populate constructor</a></p></td>
+<td align="left"><p>constructs a container with a specified number of values that are computed by a specified function</p></td>
+</tr>
+<tr class="even">
+<td align="left"><p><a href="#cs-e-cp-c">copy constructor</a></p></td>
+<td align="left"><p>constructs a container with a copy of each of the items in the given container, in the same order</p></td>
+</tr>
+<tr class="odd">
+<td align="left"><p><a href="#cs-i-l-c">initializer list</a></p></td>
+<td align="left"><p>constructs a container with the items specified in a given initializer list</p></td>
+</tr>
+<tr class="even">
+<td align="left"><p><a href="#cs-m-c">move constructor</a></p></td>
+<td align="left"><p>constructs a container that acquires the items of a given parallel array</p></td>
+</tr>
+<tr class="odd">
+<td align="left"><p><a href="#cs-destr">destructor</a></p></td>
+<td align="left"><p>destructs a container</p></td>
+</tr>
+</tbody>
+</table>
+<h2 id="template-parameters-1"><span class="header-section-number">4.1</span> Template parameters</h2>
+<h3 id="cs-item"><span class="header-section-number">4.1.1</span> Item type</h3>
+<pre class="sourceCode cpp"><code class="sourceCode cpp"><span class="kw">class</span> Item;</code></pre>
+<p>Type of the items to be stored in the container.</p>
+<p>Objects of type <code>Item</code> should be default constructable.</p>
+<h3 id="cs-alloc"><span class="header-section-number">4.1.2</span> Allocator</h3>
+<pre class="sourceCode cpp"><code class="sourceCode cpp"><span class="kw">class</span> Alloc;</code></pre>
+<p>Allocator class.</p>
+<h2 id="iterator"><span class="header-section-number">4.2</span> Iterator</h2>
+<p>TODO</p>
+<h2 id="constructors-and-destructors-1"><span class="header-section-number">4.3</span> Constructors and destructors</h2>
+<h3 id="cs-e-c-c"><span class="header-section-number">4.3.1</span> Empty container constructor</h3>
+<pre class="sourceCode cpp"><code class="sourceCode cpp">pchunkedseq();</code></pre>
+<p><strong><em>Complexity.</em></strong> Constant time.</p>
+<p>Constructs an empty container with no items;</p>
+<h3 id="cs-e-f-c"><span class="header-section-number">4.3.2</span> Fill container</h3>
+<pre class="sourceCode cpp"><code class="sourceCode cpp">pchunkedseq(<span class="dt">long</span> n, <span class="dt">const</span> value_type&amp; val);</code></pre>
+<p>Constructs a container with <code>n</code> copies of <code>val</code>.</p>
+<p><strong><em>Complexity.</em></strong> Work and span are linear and logarithmic in the size of the resulting container, respectively.</p>
+<h3 id="cs-e-p-c"><span class="header-section-number">4.3.3</span> Populate constructor</h3>
+<pre class="sourceCode cpp"><code class="sourceCode cpp"><span class="co">// (1) Constant-time body</span>
+pchunkedseq(<span class="dt">long</span> n, std::function&lt;Item(<span class="dt">long</span>)&gt; body);
+<span class="co">// (2) Non-constant-time body</span>
+pchunkedseq(<span class="dt">long</span> n,
+            std::function&lt;<span class="dt">long</span>(<span class="dt">long</span>)&gt; body_comp,
+            std::function&lt;Item(<span class="dt">long</span>)&gt; body);
+<span class="co">// (3) Non-constant-time body along with range-based complexity function</span>
+pchunkedseq(<span class="dt">long</span> n,
+            std::function&lt;<span class="dt">long</span>(<span class="dt">long</span>,<span class="dt">long</span>)&gt; body_comp_rng,
+            std::function&lt;Item(<span class="dt">long</span>)&gt; body);            </code></pre>
+<p>Constructs a container with <code>n</code> cells, populating those cells with values returned by the <code>n</code> calls, <code>body(0)</code>, <code>body(1)</code>, ..., <code>body(n-1)</code>, in that order.</p>
+<p>In the second version, the value returned by <code>body_comp(i)</code> is used by the constructor as the complexity estimate for the call <code>body(i)</code>.</p>
+<p>In the third version, the value returned by <code>body_comp(lo, hi)</code> is used by the constructor as the complexity estimate for the calls <code>body(lo)</code>, <code>body(lo+1)</code>, ... <code>body(hi-1)</code>.</p>
+<p><strong><em>Complexity.</em></strong> TODO</p>
+<h3 id="cs-e-cp-c"><span class="header-section-number">4.3.4</span> Copy constructor</h3>
+<pre class="sourceCode cpp"><code class="sourceCode cpp">pchunkedseq(<span class="dt">const</span> pchunkedseq&amp; other);</code></pre>
+<p>Constructs a container with a copy of each of the items in <code>other</code>, in the same order.</p>
+<p><strong><em>Complexity.</em></strong> Work and span are linear and logarithmic in the size of the resulting container, respectively.</p>
+<h3 id="cs-i-l-c"><span class="header-section-number">4.3.5</span> Initializer-list constructor</h3>
+<pre class="sourceCode cpp"><code class="sourceCode cpp">pchunkedseq(initializer_list&lt;value_type&gt; il);</code></pre>
+<p>Constructs a container with the items in <code>il</code>.</p>
+<p><strong><em>Complexity.</em></strong> Work and span are linear in the size of the resulting container.</p>
+<h3 id="cs-m-c"><span class="header-section-number">4.3.6</span> Move constructor</h3>
+<pre class="sourceCode cpp"><code class="sourceCode cpp">pchunkedseq(pchunkedseq&amp;&amp; x);</code></pre>
+<p>Constructs a container that acquires the items of <code>other</code>.</p>
+<p><strong><em>Complexity.</em></strong> Constant time.</p>
+<h3 id="cs-destr"><span class="header-section-number">4.3.7</span> Destructor</h3>
+<pre class="sourceCode cpp"><code class="sourceCode cpp">~pchunkedseq();</code></pre>
+<p>Destructs the container.</p>
+<p><strong><em>Complexity.</em></strong> Work and span are linear and logarithmic in the size of the container, respectively.</p>
+<h2 id="sequential-operations"><span class="header-section-number">4.4</span> Sequential operations</h2>
+<table>
+<caption>Sequential operations of the parallel chunked sequence.</caption>
+<colgroup>
+<col width="41%" />
+<col width="54%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th align="left">Operation</th>
+<th align="left">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left"><p><a href="#cs-i-o"><code>seq.operator[]</code></a></p></td>
+<td align="left"><p>Access member item</p></td>
+</tr>
+<tr class="even">
+<td align="left"><p><a href="#cs-si"><code>seq.size</code></a></p></td>
+<td align="left"><p>Return size</p></td>
+</tr>
+<tr class="odd">
+<td align="left"><p><a href="#cs-sw"><code>seq.swap</code></a></p></td>
+<td align="left"><p>Exchange contents</p></td>
+</tr>
+</tbody>
+</table>
+<h3 id="cs-i-o"><span class="header-section-number">4.4.1</span> Indexing operator</h3>
+<pre class="sourceCode cpp"><code class="sourceCode cpp">reference <span class="kw">operator</span>[](<span class="dt">long</span> i);
+const_reference <span class="kw">operator</span>[](<span class="dt">long</span> i) <span class="dt">const</span>;</code></pre>
+<p>Returns a reference at the specified location <code>i</code>. No bounds check is performed.</p>
+<p><strong><em>Complexity.</em></strong> Constant time.</p>
+<h3 id="cs-si"><span class="header-section-number">4.4.2</span> Size operator</h3>
+<pre class="sourceCode cpp"><code class="sourceCode cpp"><span class="dt">long</span> size() <span class="dt">const</span>;</code></pre>
+<p>Returns the size of the container.</p>
+<p><strong><em>Complexity.</em></strong> Constant time.</p>
+<h3 id="cs-sw"><span class="header-section-number">4.4.3</span> Exchange operation</h3>
+<pre class="sourceCode cpp"><code class="sourceCode cpp"><span class="dt">void</span> swap(pchunkedseq&amp; other);</code></pre>
+<p>Exchanges the contents of the container with those of <code>other</code>. Does not invoke any move, copy, or swap operations on individual items.</p>
+<p><strong><em>Complexity.</em></strong> Constant time.</p>
+<h2 id="parallel-operations"><span class="header-section-number">4.5</span> Parallel operations</h2>
+<table>
+<caption>Parallel operations of the parallel chunked sequence.</caption>
+<colgroup>
+<col width="34%" />
+<col width="54%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th align="left">Operation</th>
+<th align="left">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left"><p><a href="#cs-rbld"><code>tabulate</code></a></p></td>
+<td align="left"><p>Repopulate container changing size</p></td>
+</tr>
+<tr class="even">
+<td align="left"><p><a href="#cs-rsz"><code>resize</code></a></p></td>
+<td align="left"><p>Change size</p></td>
+</tr>
+</tbody>
+</table>
+<h3 id="cs-rbld"><span class="header-section-number">4.5.1</span> Tabulate</h3>
+<pre class="sourceCode cpp"><code class="sourceCode cpp"><span class="dt">void</span> tabulate(<span class="dt">long</span> n, std::function&lt;value_type(<span class="dt">long</span>)&gt; body);
+<span class="dt">void</span> tabulate(<span class="dt">long</span> n,
+              std::function&lt;<span class="dt">long</span>(<span class="dt">long</span>)&gt; body_comp_rng,
+              std::function&lt;value_type(<span class="dt">long</span>)&gt; body);</code></pre>
+<p>Resizes the container so that it contains <code>n</code> items.</p>
+<p>The contents of the current container are removed and replaced by the <code>n</code> items returned by the <code>n</code> calls, <code>body(0)</code>, <code>body(1)</code>, ..., <code>body(n-1)</code>, in that order.</p>
+<p><strong><em>Complexity.</em></strong> Let <span class="math">\(m\)</span> be the size of the container just before and <span class="math">\(n\)</span> just after the resize operation. Then, the work and span are linear and logarithmic in <span class="math">\(\max(m, n)\)</span>, respectively.</p>
+<h3 id="cs-rsz"><span class="header-section-number">4.5.2</span> Resize</h3>
+<pre class="sourceCode cpp"><code class="sourceCode cpp"><span class="dt">void</span> resize(<span class="dt">long</span> n, <span class="dt">const</span> value_type&amp; val);  <span class="co">// (1)</span>
+<span class="dt">void</span> resize(<span class="dt">long</span> n) {                        <span class="co">// (2)</span>
+  value_type val;
+  resize(n, val);
+}</code></pre>
+<p>Resizes the container to contain <code>n</code> items.</p>
+<p>If the current size is greater than <code>n</code>, the container is reduced to its first <code>n</code> elements.</p>
+<p>If the current size is less than <code>n</code>,</p>
+<ol style="list-style-type: decimal">
+<li>additional copies of <code>val</code> are appended</li>
+<li>additional default-inserted elements are appended</li>
+</ol>
+<p><strong><em>Complexity.</em></strong> Let <span class="math">\(m\)</span> be the size of the container just before and <span class="math">\(n\)</span> just after the resize operation. Then, the work and span are linear and logarithmic in <span class="math">\(\max(m, n)\)</span>, respectively.</p>
+<h1 id="data-parallel-operations"><span class="header-section-number">5</span> Data-parallel operations</h1>
+<h2 id="indexed-based-for-loop"><span class="header-section-number">5.1</span> Indexed-based for loop</h2>
+<pre class="sourceCode cpp"><code class="sourceCode cpp">parray&lt;<span class="dt">long</span>&gt; xs = { <span class="dv">0</span>, <span class="dv">0</span>, <span class="dv">0</span>, <span class="dv">0</span> };
+parallel_for(<span class="dv">0</span>, xs.size(), [&amp;] (<span class="dt">long</span> i) {
+  xs[i] = i<span class="dv">+1</span>;
+});
+
+std::cout &lt;&lt; <span class="st">&quot;xs = &quot;</span> &lt;&lt; xs &lt;&lt; std::endl;</code></pre>
+<pre><code>xs = { 1, 2, 3, 4 }</code></pre>
+<h3 id="template-parameters-2"><span class="header-section-number">5.1.1</span> Template parameters</h3>
+<p>The following table describes the template parameters that are used by the different version of our parallel-for function.</p>
+<table>
+<caption>All template parameters used by various instance of the parallel-for loop.</caption>
+<colgroup>
+<col width="47%" />
+<col width="50%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th align="left">Template parameter</th>
+<th align="left">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left"><p><a href="#lp-iter"><code>Iter</code></a></p></td>
+<td align="left"><p>Type of the iterator to be used by the loop</p></td>
+</tr>
+<tr class="even">
+<td align="left"><p><a href="#lp-i"><code>Body</code></a></p></td>
+<td align="left"><p>Loop body</p></td>
+</tr>
+<tr class="odd">
+<td align="left"><p><a href="#lp-s-i"><code>Seq_body_rng</code></a></p></td>
+<td align="left"><p>Sequentialized version of the body</p></td>
+</tr>
+<tr class="even">
+<td align="left"><p><a href="#lp-c"><code>Comp</code></a></p></td>
+<td align="left"><p>Complexity function for a specified iteration</p></td>
+</tr>
+<tr class="odd">
+<td align="left"><p><a href="#lp-c-r"><code>Comp_rng</code></a></p></td>
+<td align="left"><p>Complexity function for a specified range of iterations</p></td>
+</tr>
+</tbody>
+</table>
+<h4 id="lp-iter"><span class="header-section-number">5.1.1.1</span> Loop iterator</h4>
+<pre class="sourceCode cpp"><code class="sourceCode cpp"><span class="kw">class</span> Iter;</code></pre>
+<p>At a minimum, any value of type <code>Iter</code> must support the following operations. Let <code>a</code> and <code>b</code> denote values of type <code>Iter</code> and <code>n</code> a value of type <code>long</code>. Then, we need the subtraction operation <code>a-b</code>, the comparison operation <code>a!=b</code>, the addition-by-a-number-operation <code>a+n</code>, and the increment operation <code>a++</code>.</p>
+<p>As such, the concept of the <code>Iter</code> class bears resemblance to the concept of the <a href="http://en.cppreference.com/w/cpp/concept/RandomAccessIterator">random-access iterator</a>. The main difference between the two is that, with the random-access iterator, an iterable value necessarily has the ability to dereference, whereas with our <code>Iter</code> class this feature is not used by the parallel-for loop and therefore not required.</p>
+<h4 id="lp-i"><span class="header-section-number">5.1.1.2</span> Loop body</h4>
+<pre class="sourceCode cpp"><code class="sourceCode cpp"><span class="kw">class</span> Body;</code></pre>
+<pre class="sourceCode cpp"><code class="sourceCode cpp"><span class="dt">void</span> <span class="kw">operator</span>()(Iter i);</code></pre>
+<h4 id="lp-s-i"><span class="header-section-number">5.1.1.3</span> Sequentialized loop body</h4>
+<pre class="sourceCode cpp"><code class="sourceCode cpp"><span class="kw">class</span> Seq_body_rng;</code></pre>
+<pre class="sourceCode cpp"><code class="sourceCode cpp"><span class="dt">void</span> <span class="kw">operator</span>()(Iter lo, Iter hi);</code></pre>
+<h4 id="lp-c"><span class="header-section-number">5.1.1.4</span> Complexity function</h4>
+<pre class="sourceCode cpp"><code class="sourceCode cpp"><span class="kw">class</span> Comp;</code></pre>
+<pre class="sourceCode cpp"><code class="sourceCode cpp"><span class="dt">long</span> <span class="kw">operator</span>()(Iter i);</code></pre>
+<h4 id="lp-c-r"><span class="header-section-number">5.1.1.5</span> Range-based compelxity function</h4>
+<pre class="sourceCode cpp"><code class="sourceCode cpp"><span class="kw">class</span> Comp_rng;</code></pre>
+<pre class="sourceCode cpp"><code class="sourceCode cpp"><span class="dt">long</span> <span class="kw">operator</span>()(Iter lo, Iter hi);</code></pre>
+<h3 id="instances"><span class="header-section-number">5.1.2</span> Instances</h3>
+<pre class="sourceCode cpp"><code class="sourceCode cpp"><span class="kw">namespace</span> pasl {
+<span class="kw">namespace</span> pctl {
+
+<span class="kw">template</span> &lt;<span class="kw">class</span> Iter, <span class="kw">class</span> Body&gt;
+<span class="dt">void</span> parallel_for(Iter lo, Iter hi, Body body);
+
+<span class="kw">template</span> &lt;<span class="kw">class</span> Iter, <span class="kw">class</span> Body, <span class="kw">class</span> Comp&gt;
+<span class="dt">void</span> parallel_for(Iter lo, Iter hi, Comp comp, Body body);
+
+} }</code></pre>
+<pre class="sourceCode cpp"><code class="sourceCode cpp"><span class="kw">namespace</span> pasl {
+<span class="kw">namespace</span> pctl {
+<span class="kw">namespace</span> range {
+
+<span class="kw">template</span> &lt;
+  <span class="kw">class</span> Iter,
+  <span class="kw">class</span> Body,
+  <span class="kw">class</span> Comp_rng
+&gt;
+<span class="dt">void</span> parallel_for(Iter lo,
+                  Iter hi, Comp_rng comp_rng,
+                  Body body);
+
+<span class="kw">template</span> &lt;
+  <span class="kw">class</span> Iter,
+  <span class="kw">class</span> Body,
+  <span class="kw">class</span> Comp_rng,
+  <span class="kw">class</span> Seq_body_rng
+&gt;
+<span class="dt">void</span> parallel_for(Iter lo,
+                  Iter hi,
+                  Comp_rng comp_rng,
+                  Body body,
+                  Seq_body_rng seq_body_rng);
+
+} } }</code></pre>
+<h2 id="reduction"><span class="header-section-number">5.2</span> Reduction</h2>
+<table>
+<caption>Abstraction layers used by pctl for reduction operators.</caption>
+<colgroup>
+<col width="50%" />
+<col width="50%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th align="left">Abstraction layer</th>
+<th align="left">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left"><p><a href="#red-l-0">Level 0</a></p></td>
+<td align="left"><p>Apply a specified monoid to combine the items of a range in memory that is specified by a pair of iterator pointer values</p></td>
+</tr>
+<tr class="even">
+<td align="left"><p><a href="#red-l-1">Level 1</a></p></td>
+<td align="left"><p>Introduces to the above a lift operator that allows the client to perform along with a reduction a specified tabulation, where the tabulation is injected into the leaves of the reduction tree</p></td>
+</tr>
+<tr class="odd">
+<td align="left"><p><a href="#red-l-2">Level 2</a></p></td>
+<td align="left"><p>Introduces to the above an operator that provides a sequentialized alternative for the lift operator</p></td>
+</tr>
+<tr class="even">
+<td align="left"><p><a href="#red-l-3">Level 3</a></p></td>
+<td align="left"><p>Introduces to the above a &quot;mergeable output&quot; type that enables destination-passing style reduction</p></td>
+</tr>
+<tr class="odd">
+<td align="left"><p><a href="#red-l-4">Level 4</a></p></td>
+<td align="left"><p>Introduces to the above a &quot;splittlable input&quot; type that replaces the iterator pointer values</p></td>
+</tr>
+</tbody>
+</table>
+<pre class="sourceCode cpp"><code class="sourceCode cpp"><span class="kw">namespace</span> pasl {
+<span class="kw">namespace</span> pctl {
+
+<span class="kw">using</span> scan_type = <span class="kw">enum</span> {
+  forward_inclusive_scan,
+  forward_exclusive_scan,
+  backward_inclusive_scan,
+  backward_exclusive_scan
+};
+
+} }</code></pre>
+<h3 id="red-l-0"><span class="header-section-number">5.2.1</span> Level 0</h3>
+<table>
+<caption>Shared template parameters for all level-0 reduce operations.</caption>
+<colgroup>
+<col width="47%" />
+<col width="50%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th align="left">Template parameter</th>
+<th align="left">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left"><p><a href="#r0-iter"><code>Iter</code></a></p></td>
+<td align="left"><p>Type of the iterator to be used to access items in the input container</p></td>
+</tr>
+<tr class="even">
+<td align="left"><p><a href="#r0-i"><code>Item</code></a></p></td>
+<td align="left"><p>Type of the items in the input container</p></td>
+</tr>
+<tr class="odd">
+<td align="left"><p><a href="#r0-a"><code>Combine</code></a></p></td>
+<td align="left"><p>Associative combining operator</p></td>
+</tr>
+<tr class="even">
+<td align="left"><p><a href="#r0-w"><code>Weight</code></a></p></td>
+<td align="left"><p>Weight function (optional)</p></td>
+</tr>
+</tbody>
+</table>
+<p>At this level, we have two types of reduction for parallel arrays. The first one assumes that the combining operator takes constant time and the second does not.</p>
+<pre class="sourceCode cpp"><code class="sourceCode cpp"><span class="kw">namespace</span> pasl {
+<span class="kw">namespace</span> pctl {
+
+<span class="kw">template</span> &lt;<span class="kw">class</span> Iter, <span class="kw">class</span> Item, <span class="kw">class</span> Combine&gt;
+Item reduce(Iter lo, Iter hi, Item id, Combine combine);
+
+<span class="kw">template</span> &lt;
+  <span class="kw">class</span> Iter,
+  <span class="kw">class</span> Item,
+  <span class="kw">class</span> Weight,
+  <span class="kw">class</span> Combine
+&gt;
+Item reduce(Iter lo,
+            Iter hi,
+            Item id,
+            Weight weight,
+            Combine combine);
+
+} }</code></pre>
+<pre class="sourceCode cpp"><code class="sourceCode cpp"><span class="kw">namespace</span> pasl {
+<span class="kw">namespace</span> pctl {
+
+<span class="kw">template</span> &lt;
+  <span class="kw">class</span> Iter,
+  <span class="kw">class</span> Item,
+  <span class="kw">class</span> Combine
+&gt;
+parray&lt;Item&gt; scan(Iter lo,
+                  Iter hi,
+                  Item id,
+                  Combine combine,
+                  scan_type st);
+
+<span class="kw">template</span> &lt;
+  <span class="kw">class</span> Iter,
+  <span class="kw">class</span> Item,
+  <span class="kw">class</span> Weight,
+  <span class="kw">class</span> Combine
+&gt;
+parray&lt;Item&gt; scan(Iter lo,
+                  Iter hi,
+                  Item id,
+                  Weight weight,
+                  Combine combine,
+                  scan_type st)
+
+} }</code></pre>
+<h4 id="r0-iter"><span class="header-section-number">5.2.1.1</span> Item iterator</h4>
+<pre class="sourceCode cpp"><code class="sourceCode cpp"><span class="kw">class</span> Iter;</code></pre>
+<p>An instance of this class must be an implementation of the <a href="http://en.cppreference.com/w/cpp/concept/RandomAccessIterator">random-access iterator</a>.</p>
+<p>An iterator value of this type points to a value from the input stream (i.e., a value of type <code>Item</code>).</p>
+<h4 id="r0-i"><span class="header-section-number">5.2.1.2</span> Item</h4>
+<pre class="sourceCode cpp"><code class="sourceCode cpp"><span class="kw">class</span> Item;</code></pre>
+<p>Type of the items to be processed by the reduction.</p>
+<h4 id="r0-a"><span class="header-section-number">5.2.1.3</span> Associative combining operator</h4>
+<pre class="sourceCode cpp"><code class="sourceCode cpp"><span class="kw">class</span> Combine;</code></pre>
+<p>The combining operator is a C++ functor that takes two items and returns a single item. The call operator for the <code>Combine</code> class should have the following type.</p>
+<pre class="sourceCode cpp"><code class="sourceCode cpp">Item <span class="kw">operator</span>()(<span class="dt">const</span> Item&amp; x, <span class="dt">const</span> Item&amp; y);</code></pre>
+<p>The behavior of the reduction is well defined only if the combining operator is <em>associative</em>.</p>
+<p><strong><em>Associativity.</em></strong> Let <code>f</code> be an object of type <code>Combine</code>. The operator <code>f</code> is associative if, for any <code>x</code>, <code>y</code>, and <code>z</code> that are values of type <code>Item</code>, the following equality holds:</p>
+<p><code>f(x, f(y, z)) == f(f(x, y), z)</code></p>
+<p><strong><em>Example: the &quot;max&quot; combining operator.</em></strong> The following functor is associative because the <code>std::max</code> function is itself associative.</p>
+<pre class="sourceCode cpp"><code class="sourceCode cpp"><span class="kw">class</span> Max_combine {
+<span class="kw">public</span>:
+  <span class="dt">long</span> <span class="kw">operator</span>()(<span class="dt">long</span> x, <span class="dt">long</span> y) {
+    <span class="kw">return</span> std::max(x, y);
+  }
+};</code></pre>
+<h4 id="r0-w"><span class="header-section-number">5.2.1.4</span> Weight function</h4>
+<pre class="sourceCode cpp"><code class="sourceCode cpp"><span class="kw">class</span> Weight;</code></pre>
+<p>The weight function is a C++ functor that takes a single item and returns a non-negative &quot;weight value&quot; describing the size of the item. The call operator for the weight function should have the following type.</p>
+<pre class="sourceCode cpp"><code class="sourceCode cpp"><span class="dt">long</span> <span class="kw">operator</span>()(<span class="dt">const</span> Item&amp; x);</code></pre>
+<p><strong><em>Example: the array-weight function.</em></strong> Let <code>Item</code> be <code>parray&lt;long&gt;</code>. Then, one valid weight function is the weight function that returns the size of the given array.</p>
+<pre class="sourceCode cpp"><code class="sourceCode cpp"><span class="kw">class</span> PArray_weight {
+<span class="kw">public</span>:
+  <span class="dt">long</span> <span class="kw">operator</span>()(<span class="dt">const</span> parray&lt;<span class="dt">long</span>&gt;&amp; xs) {
+    <span class="kw">return</span> xs.size();
+  }
+};</code></pre>
+<h4 id="r0-parray"><span class="header-section-number">5.2.1.5</span> Examples</h4>
+<p><strong><em>Example: taking the maximum value of an array of numbers.</em></strong> The following code takes the maximum value of <code>xs</code> using our <code>Max_combine</code> functor.</p>
+<pre class="sourceCode cpp"><code class="sourceCode cpp"><span class="dt">long</span> max(<span class="dt">const</span> parray&lt;<span class="dt">long</span>&gt;&amp; xs) {
+  <span class="kw">return</span> reduce(xs.cbegin(), xs.cend(), LONG_MIN, Max_combine());
+}</code></pre>
+<p>Alternatively, one can use C++ lambda expressions to implement the same algorithm.</p>
+<pre class="sourceCode cpp"><code class="sourceCode cpp"><span class="dt">long</span> max(<span class="dt">const</span> parray&lt;<span class="dt">long</span>&gt;&amp; xs) {
+  <span class="kw">return</span> reduce(xs.cbegin(), xs.cend(), LONG_MIN, [&amp;] (<span class="dt">long</span> x, <span class="dt">long</span> y) {
+    <span class="kw">return</span> std::max(x, y);
+  });
+}</code></pre>
+<h4 id="r0-complexity"><span class="header-section-number">5.2.1.6</span> Complexity</h4>
+<p>There are two cases to consider for any reduction <span class="math">\(\mathtt{reduce}(lo, hi, id, f)\)</span>: (1) the associative combining operator <span class="math">\(f\)</span> takes constant time and (2) <span class="math">\(f\)</span> does not.</p>
+<p><strong><em>(1) Constant-time associative combining operator.</em></strong> The amount of work performed by the reduction is <span class="math">\(O(hi-lo)\)</span> and the span is <span class="math">\(O(\log (hi-lo))\)</span>.</p>
+<p><strong><em>(2) Non-constant-time associative combining operator.</em></strong> We define <span class="math">\(\mathcal{R}\)</span> to be the set of all function applications <span class="math">\(f(x, y)\)</span> that are performed in the reduction tree. Then,</p>
+<ul>
+<li><p>The work performed by the reduction is <span class="math">\(O(n + \sum_{f(x, y) \in \mathcal{R}(f, id, lo, hi)} W(f(x, y)))\)</span>.</p></li>
+<li><p>The span of the reduction is <span class="math">\(O(\log n \max_{f(x, y) \in \mathcal{R}(f, id, lo, hi)} S(f(x, y)))\)</span>.</p></li>
+</ul>
+<p>Under certain conditions, we can use the following lemma to deduce a more precise bound on the amount of work performed by the reduction.</p>
+<p><strong><em>Lemma (Work efficiency).</em></strong> For any associative combining operator <span class="math">\(f\)</span> and weight function <span class="math">\(w\)</span>, if for any <span class="math">\(x\)</span>, <span class="math">\(y\)</span>,</p>
+<ol style="list-style-type: decimal">
+<li><span class="math">\(w(f(x, y)) \leq w(x) + w(y)\)</span>, and</li>
+<li><span class="math">\(W \leq c (w(x) + w(y))\)</span>, for some constant <span class="math">\(c\)</span>,</li>
+</ol>
+<p>where <span class="math">\(W\)</span> denotes the amount of work performed by the call <span class="math">\(f(x, y)\)</span>, then the amount of work performed by the reduction is <span class="math">\(O(\log (hi-lo) \sum_{lo \leq it &lt; hi} (1 + w(*it)))\)</span>.</p>
+<p><strong><em>Example: using a non-constant time combining operator.</em></strong> Now, let us consider a case where the associative combining operator takes linear time in proportion with the combined size of its two arguments. For this example, we will consider the following max function, which examines a given array of arrays.</p>
+<pre class="sourceCode cpp"><code class="sourceCode cpp"><span class="dt">long</span> max0(<span class="dt">const</span> parray&lt;parray&lt;<span class="dt">long</span>&gt;&gt;&amp; xss) {
+  parray&lt;<span class="dt">long</span>&gt; id = { LONG_MIN };
+  <span class="kw">auto</span> weight = [&amp;] (<span class="dt">const</span> parray&lt;<span class="dt">long</span>&gt;&amp; xs) {
+    <span class="kw">return</span> xs.size();
+  };
+  <span class="kw">auto</span> combine = [&amp;] (<span class="dt">const</span> parray&lt;<span class="dt">long</span>&gt;&amp; xs1,
+                      <span class="dt">const</span> parray&lt;<span class="dt">long</span>&gt;&amp; xs2) {
+    parray&lt;<span class="dt">long</span>&gt; r = { std::max(max(xs1), max(xs2)) };
+    <span class="kw">return</span> r;
+  };
+  parray&lt;<span class="dt">long</span>&gt; a =
+    reduce(xss.cbegin(), xcc.cend(), id, weight, combine);
+  <span class="kw">return</span> a[<span class="dv">0</span>];
+}</code></pre>
+<p>Example source code in <a href="../example/max.hpp">max.hpp</a> and <a href="../example/max.cpp">max.cpp</a>.</p>
+<p>Let us now analyze the efficiency of this algorithm. We will begin by analyzing the work. To start, we need to determine whether the combining operator of the reduction over <code>xss</code> is constant-time or not. This combining operator is not because the combining operator calls the <code>max</code> function twice. The first call is applied to the array <code>xs</code> and the second to <code>ys</code>. The total work performed by these two calls is linear in <span class="math">\(| \mathtt{xs} | + | \mathtt{ys} |\)</span>. Therefore, by applying the work-lemma shown above, we get that the total work performed by this reduction is <span class="math">\(O(\log | \mathtt{xss} | \max_{\mathtt{xs} \in \mathtt{xss}} | xs ||)\)</span>. The span is simpler to analyze. By applying our span rule for reduce, we get that the span for the reduction is <span class="math">\(O(\log |xss| \max_{\mathtt{xs} \in \mathtt{xss}} \log |xs|)\)</span>.</p>
+<p>When the <code>max</code> function returns, the result is just one number that is our maximum value. It is therefore unfortunate that our combining operator has to pay to package the current maximum value in the array <code>r</code>. The abstraction boundaries, in particular, the type of the <code>reduce</code> function here leaves us no choice, however. In the next level of abstraction, we are going to see that, by generalizing our <code>reduce</code> function a little, we can sidestep this issue.</p>
+<h3 id="red-l-1"><span class="header-section-number">5.2.2</span> Level 1</h3>
+<p><strong><em>Index passing.</em></strong> TODO: explain</p>
+<table>
+<caption>Template parameters that are introduced in level 1.</caption>
+<colgroup>
+<col width="48%" />
+<col width="50%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th align="left">Template parameter</th>
+<th align="left">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left"><p><a href="#r1-r"><code>Result</code></a></p></td>
+<td align="left"><p>Type of the result value to be returned by the reduction</p></td>
+</tr>
+<tr class="even">
+<td align="left"><p><a href="#r1-l"><code>Lift</code></a></p></td>
+<td align="left"><p>Lifting operator</p></td>
+</tr>
+<tr class="odd">
+<td align="left"><p><a href="#r1-li"><code>Lift_idx</code></a></p></td>
+<td align="left"><p>Index-passing lifting operator</p></td>
+</tr>
+<tr class="even">
+<td align="left"><p><a href="#r1-comb"><code>Combine</code></a></p></td>
+<td align="left"><p>Associative combining operator</p></td>
+</tr>
+<tr class="odd">
+<td align="left"><p><a href="#r1-l-c"><code>Lift_comp</code></a></p></td>
+<td align="left"><p>Complexity function associated with the lift funciton</p></td>
+</tr>
+<tr class="even">
+<td align="left"><p><a href="#r1-l-c-i"><code>Lift_comp_idx</code></a></p></td>
+<td align="left"><p>Index-passing lift complexity function</p></td>
+</tr>
+</tbody>
+</table>
+<pre class="sourceCode cpp"><code class="sourceCode cpp"><span class="kw">namespace</span> pasl {
+<span class="kw">namespace</span> pctl {
+<span class="kw">namespace</span> level1 {
+
+<span class="kw">template</span> &lt;
+  <span class="kw">class</span> Iter,
+  <span class="kw">class</span> Result,
+  <span class="kw">class</span> Combine,
+  <span class="kw">class</span> Lift
+&gt;
+Result reduce(Iter lo,
+              Iter hi,
+              Result id,
+              Combine combine,
+              Lift lift);
+
+<span class="kw">template</span> &lt;
+  <span class="kw">class</span> Iter,
+  <span class="kw">class</span> Result,
+  <span class="kw">class</span> Combine,
+  <span class="kw">class</span> Lift_comp,
+  <span class="kw">class</span> Lift
+&gt;
+Result reduce(Iter lo,
+              Iter hi,
+              Result id,
+              Combine combine,
+              Lift_comp lift_comp,
+              Lift lift);
+
+} } }</code></pre>
+<pre class="sourceCode cpp"><code class="sourceCode cpp"><span class="kw">namespace</span> pasl {
+<span class="kw">namespace</span> pctl {
+<span class="kw">namespace</span> level1 {
+
+<span class="kw">template</span> &lt;
+  <span class="kw">class</span> Iter,
+  <span class="kw">class</span> Result,
+  <span class="kw">class</span> Combine,
+  <span class="kw">class</span> Lift
+&gt;
+parray&lt;Result&gt; scan(Iter lo,
+                    Iter hi,
+                    Result id,
+                    Combine combine,
+                    Lift lift,
+                    scan_type st);
+
+
+<span class="kw">template</span> &lt;
+  <span class="kw">class</span> Iter,
+  <span class="kw">class</span> Result,
+  <span class="kw">class</span> Combine,
+  <span class="kw">class</span> Lift_idx
+&gt;
+parray&lt;Result&gt; scani(Iter lo,
+                     Iter hi,
+                     Result id,
+                     Combine combine,
+                     Lift_idx lift_idx,
+                     scan_type st);
+
+} } }</code></pre>
+<pre class="sourceCode cpp"><code class="sourceCode cpp"><span class="kw">namespace</span> pasl {
+<span class="kw">namespace</span> data {
+<span class="kw">namespace</span> level1 {
+
+<span class="kw">template</span> &lt;
+  <span class="kw">class</span> Iter,
+  <span class="kw">class</span> Result,
+  <span class="kw">class</span> Combine,
+  <span class="kw">class</span> Lift_idx
+&gt;
+Result reducei(Iter lo,
+               Iter hi,
+               Result id,
+               Combine combine,
+               Lift_idx lift_idx);
+
+<span class="kw">template</span> &lt;
+  <span class="kw">class</span> Iter,
+  <span class="kw">class</span> Result,
+  <span class="kw">class</span> Combine,
+  <span class="kw">class</span> Lift_comp_idx,
+  <span class="kw">class</span> Lift_idx
+&gt;
+Result reducei(Iter lo,
+               Iter hi,
+               Result id,
+               Combine combine,
+               Lift_comp_idx lift_comp_idx,
+               Lift_idx lift_idx);
+
+} } }</code></pre>
+<pre class="sourceCode cpp"><code class="sourceCode cpp"><span class="kw">namespace</span> pasl {
+<span class="kw">namespace</span> data {
+<span class="kw">namespace</span> level1 {
+
+<span class="kw">template</span> &lt;
+  <span class="kw">class</span> Iter,
+  <span class="kw">class</span> Result,
+  <span class="kw">class</span> Combine,
+  <span class="kw">class</span> Lift_comp,
+  <span class="kw">class</span> Lift
+&gt;
+parray&lt;Result&gt; scan(Iter lo,
+                    Iter hi,
+                    Result id,
+                    Combine combine,
+                    Lift_comp lift_comp,
+                    Lift lift,
+                    scan_type st);
+
+<span class="kw">template</span> &lt;
+  <span class="kw">class</span> Iter,
+  <span class="kw">class</span> Result,
+  <span class="kw">class</span> Combine,
+  <span class="kw">class</span> Lift_comp_idx,
+  <span class="kw">class</span> Lift_idx
+&gt;
+parray&lt;Result&gt; scani(Iter lo,
+                     Iter hi,
+                     Result id,
+                     Combine combine,
+                     Lift_comp_idx lift_comp_idx,
+                     Lift_idx lift_idx,
+                     scan_type st);
+
+} } }</code></pre>
+<h4 id="r1-r"><span class="header-section-number">5.2.2.1</span> Result</h4>
+<pre class="sourceCode cpp"><code class="sourceCode cpp"><span class="kw">class</span> Result               </code></pre>
+<p>Type of the result value to be returned by the reduction.</p>
+<p>This class must provide a default (i.e., zero-arity) constructor.</p>
+<h4 id="r1-l"><span class="header-section-number">5.2.2.2</span> Lift</h4>
+<pre class="sourceCode cpp"><code class="sourceCode cpp"><span class="kw">class</span> Lift;</code></pre>
+<p>The lift operator is a C++ functor that takes an iterator and returns a value of type <code>Result</code>. The call operator for the <code>Lift</code> class should have the following type.</p>
+<pre class="sourceCode cpp"><code class="sourceCode cpp">Result <span class="kw">operator</span>()(Iter it);</code></pre>
+<h4 id="r1-li"><span class="header-section-number">5.2.2.3</span> Index-passing lift</h4>
+<pre class="sourceCode cpp"><code class="sourceCode cpp"><span class="kw">class</span> Lift_idx;</code></pre>
+<p>The lift operator is a C++ functor that takes an index and a corresponding iterator and returns a value of type <code>Result</code>. The call operator for the <code>Lift</code> class should have the following type.</p>
+<pre class="sourceCode cpp"><code class="sourceCode cpp">Result <span class="kw">operator</span>()(<span class="dt">long</span> pos, Iter it);</code></pre>
+<p>The value passed in the <code>pos</code> parameter is the index corresponding to the position of iterator <code>it</code>.</p>
+<h4 id="r1-comb"><span class="header-section-number">5.2.2.4</span> Associative combining operator</h4>
+<pre class="sourceCode cpp"><code class="sourceCode cpp"><span class="kw">class</span> Combine;</code></pre>
+<p>Now, the type of our associative combining operator has changed from what it is in level 0. In particular, the values that are being passed and returned are values of type <code>Result</code>.</p>
+<pre class="sourceCode cpp"><code class="sourceCode cpp">Result <span class="kw">operator</span>()(<span class="dt">const</span> Result&amp; x, <span class="dt">const</span> Result&amp; y);</code></pre>
+<h4 id="r1-l-c"><span class="header-section-number">5.2.2.5</span> Complexity function for lift</h4>
+<pre class="sourceCode cpp"><code class="sourceCode cpp"><span class="kw">class</span> Lift_comp;</code></pre>
+<p>The lift-complexity function is a C++ functor that takes an iterator and returns a non-negative number of type <code>long</code>. The <code>Lift_comp</code> class should provide a call operator of the following type.</p>
+<pre class="sourceCode cpp"><code class="sourceCode cpp"><span class="dt">long</span> <span class="kw">operator</span>()(Iter it);</code></pre>
+<h4 id="r1-l-c-i"><span class="header-section-number">5.2.2.6</span> Index-passing lift-complexity function</h4>
+<pre class="sourceCode cpp"><code class="sourceCode cpp"><span class="kw">class</span> Lift_comp_idx;</code></pre>
+<p>The lift-complexity function is a C++ functor that takes an index and an iterator and returns a non-negative number of type <code>long</code>. The <code>Lift_comp_idx</code> class should provide a call operator of the following type.</p>
+<pre class="sourceCode cpp"><code class="sourceCode cpp"><span class="dt">long</span> <span class="kw">operator</span>()(<span class="dt">long</span> pos, Iter it);</code></pre>
+<h4 id="examples"><span class="header-section-number">5.2.2.7</span> Examples</h4>
+<pre class="sourceCode cpp"><code class="sourceCode cpp"><span class="dt">long</span> max1(<span class="dt">const</span> parray&lt;parray&lt;<span class="dt">long</span>&gt;&gt;&amp; xss) {
+  <span class="kw">using</span> iterator = <span class="kw">typename</span> parray&lt;parray&lt;<span class="dt">long</span>&gt;&gt;::const_iterator;
+  <span class="kw">auto</span> combine = [&amp;] (<span class="dt">long</span> x, <span class="dt">long</span> y) {
+    <span class="kw">return</span> std::max(x, y);
+  };
+  <span class="kw">auto</span> lift_comp = [&amp;] (iterator it_xs) {
+    <span class="kw">return</span> it_xs-&gt;size();
+  };
+  <span class="kw">auto</span> lift = [&amp;] (iterator it_xs) {
+    <span class="kw">return</span> max(*it_xs);
+  };
+  <span class="kw">auto</span> lo = xss.cbegin();
+  <span class="kw">auto</span> hi = xss.cend();
+  <span class="kw">return</span> level1::reduce(lo, hi, <span class="dv">0</span>, combine, lift_comp, lift);
+}</code></pre>
+<p>Example source code in <a href="../example/max.hpp">max.hpp</a> and <a href="../example/max.cpp">max.cpp</a>.</p>
+<h3 id="red-l-2"><span class="header-section-number">5.2.3</span> Level 2</h3>
+<table>
+<caption>Template parameters that are introduced in level 2.</caption>
+<colgroup>
+<col width="40%" />
+<col width="50%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th align="left">Template parameter</th>
+<th align="left">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left"><p><a href="#r2-l"><code>Seq_reduce_rng</code></a></p></td>
+<td align="left"><p>Sequential alternative body for the reduce operation</p></td>
+</tr>
+<tr class="even">
+<td align="left"><p><a href="#r2-w"><code>Lift_comp_rng</code></a></p></td>
+<td align="left"><p>Range-based lift complexity function</p></td>
+</tr>
+<tr class="odd">
+<td align="left"><p><a href="#r2-ss"><code>Seq_scan_rng_dst</code></a></p></td>
+<td align="left"><p>Sequential alternative body for the scan operation</p></td>
+</tr>
+</tbody>
+</table>
+<pre class="sourceCode cpp"><code class="sourceCode cpp"><span class="kw">namespace</span> pasl {
+<span class="kw">namespace</span> pctl {
+<span class="kw">namespace</span> level2 {
+
+<span class="kw">template</span> &lt;
+  <span class="kw">class</span> Iter,
+  <span class="kw">class</span> Result,
+  <span class="kw">class</span> Combine,
+  <span class="kw">class</span> Lift_comp_rng,
+  <span class="kw">class</span> Lift_idx,
+  <span class="kw">class</span> Seq_reduce_rng
+&gt;
+Result reduce(Iter lo,
+              Iter hi,
+              Result id,
+              Combine combine,
+              Lift_comp_rng lift_comp_rng,
+              Lift_idx lift_idx,
+              Seq_reduce_rng seq_reduce_rng);
+
+} } }</code></pre>
+<pre class="sourceCode cpp"><code class="sourceCode cpp"><span class="kw">namespace</span> pasl {
+<span class="kw">namespace</span> pctl {
+<span class="kw">namespace</span> level2 {
+
+<span class="kw">template</span> &lt;
+  <span class="kw">class</span> Iter,
+  <span class="kw">class</span> Result,
+  <span class="kw">class</span> Combine,
+  <span class="kw">class</span> Lift_comp_rng,
+  <span class="kw">class</span> Lift_idx,
+  <span class="kw">class</span> Seq_reduce_rng
+&gt;
+parray&lt;Result&gt; scan(Iter lo,
+                    Iter hi,
+                    Result id,
+                    Combine combine,
+                    Lift_comp_rng lift_comp_rng,
+                    Lift_idx lift_idx,
+                    Seq_reduce_rng seq_reduce_rng,
+                    scan_type st);
+
+} } }</code></pre>
+<h4 id="r2-l"><span class="header-section-number">5.2.3.1</span> Sequential alternative body for the lifting operator</h4>
+<pre class="sourceCode cpp"><code class="sourceCode cpp"><span class="kw">class</span> Seq_reduce_rng;</code></pre>
+<p>The sequential-reduce function is a C++ functor that takes a pair of iterators and returns a result value. The <code>Seq_reduce_rng</code> class should provide a call operator with the following type.</p>
+<pre class="sourceCode cpp"><code class="sourceCode cpp">Result <span class="kw">operator</span>()(Iter lo, Iter hi);</code></pre>
+<h4 id="r2-w"><span class="header-section-number">5.2.3.2</span> Range-based lift-complexity function</h4>
+<pre class="sourceCode cpp"><code class="sourceCode cpp"><span class="kw">class</span> Lift_comp_rng;</code></pre>
+<p>The range-based lift-complexity function is a C++ functor that takes a pair of iterators and returns a non-negative number. The value returned is a value to account for the amount of work to be performed to apply the lift function to the items in the right-open range <code>[lo, hi)</code> of the input sequence.</p>
+<pre class="sourceCode cpp"><code class="sourceCode cpp"><span class="dt">long</span> <span class="kw">operator</span>()(Iter lo, Iter hi);</code></pre>
+<h4 id="r2-ss"><span class="header-section-number">5.2.3.3</span> Sequential alternative body for the scan operation</h4>
+<pre class="sourceCode cpp"><code class="sourceCode cpp"><span class="kw">class</span> Seq_scan_rng_dst;</code></pre>
+<p>The sequential-scan function is a C++ functor that takes a pair of iterators, namely <code>lo</code> and <code>hi</code>, and writes its result to a range in memory that is pointed to by <code>dst_lo</code>. The <code>Seq_scan_rng_dst</code> class should provide a call operator with the following type.</p>
+<pre class="sourceCode cpp"><code class="sourceCode cpp">Result <span class="kw">operator</span>()(Iter lo, Iter hi, <span class="kw">typename</span> parray&lt;Result&gt;::iterator dst_lo);</code></pre>
+<h4 id="examples-1"><span class="header-section-number">5.2.3.4</span> Examples</h4>
+<p>The following function is useful for building a table that is to summarize the cost of processing any given range in a specified sequence of items. The function takes as input a length value <code>n</code> and a weight function <code>weight</code> and returns the corresponding weight table.</p>
+<pre class="sourceCode cpp"><code class="sourceCode cpp"><span class="kw">template</span> &lt;<span class="kw">class</span> Weight&gt;
+parray&lt;<span class="dt">long</span>&gt; weights(<span class="dt">long</span> n, Weight weight);</code></pre>
+<p>The result returned by the call <code>weights(n, w)</code> is the sequence <code>[0, w(0), w(0)+w(1), w(0)+w(1)+w(2), ..., w(0)+...+w(n-1)]</code>. Notice that the size of the value returned by the <code>weights</code> function is always <code>n+1</code>. As an example, let us consider an application of the <code>weights</code> function where the given weight function is one that returns the value of its current position.</p>
+<pre class="sourceCode cpp"><code class="sourceCode cpp">parray&lt;<span class="dt">long</span>&gt; w = weights(<span class="dv">4</span>, [&amp;] (<span class="dt">long</span> i) {
+  <span class="kw">return</span> i;
+});
+std::cout &lt;&lt; <span class="st">&quot;w = &quot;</span> &lt;&lt; w &lt;&lt; std::endl;</code></pre>
+<p>The output is the following.</p>
+<pre><code>w = { 0, 0, 1, 3, 6 }</code></pre>
+<pre class="sourceCode cpp"><code class="sourceCode cpp"><span class="dt">long</span> max2(<span class="dt">const</span> parray&lt;parray&lt;<span class="dt">long</span>&gt;&gt;&amp; xss) {
+  <span class="kw">using</span> iterator = <span class="kw">typename</span> parray&lt;parray&lt;<span class="dt">long</span>&gt;&gt;::const_iterator;
+  parray&lt;<span class="dt">long</span>&gt; w = weights(xss.size(), [&amp;] (<span class="dt">const</span> parray&lt;<span class="dt">long</span>&gt;&amp; xs) {
+    <span class="kw">return</span> xs.size();
+  });
+  <span class="kw">auto</span> lift_comp_rng = [&amp;] (iterator lo_xs, iterator hi_xs) {
+    <span class="dt">long</span> lo = lo_xs - xss.cbegin();
+    <span class="dt">long</span> hi = hi_xs - xss.cbegin();
+    <span class="kw">return</span> w[hi] - w[lo];
+  };
+  <span class="kw">auto</span> combine = [&amp;] (<span class="dt">long</span> x, <span class="dt">long</span> y) {
+    <span class="kw">return</span> std::max(x, y);
+  };
+  <span class="kw">auto</span> lift = [&amp;] (<span class="dt">long</span>, iterator it_xs) {
+    <span class="kw">return</span> max(*it_xs);
+  };
+  <span class="kw">auto</span> seq_reduce_rng = [&amp;] (iterator lo_xs, iterator hi_xs) {
+    <span class="kw">return</span> max_seq(lo_xs, hi_xs);
+  };
+  iterator lo_xs = xss.cbegin();
+  iterator hi_xs = xss.cend();
+  <span class="kw">return</span> level2::reduce(lo_xs, hi_xs, <span class="dv">0</span>, combine, lift_comp_rng, lift, seq_reduce_rng);
+}
+
+<span class="kw">template</span> &lt;<span class="kw">class</span> Iter&gt;
+<span class="dt">long</span> max_seq(Iter lo_xs, Iter hi_xs) {
+  <span class="dt">long</span> m = LONG_MIN;
+  <span class="kw">for</span> (Iter it_xs = lo_xs; it_xs != hi_xs; it_xs++) {
+    <span class="dt">const</span> parray&lt;<span class="dt">long</span>&gt;&amp; xs = *it_xs;
+    <span class="kw">for</span> (<span class="kw">auto</span> it_x = xs.cbegin(); it_x != xs.cend(); it_x++) {
+      m = std::max(m, *it_x);
+    }
+  }
+  <span class="kw">return</span> m;
+}</code></pre>
+<p>Example source code in <a href="../example/max.hpp">max.hpp</a> and <a href="../example/max.cpp">max.cpp</a>.</p>
+<h3 id="red-l-3"><span class="header-section-number">5.2.4</span> Level 3</h3>
+<table>
+<caption>Template parameters that are introduced in level 3.</caption>
+<colgroup>
+<col width="51%" />
+<col width="45%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th align="left">Template parameter</th>
+<th align="left">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left"><p><a href="#r3-iit"><code>Input_iter</code></a></p></td>
+<td align="left"><p>Type of an iterator for input values</p></td>
+</tr>
+<tr class="even">
+<td align="left"><p><a href="#r3-oit"><code>Output_iter</code></a></p></td>
+<td align="left"><p>Type of an iterator for output values</p></td>
+</tr>
+<tr class="odd">
+<td align="left"><p><a href="#r3-o"><code>Output</code></a></p></td>
+<td align="left"><p>Type of the object to manage the output of the reduction</p></td>
+</tr>
+<tr class="even">
+<td align="left"><p><a href="#r3-dpl"><code>Lift_idx_dst</code></a></p></td>
+<td align="left"><p>Lift function in destination-passing style</p></td>
+</tr>
+<tr class="odd">
+<td align="left"><p><a href="#r3-dpl-seq"><code>Seq_reduce_rng_dst</code></a></p></td>
+<td align="left"><p>Sequential reduce function in destination-passing style</p></td>
+</tr>
+</tbody>
+</table>
+<pre class="sourceCode cpp"><code class="sourceCode cpp"><span class="kw">namespace</span> pasl {
+<span class="kw">namespace</span> pctl {
+<span class="kw">namespace</span> level3 {
+
+<span class="kw">template</span> &lt;
+  <span class="kw">class</span> Input_iter,
+  <span class="kw">class</span> Output,
+  <span class="kw">class</span> Result,
+  <span class="kw">class</span> Lift_comp_rng,
+  <span class="kw">class</span> Lift_idx_dst,
+  <span class="kw">class</span> Seq_reduce_rng_dst
+&gt;
+<span class="dt">void</span> reduce(Input_iter lo,
+            Input_iter hi,
+            Output out,
+            Result id,
+            Result&amp; dst,
+            Lift_comp_rng lift_comp_rng,
+            Lift_idx_dst lift_idx_dst,
+            Seq_reduce_rng_dst seq_reduce_rng_dst);
+
+} } }</code></pre>
+<pre class="sourceCode cpp"><code class="sourceCode cpp"><span class="kw">namespace</span> pasl {
+<span class="kw">namespace</span> pctl {
+<span class="kw">namespace</span> level3 {
+
+<span class="kw">template</span> &lt;
+  <span class="kw">class</span> Input_iter,
+  <span class="kw">class</span> Output,
+  <span class="kw">class</span> Result,
+  <span class="kw">class</span> Output_iter,
+  <span class="kw">class</span> Lift_comp_rng,
+  <span class="kw">class</span> Lift_idx_dst,
+  <span class="kw">class</span> Seq_scan_rng_dst
+&gt;
+<span class="dt">void</span> scan(Input_iter lo,
+          Input_iter hi,
+          Output out,
+          Result&amp; id,
+          Output_iter outs_lo,
+          Lift_comp_rng lift_comp_rng,
+          Lift_idx_dst lift_idx_dst,
+          Seq_scan_rng_dst seq_scan_rng_dst,
+          scan_type st);
+
+} } }</code></pre>
+<h4 id="r3-iit"><span class="header-section-number">5.2.4.1</span> Input iterator</h4>
+<pre class="sourceCode cpp"><code class="sourceCode cpp"><span class="kw">class</span> Input_iter;</code></pre>
+<p>An instance of this class must be an implementation of the <a href="http://en.cppreference.com/w/cpp/concept/RandomAccessIterator">random-access iterator</a>.</p>
+<p>An iterator value of this type points to a value from the input stream.</p>
+<h4 id="r3-oit"><span class="header-section-number">5.2.4.2</span> Output iterator</h4>
+<pre class="sourceCode cpp"><code class="sourceCode cpp"><span class="kw">class</span> Output_iter;</code></pre>
+<p>An instance of this class must be an implementation of the <a href="http://en.cppreference.com/w/cpp/concept/RandomAccessIterator">random-access iterator</a>.</p>
+<p>An iterator value of this type points to a value from the output stream.</p>
+<h4 id="r3-o"><span class="header-section-number">5.2.4.3</span> Output</h4>
+<pre class="sourceCode cpp"><code class="sourceCode cpp"><span class="kw">class</span> Output;</code></pre>
+<p>Type of the object to receive the output of the reduction.</p>
+<table>
+<caption>Constructors that are required for the <code>Output</code> class.</caption>
+<colgroup>
+<col width="41%" />
+<col width="52%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th align="left">Constructor</th>
+<th align="left">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left"><p><a href="#ro-c-c">copy constructor</a></p></td>
+<td align="left"><p>Copy constructor</p></td>
+</tr>
+</tbody>
+</table>
+<table>
+<caption>Required constructors for the <code>Output</code> class.</caption>
+<colgroup>
+<col width="36%" />
+<col width="52%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th align="left">Public method</th>
+<th align="left">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left"><p><a href="#ro-i"><code>init</code></a></p></td>
+<td align="left"><p>Initialize given result object</p></td>
+</tr>
+<tr class="even">
+<td align="left"><p><a href="#ro-cop"><code>copy</code></a></p></td>
+<td align="left"><p>Copy the contents of a specified object to a specified cell</p></td>
+</tr>
+<tr class="odd">
+<td align="left"><p><a href="#ro-m"><code>merge</code></a></p></td>
+<td align="left"><p>Merge result objects</p></td>
+</tr>
+</tbody>
+</table>
+<p>Table: Public methods that are required for the <code>Output</code> class.</p>
+<h5 id="ro-c-c"><span class="header-section-number">5.2.4.3.1</span> Copy constructor</h5>
+<pre class="sourceCode cpp"><code class="sourceCode cpp">Output(<span class="dt">const</span> Output&amp; other);</code></pre>
+<p>Copy constructor.</p>
+<h4 id="ro-i"><span class="header-section-number">5.2.4.4</span> Result initializer</h4>
+<pre class="sourceCode cpp"><code class="sourceCode cpp"><span class="dt">void</span> init(Result&amp; dst) <span class="dt">const</span>;</code></pre>
+<p>Initialize the contents of the result object referenced by <code>dst</code>.</p>
+<h5 id="ro-cop"><span class="header-section-number">5.2.4.4.1</span> Copy</h5>
+<pre class="sourceCode cpp"><code class="sourceCode cpp"><span class="dt">void</span> copy(<span class="dt">const</span> Result&amp; src, Result&amp; dst) <span class="dt">const</span>;</code></pre>
+<p>Copy the contents of <code>src</code> to <code>dst</code>.</p>
+<h5 id="ro-m"><span class="header-section-number">5.2.4.4.2</span> Merge</h5>
+<pre class="sourceCode cpp"><code class="sourceCode cpp"><span class="dt">void</span> merge(Result&amp; src, Result&amp; dst) <span class="dt">const</span>;                    <span class="co">// (1)</span>
+<span class="dt">void</span> merge(Output_iter lo, Output_iter hi, Result&amp; dst) <span class="dt">const</span>; <span class="co">// (2)</span></code></pre>
+<ol style="list-style-type: decimal">
+<li><p>Merge the contents of <code>src</code> and <code>dst</code>, leaving the result in <code>dst</code>.</p></li>
+<li><p>Merge the contents of the cells in the right-open range <code>[lo, hi)</code>, leaving the result in <code>dst</code>.</p></li>
+</ol>
+<h5 id="ro-co"><span class="header-section-number">5.2.4.4.3</span> Example: cell output</h5>
+<pre class="sourceCode cpp"><code class="sourceCode cpp"><span class="kw">namespace</span> pasl {
+<span class="kw">namespace</span> pctl {
+<span class="kw">namespace</span> level3 {
+
+<span class="kw">template</span> &lt;<span class="kw">class</span> Result, <span class="kw">class</span> Combine&gt;
+<span class="kw">class</span> cell_output {
+<span class="kw">public</span>:
+  
+  <span class="kw">using</span> result_type = Result;
+  <span class="kw">using</span> array_type = parray&lt;result_type&gt;;
+  <span class="kw">using</span> const_iterator = <span class="kw">typename</span> array_type::const_iterator;
+  
+  result_type id;
+  Combine combine;
+  
+  cell_output(result_type id, Combine combine)
+  : id(id), combine(combine) { }
+  
+  cell_output(<span class="dt">const</span> cell_output&amp; other)
+  : id(other.id), combine(other.combine) { }
+  
+  <span class="dt">void</span> init(result_type&amp; dst) <span class="dt">const</span> {
+    dst = id;
+  }
+  
+  <span class="dt">void</span> copy(<span class="dt">const</span> result_type&amp; src, result_type&amp; dst) <span class="dt">const</span> {
+    dst = src;
+  }
+  
+  <span class="dt">void</span> merge(<span class="dt">const</span> result_type&amp; src, result_type&amp; dst) <span class="dt">const</span> {
+    dst = combine(dst, src);
+  }
+  
+  <span class="dt">void</span> merge(const_iterator lo, const_iterator hi, result_type&amp; dst) <span class="dt">const</span> {
+    dst = id;
+    <span class="kw">for</span> (const_iterator it = lo; it != hi; it++) {
+      dst = combine(*it, dst);
+    }
+  }
+  
+};
+
+} } }</code></pre>
+<h4 id="r3-dpl"><span class="header-section-number">5.2.4.5</span> Destination-passing-style lift</h4>
+<pre class="sourceCode cpp"><code class="sourceCode cpp"><span class="kw">class</span> Lift_idx_dst;</code></pre>
+<p>The destination-passing-style lift function is a C++ functor that takes an index, an iterator, and a reference on result object. The call operator for the <code>Lift_idx_dst</code> class should have the following type.</p>
+<pre class="sourceCode cpp"><code class="sourceCode cpp"><span class="dt">void</span> <span class="kw">operator</span>()(<span class="dt">long</span> pos, Input_iter it, Result&amp; dst);</code></pre>
+<p>The value that is passed in for <code>pos</code> is the index in the input sequence of the item <code>x</code>. The object referenced by <code>dst</code> is the object to receive the result of the lift function.</p>
+<h4 id="r3-dpl-seq"><span class="header-section-number">5.2.4.6</span> Destination-passing-style sequential lift</h4>
+<pre class="sourceCode cpp"><code class="sourceCode cpp"><span class="kw">class</span> Seq_reduce_rng_dst;</code></pre>
+<p>The destination-passing-style sequential lift function is a C++ functor that takes a pair of iterators and a reference on an output object. The call operator for the <code>Seq_reduce_dst</code> class should have the following type.</p>
+<pre class="sourceCode cpp"><code class="sourceCode cpp"><span class="dt">void</span> <span class="kw">operator</span>()(Input_iter lo, Input_iter hi, Result&amp; dst);</code></pre>
+<p>The purpose of this function is provide an alternative sequential algorithm that is to be used to process ranges of items from the input. The range is specified by the right-open range <code>[lo, hi)</code>. The object referenced by <code>dst</code> is the object to receive the result of the sequential lift function.</p>
+<h4 id="examples-2"><span class="header-section-number">5.2.4.7</span> Examples</h4>
+<p>TODO</p>
+<h3 id="red-l-4"><span class="header-section-number">5.2.5</span> Level 4</h3>
+<table>
+<caption>Template parameters that are introduced in level 4.</caption>
+<colgroup>
+<col width="47%" />
+<col width="50%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th align="left">Template parameter</th>
+<th align="left">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left"><p><a href="#r4-i"><code>Input</code></a></p></td>
+<td align="left"><p>Type of input to the reduction</p></td>
+</tr>
+<tr class="even">
+<td align="left"><p><a href="#r4-c"><code>Convert_reduce</code></a></p></td>
+<td align="left"><p>Function to convert the items of a given input and then produce a specified reduction on the converted items</p></td>
+</tr>
+<tr class="odd">
+<td align="left"><p><a href="#r4-sca"><code>Convert_scan</code></a></p></td>
+<td align="left"><p>Function to convert the items of a given input and then produce a specified scan on the converted items</p></td>
+</tr>
+<tr class="even">
+<td align="left"><p><a href="#r4-ssca"><code>Seq_convert_scan</code></a></p></td>
+<td align="left"><p>Alternative sequentialized version of the <code>Convert_scan</code> function</p></td>
+</tr>
+<tr class="odd">
+<td align="left"><p><a href="#r4-i-w"><code>Convert_reduce_comp</code></a></p></td>
+<td align="left"><p>Complexity function associated with a convert function</p></td>
+</tr>
+<tr class="even">
+<td align="left"><p><a href="#r4-s-c"><code>Seq_convert_reduce</code></a></p></td>
+<td align="left"><p>Alternative sequentialized version of the <code>Convert_reduce</code> function</p></td>
+</tr>
+</tbody>
+</table>
+<pre class="sourceCode cpp"><code class="sourceCode cpp"><span class="kw">namespace</span> pasl {
+<span class="kw">namespace</span> pctl {
+<span class="kw">namespace</span> level4 {
+
+<span class="kw">template</span> &lt;
+  <span class="kw">class</span> Input,
+  <span class="kw">class</span> Output,
+  <span class="kw">class</span> Result,
+  <span class="kw">class</span> Convert_reduce_comp,
+  <span class="kw">class</span> Convert_reduce,
+  <span class="kw">class</span> Seq_convert_reduce
+&gt;
+<span class="dt">void</span> reduce(Input&amp; in,
+            Output out,
+            Result id,
+            Result&amp; dst,
+            Convert_reduce_comp convert_comp,
+            Convert_reduce convert,
+            Seq_convert_reduce seq_convert);
+            
+} } }</code></pre>
+<pre class="sourceCode cpp"><code class="sourceCode cpp"><span class="kw">namespace</span> pasl {
+<span class="kw">namespace</span> pctl {
+<span class="kw">namespace</span> level4 {
+
+<span class="kw">template</span> &lt;
+  <span class="kw">class</span> Input,
+  <span class="kw">class</span> Output,
+  <span class="kw">class</span> Result,
+  <span class="kw">class</span> Output_iter,
+  <span class="kw">class</span> Merge_comp,
+  <span class="kw">class</span> Convert_reduce_comp,
+  <span class="kw">class</span> Convert_reduce,
+  <span class="kw">class</span> Convert_scan,
+  <span class="kw">class</span> Seq_convert_scan
+&gt;
+<span class="dt">void</span> scan(Input&amp; in,
+          Output out,
+          Result&amp; id,
+          Output_iter outs_lo,
+          Merge_comp merge_comp,
+          Convert_reduce_comp convert_reduce_comp,
+          Convert_reduce convert_reduce,
+          Convert_scan convert_scan,
+          Seq_convert_scan seq_convert_scan,
+          scan_type st);
+
+} } }</code></pre>
+<h4 id="r4-i"><span class="header-section-number">5.2.5.1</span> Input</h4>
+<pre class="sourceCode cpp"><code class="sourceCode cpp"><span class="kw">class</span> Input;</code></pre>
+<table>
+<caption>Constructors that are required for the <code>Input</code> class.</caption>
+<colgroup>
+<col width="40%" />
+<col width="59%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th align="left">Constructor</th>
+<th align="left">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left"><p><a href="#r4i-cc">copy constructor</a></p></td>
+<td align="left"><p>Copy constructor</p></td>
+</tr>
+</tbody>
+</table>
+<table>
+<caption>Public methods that are required for the <code>Input</code> class.</caption>
+<colgroup>
+<col width="40%" />
+<col width="59%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th align="left">Public method</th>
+<th align="left">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left"><p><a href="#r4i-c-s"><code>can_split</code></a></p></td>
+<td align="left"><p>Return value to indicate whether split is possible</p></td>
+</tr>
+<tr class="even">
+<td align="left"><p><a href="#r4i-sz"><code>size</code></a></p></td>
+<td align="left"><p>Return the size of the input</p></td>
+</tr>
+<tr class="odd">
+<td align="left"><p><a href="#r4i-slc"><code>slice</code></a></p></td>
+<td align="left"><p>Return a specified slice of the input</p></td>
+</tr>
+<tr class="even">
+<td align="left"><p><a href="#r4i-sp"><code>split</code></a></p></td>
+<td align="left"><p>Divide the input into two pieces</p></td>
+</tr>
+</tbody>
+</table>
+<h5 id="r4i-cc"><span class="header-section-number">5.2.5.1.1</span> Copy constructor</h5>
+<pre class="sourceCode cpp"><code class="sourceCode cpp">Input(<span class="dt">const</span> Input&amp; other);</code></pre>
+<p>Copy constructor.</p>
+<h5 id="r4i-c-s"><span class="header-section-number">5.2.5.1.2</span> Can split</h5>
+<pre class="sourceCode cpp"><code class="sourceCode cpp"><span class="dt">bool</span> can_split() <span class="dt">const</span>;</code></pre>
+<p>Return a boolean value to indicate whether a split is possible.</p>
+<h5 id="r4i-sz"><span class="header-section-number">5.2.5.1.3</span> Size</h5>
+<pre class="sourceCode cpp"><code class="sourceCode cpp"><span class="dt">long</span> size() <span class="dt">const</span>;</code></pre>
+<p>Returns the size of the input.</p>
+<h5 id="r4i-slc"><span class="header-section-number">5.2.5.1.4</span> Slice</h5>
+<pre class="sourceCode cpp"><code class="sourceCode cpp">Input slice(parray&lt;Input&gt;&amp; ins, <span class="dt">long</span> lo, <span class="dt">long</span> hi);</code></pre>
+<p>Returns a slice of the input that occurs logically in the right-open range <code>[lo, hi)</code>, optionally using <code>ins</code>, the results of a precomputed application of the <code>split</code> function.</p>
+<h5 id="r4i-sp"><span class="header-section-number">5.2.5.1.5</span> Split</h5>
+<pre class="sourceCode cpp"><code class="sourceCode cpp"><span class="dt">void</span> split(Input&amp; dst);          <span class="co">// (1)</span>
+parray&lt;Input&gt; split(<span class="dt">long</span> n));    <span class="co">// (2)</span></code></pre>
+<ol style="list-style-type: decimal">
+<li>Transfer a fraction of the contents of the current input object to the input object referenced by <code>dst</code>.</li>
+</ol>
+<p>The behavior of this method may be undefined when the <code>can_split</code> function would return <code>false</code>.</p>
+<ol start="2" style="list-style-type: decimal">
+<li>Divide the contents of the current input object into at most <code>n</code> pieces, returning an array which stores the new pieces.</li>
+</ol>
+<h5 id="example-random-access-iterator-input"><span class="header-section-number">5.2.5.1.6</span> Example: random-access iterator input</h5>
+<pre class="sourceCode cpp"><code class="sourceCode cpp"><span class="kw">namespace</span> pasl {
+<span class="kw">namespace</span> pctl {
+<span class="kw">namespace</span> level4 {
+
+<span class="kw">template</span> &lt;<span class="kw">class</span> Input_iter&gt;
+<span class="kw">class</span> random_access_iterator_input {
+<span class="kw">public</span>:
+  
+  <span class="kw">using</span> self_type = random_access_iterator_input;
+  <span class="kw">using</span> array_type = parray&lt;self_type&gt;;
+  
+  Input_iter lo;
+  Input_iter hi;
+  
+  random_access_iterator_input() { }
+  
+  random_access_iterator_input(Input_iter lo, Input_iter hi)
+  : lo(lo), hi(hi) { }
+  
+  <span class="dt">bool</span> can_split() <span class="dt">const</span> {
+    <span class="kw">return</span> size() &gt;= <span class="dv">2</span>;
+  }
+
+  <span class="dt">long</span> size() <span class="dt">const</span> {
+    <span class="kw">return</span> hi - lo;
+  }
+  
+  <span class="dt">void</span> split(random_access_iterator_input&amp; dst) {
+    dst = *<span class="kw">this</span>;
+    <span class="dt">long</span> n = size();
+    assert(n &gt;= <span class="dv">2</span>);
+    Input_iter mid = lo + (n / <span class="dv">2</span>);
+    hi = mid;
+    dst.lo = mid;
+  }
+  
+  array_type split(<span class="dt">long</span>) {
+    array_type tmp;
+    <span class="kw">return</span> tmp;
+  }
+  
+  self_type slice(<span class="dt">const</span> array_type&amp;, <span class="dt">long</span> _lo, <span class="dt">long</span> _hi) {
+    self_type tmp(lo + _lo, lo + _hi);
+    <span class="kw">return</span> tmp;
+  }
+    
+};
+
+} } }</code></pre>
+<h4 id="r4-i-w"><span class="header-section-number">5.2.5.2</span> Convert-reduce complexity function</h4>
+<pre class="sourceCode cpp"><code class="sourceCode cpp"><span class="kw">class</span> Convert_reduce_comp;</code></pre>
+<p>The convert-complexity function is a C++ functor which returns a positive number that associates a weight value to a given input object. The <code>Convert_reduce_comp</code> class should provide the following call operator.</p>
+<pre class="sourceCode cpp"><code class="sourceCode cpp"><span class="dt">long</span> <span class="kw">operator</span>()(<span class="dt">const</span> Input&amp; in);</code></pre>
+<h4 id="r4-c"><span class="header-section-number">5.2.5.3</span> Convert-reduce</h4>
+<pre class="sourceCode cpp"><code class="sourceCode cpp"><span class="kw">class</span> Convert_reduce;</code></pre>
+<p>The convert function is a C++ functor which takes a reference on an input value and computes a result value, leaving the result value in an output cell. The <code>Convert_reduce</code> class should provide a call operator with the following type.</p>
+<pre class="sourceCode cpp"><code class="sourceCode cpp"><span class="dt">void</span> <span class="kw">operator</span>()(Input&amp; in, Result&amp; dst);</code></pre>
+<h4 id="r4-s-c"><span class="header-section-number">5.2.5.4</span> Sequential convert-reduce</h4>
+<pre class="sourceCode cpp"><code class="sourceCode cpp"><span class="kw">class</span> Seq_convert_reduce;</code></pre>
+<p>The sequential convert function is a C++ functor whose purpose is to substitute for the ordinary convert function when input size is small enough to sequentialize. The <code>Seq_convert_reduce</code> class should provide a call operator with the following type.</p>
+<pre class="sourceCode cpp"><code class="sourceCode cpp"><span class="dt">void</span> <span class="kw">operator</span>()(Input&amp; in, Result&amp; dst);</code></pre>
+<p>The sequential convert function should always compute the same result as the ordinary convert function given the same input.</p>
+<h4 id="r4-sca"><span class="header-section-number">5.2.5.5</span> Convert-scan</h4>
+<pre class="sourceCode cpp"><code class="sourceCode cpp"><span class="kw">class</span> Convert_scan;</code></pre>
+<p>The convert function is a C++ functor which takes a reference on an input value and computes a result value, leaving the result value in an output cell. The <code>Convert_scan</code> class should provide a call operator with the following type.</p>
+<pre class="sourceCode cpp"><code class="sourceCode cpp"><span class="dt">void</span> <span class="kw">operator</span>()(Input&amp; in, Output_iter outs_lo);</code></pre>
+<h4 id="r4-ssca"><span class="header-section-number">5.2.5.6</span> Sequential convert-scan</h4>
+<pre class="sourceCode cpp"><code class="sourceCode cpp"><span class="kw">class</span> Seq_convert_scan;</code></pre>
+<p>The sequential convert function is a C++ functor whose purpose is to substitute for the ordinary convert function when input size is small enough to sequentialize. The <code>Seq_convert_scan</code> class should provide a call operator with the following type.</p>
+<pre class="sourceCode cpp"><code class="sourceCode cpp"><span class="dt">void</span> <span class="kw">operator</span>()(Input&amp; in, Output_iter outs_lo);</code></pre>
+<p>The sequential convert function should always compute the same result as the ordinary convert function given the same input.</p>
+<h4 id="examples-3"><span class="header-section-number">5.2.5.7</span> Examples</h4>
+<p>TODO</p>
+<h2 id="derived-operations"><span class="header-section-number">5.3</span> Derived operations</h2>
+<h1 id="sorting"><span class="header-section-number">6</span> Sorting</h1>
+<h2 id="merge-sort"><span class="header-section-number">6.1</span> Merge sort</h2>
+<h2 id="quick-sort"><span class="header-section-number">6.2</span> Quick sort</h2>
+<h2 id="sample-sort"><span class="header-section-number">6.3</span> Sample sort</h2>
+<h2 id="radix-sort"><span class="header-section-number">6.4</span> Radix sort</h2>
+</body>
+</html>

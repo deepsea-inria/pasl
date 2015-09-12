@@ -1,0 +1,10 @@
+_build/log/samplesort.p: _build/log/utils.p
+_build/log/samplesort.ok: _build/log/utils.ok
+_build/log/samplesort.p: _build/log/sequence.p
+_build/log/samplesort.ok: _build/log/sequence.ok
+_build/log/samplesort.p: _build/log/math.p
+_build/log/samplesort.ok: _build/log/math.ok
+_build/log/samplesort.p: _build/log/quicksort.p
+_build/log/samplesort.ok: _build/log/quicksort.ok
+_build/log/samplesort.p: _build/log/transpose.p
+_build/log/samplesort.ok: _build/log/transpose.ok

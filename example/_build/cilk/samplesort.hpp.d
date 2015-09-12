@@ -1,0 +1,10 @@
+_build/cilk/samplesort.p: _build/cilk/utils.p
+_build/cilk/samplesort.ok: _build/cilk/utils.ok
+_build/cilk/samplesort.p: _build/cilk/sequence.p
+_build/cilk/samplesort.ok: _build/cilk/sequence.ok
+_build/cilk/samplesort.p: _build/cilk/math.p
+_build/cilk/samplesort.ok: _build/cilk/math.ok
+_build/cilk/samplesort.p: _build/cilk/quicksort.p
+_build/cilk/samplesort.ok: _build/cilk/quicksort.ok
+_build/cilk/samplesort.p: _build/cilk/transpose.p
+_build/cilk/samplesort.ok: _build/cilk/transpose.ok

@@ -1,27 +1,25 @@
 /*!
- * \file tree-contract.cpp
- * \brief Parallel tree contraction
- * \example tree-contract.cpp
+ * \file fib.cpp
+ * \brief Exponential Fibonacci computation.
+ * \example fib.cpp
  * \date 2014
- * \copyright COPYRIGHT (c) 2012 Umut Acar, Vitaly Aksenov, Arthur Chargueraud, 
- * Michael Rainey, and Sam Westrick. All rights reserved.
- *
+ * \copyright COPYRIGHT (c) 2012 Umut Acar, Arthur Chargueraud, and
+ * Michael Rainey. All rights reserved.
  * \license This project is released under the GNU Public License.
  *
  * Arguments:
  * ==================================================================
  *   - `-n <int>` (default=3)
- *     ?
+ *       determines the value of fib(n) to compute
  *   - `-cutoff <int>` (default=20)
- *      ?
+ *       sequentializes fib(m) as soon as m <= cutoff.
  *
- * Implementation: File map
+ * Implementation: compute in parallel the recursive calls,
+ * using fork-join.
  *
  */
 
-
 #include <math.h>
-#include <fstream>
 #include "benchmark.hpp"
 
 /***********************************************************************/
@@ -30,19 +28,14 @@ namespace par = pasl::sched::native;
 
 long cutoff = 0;
 
-
 /*---------------------------------------------------------------------*/
 
-
-
-static seq_file_map (ifstream f, int n)
-{
-    for (long i=0; i < n;n+=8) {
-        
-    }
-    
-}//seq_node_contract
-
+static long seq_fib (long n){
+  if (n < 2)
+    return n;
+  else
+    return seq_fib (n - 1) + seq_fib (n - 2);
+}
 
 /*---------------------------------------------------------------------*/
 
@@ -53,14 +46,6 @@ static long par_fib(long n) {
   par::fork2([n, &a] { a = par_fib(n-1); },
              [n, &b] { b = par_fib(n-2); });
   return a + b;
-}
-
-long filesize(const char* filename)
-{
-    std::ifstream file(filename, ios::binary |  ios::ate);
-    pos_type n = in.tellg();
-    file.close();
-    return (long) n;
 }
 
 /*---------------------------------------------------------------------*/
@@ -88,26 +73,16 @@ int main(int argc, char** argv) {
     cutoff = (long)pasl::util::cmdline::parse_or_default_int("cutoff", 25);
     n = (long)pasl::util::cmdline::parse_or_default_int("n", 24);
   };
-
   auto run = [&] (bool sequential) {
-      string file_name = "input.dat";
-      
-      
-      n = file_size (file_name)
-      ifstram in_file(file_name, ios::binary);
-      result = par_file_map (in_file,n);
+    result = par_fib(n);
   };
-
   auto output = [&] {
     std::cout << "result " << result << std::endl;
   };
-
   auto destroy = [&] {
     ;
   };
-
   pasl::sched::launch(argc, argv, init, run, output, destroy);
-
   return 0;
 }
 
