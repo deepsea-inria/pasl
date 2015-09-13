@@ -75,8 +75,31 @@ static int seq_file_map (ifstream &f, int n)
  
   return sum;
     
-}//seq_node_contract
+}
 
+
+static int par_file_map_rec (ifstream &f, int n, int block_size, int i, int j)
+{
+  char block[4];
+  if ( j-i <= 1) {
+    f.seekg (i * block_size, ios::beg);        
+    f.read (block, block_size); 
+    int m = (int) *block;
+    cout << "i = " << i << " j = " << j << " m = " << m << endl;
+
+		return m; 
+	}
+	else {
+    int mid = (i+j)/2;
+    int a, b;
+		par::fork2([&] // [&a,&f,n,i,j,mid,block_size]
+							 { a = par_file_map_rec (f, n, block_size, i, mid); },
+               [&] // [&b,&f,n,i,j,mid,block_size]
+							 { b = par_file_map_rec (f, n, block_size, mid, j); });		
+
+    return (a + b);
+	}		
+}//par_file_map_rec
 
 static int par_file_map (ifstream &f, int n)
 {
@@ -85,21 +108,9 @@ static int par_file_map (ifstream &f, int n)
   int sum = 0;
   int m = 0;
 
-  for (int i = 0; i < n*block_size; i += block_size) {
-    f.seekg (i, ios::beg);        
-    f.read (block, block_size); 
-    m = (int) *block;
-    sum += m;
-//    cout << "i = " << i << " m = " << m << endl;
-  }
- 
-  return sum;
-    
-}//seq_node_contract
-
-
-
-/*---------------------------------------------------------------------*/
+	sum = par_file_map_rec (f, n, block_size, 0, n); 
+	return sum; 
+}//par_file_map
 
 /*---------------------------------------------------------------------*/
 
@@ -134,7 +145,7 @@ int main(int argc, char** argv) {
     create_file (file_name, n);
 
     in_file.open (file_name, ios::binary);
-    int sum = seq_file_map (in_file, n);
+    int sum = par_file_map (in_file, n);
     
     result = sum;
   };    
