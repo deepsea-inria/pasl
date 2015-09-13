@@ -80,8 +80,12 @@ static int seq_file_map (ifstream &f, int n)
 
 static int par_file_map_rec (ifstream &f, int n, int block_size, int i, int j)
 {
-  char block[4];
+
+
   if ( j-i <= 1) {
+    char block[4]; 
+
+		// this is buggy of course because the file is shared.
     f.seekg (i * block_size, ios::beg);        
     f.read (block, block_size); 
     int m = (int) *block;
