@@ -118,7 +118,7 @@ the following.
 Currently, building from the command line is not yet
 supported. However, it is possible to build from an XCode project.
 
-1. Create a new project.
+1. Create a new project.   
 2. Create a new target binary.
 3. In the "build phases" configuration page of the new target binary,
    add to the "Compile Sources" box the contents of the following
@@ -132,6 +132,16 @@ supported. However, it is possible to build from an XCode project.
 
 - `-DTARGET_MAC_OS`
 - `-D_XOPEN_SOURCE`
+
+4.5. 
+	
+Add these into Build Setting/Levels/Preprocessor Macros by opening the
+"DEBUG = 1" box (in bold font).
+
+_XOPEN_SOURCE=1
+TARGET_MAC_OS=1
+USE_UCONTEXT=1
+
 
 5. Add to your project the remaining source files that you want to
    compile. Remember to add one file which defines the `main()`

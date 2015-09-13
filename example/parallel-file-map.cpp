@@ -17,6 +17,16 @@
  *
  * Implementation: File map
  *
+ * Given $n$ this file creates a file with $n$ integers 
+ * from $0$ to $n-1$ and then reads them in parallel to compute 
+ * their sum.  It uses a spin lock to ensure atomic access
+ * to the file.
+ *
+ * The effect that I (Umut) would like to see was how the program
+ * behaves when end up getting blocked for I/O.  I am not sure
+ * if this program demonstrates the issue because the lock will
+ * be held by only one processor, causing essentially a serialization
+ * of all file accesses anyway.  More thinking is needed...
  */
 
 
@@ -58,11 +68,11 @@ void create_file (const string file_name, int n)
 }
 
 
-static int seq_file_map (ifstream &f, int n)
+static double seq_file_map (ifstream &f, int n)
 {
   int block_size = sizeof (int);  
   char block[4];
-  int sum = 0;
+  double sum = 0;
   int m = 0;
 
   for (int i = 0; i < n*block_size; i += block_size) {
@@ -78,28 +88,59 @@ static int seq_file_map (ifstream &f, int n)
 }
 
 
-static int par_file_map_rec (ifstream &f, int n, int block_size, int i, int j)
+class spin_lock {
+private:
+  atomic<bool> held;
+
+public:
+  spin_lock () {
+		held.store (false);
+  }
+	
+	void spin_to_lock () {
+		while (true) {
+			bool current = held.load();
+			if (!current) {
+				if (held.compare_exchange_weak(current,true))
+					break;
+			}
+		}
+	}//spin_to_lock
+
+	void release () {
+		while (true) {
+			bool current = held.load();
+			assert (current==true);
+			if (held.compare_exchange_weak(current,false))
+					break;
+		}
+	}	
+};//class lock
+
+
+static int par_file_map_rec (ifstream &f, int n, spin_lock &f_lock, int block_size, int i, int j)
 {
 
-
   if ( j-i <= 1) {
-    char block[4]; 
+    char block[4];
 
-		// this is buggy of course because the file is shared.
+    // begin read: take the file lock, read, and release.
+    f_lock.spin_to_lock ();     				
     f.seekg (i * block_size, ios::beg);        
-    f.read (block, block_size); 
+    f.read (block, block_size);
+		f_lock.release ();
+    // end read.		
     int m = (int) *block;
-    cout << "i = " << i << " j = " << j << " m = " << m << endl;
-
+//    cout << "i = " << i << " j = " << j << " m = " << m << endl;
 		return m; 
 	}
 	else {
     int mid = (i+j)/2;
     int a, b;
 		par::fork2([&] // [&a,&f,n,i,j,mid,block_size]
-							 { a = par_file_map_rec (f, n, block_size, i, mid); },
+							 { a = par_file_map_rec (f, n, f_lock, block_size, i, mid); },
                [&] // [&b,&f,n,i,j,mid,block_size]
-							 { b = par_file_map_rec (f, n, block_size, mid, j); });		
+							 { b = par_file_map_rec (f, n, f_lock, block_size, mid, j); });		
 
     return (a + b);
 	}		
@@ -107,19 +148,22 @@ static int par_file_map_rec (ifstream &f, int n, int block_size, int i, int j)
 
 static int par_file_map (ifstream &f, int n)
 {
+  spin_lock f_lock;
   int block_size = sizeof (int);  
   char block[4];
-  int sum = 0;
+  double sum = 0.0;
   int m = 0;
 
-	sum = par_file_map_rec (f, n, block_size, 0, n); 
+	sum = par_file_map_rec (f, n, f_lock, block_size, 0, n); 
+
 	return sum; 
+
 }//par_file_map
 
 /*---------------------------------------------------------------------*/
 
 int main(int argc, char** argv) {
-  int result = 0;
+  double result = 0.0;
   int n = 0;
     
   /* The call to `launch` creates an instance of the PASL runtime and
@@ -149,7 +193,7 @@ int main(int argc, char** argv) {
     create_file (file_name, n);
 
     in_file.open (file_name, ios::binary);
-    int sum = par_file_map (in_file, n);
+    double sum = par_file_map (in_file, n);
     
     result = sum;
   };    
