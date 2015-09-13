@@ -35,27 +35,6 @@ long cutoff = 0;
 
 /*---------------------------------------------------------------------*/
 
-static int seq_file_map (ifstream f, int n)
-{
-  int block_size = sizeof (int);  
-  char* block = new char [block_size];
-  int sum = 0;
-  int m = 0;
-
-  for (long i=0; i < n;n+=8) {
-    f.seekg (i * block_size, ios::beg);        
-    f.read (block, block_size); 
-    m = (int) *block;
-    cout << "i = " << i << "m = " << m << endl;
-  }
- 
-  return sum;
-    
-}//seq_node_contract
-
-
-/*---------------------------------------------------------------------*/
-
 long filesize(const char* file_name)
 {
   ifstream file (file_name, ios::binary |  ios::ate);
@@ -71,12 +50,57 @@ void create_file (const string file_name, int n)
   out_file.open (file_name, ios::binary);
 
   for (int i=0; i<n; ++i) {
-    out_file << i;  
+	  out_file.write ((char *) &i, sizeof(int));
   }
  
   out_file.close ();
   return;
 }
+
+
+static int seq_file_map (ifstream &f, int n)
+{
+  int block_size = sizeof (int);  
+  char block[4];
+  int sum = 0;
+  int m = 0;
+
+  for (int i = 0; i < n*block_size; i += block_size) {
+    f.seekg (i, ios::beg);        
+    f.read (block, block_size); 
+    m = (int) *block;
+    sum += m;
+//    cout << "i = " << i << " m = " << m << endl;
+  }
+ 
+  return sum;
+    
+}//seq_node_contract
+
+
+static int par_file_map (ifstream &f, int n)
+{
+  int block_size = sizeof (int);  
+  char block[4];
+  int sum = 0;
+  int m = 0;
+
+  for (int i = 0; i < n*block_size; i += block_size) {
+    f.seekg (i, ios::beg);        
+    f.read (block, block_size); 
+    m = (int) *block;
+    sum += m;
+//    cout << "i = " << i << " m = " << m << endl;
+  }
+ 
+  return sum;
+    
+}//seq_node_contract
+
+
+
+/*---------------------------------------------------------------------*/
+
 /*---------------------------------------------------------------------*/
 
 int main(int argc, char** argv) {
