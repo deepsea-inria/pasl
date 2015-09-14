@@ -263,17 +263,17 @@ void make_affected(Node* u, int id, bool to_copy) {
 //    if (vertex_thread[p->get_vertex()] == -1) {
 //      v->get_parent()->set_proposal(v, id);
       p->set_affected(true);
-    if (v == u) {
+/*&    if (v == u) {
       make_affected(p, id, to_copy);
-    }
+    }*/
 //    }
     for (Node* c : v->get_children()) {
 //      if (vertex_thread[c->get_vertex()] == -1) {
 //        c->set_proposal(v, id);
         c->set_affected(true);
-        if (v == u) {
+/*        if (v == u) {
           make_affected(c, id, to_copy);
-        }
+        } */
 //      }
     }
   }

@@ -136,10 +136,16 @@ void update_round_seq(int round) {
     if (on_frontier(v)) {
       Node* p = v->get_parent();
       if (v->is_contracted() || p->is_affected()) {
+        if (p->is_contracted()) {
+          make_affected(p->get_parent(), 0, true);
+        }
         make_affected(p, 0, true);
       }
       for (Node* child : v->get_children()) {
         if (v->is_contracted() || child->is_affected()) {
+          if (child->is_contracted()) {
+            make_affected(child->get_first_child(), 0, true);
+          }
           make_affected(child, 0, true);
         }
       }
@@ -195,11 +201,17 @@ void update_round(int round) {
     for (Node* v : old_live_affected_sets[i]) {
       is_contracted(v, round);
       if (on_frontier(v)) {
-        if (vertex_thread[v->get_parent()->get_vertex()] == -1 && (v->is_contracted() || v->get_parent()->is_affected()))
-          v->get_parent()->set_proposal(v, i);
+        Node* p = v->get_parent();
+        if (vertex_thread[p->get_vertex()] == -1 && (v->is_contracted() || p->is_affected())) {
+          p->set_proposal(v, i);
+          if (p->is_contracted() && v->is_contracted()) {
+            p->get_parent()->set_proposal(p, i);
+          }
+        }
         for (Node* c : v->get_children()) {
-           if (vertex_thread[c->get_vertex()] == -1 && (v->is_contracted() || c->is_affected()))
-             c->set_proposal(v, i);
+          if (vertex_thread[c->get_vertex()] == -1 && (v->is_contracted() || c->is_affected())) {
+            c->set_proposal(v, i);
+          }
         }
       }
       if (!v->is_contracted() && !v->is_root()) {
@@ -218,13 +230,13 @@ void update_round(int round) {
 //  pasl::sched::native::parallel_for(0, set_number, [&] (int i) {
     for (Node* v : old_live_affected_sets[i]) {
       Node* p = v->get_parent();
-      if (get_thread_id(p) == i) {
-        if (p->is_root()) {
-          p->set_affected(false);
-          p->prepare();
-        } else {
-          make_affected(p, i, true);
+      if (p->is_contracted() && v->is_contracted()) {
+        if (get_thread_id(p->get_parent()) == i) {
+          make_affected(p->get_parent(), i, true);
         }
+      }
+      if (get_thread_id(p) == i) {
+        make_affected(p, i, true);
       }
       for (Node* u : v->get_children()) {
         if (get_thread_id(u) == i)
@@ -236,17 +248,15 @@ void update_round(int round) {
   for (int i = 0; i < set_number; i++) {
 //  pasl::sched::native::parallel_for(0, set_number, [&] (int i) {
     for (Node* v : live_affected_sets[i]) {
-      if (!v->is_contracted()) {
-        if (v->get_parent()->is_contracted()) {
-          delete_node_for(v->get_parent(), v);
-        }
-        std::set<Node*> copy_children = v->get_children();
-        for (Node* c : copy_children) {
-          if (c->is_contracted()) {
-            delete_node_for(c, v);
-          }
-        }
+      if (v->get_parent()->is_contracted()) {
+        delete_node_for(v->get_parent(), v);
       }
+      std::set<Node*> copy_children = v->get_children();
+      for (Node* c : copy_children) {
+        if (c->is_contracted()) {
+          delete_node_for(c, v);
+        }
+       }
     }
   }//);
 
