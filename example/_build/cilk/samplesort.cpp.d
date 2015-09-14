@@ -1,0 +1,9 @@
+_build/cilk/samplesort.o: _build/cilk/randperm.p
+_build/cilk/samplesort.ok: _build/cilk/randperm.ok
+_build/cilk/samplesort.o: _build/cilk/sequenceio.p
+_build/cilk/samplesort.ok: _build/cilk/sequenceio.ok
+_build/cilk/samplesort.o: _build/cilk/samplesort.p
+_build/cilk/samplesort.o: _build/cilk/sequencedata.p
+_build/cilk/samplesort.ok: _build/cilk/sequencedata.ok
+_build/cilk/samplesort.o: _build/cilk/benchmark.p
+_build/cilk/samplesort.ok: _build/cilk/benchmark.ok

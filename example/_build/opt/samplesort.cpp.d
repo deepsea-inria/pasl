@@ -1,0 +1,9 @@
+_build/opt/samplesort.o: _build/opt/randperm.p
+_build/opt/samplesort.ok: _build/opt/randperm.ok
+_build/opt/samplesort.o: _build/opt/sequenceio.p
+_build/opt/samplesort.ok: _build/opt/sequenceio.ok
+_build/opt/samplesort.o: _build/opt/samplesort.p
+_build/opt/samplesort.o: _build/opt/sequencedata.p
+_build/opt/samplesort.ok: _build/opt/sequencedata.ok
+_build/opt/samplesort.o: _build/opt/benchmark.p
+_build/opt/samplesort.ok: _build/opt/benchmark.ok

@@ -1,0 +1,10 @@
+_build/seq/hull.o: _build/seq/datagen.p
+_build/seq/hull.ok: _build/seq/datagen.ok
+_build/seq/hull.o: _build/seq/geometryData.p
+_build/seq/hull.ok: _build/seq/geometryData.ok
+_build/seq/hull.o: _build/seq/sequence.p
+_build/seq/hull.ok: _build/seq/sequence.ok
+_build/seq/hull.o: _build/seq/benchmark.p
+_build/seq/hull.ok: _build/seq/benchmark.ok
+_build/seq/hull.o: _build/seq/defaults.p
+_build/seq/hull.ok: _build/seq/defaults.ok

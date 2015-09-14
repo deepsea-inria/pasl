@@ -1,0 +1,11 @@
+_build/sta/nearestneighbors.o: _build/sta/utils.p
+_build/sta/nearestneighbors.ok: _build/sta/utils.ok
+_build/sta/nearestneighbors.o: _build/sta/geometry.p
+_build/sta/nearestneighbors.ok: _build/sta/geometry.ok
+_build/sta/nearestneighbors.o: _build/sta/geometryio.p
+_build/sta/nearestneighbors.ok: _build/sta/geometryio.ok
+_build/sta/nearestneighbors.o: _build/sta/geometryData.p
+_build/sta/nearestneighbors.ok: _build/sta/geometryData.ok
+_build/sta/nearestneighbors.o: _build/sta/nearestneighbors.p
+_build/sta/nearestneighbors.o: _build/sta/benchmark.p
+_build/sta/nearestneighbors.ok: _build/sta/benchmark.ok

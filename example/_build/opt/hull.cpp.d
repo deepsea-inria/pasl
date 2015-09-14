@@ -1,0 +1,10 @@
+_build/opt/hull.o: _build/opt/datagen.p
+_build/opt/hull.ok: _build/opt/datagen.ok
+_build/opt/hull.o: _build/opt/geometryData.p
+_build/opt/hull.ok: _build/opt/geometryData.ok
+_build/opt/hull.o: _build/opt/sequence.p
+_build/opt/hull.ok: _build/opt/sequence.ok
+_build/opt/hull.o: _build/opt/benchmark.p
+_build/opt/hull.ok: _build/opt/benchmark.ok
+_build/opt/hull.o: _build/opt/defaults.p
+_build/opt/hull.ok: _build/opt/defaults.ok

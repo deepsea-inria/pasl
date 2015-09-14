@@ -1,0 +1,10 @@
+_build/sta/hull.o: _build/sta/datagen.p
+_build/sta/hull.ok: _build/sta/datagen.ok
+_build/sta/hull.o: _build/sta/geometryData.p
+_build/sta/hull.ok: _build/sta/geometryData.ok
+_build/sta/hull.o: _build/sta/sequence.p
+_build/sta/hull.ok: _build/sta/sequence.ok
+_build/sta/hull.o: _build/sta/benchmark.p
+_build/sta/hull.ok: _build/sta/benchmark.ok
+_build/sta/hull.o: _build/sta/defaults.p
+_build/sta/hull.ok: _build/sta/defaults.ok
