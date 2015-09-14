@@ -188,16 +188,16 @@ void update_round_seq(int round) {
 }
 
 void update_round(int round) {
-  for (int i = 0; i < set_number; i++) {
-//  pasl::sched::native::parallel_for(0, set_number, [&] (int i) {
+//  for (int i = 0; i < set_number; i++) {
+  pasl::sched::native::parallel_for(0, set_number, [&] (int i) {
     old_live_affected_sets[i].clear();
     live_affected_sets[i].swap(old_live_affected_sets[i]);
     old_deleted_affected_sets[i].clear();
     deleted_affected_sets[i].swap(old_deleted_affected_sets[i]);
-  }//);
+  });
 
-  for (int i = 0; i < set_number; i++) {
-//  pasl::sched::native::parallel_for(0, set_number, [&] (int i) {
+//  for (int i = 0; i < set_number; i++) {
+  pasl::sched::native::parallel_for(0, set_number, [&] (int i) {
     for (Node* v : old_live_affected_sets[i]) {
       is_contracted(v, round);
       if (on_frontier(v)) {
@@ -224,10 +224,10 @@ void update_round(int round) {
         lists[v->get_vertex()] = v;
       }
     }
-  }//);
+  });
 
-  for (int i = 0; i < set_number; i++) {
-//  pasl::sched::native::parallel_for(0, set_number, [&] (int i) {
+//  for (int i = 0; i < set_number; i++) {
+  pasl::sched::native::parallel_for(0, set_number, [&] (int i) {
     for (Node* v : old_live_affected_sets[i]) {
       Node* p = v->get_parent();
       if (p->is_contracted() && v->is_contracted()) {
@@ -243,10 +243,10 @@ void update_round(int round) {
           make_affected(u, i, true);
       }
     }
-  }//);
+  });
 
-  for (int i = 0; i < set_number; i++) {
-//  pasl::sched::native::parallel_for(0, set_number, [&] (int i) {
+//  for (int i = 0; i < set_number; i++) {
+  pasl::sched::native::parallel_for(0, set_number, [&] (int i) {
     for (Node* v : live_affected_sets[i]) {
       if (v->get_parent()->is_contracted()) {
         delete_node_for(v->get_parent(), v);
@@ -258,24 +258,24 @@ void update_round(int round) {
         }
        }
     }
-  }//);
+  });
 
-  for (int i = 0; i < set_number; i++) {
-//  pasl::sched::native::parallel_for(0, set_number, [&] (int i) {
+//  for (int i = 0; i < set_number; i++) {
+  pasl::sched::native::parallel_for(0, set_number, [&] (int i) {
     for (Node* v : live_affected_sets[i]) {
       v->advance();
       v->prepare();
     }
-  }//);
+  });
 
-  for (int i = 0; i < set_number; i++) {
-//  pasl::sched::native::parallel_for(0, set_number, [&] (int i) {
+//  for (int i = 0; i < set_number; i++) {
+  pasl::sched::native::parallel_for(0, set_number, [&] (int i) {
     for (Node* v : old_deleted_affected_sets[i]) {
       if (v->next != NULL)
         deleted_affected_sets[i].insert(v->next);
       delete v;
     }
-  }//);
+  });
 }
 
 bool end_condition_seq() {

@@ -137,7 +137,7 @@ int main(int argc, char** argv) {
      }
      initialization_construction(n, children, parent);
      construction(n, [&] (int round_no) {construction_round_seq(round_no);});
-     print_roots(n);
+//     print_roots(n);
      if (seq) {
        initialization_update_seq(n, add_no, add_p, add_v, delete_no, delete_p, delete_v);
      } else {
