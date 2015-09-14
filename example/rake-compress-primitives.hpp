@@ -259,11 +259,22 @@ void make_affected(Node* u, int id, bool to_copy) {
   //need to affect vertex, which will not be contracted later
   if (lists[u->get_vertex()]->is_contracted()) {
     Node* v = lists[u->get_vertex()];
-//    v->get_parent()->set_proposal(v, id);
-    v->get_parent()->set_affected(true);
+    Node* p = v->get_parent();
+//    if (vertex_thread[p->get_vertex()] == -1) {
+//      v->get_parent()->set_proposal(v, id);
+      p->set_affected(true);
+    if (v == u) {
+      make_affected(p, id, to_copy);
+    }
+//    }
     for (Node* c : v->get_children()) {
-//      c->set_proposal(v, id);
-      c->set_affected(true);
+//      if (vertex_thread[c->get_vertex()] == -1) {
+//        c->set_proposal(v, id);
+        c->set_affected(true);
+        if (v == u) {
+          make_affected(c, id, to_copy);
+        }
+//      }
     }
   }
 

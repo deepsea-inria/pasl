@@ -82,6 +82,7 @@ void initialization_update(int n, std::unordered_map<int, std::vector<std::pair<
       if (u.second) {
         lists[v]->head->set_parent(lists[u.first]->head);
       } else {
+        ;
         lists[v]->head->add_child(lists[u.first]->head);
       }
     }
@@ -133,8 +134,9 @@ void update_round_seq(int round) {
   for (Node* v : old_live_affected_set) {
     is_contracted(v, round);
     if (on_frontier(v)) {
-      if (v->is_contracted() || v->get_parent()->is_affected()) {
-        make_affected(v->get_parent(), 0, true);
+      Node* p = v->get_parent();
+      if (v->is_contracted() || p->is_affected()) {
+        make_affected(p, 0, true);
       }
       for (Node* child : v->get_children()) {
         if (v->is_contracted() || child->is_affected()) {
@@ -142,10 +144,7 @@ void update_round_seq(int round) {
         }
       }
     }
-    if (v->is_root()) {
-      v->set_root(true);
-      lists[v->get_vertex()] = v;
-    } else if (!v->is_contracted()) {
+    if (!v->is_contracted() && !v->is_root()) {
       copy_node(v);
       live_affected_sets[0].insert(v->next);
     } else {
@@ -158,16 +157,14 @@ void update_round_seq(int round) {
   }
 
   for (Node* v : live_affected_sets[0]) {
-    if (!v->is_contracted()) {
-      Node* p = v->get_parent();
-      if (p->is_contracted()) {
-        delete_node_for(p, v);
-      }
-      std::set<Node*> copy_children = v->get_children();
-      for (auto u : copy_children) {
-        if (u->is_contracted()) {
-          delete_node_for(u, v);
-        }
+    Node* p = v->get_parent();
+    if (p->is_contracted()) {
+      delete_node_for(p, v);
+    }
+    std::set<Node*> copy_children = v->get_children();
+    for (auto u : copy_children) {
+      if (u->is_contracted()) {
+        delete_node_for(u, v);
       }
     }
   }
@@ -180,35 +177,32 @@ void update_round_seq(int round) {
   for (Node* v : old_deleted_affected_set) {
     if (v->next != NULL)
       deleted_affected_sets[0].insert(v->next);
-    delete v;
+    delete v;              
   }
 }
 
 void update_round(int round) {
-//  for (int i = 0; i < set_number; i++) {
-  pasl::sched::native::parallel_for(0, set_number, [&] (int i) {
+  for (int i = 0; i < set_number; i++) {
+//  pasl::sched::native::parallel_for(0, set_number, [&] (int i) {
     old_live_affected_sets[i].clear();
     live_affected_sets[i].swap(old_live_affected_sets[i]);
     old_deleted_affected_sets[i].clear();
     deleted_affected_sets[i].swap(old_deleted_affected_sets[i]);
-  });
+  }//);
 
-//  for (int i = 0; i < set_number; i++) {
-  pasl::sched::native::parallel_for(0, set_number, [&] (int i) {
+  for (int i = 0; i < set_number; i++) {
+//  pasl::sched::native::parallel_for(0, set_number, [&] (int i) {
     for (Node* v : old_live_affected_sets[i]) {
-      v->set_contracted(is_contracted(v, round));
+      is_contracted(v, round);
       if (on_frontier(v)) {
-        if (vertex_thread[v->get_parent()->get_vertex()] == -1 && (v->get_parent()->is_affected() || v->is_contracted()))
+        if (vertex_thread[v->get_parent()->get_vertex()] == -1 && (v->is_contracted() || v->get_parent()->is_affected()))
           v->get_parent()->set_proposal(v, i);
         for (Node* c : v->get_children()) {
-           if (vertex_thread[c->get_vertex()] == -1 && (v->get_parent()->is_affected() || v->is_contracted()))
+           if (vertex_thread[c->get_vertex()] == -1 && (v->is_contracted() || c->is_affected()))
              c->set_proposal(v, i);
         }
       }
-      if (v->is_root()) {
-        v->set_root(true);
-        lists[v->get_vertex()] = v;
-      } else if (!v->is_contracted()) {
+      if (!v->is_contracted() && !v->is_root()) {
         copy_node(v);
         live_affected_sets[i].insert(v->next);
       } else {
@@ -218,23 +212,29 @@ void update_round(int round) {
         lists[v->get_vertex()] = v;
       }
     }
-  });
+  }//);
 
-//  for (int i = 0; i < set_number; i++) {
-  pasl::sched::native::parallel_for(0, set_number, [&] (int i) {
+  for (int i = 0; i < set_number; i++) {
+//  pasl::sched::native::parallel_for(0, set_number, [&] (int i) {
     for (Node* v : old_live_affected_sets[i]) {
-      if (get_thread_id(v->get_parent()) == i) {
-        make_affected(v->get_parent(), i, true);
+      Node* p = v->get_parent();
+      if (get_thread_id(p) == i) {
+        if (p->is_root()) {
+          p->set_affected(false);
+          p->prepare();
+        } else {
+          make_affected(p, i, true);
+        }
       }
       for (Node* u : v->get_children()) {
         if (get_thread_id(u) == i)
           make_affected(u, i, true);
       }
     }
-  });
+  }//);
 
-//  for (int i = 0; i < set_number; i++) {
-  pasl::sched::native::parallel_for(0, set_number, [&] (int i) {
+  for (int i = 0; i < set_number; i++) {
+//  pasl::sched::native::parallel_for(0, set_number, [&] (int i) {
     for (Node* v : live_affected_sets[i]) {
       if (!v->is_contracted()) {
         if (v->get_parent()->is_contracted()) {
@@ -248,24 +248,24 @@ void update_round(int round) {
         }
       }
     }
-  });
+  }//);
 
-//  for (int i = 0; i < set_number; i++) {
-  pasl::sched::native::parallel_for(0, set_number, [&] (int i) {
+  for (int i = 0; i < set_number; i++) {
+//  pasl::sched::native::parallel_for(0, set_number, [&] (int i) {
     for (Node* v : live_affected_sets[i]) {
       v->advance();
       v->prepare();
     }
-  });
+  }//);
 
-//  for (int i = 0; i < set_number; i++) {
-  pasl::sched::native::parallel_for(0, set_number, [&] (int i) {
+  for (int i = 0; i < set_number; i++) {
+//  pasl::sched::native::parallel_for(0, set_number, [&] (int i) {
     for (Node* v : old_deleted_affected_sets[i]) {
       if (v->next != NULL)
         deleted_affected_sets[i].insert(v->next);
       delete v;
     }
-  });
+  }//);
 }
 
 bool end_condition_seq() {
