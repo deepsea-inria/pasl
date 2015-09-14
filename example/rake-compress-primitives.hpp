@@ -125,7 +125,7 @@ struct Node {
   }
 
   bool is_affected() {
-    return state.affected = (state.affected || get_proposal() > 0);
+    return state.affected = (state.affected || get_proposal() >= 0);
 //    return get_proposal() >= 0;
   }
 
@@ -135,14 +135,14 @@ struct Node {
 
   void prepare() {
     if (proposals != NULL) {
-      for (int i = 0; i < state.children.size() + 1; i++) {
+/*      for (int i = 0; i < state.children.size() + 1; i++) {
         proposals[i] = 0;
-      }
-    } else {
-      proposals = new int[state.children.size() + 1];
-      for (int i = 0; i < state.children.size() + 1; i++)
-        proposals[i] = 0;
+      }*/
+      delete [] proposals;
     }
+    proposals = new int[state.children.size() + 1];
+    for (int i = 0; i < state.children.size() + 1; i++)
+      proposals[i] = 0;
   }
 
   void set_proposal(Node* v, int id) {
@@ -261,16 +261,16 @@ void make_affected(Node* u, int id, bool to_copy) {
     Node* v = lists[u->get_vertex()];
     Node* p = v->get_parent();
 //    if (vertex_thread[p->get_vertex()] == -1) {
-//      v->get_parent()->set_proposal(v, id);
-      p->set_affected(true);
+      v->get_parent()->set_proposal(v, id);
+//      p->set_affected(true);
 /*&    if (v == u) {
       make_affected(p, id, to_copy);
     }*/
 //    }
     for (Node* c : v->get_children()) {
 //      if (vertex_thread[c->get_vertex()] == -1) {
-//        c->set_proposal(v, id);
-        c->set_affected(true);
+        c->set_proposal(v, id);
+//        c->set_affected(true);
 /*        if (v == u) {
           make_affected(c, id, to_copy);
         } */
