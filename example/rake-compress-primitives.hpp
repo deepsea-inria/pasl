@@ -56,7 +56,7 @@ struct Node {
 
   void add_child(Node* child) {
     state.children.insert(child);
-  }
+  }    
 
   void remove_child(Node* child) {
     state.children.erase(child);
@@ -170,6 +170,7 @@ struct Node {
 
   void copy_state(Node* u) {
     state = u->state;
+    head = u->head;
   }
 
   ~Node() {
