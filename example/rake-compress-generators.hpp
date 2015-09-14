@@ -43,6 +43,19 @@ void generate_two_bamboos(int n, std::vector<int>* children, int* parent) {
   }
 }
 
+void generate_k_bamboos(int n, int k, std::vector<int>* children, int* parent) {
+  for (int i = 0; i < k; i++) {
+    int l = i == k - 1 ? n - (k - 1) * (n / k) : n / k;
+    int d = i * (n / k);
+    for (int i = 0; i < l; i++) {
+      parent[i + d] = (i == 0 ? 0 : i - 1) + d;
+      children[i + d] = std::vector<int>();
+      if (i + 1 < l)
+        children[i + d].push_back(i + d + 1);
+    }
+  }
+}
+
 void generate_empty_graph(int n, std::vector<int>* children, int* parent) {
   for (int i = 0; i < n; i++) {
     parent[i] = i;
@@ -50,7 +63,7 @@ void generate_empty_graph(int n, std::vector<int>* children, int* parent) {
   }
 }
 
-void generate_graph(std::string type, int n, std::vector<int>* children, int* parent) {
+void generate_graph(std::string type, int n, std::vector<int>* children, int* parent, int k = 0) {
   if (type.compare("binary_tree") == 0) {
     // let us firstly think about binary tree
     generate_binary_tree(n, children, parent);
@@ -59,8 +72,10 @@ void generate_graph(std::string type, int n, std::vector<int>* children, int* pa
     generate_bamboo(n, children, parent);
   } else if (type.compare("empty_graph") == 0) {
     generate_empty_graph(n, children, parent);
-  } else {
+  } else if (type.compare("two_bamboos") == 0) {
     generate_two_bamboos(n, children, parent);
+  } else {
+    generate_k_bamboos(n, k, children, parent);
   }
 }
 

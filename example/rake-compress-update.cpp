@@ -13,6 +13,7 @@ int main(int argc, char** argv) {
      std::string graph = pasl::util::cmdline::parse_or_default_string("graph", std::string("bamboo"));
      seq = pasl::util::cmdline::parse_or_default_int("seq", 1) == 1;
      std::string type = pasl::util::cmdline::parse_or_default_string("type", std::string("add"));
+     int k = pasl::util::cmdline::parse_or_default_int("k", 2);
 
      std::vector<int>* children = new std::vector<int>[n];
      int* parent = new int[n];
@@ -33,6 +34,19 @@ int main(int argc, char** argv) {
          delete_v = new int[0];
          add_p[0] = n / 2 - 1;
          add_v[0] = add_p[0] + 1;
+       } else if (graph.compare("k_bamboos") == 0) {
+         generate_graph("k_bamboos", n, children, parent, k);
+         add_no = k - 1;
+         delete_no = 0;
+         add_p = new int[k - 1];
+         add_v = new int[k - 1];
+         delete_p = new int[0];
+         delete_v = new int[0];
+         for (int i = 0; i < k - 1; i++) {
+           add_p[i] = (i + 1) * (n / k) - 1;
+           add_v[i] = (i + 1) * (n / k);
+         }
+         ;
        } else {
          generate_graph("empty_graph", n, children, parent);
  
@@ -76,6 +90,18 @@ int main(int argc, char** argv) {
          delete_v = new int[1];
          delete_p[0] = n / 2 - 1;
          delete_v[0] = delete_p[0] + 1;
+       } else if (graph.compare("k_bamboos") == 0) {
+         generate_graph("bamboo", n, children, parent);
+         add_no = 0;
+         delete_no = k - 1;
+         add_p = new int[0];
+         add_v = new int[0];
+         delete_p = new int[k - 1];
+         delete_v = new int[k - 1];
+         for (int i = 0; i < k - 1; i++) {
+           delete_p[i] = (i + 1) * (n / k) - 1;
+           delete_v[i] = (i + 1) * (n / k);
+         }
        } else {
          generate_graph(graph, n, children, parent);
 
@@ -111,7 +137,7 @@ int main(int argc, char** argv) {
      }
      initialization_construction(n, children, parent);
      construction(n, [&] (int round_no) {construction_round_seq(round_no);});
-//     print_roots(n);
+     print_roots(n);
      if (seq) {
        initialization_update_seq(n, add_no, add_p, add_v, delete_no, delete_p, delete_v);
      } else {
