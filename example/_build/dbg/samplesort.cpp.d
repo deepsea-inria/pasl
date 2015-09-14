@@ -1,9 +1,0 @@
-_build/dbg/samplesort.o: _build/dbg/randperm.p
-_build/dbg/samplesort.ok: _build/dbg/randperm.ok
-_build/dbg/samplesort.o: _build/dbg/sequenceio.p
-_build/dbg/samplesort.ok: _build/dbg/sequenceio.ok
-_build/dbg/samplesort.o: _build/dbg/samplesort.p
-_build/dbg/samplesort.o: _build/dbg/sequencedata.p
-_build/dbg/samplesort.ok: _build/dbg/sequencedata.ok
-_build/dbg/samplesort.o: _build/dbg/benchmark.p
-_build/dbg/samplesort.ok: _build/dbg/benchmark.ok
