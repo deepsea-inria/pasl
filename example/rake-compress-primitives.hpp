@@ -42,6 +42,7 @@ struct Node {
   Node* next;
   State state;
   int* proposals;
+  bool* affected;
 
   Node(int _vertex) : state(_vertex) {
     head = NULL;
@@ -126,12 +127,27 @@ struct Node {
   }
 
   bool is_affected() {
-    return state.affected = (state.affected || get_proposal() >= 0);
-//    return get_proposal() >= 0;
+    if (state.affected)
+      return true;
+    for (int i = 0; i < state.children.size() + 1; i++) {
+      if (affected[i]) return state.affected = true;
+    }
+    return false;
   }
 
-  void set_affected(bool value) {
-    state.affected = value;
+  void set_affected(Node* v) {
+    if (state.parent == v) {
+      affected[0] = true;
+      return;
+    }
+    int i = 1;
+    for (Node* u : state.children) {
+      if (u == v) {
+        affected[i] = true;
+        return;
+      }
+      i++;
+    }
   }
 
   void prepare() {state.affected = false;
@@ -139,8 +155,13 @@ struct Node {
 /*      for (int i = 0; i < state.children.size() + 1; i++) {
         proposals[i] = 0;
       }*/
+      delete [] affected;
       delete [] proposals;
     }
+    affected = new bool[state.children.size() + 1];
+    for (int i = 0; i < state.children.size() + 1; i++)
+      affected[i] = false;
+
     proposals = new int[state.children.size() + 1];
     for (int i = 0; i < state.children.size() + 1; i++)
       proposals[i] = 0;
@@ -264,7 +285,7 @@ void make_affected(Node* u, int id, bool to_copy) {
     Node* p = v->get_parent();
 //    std::cerr << "set proposal from " << v->get_vertex() << "(" << v << ")" << " to " << p->get_vertex() << "(" << p << ")" ;
 //    if (vertex_thread[p->get_vertex()] == -1) {
-      p->set_proposal(v, id);
+      p->set_affected(v);
 //      p->set_affected(true);
 /*&    if (v == u) {
       make_affected(p, id, to_copy);
@@ -272,7 +293,7 @@ void make_affected(Node* u, int id, bool to_copy) {
 //    }
     for (Node* c : v->get_children()) {
 //      if (vertex_thread[c->get_vertex()] == -1) {
-        c->set_proposal(v, id);
+        c->set_affected(v);
 //        c->set_affected(true);
 /*        if (v == u) {
           make_affected(c, id, to_copy);
@@ -285,7 +306,6 @@ void make_affected(Node* u, int id, bool to_copy) {
   lists[u->get_vertex()] = u;
   u->set_contracted(false);
   u->set_root(false);
-  u->set_affected(false);
   u->prepare();
   vertex_thread[u->get_vertex()] = id;
   if (to_copy) {
