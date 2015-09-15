@@ -24,6 +24,7 @@ struct State {
   bool contracted;
   bool root;
   bool affected;
+  bool frontier;
 
   State(int _vertex) : vertex(_vertex), children(), contracted(false), root(false), affected(false) {}
 
@@ -133,7 +134,7 @@ struct Node {
     state.affected = value;
   }
 
-  void prepare() {
+  void prepare() {state.affected = false;
     if (proposals != NULL) {
 /*      for (int i = 0; i < state.children.size() + 1; i++) {
         proposals[i] = 0;
@@ -261,8 +262,9 @@ void make_affected(Node* u, int id, bool to_copy) {
   if (lists[u->get_vertex()]->is_contracted()) {
     Node* v = lists[u->get_vertex()];
     Node* p = v->get_parent();
+//    std::cerr << "set proposal from " << v->get_vertex() << "(" << v << ")" << " to " << p->get_vertex() << "(" << p << ")" ;
 //    if (vertex_thread[p->get_vertex()] == -1) {
-      v->get_parent()->set_proposal(v, id);
+      p->set_proposal(v, id);
 //      p->set_affected(true);
 /*&    if (v == u) {
       make_affected(p, id, to_copy);
@@ -278,6 +280,7 @@ void make_affected(Node* u, int id, bool to_copy) {
 //      }
     }
   }
+//  std::cerr << "\nMADE AFFECTED: " << u->get_vertex() << "\n";
 
   lists[u->get_vertex()] = u;
   u->set_contracted(false);

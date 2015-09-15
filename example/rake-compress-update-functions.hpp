@@ -17,22 +17,22 @@ void initialization_update_seq(int n, int add_no, int* add_p, int* add_v, int de
     Node* p = lists[delete_p[i]]->head;
     Node* v = lists[delete_v[i]]->head;
 
-    v->set_parent(v);
-    p->remove_child(v);
-
     make_affected(p, 0, false);
     make_affected(v, 0, false);
+
+    v->set_parent(v);
+    p->remove_child(v);
   }
 
   for (int i = 0; i < add_no; i++) {
     Node* p = lists[add_p[i]]->head;
     Node* v = lists[add_v[i]]->head;
 
-    v->set_parent(p);
-    p->add_child(v);
-
     make_affected(p, 0, false);
     make_affected(v, 0, false);
+
+    v->set_parent(p);
+    p->add_child(v);
   }
 }
 
@@ -82,7 +82,6 @@ void initialization_update(int n, std::unordered_map<int, std::vector<std::pair<
       if (u.second) {
         lists[v]->head->set_parent(lists[u.first]->head);
       } else {
-        ;
         lists[v]->head->add_child(lists[u.first]->head);
       }
     }
@@ -125,28 +124,50 @@ void initialization_update(int n, int add_no, int* add_p, int* add_v, int delete
   initialization_update(n, add, del);
 }
 
+void free_vertex(Node* v, int thread_id) {
+  if (v->next != NULL) {
+    deleted_affected_sets[thread_id].insert(v->next);
+  }
+  v->next = NULL;
+  lists[v->get_vertex()] = v;
+  vertex_thread[v->get_vertex()] = -1;
+  v->prepare();
+}
+
 void update_round_seq(int round) {
   std::unordered_set<Node*> old_live_affected_set;
   std::unordered_set<Node*> old_deleted_affected_set;
   old_live_affected_set.swap(live_affected_sets[0]);
   old_deleted_affected_set.swap(deleted_affected_sets[0]);
 
+
+  for (Node* v : old_live_affected_set) {
+    v->state.frontier = on_frontier(v);
+  }
+
   for (Node* v : old_live_affected_set) {
     is_contracted(v, round);
-    if (on_frontier(v)) {
+    if (v->state.frontier) {
       Node* p = v->get_parent();
       if (v->is_contracted() || p->is_affected()) {
-        if (p->is_contracted()) {
+        if (p->is_contracted() && v->is_contracted()) {
           make_affected(p->get_parent(), 0, true);
         }
-        make_affected(p, 0, true);
+
+        if (is_contracted(p, round)) {
+          make_affected(p->get_parent(), 0, true);
+          free_vertex(p, 0);
+        } else {
+          make_affected(p, 0, true);
+        }
       }
       for (Node* child : v->get_children()) {
         if (v->is_contracted() || child->is_affected()) {
-          if (child->is_contracted()) {
-            make_affected(child->get_first_child(), 0, true);
+          if (is_contracted(child, round)) {
+            free_vertex(child, 0);
+          } else {
+            make_affected(child, 0, true);
           }
-          make_affected(child, 0, true);
         }
       }
     }
@@ -159,6 +180,8 @@ void update_round_seq(int round) {
       }
       lists[v->get_vertex()] = v;
       v->next = NULL;
+      v->prepare();
+      vertex_thread[v->get_vertex()] = -1;
     }
   }
 
@@ -178,6 +201,7 @@ void update_round_seq(int round) {
   for (Node* v : live_affected_sets[0]) {
     v->advance();
     v->prepare();
+    v->set_affected(false);
   }
 
   for (Node* v : old_deleted_affected_set) {
@@ -207,6 +231,10 @@ void update_round(int round) {
           if (p->is_contracted() && v->is_contracted()) {
             p->get_parent()->set_proposal(p, i);
           }
+
+          if (is_contracted(p, round)) {
+            p->get_parent()->set_proposal(p, i);
+          }
         }
         for (Node* c : v->get_children()) {
           if (vertex_thread[c->get_vertex()] == -1 && (v->is_contracted() || c->is_affected())) {
@@ -230,7 +258,7 @@ void update_round(int round) {
   pasl::sched::native::parallel_for(0, set_number, [&] (int i) {
     for (Node* v : old_live_affected_sets[i]) {
       Node* p = v->get_parent();
-      if (p->is_contracted() && v->is_contracted()) {
+      if (p->is_contracted() || v->is_contracted()) {
         if (get_thread_id(p->get_parent()) == i) {
           make_affected(p->get_parent(), i, true);
         }
