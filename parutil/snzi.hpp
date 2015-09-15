@@ -12,17 +12,18 @@
  *
  * Each SNZI node stores a pointer to its parent SNZI node. The 
  * constructor for the node class (optionally) takes this
- * pointe as argument.
+ * pointer as argument.
  
    node(node* parent = nullptr)
  
- * If the value passed to parent is the null pointer, then the SNZI
- * node is treated as a root node of its containing tree.
+ * Only the root node in a SNZI tree should have a null parent
+ * pointer. For any other SNZI node, the parent pointer should
+ * point to another SNZI node.
  *
  * The following methods are provided by the SNZI class. The
- * call arrive() increments the counter by one, depart() decrements
- * by one, and is_nonzero() returns true if the counter value is
- * zero and false otherwise.
+ * call n.arrive() increments the counter in n by one, n.depart() 
+ * decrements by one, and n.is_nonzero() returns true if the 
+ * counter value is zero and false otherwise.
  
    void arrive();
    void depart();
