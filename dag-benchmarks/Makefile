@@ -77,6 +77,14 @@ FOLDERS=$(INCLUDES)
 ####################################################################
 # Targets
 
+PBENCH_OCAMLCOMP=ocamlc
+
+ifeq ($(PBENCH_PATH),)
+   PBENCH_PATH=~/pbench
+endif
+
+include $(PBENCH_PATH)/Makefile_common
+
 all: opt
 
 opt: $(PROGRAMS:.cpp=.opt)
