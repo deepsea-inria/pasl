@@ -118,7 +118,7 @@ public:
 };//class lock
 
 
-static int par_file_map_rec (ifstream &f, int n, spin_lock &f_lock, int block_size, int i, int j)
+static int par_file_map_rec_locked (ifstream &f, int n, spin_lock &f_lock, int block_size, int i, int j)
 {
 
   if ( j-i <= 1) {
@@ -138,24 +138,77 @@ static int par_file_map_rec (ifstream &f, int n, spin_lock &f_lock, int block_si
     int mid = (i+j)/2;
     int a, b;
 		par::fork2([&] // [&a,&f,n,i,j,mid,block_size]
-							 { a = par_file_map_rec (f, n, f_lock, block_size, i, mid); },
+							 { a = par_file_map_rec_locked (f, n, f_lock, block_size, i, mid); },
                [&] // [&b,&f,n,i,j,mid,block_size]
-							 { b = par_file_map_rec (f, n, f_lock, block_size, mid, j); });		
+							 { b = par_file_map_rec_locked (f, n, f_lock, block_size, mid, j); });		
 
     return (a + b);
 	}		
 }//par_file_map_rec
 
-static int par_file_map (ifstream &f, int n)
+static int par_file_map_locked (string file_name, int n)
 {
+  ifstream in_file;
   spin_lock f_lock;
   int block_size = sizeof (int);  
   char block[4];
   double sum = 0.0;
   int m = 0;
 
-	sum = par_file_map_rec (f, n, f_lock, block_size, 0, n); 
+	
+  in_file.open (file_name, ios::binary);	
+	sum = par_file_map_rec_locked (in_file, n, f_lock, block_size, 0, n);
+	return sum; 
 
+}//par_file_map_locked
+
+/*---------------------------------------------------------------------*/
+
+static int par_file_map_rec (string file_name, int n, int block_size, int i, int j)
+{
+
+  if ( j-i <= 1) {
+    char block[4];
+    ifstream f;
+		
+    // begin read: open file, seek and read.
+    f.open (file_name, ios::binary);
+		if (f.is_open ()) {
+      // successfully opened, nothing to do.
+		}
+		else {
+      // failed to open.
+			cout << "FATAL ERROR: FAILED TO OPEN FILE: " << file_name << endl;
+		};
+			
+    f.seekg (i * block_size, ios::beg);        
+    f.read (block, block_size);
+		f.close ();
+    // end read.		
+    int m = (int) *block;
+//    cout << "i = " << i << " j = " << j << " m = " << m << endl;
+		return m; 
+	}
+	else {
+    int mid = (i+j)/2;
+    int a, b;
+		par::fork2([&] // [&a,&f,n,i,j,mid,block_size]
+							 { a = par_file_map_rec (file_name, n, block_size, i, mid); },
+               [&] // [&b,&f,n,i,j,mid,block_size]
+							 { b = par_file_map_rec (file_name, n, block_size, mid, j); });		
+
+    return (a + b);
+	}		
+}//par_file_map_rec
+
+static int par_file_map (string file_name, int n)
+{
+  int block_size = sizeof (int);  
+  char block[4];
+  double sum = 0.0;
+  int m = 0;
+	
+	sum = par_file_map_rec (file_name, n, block_size, 0, n);
 	return sum; 
 
 }//par_file_map
@@ -188,12 +241,10 @@ int main(int argc, char** argv) {
     
   auto run = [&] (bool sequential) {
     string file_name = "input.dat";
-    ifstream in_file;
 	
     create_file (file_name, n);
 
-    in_file.open (file_name, ios::binary);
-    double sum = par_file_map (in_file, n);
+    double sum = par_file_map (file_name, n);
     
     result = sum;
   };    
