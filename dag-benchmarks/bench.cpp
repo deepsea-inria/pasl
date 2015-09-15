@@ -17,6 +17,7 @@
 
 #include "pasl.hpp"
 #include "tagged.hpp"
+#include "snzi.hpp"
 
 /***********************************************************************/
 
@@ -244,223 +245,16 @@ public:
   
 namespace distributed {
   
-namespace snzi {
-
-class node {
-public:
-  
-  using contents_type = struct {
-    int c; // counter value
-    int v; // version number
-  };
-  
-  static constexpr int one_half = -1;
-  
-  static constexpr int root_node_tag = 1;
-  
-  std::atomic<contents_type> X;
-  
-  node* parent;
-  
-  static bool is_root_node(const node* n) {
-    return tagged_tag_of(n) == 1;
-  }
-  
-  template <class Item>
-  static node* create_root_node(Item x) {
-    return (node*)tagged_tag_with(x, root_node_tag);
-  }
-  
-  node(node* _parent = nullptr) {
-    parent = (_parent == nullptr) ? create_root_node(_parent) : _parent;
-    contents_type init;
-    init.c = 0;
-    init.v = 0;
-    X.store(init);
-  }
-  
-  void arrive() {
-    bool succ = false;
-    int undo_arr = 0;
-    while (! succ) {
-      contents_type x = X.load();
-      if (x.c >= 1) {
-        contents_type orig = x;
-        contents_type next = x;
-        next.c++;
-        succ = X.compare_exchange_strong(orig, next);
-      }
-      if (x.c == 0) {
-        contents_type orig = x;
-        contents_type next = x;
-        next.c = one_half;
-        next.v++;
-        if (X.compare_exchange_strong(orig, next)) {
-          succ = true;
-          x.c = one_half;
-          x.v++;
-        }
-      }
-      if (x.c == one_half) {
-        if (! is_root_node(parent)) {
-          parent->arrive();
-        }
-        contents_type orig = x;
-        contents_type next = x;
-        next.c = 1;
-        if (! X.compare_exchange_strong(orig, next)) {
-          undo_arr++;
-        }
-      }
-    }
-    if (is_root_node(parent)) {
-      return;
-    }
-    while (undo_arr > 0) {
-      parent->depart();
-      undo_arr--;
-    }
-  }
-  
-  // returns true if this call to depart caused a zero count, false otherwise
-  bool depart() {
-    while (true) {
-      contents_type x = X.load();
-      assert(x.c >= 1);
-      contents_type orig = x;
-      contents_type next = x;
-      next.c--;
-      if (X.compare_exchange_strong(orig, next)) {
-        bool s = (x.c == 1);
-        if (is_root_node(parent)) {
-          return s;
-        } else if (s) {
-          return parent->depart();
-        } else {
-          return false;
-        }
-      }
-    }
-  }
-  
-  bool is_nonzero() const {
-    return (X.load().c > 0);
-  }
-  
-  template <class Item>
-  static void set_root_annotation(node* n, Item x) {
-    node* m = n;
-    assert(! is_root_node(m));
-    while (! is_root_node(m->parent)) {
-      m = m->parent;
-    }
-    assert(is_root_node(m->parent));
-    m->parent = create_root_node(x);
-  }
-  
-  template <class Item>
-  static Item get_root_annotation(node* n) {
-    node* m = n;
-    while (! is_root_node(m)) {
-      m = m->parent;
-    }
-    assert(is_root_node(m));
-    return (Item)tagged_pointer_of(m);
-  }
-  
-};
-  
 int default_branching_factor = 2;
 int default_nb_levels = 3;
-
-class tree {
-private:
-  
-  int branching_factor;
-  int nb_levels;
-  
-  std::vector<node*> nodes;
-  
-  void build() {
-    nodes.push_back(new node);
-    for (int i = 1; i <= nb_levels; i++) {
-      int e = (int)nodes.size();
-      int s = e - std::pow(branching_factor, i - 1);
-      for (int j = s; j < e; j++) {
-        for (int k = 0; k < branching_factor; k++) {
-          nodes.push_back(new node(nodes[j]));
-        }
-      }
-    }
-  }
-  
-  int get_nb_leaf_nodes() const {
-    return std::pow(branching_factor, nb_levels - 1);
-  }
-  
-  node* ith_leaf_node(int i) const {
-    assert((i >= 0) && (i < get_nb_leaf_nodes()));
-    int n = (int)nodes.size();
-    int j = n - (i + 1);
-    return nodes[j];
-  }
-  
-  static unsigned int hashu(unsigned int a) {
-    a = (a+0x7ed55d16) + (a<<12);
-    a = (a^0xc761c23c) ^ (a>>19);
-    a = (a+0x165667b1) + (a<<5);
-    a = (a+0xd3a2646c) ^ (a<<9);
-    a = (a+0xfd7046c5) + (a<<3);
-    a = (a^0xb55a4f09) ^ (a>>16);
-    return a;
-  }
-  
-public:
-  
-  tree(int branching_factor = default_branching_factor,
-       int nb_levels = default_nb_levels)
-  : branching_factor(branching_factor), nb_levels(nb_levels) {
-    build();
-  }
-  
-  ~tree() {
-    for (node* n : nodes) {
-      delete n;
-    }
-  }
-  
-  template <class Item>
-  node* random_leaf_of(Item x) const {
-    union {
-      Item x;
-      long b;
-    } bits;
-    bits.x = x;
-    int h = std::abs((int)hashu((unsigned int)bits.b));
-    int n = get_nb_leaf_nodes();
-    int l = h % n;
-    return ith_leaf_node(l);
-  }
-  
-  bool is_nonzero() const {
-    return nodes[0]->is_nonzero();
-  }
-  
-  template <class Item>
-  void set_root_annotation(Item x) {
-    node::set_root_annotation(nodes[0], x);
-  }
-  
-};
-
-} // end namespace
   
 class distributed_incounter : public incounter {
 public:
       
-  snzi::tree nzi;
+  pasl::data::snzi::tree nzi;
   
-  distributed_incounter(node* n) {
+  distributed_incounter(node* n)
+  : nzi(default_branching_factor, default_nb_levels) {
     nzi.set_root_annotation(n);
   }
   
@@ -480,9 +274,9 @@ public:
 };
   
 void unary_finished(pasl::sched::thread_p t) {
-  snzi::node* leaf = (snzi::node*)t;
+  pasl::data::snzi::node* leaf = (pasl::data::snzi::node*)t;
   if (leaf->depart()) {
-    node* n = snzi::node::get_root_annotation<node*>(leaf);
+    node* n = pasl::data::snzi::node::get_root_annotation<node*>(leaf);
     pasl::sched::instrategy::schedule((pasl::sched::thread_p)n);
   }
 }
@@ -3378,13 +3172,13 @@ void choose_edge_algorithm() {
     direct::edge_algorithm = direct::edge_algorithm_simple;
   });
   c.add("distributed", [&] {
-    direct::distributed::snzi::default_branching_factor =
+    direct::distributed::default_branching_factor =
     cmdline::parse_or_default_int("branching_factor",
-                                  direct::distributed::snzi::default_branching_factor);
-    direct::dyntree::branching_factor = direct::distributed::snzi::default_branching_factor;
-    direct::distributed::snzi::default_nb_levels =
+                                  direct::distributed::default_branching_factor);
+    direct::dyntree::branching_factor = direct::distributed::default_branching_factor;
+    direct::distributed::default_nb_levels =
     cmdline::parse_or_default_int("nb_levels",
-                                  direct::distributed::snzi::default_nb_levels);
+                                  direct::distributed::default_nb_levels);
     direct::edge_algorithm = direct::edge_algorithm_distributed;
   });
   c.add("dyntree", [&] {
