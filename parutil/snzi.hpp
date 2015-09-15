@@ -21,12 +21,14 @@
  * point to another SNZI node.
  *
  * The following methods are provided by the SNZI class. The
- * call n.arrive() increments the counter in n by one, n.depart() 
- * decrements by one, and n.is_nonzero() returns true if the 
- * counter value is zero and false otherwise.
+ * call n.arrive() increments the counter in n by one. The call
+ * n.depart() decrements the counter in n by one and returns
+ * true if the call changed the counter value to zero and
+ * false otherwise. The call n.is_nonzero() returns true if the
+ * counter value in n is zero and false otherwise.
  
    void arrive();
-   void depart();
+   bool depart();
    bool is_nonzero() const;
  
  * Calls to these three methods can occur concurrently. As specified
@@ -223,7 +225,6 @@ public:
     }
   }
   
-  // returns true if this call to depart caused a zero count, false otherwise
   bool depart() {
     while (true) {
       contents_type x = X.load();
