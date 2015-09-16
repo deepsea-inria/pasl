@@ -58,11 +58,14 @@ void create_file (const string file_name, int n)
 {
   ofstream out_file;
   out_file.open (file_name, ios::binary);
-
+  // turn off file buffering
+  out_file.rdbuf()->pubsetbuf(0, 0);
+	
   for (int i=0; i<n; ++i) {
 	  out_file.write ((char *) &i, sizeof(int));
-  }
+  };
  
+  out_file.flush ();
   out_file.close ();
   return;
 }
@@ -157,6 +160,10 @@ static int par_file_map_locked (string file_name, int n)
 
 	
   in_file.open (file_name, ios::binary);	
+  // turn off file buffering
+  in_file.rdbuf()->pubsetbuf(0, 0);
+
+
 	sum = par_file_map_rec_locked (in_file, n, f_lock, block_size, 0, n);
 	return sum; 
 
@@ -180,14 +187,17 @@ static int par_file_map_rec (string file_name, int n, int block_size, int i, int
       // failed to open.
 			cout << "FATAL ERROR: FAILED TO OPEN FILE: " << file_name << endl;
 		};
-			
+
+    // turn off file buffering
+    f.rdbuf()->pubsetbuf(0, 0);
+		
     f.seekg (i * block_size, ios::beg);        
     f.read (block, block_size);
 		f.close ();
     // end read.		
     int m = (int) *block;
 //    cout << "i = " << i << " j = " << j << " m = " << m << endl;
-		return m; 
+		return (m/10.0); 
 	}
 	else {
     int mid = (i+j)/2;
