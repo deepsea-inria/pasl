@@ -33,6 +33,7 @@ PROGRAMS=\
 	rake-compress-construction.cpp \
 	rake-compress-update.cpp \
 	rake-compress-check.cpp \
+	static-contract.cpp
 #       add reference to your cpp source here
 
 ####################################################################
