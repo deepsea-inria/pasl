@@ -124,7 +124,7 @@ public:
 static int par_file_map_rec_locked (ifstream &f, int n, spin_lock &f_lock, int block_size, int i, int j)
 {
 
-  if ( j-i <= 1) {
+  if ( j-i <= cutoff) {
     char block[4];
 
     // begin read: take the file lock, read, and release.
@@ -171,11 +171,53 @@ static int par_file_map_locked (string file_name, int n)
 
 /*---------------------------------------------------------------------*/
 
-static int par_file_map_rec (string file_name, int n, int block_size, int i, int j)
+static double g (int* data, int start, int end)
+{
+  double sum = 0.0;
+
+  if (end-start < cutoff) {
+    for (int i = start; i < end; ++i) {
+      sum = sum + (int) data[i];
+    }
+//    cout << "x";
+  }
+  else {
+    int mid = (start + end) / 2;
+    double a = 0.0;
+    double b = 0.0;
+
+		par::fork2([&] 
+							 { a = g (data, start, mid); },
+               [&] 
+            	 { b = g (data, mid, end); });		
+
+//    cout << "|";
+    sum = a + b ;    
+  };
+
+  return sum;
+
+}// g
+
+
+
+// Assume that block_size = 4 and convert it into integers for addition.
+static double g_seq (int* data, int start, int end)
+{
+  double sum = 0.0;
+  for (int i = start; i < end; ++i) {
+    sum = sum + (int) data[i];
+  };
+
+	return sum;
+}// g
+
+static double par_file_map_rec (string file_name, int n, int block_size, int i, int j)
 {
 
-  if ( j-i <= 1) {
-    char block[4];
+  if ( j-i <= cutoff*cutoff) {
+    int m = j-i;            // how many blocks do we have.
+    char data[block_size*m];
     ifstream f;
 		
     // begin read: open file, seek and read.
@@ -192,12 +234,11 @@ static int par_file_map_rec (string file_name, int n, int block_size, int i, int
     f.rdbuf()->pubsetbuf(0, 0);
 		
     f.seekg (i * block_size, ios::beg);        
-    f.read (block, block_size);
+    f.read (data, block_size*m);
 		f.close ();
-    // end read.		
-    int m = (int) *block;
-//    cout << "i = " << i << " j = " << j << " m = " << m << endl;
-		return (m/10.0); 
+    // end read.
+    double s = g_seq ((int*) data, 0, m);		
+  	return s;
 	}
 	else {
     int mid = (i+j)/2;
@@ -254,9 +295,8 @@ int main(int argc, char** argv) {
 	
     create_file (file_name, n);
 
-    double sum = par_file_map (file_name, n);
-    
-    result = sum;
+    result = par_file_map (file_name, n);
+
   };    
 
   auto output = [&] {
