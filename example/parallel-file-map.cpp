@@ -171,11 +171,24 @@ static int par_file_map_locked (string file_name, int n)
 
 /*---------------------------------------------------------------------*/
 
-static int par_file_map_rec (string file_name, int n, int block_size, int i, int j)
+// Assume that block_size = 4 and convert it into integers for addition.
+static double g (int* data, int m)
+{
+  double sum = 0.0;
+//  for (int i = 0; i < m; ++i) {
+  pasl::sched::native::parallel_for(0, m, [&] (int i) {
+    sum = sum + (int) data[i];
+		});
+
+	return sum;
+}// g
+
+static double par_file_map_rec (string file_name, int n, int block_size, int i, int j)
 {
 
   if ( j-i <= cutoff) {
-    char block[4];
+    int m = j-i;            // how many blocks do we have.
+    char data[block_size*m];
     ifstream f;
 		
     // begin read: open file, seek and read.
@@ -192,12 +205,11 @@ static int par_file_map_rec (string file_name, int n, int block_size, int i, int
     f.rdbuf()->pubsetbuf(0, 0);
 		
     f.seekg (i * block_size, ios::beg);        
-    f.read (block, block_size);
+    f.read (data, block_size*m);
 		f.close ();
-    // end read.		
-    int m = (int) *block;
-//    cout << "i = " << i << " j = " << j << " m = " << m << endl;
-		return (m/10.0); 
+    // end read.
+    double s = g ((int *)data, m);		
+  	return s;
 	}
 	else {
     int mid = (i+j)/2;
@@ -254,9 +266,8 @@ int main(int argc, char** argv) {
 	
     create_file (file_name, n);
 
-    double sum = par_file_map (file_name, n);
+    result = par_file_map (file_name, n);
 
-    result = sum;
   };    
 
   auto output = [&] {
