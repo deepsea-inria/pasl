@@ -14,6 +14,8 @@
 #include <deque>
 #include <cmath>
 #include <memory>
+#include <chrono>
+#include <thread>
 
 #include "pasl.hpp"
 #include "tagged.hpp"
@@ -2198,6 +2200,160 @@ namespace tests {
 template <class node>
 using outset_of = typename node::outset_type;
   
+unsigned int hashu(unsigned int a) {
+  a = (a+0x7ed55d16) + (a<<12);
+  a = (a^0xc761c23c) ^ (a>>19);
+  a = (a+0x165667b1) + (a<<5);
+  a = (a+0xd3a2646c) ^ (a<<9);
+  a = (a+0xfd7046c5) + (a<<3);
+  a = (a^0xb55a4f09) ^ (a>>16);
+  return a;
+}
+
+template <class Incounter>
+void benchmark_incounter_thread(Incounter& incounter, bool& should_stop, int& counter, unsigned int seed) {
+  std::thread::id this_id = std::this_thread::get_id();
+  std::hash<std::thread::id> hasher;
+  int hash = (int)hasher(this_id);
+  int c = 0;
+  unsigned int rng = seed;
+  int nb_pending_increments = 0;
+  while (! should_stop) {
+    if (nb_pending_increments > 0 && rng % 2 == 0) {
+      incounter.decrement(hash);
+    } else {
+      nb_pending_increments++;
+      incounter.increment(hash);
+    }
+    rng = hashu(rng);
+    c++;
+  }
+  while (nb_pending_increments > 0) {
+    incounter.decrement(hash);
+    nb_pending_increments--;
+    c++;
+  }
+  counter = c;
+}
+
+class snzi_incounter_wrapper {
+public:
+  
+  pasl::data::snzi::tree snzi;
+  
+  snzi_incounter_wrapper(int branching_factor, int nb_levels)
+  : snzi(branching_factor, nb_levels) { }
+  
+  int my_leaf_node(int hash) const {
+    int nb_leaf_nodes = snzi.get_nb_leaf_nodes();
+    return abs(hash) % nb_leaf_nodes;
+  }
+  
+  void increment(int hash) {
+    int i = my_leaf_node(hash);
+    snzi.ith_leaf_node(i)->arrive();
+  }
+  
+  bool decrement(int hash) {
+    int i = my_leaf_node(hash);
+    return snzi.ith_leaf_node(i)->depart();
+  }
+  
+};
+
+class dyntree_incounter_wrapper {
+public:
+  
+  direct::dyntree::dyntree_incounter incounter;
+  
+  dyntree_incounter_wrapper() { }
+  
+  void increment(int hash) {
+    incounter.increment(nullptr);
+  }
+  
+  bool decrement(int hash) {
+    return incounter.decrement(nullptr);
+  }
+  
+};
+
+template <class Outset>
+void benchmark_outset_thread(Outset& outset, bool& should_stop, int& counter) {
+  int c = 0;
+  while (! should_stop) {
+    outset.add(nullptr);
+    c++;
+  }
+  counter = c;
+}
+
+template <class Benchmark>
+void launch_microbenchmark(const Benchmark& benchmark, int nb_threads, int nb_miliseconds) {
+  bool should_stop = false;
+  std::vector<std::thread*> threads;
+  int counters[nb_threads];
+  for (int i = 0; i < nb_threads; i++) {
+    int& counter = counters[i];
+    counter = 0;
+    std::thread* t = new std::thread([&] { benchmark(should_stop, counter); });
+    threads.push_back(t);
+  }
+  auto start = std::chrono::high_resolution_clock::now();
+  for (std::thread* thread : threads) {
+    thread->detach();
+  }
+  std::this_thread::sleep_for(std::chrono::milliseconds(nb_miliseconds));
+  should_stop = true;
+  for (std::thread* thread : threads) {
+    thread->join();
+  }
+  auto end = std::chrono::high_resolution_clock::now();
+  std::chrono::duration<double> diff = end-start;
+  std::cout << "exectime\t" << diff.count() << std::endl;
+  int count = 0;
+  for (int i = 0; i < nb_threads; i++) {
+    count += counters[i];
+  }
+  std::cout << "nb_operations\t" << count << std::endl;
+  for (std::thread* t : threads) {
+    delete t;
+  }
+}
+
+void launch_incounter_microbenchmark() {
+  pasl::util::cmdline::argmap_dispatch c;
+  int seed = pasl::util::cmdline::parse_int("seed");
+  int nb_threads = pasl::util::cmdline::parse_int("proc");
+  int nb_miliseconds = pasl::util::cmdline::parse_int("nb_miliseconds");
+  snzi_incounter_wrapper* snzi_incounter = nullptr;
+  dyntree_incounter_wrapper* dyntree_incounter = nullptr;
+  c.add("snzi", [&] {
+    int branching_factor = pasl::util::cmdline::parse_int("branching_factor");
+    int nb_levels = pasl::util::cmdline::parse_int("nb_levels");
+    snzi_incounter = new snzi_incounter_wrapper(branching_factor, nb_levels);
+  });
+  c.add("dyntree", [&] {
+    dyntree_incounter = new dyntree_incounter_wrapper;
+  });
+  c.find_by_arg("incounter")();
+  auto benchmark_thread = [=] (bool& should_stop, int& counter) {
+    if (snzi_incounter != nullptr) {
+      benchmark_incounter_thread(*snzi_incounter, should_stop, counter, seed);
+    } else if (dyntree_incounter != nullptr) {
+      benchmark_incounter_thread(*dyntree_incounter, should_stop, counter, seed);
+    } else {
+      assert(false);
+    }
+  };
+  launch_microbenchmark(benchmark_thread, nb_threads, nb_miliseconds);
+  if (snzi_incounter != nullptr) {
+    delete snzi_incounter;
+  } else if (dyntree_incounter != nullptr) {
+    delete dyntree_incounter;
+  }
+}
+  
 std::atomic<int> async_leaf_counter;
 std::atomic<int> async_interior_counter;
 
@@ -3198,6 +3354,8 @@ void read_gauss_seidel_params(int& numiters, int& N, int& block_size) {
   assert((N % block_size) == 0);
 }
 
+std::string cmd_param = "cmd";
+
 template <class node>
 void choose_command() {
   cmdline::argmap_dispatch c;
@@ -3256,7 +3414,7 @@ void choose_command() {
       delete test_mtx;
     });
   });
-  c.find_by_arg("cmd")();
+  c.find_by_arg(cmd_param)();
 }
 
 void launch() {
@@ -3284,9 +3442,14 @@ void launch() {
 
 int main(int argc, char** argv) {
   cmdline::set(argc, argv);
-  pasl::sched::threaddag::init();
-  launch();
-  pasl::sched::threaddag::destroy();
+  std::string cmd = pasl::util::cmdline::parse_string(cmd_param);
+  if (cmd == "incounter_microbench") {
+    tests::launch_incounter_microbenchmark();
+  } else {
+    pasl::sched::threaddag::init();
+    launch();
+    pasl::sched::threaddag::destroy();
+  }
   return 0;
 }
 
