@@ -171,14 +171,43 @@ static int par_file_map_locked (string file_name, int n)
 
 /*---------------------------------------------------------------------*/
 
-// Assume that block_size = 4 and convert it into integers for addition.
-static double g (int* data, int m)
+static double g (int* data, int start, int end)
 {
   double sum = 0.0;
-//  for (int i = 0; i < m; ++i) {
-  pasl::sched::native::parallel_for(0, m, [&] (int i) {
+
+  if (end-start < cutoff) {
+    for (int i = start; i < end; ++i) {
+      sum = sum + (int) data[i];
+    }
+//    cout << "x";
+  }
+  else {
+    int mid = (start + end) / 2;
+    double a = 0.0;
+    double b = 0.0;
+
+		par::fork2([&] 
+							 { a = g (data, start, mid); },
+               [&] 
+            	 { b = g (data, mid, end); });		
+
+//    cout << "|";
+    sum = a + b ;    
+  };
+
+  return sum;
+
+}// g
+
+
+
+// Assume that block_size = 4 and convert it into integers for addition.
+static double g_seq (int* data, int m)
+{
+  double sum = 0.0;
+  for (int i = 0; i < m; ++i) {
     sum = sum + (int) data[i];
-		});
+  };
 
 	return sum;
 }// g
@@ -186,7 +215,7 @@ static double g (int* data, int m)
 static double par_file_map_rec (string file_name, int n, int block_size, int i, int j)
 {
 
-  if ( j-i <= cutoff) {
+  if ( j-i <= cutoff*cutoff) {
     int m = j-i;            // how many blocks do we have.
     char data[block_size*m];
     ifstream f;
@@ -208,7 +237,7 @@ static double par_file_map_rec (string file_name, int n, int block_size, int i, 
     f.read (data, block_size*m);
 		f.close ();
     // end read.
-    double s = g ((int *)data, m);		
+    double s = g ((int*) data, 0, m);		
   	return s;
 	}
 	else {
