@@ -387,33 +387,43 @@ int main (int argc, char** argv) {
   Forest* result;
 
   auto init = [&] {
-    n = std::max(2l, pasl::util::cmdline::parse_or_default_long("n", 10));
+    n = std::max(2l, pasl::util::cmdline::parse_or_default_long("n", 10l));
     f = pasl::util::cmdline::parse_or_default_double("f", 0.5);
-    seed = pasl::util::cmdline::parse_or_default_long("seed", 42);
+    seed = pasl::util::cmdline::parse_or_default_long("seed", 42l);
     print = pasl::util::cmdline::parse_or_default_bool("print", false);
 
     F = blank_forest(n);
     format_empty(F);
 
+    std::cout << "Generating forest..." << std::endl;
+
     long b = MAX_DEGREE - 1;
     long r = std::max(n - lround(f * (double) n), 2l);
     for (long i = 1; i < r; i++) {
+      // flip a coin to determine if edge is inserted
       if (heads(i, i/b)) insert_edge(F, i, i/b);
     }
 
-    //display_forest(F);
-
     srand(seed);
     for (long i = r; i < n; i++) {
+      // pick a random edge
       long v = rand() % i;
       while (degree(F, v) == 0) v = rand() % i;
       long u = ith_neighbor(F, v, rand() % degree(F, v));
-      //std::cout << "replacing (" << v << "," << u << ") with (" << v << "," << i << ") and (" << i << "," << u << ")" << std::endl;
+
+      // replace this edge with two edges
       delete_edge(F, v, u);
       insert_edge(F, v, i);
       insert_edge(F, i, u);
-      //display_forest(F);
     }
+
+    // check how many vertices have degree 2
+    long count = 0;
+    for (long v = 0; v < n; v++) {
+      if (degree(F, v) == 2) count++;
+    }
+    std::cout << "Generated forest: " << (((double) count) / ((double) n) * 100.0)
+              << "% of vertices have degree 2." << std::endl;
 
     if (print) display_forest(F);
 
