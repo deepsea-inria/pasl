@@ -255,7 +255,7 @@ int main(int argc, char** argv) {
     create_file (file_name, n);
 
     double sum = par_file_map (file_name, n);
-    
+
     result = sum;
   };    
 
