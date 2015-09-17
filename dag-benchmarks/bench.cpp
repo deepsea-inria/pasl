@@ -1271,6 +1271,7 @@ outset* outset_noop();
 outset* outset_new(node*);
 void add_node(node* n);
 void propagate_ports_for(node*, node*);
+outset_node* find_outport(node*, outset*);
 outset* capture_outset();
 void join_with(node*, incounter*);
 void continue_with(node*);
@@ -1493,9 +1494,6 @@ public:
   
 };
   
-outset::insert_result_type insert_outedge(node*, outset*,
-                                          node*, incounter_node*);
-  
 class node : public pasl::sched::thread {
 public:
   
@@ -1609,7 +1607,13 @@ public:
     node* consumer = this;
     prepare_for_transfer(continuation_block_id);
     join_with(consumer, incounter_unary());
-    auto insert_result = insert_outedge(consumer, producer_out, consumer, (incounter_node*)nullptr);
+    outset::insert_result_type insert_result;
+    if (producer_out->is_finished()) {
+      insert_result.first = outset::insert_fail;
+    } else {
+      outset_node* source_outport = find_outport(consumer, producer_out);
+      insert_result = producer_out->insert(source_outport, consumer, (incounter_node*)nullptr);
+    }
     outset::insert_status_type insert_status = insert_result.first;
     if (insert_status == outset::insert_success) {
       outset_node* producer_outport = insert_result.second;
@@ -1859,16 +1863,6 @@ void decrement_incounter(node* n, incounter_node* n_port) {
   
 void decrement_inports(node* n) {
   n->decrement_inports();
-}
-  
-outset::insert_result_type insert_outedge(node* caller,
-                                          outset* source_out,
-                                          node* target, incounter_node* target_inport) {
-  if (source_out->is_finished()) {
-    return std::make_pair(outset::insert_fail, nullptr);
-  }
-  auto source_outport = find_outport(caller, source_out);
-  return source_out->insert(source_outport, target, target_inport);
 }
   
 void add_node(node* n) {
