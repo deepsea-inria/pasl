@@ -239,7 +239,6 @@ public:
       delete this;
     }
   }
-
   
 };
   
@@ -2298,7 +2297,7 @@ void benchmark_outset_thread(Outset& outset, bool& should_stop, int& counter) {
 }
 
 template <class Benchmark>
-void launch_microbenchmark(const Benchmark& benchmark, int nb_threads, int nb_miliseconds) {
+void launch_microbenchmark(const Benchmark& benchmark, int nb_threads, int nb_milliseconds) {
   bool should_stop = false;
   std::vector<std::thread*> threads;
   int counters[nb_threads];
@@ -2310,7 +2309,7 @@ void launch_microbenchmark(const Benchmark& benchmark, int nb_threads, int nb_mi
     }));
   }
   auto start = std::chrono::high_resolution_clock::now();
-  std::this_thread::sleep_for(std::chrono::milliseconds(nb_miliseconds));
+  std::this_thread::sleep_for(std::chrono::milliseconds(nb_milliseconds));
   should_stop = true;
   for (std::thread* thread : threads) {
     thread->join();
@@ -2330,7 +2329,7 @@ void launch_microbenchmark(const Benchmark& benchmark, int nb_threads, int nb_mi
 
 void launch_outset_microbenchmark() {
   int nb_threads = pasl::util::cmdline::parse_int("proc");
-  int nb_miliseconds = pasl::util::cmdline::parse_int("nb_miliseconds");
+  int nb_milliseconds = pasl::util::cmdline::parse_int("nb_milliseconds");
   direct::simple::simple_outset* simple_outset = nullptr;
   direct::dyntree::dyntree_outset* dyntree_outset = nullptr;
   pasl::util::cmdline::argmap_dispatch c;
@@ -2348,7 +2347,7 @@ void launch_outset_microbenchmark() {
       benchmark_outset_thread(*dyntree_outset, should_stop, counter);
     }
   };
-  launch_microbenchmark(benchmark_thread, nb_threads, nb_miliseconds);
+  launch_microbenchmark(benchmark_thread, nb_threads, nb_milliseconds);
   if (simple_outset != nullptr) {
     delete simple_outset;
   } else if (dyntree_outset != nullptr) {
@@ -2359,7 +2358,7 @@ void launch_outset_microbenchmark() {
 void launch_incounter_microbenchmark() {
   int seed = pasl::util::cmdline::parse_int("seed");
   int nb_threads = pasl::util::cmdline::parse_int("proc");
-  int nb_miliseconds = pasl::util::cmdline::parse_int("nb_miliseconds");
+  int nb_milliseconds = pasl::util::cmdline::parse_int("nb_milliseconds");
   simple_incounter_wrapper* simple_incounter = nullptr;
   snzi_incounter_wrapper* snzi_incounter = nullptr;
   dyntree_incounter_wrapper* dyntree_incounter = nullptr;
@@ -2387,7 +2386,7 @@ void launch_incounter_microbenchmark() {
       assert(false);
     }
   };
-  launch_microbenchmark(benchmark_thread, nb_threads, nb_miliseconds);
+  launch_microbenchmark(benchmark_thread, nb_threads, nb_milliseconds);
   if (simple_incounter == nullptr) {
     delete simple_incounter;
   } else if (snzi_incounter != nullptr) {
@@ -2396,6 +2395,69 @@ void launch_incounter_microbenchmark() {
     delete dyntree_incounter;
   }
 }
+
+bool should_async_microbench_terminate = false;
+  
+pasl::data::perworker::counter::carray<int> async_microbench_counter;
+
+template <class node>
+class async_microbench_rec : public node {
+public:
+  
+  enum {
+    entry,
+    exit
+  };
+  
+  node* join;
+  
+  async_microbench_rec(node* join)
+  : join(join) { }
+  
+  void body() {
+    switch (node::current_block_id) {
+      case entry: {
+        if (!should_async_microbench_terminate) {
+          async_microbench_counter++;
+          node::async(new async_microbench_rec(join), join,
+                      exit);
+        }
+        break;
+      }
+      case exit: {
+        node::jump_to(entry);
+        break;
+      }
+    }
+  }
+  
+};
+  
+template <class node>
+class async_microbench : public node {
+public:
+  
+  enum {
+    entry,
+    exit
+  };
+  
+  void body() {
+    switch (node::current_block_id) {
+      case entry: {
+        async_microbench_counter.init(0);
+        node::finish(new async_microbench_rec<node>(this),
+                     exit);
+        break;
+      }
+      case exit: {
+        std::cout << "count\t" << async_microbench_counter.sum() << std::endl;
+        break;
+      }
+    }
+  }
+  
+};
   
 std::atomic<int> async_leaf_counter;
 std::atomic<int> async_interior_counter;
@@ -3409,6 +3471,15 @@ std::string cmd_param = "cmd";
 template <class node>
 void choose_command() {
   cmdline::argmap_dispatch c;
+  c.add("async_microbench", [&] {
+    int nb_milliseconds = cmdline::parse_int("nb_milliseconds");
+    std::thread timer([&, nb_milliseconds] {
+      std::this_thread::sleep_for(std::chrono::milliseconds(nb_milliseconds));
+      benchmarks::should_async_microbench_terminate = true;
+    });
+    timer.detach();
+    add_todo(new benchmarks::async_microbench<node>);
+  });
   c.add("async_bintree", [&] {
     int n = cmdline::parse_or_default_int("n", 1);
     add_todo(new benchmarks::async_bintree<node>(n));
