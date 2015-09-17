@@ -2193,9 +2193,9 @@ void deallocate_outset_tree(outset_node* root) {
 
 
 /*---------------------------------------------------------------------*/
-/* Test functions */
+/* Benchmarks */
 
-namespace tests {
+namespace benchmarks {
   
 template <class node>
 using outset_of = typename node::outset_type;
@@ -2245,8 +2245,7 @@ public:
   : snzi(branching_factor, nb_levels) { }
   
   int my_leaf_node(int hash) const {
-    int nb_leaf_nodes = snzi.get_nb_leaf_nodes();
-    return abs(hash) % nb_leaf_nodes;
+    return abs(hash) % snzi.get_nb_leaf_nodes();
   }
   
   void increment(int hash) {
@@ -2995,6 +2994,13 @@ public:
 int pipeline_window_capacity = 4096;
 int pipeline_burst_rate = std::max(1, pipeline_window_capacity/8);
 
+void get_pipeline_arguments_from_cmdline() {
+  pipeline_window_capacity = pasl::util::cmdline::parse_or_default_int("pipeline_window_capacity",
+                                                                       pipeline_window_capacity);
+  pipeline_burst_rate = pasl::util::cmdline::parse_or_default_int("pipeline_burst_rate",
+                                                                  pipeline_burst_rate);
+}
+
 template <class node>
 class gauss_seidel_generator : public node {
 public:
@@ -3350,7 +3356,7 @@ void read_gauss_seidel_params(int& numiters, int& N, int& block_size) {
   numiters = cmdline::parse_or_default_int("numiters", 1);
   N = cmdline::parse_or_default_int("N", 128);
   block_size = cmdline::parse_or_default_int("block_size", 2);
-  tests::epsilon = cmdline::parse_or_default_double("epsilon", tests::epsilon);
+  benchmarks::epsilon = cmdline::parse_or_default_double("epsilon", benchmarks::epsilon);
   assert((N % block_size) == 0);
 }
 
@@ -3361,20 +3367,20 @@ void choose_command() {
   cmdline::argmap_dispatch c;
   c.add("async_bintree", [&] {
     int n = cmdline::parse_or_default_int("n", 1);
-    add_todo(new tests::async_bintree<node>(n));
+    add_todo(new benchmarks::async_bintree<node>(n));
   });
   c.add("future_bintree", [&] {
     int n = cmdline::parse_or_default_int("n", 1);
-    add_todo(new tests::future_bintree<node>(n));
+    add_todo(new benchmarks::future_bintree<node>(n));
   });
   c.add("future_pool", [&] {
     int n = cmdline::parse_or_default_int("n", 1);
-    tests::fib_input = cmdline::parse_or_default_int("fib_input", tests::fib_input);
-    add_todo(new tests::future_pool<node>(n));
+    benchmarks::fib_input = cmdline::parse_or_default_int("fib_input", benchmarks::fib_input);
+    add_todo(new benchmarks::future_pool<node>(n));
   });
   c.add("parallel_for_test", [&] {
     int n = cmdline::parse_or_default_int("n", 1);
-    add_todo(new tests::parallel_for_test<node>(n));
+    add_todo(new benchmarks::parallel_for_test<node>(n));
   });
   c.add("seidel_parallel", [&] {
     int numiters;
@@ -3382,22 +3388,22 @@ void choose_command() {
     int block_size;
     bool do_consistency_check = cmdline::parse_or_default_bool("consistency_check", false);
     read_gauss_seidel_params(numiters, N, block_size);
-    tests::matrix_type<double>* test_mtx = new tests::matrix_type<double>(N+2, 0.0);
-    tests::gauss_seidel_initialize(*test_mtx);
+    benchmarks::matrix_type<double>* test_mtx = new benchmarks::matrix_type<double>(N+2, 0.0);
+    benchmarks::gauss_seidel_initialize(*test_mtx);
     bool use_reference_solution = cmdline::parse_or_default_bool("reference_solution", false);
     if (use_reference_solution) {
       add_todo([=] {
-        tests::gauss_seidel_by_diagonal(numiters, N+2, block_size, &(test_mtx->items[0]));
+        benchmarks::gauss_seidel_by_diagonal(numiters, N+2, block_size, &(test_mtx->items[0]));
       });
     } else {
-      add_todo(new tests::gauss_seidel_parallel<node>(numiters, N+2, block_size, &(test_mtx->items[0])));
+      add_todo(new benchmarks::gauss_seidel_parallel<node>(numiters, N+2, block_size, &(test_mtx->items[0])));
     }
     add_todo([=] {
       if (do_consistency_check) {
-        tests::matrix_type<double> reference_mtx(N+2, 0.0);
-        tests::gauss_seidel_initialize(reference_mtx);
-        tests::gauss_seidel_sequential(numiters, N+2, block_size, &reference_mtx.items[0]);
-        int nb_diffs = tests::count_nb_diffs(reference_mtx, *test_mtx);
+        benchmarks::matrix_type<double> reference_mtx(N+2, 0.0);
+        benchmarks::gauss_seidel_initialize(reference_mtx);
+        benchmarks::gauss_seidel_sequential(numiters, N+2, block_size, &reference_mtx.items[0]);
+        int nb_diffs = benchmarks::count_nb_diffs(reference_mtx, *test_mtx);
         assert(nb_diffs == 0);
       }
       delete test_mtx;
@@ -3408,8 +3414,8 @@ void choose_command() {
     int N;
     int block_size;
     read_gauss_seidel_params(numiters, N, block_size);
-    tests::matrix_type<double>* test_mtx = new tests::matrix_type<double>(N+2, 0.0);
-    add_todo(new tests::gauss_seidel_sequential_node<node>(numiters, N+2, block_size, &test_mtx->items[0]));
+    benchmarks::matrix_type<double>* test_mtx = new benchmarks::matrix_type<double>(N+2, 0.0);
+    add_todo(new benchmarks::gauss_seidel_sequential_node<node>(numiters, N+2, block_size, &test_mtx->items[0]));
     add_todo([=] {
       delete test_mtx;
     });
@@ -3417,13 +3423,12 @@ void choose_command() {
   c.find_by_arg(cmd_param)();
 }
 
+
+
 void launch() {
   communication_delay = cmdline::parse_or_default_int("communication_delay",
                                                       communication_delay);
-  tests::pipeline_window_capacity = cmdline::parse_or_default_int("pipeline_window_capacity",
-                                                              tests::pipeline_window_capacity);
-  tests::pipeline_burst_rate = cmdline::parse_or_default_int("pipeline_burst_rate",
-                                                              tests::pipeline_burst_rate);
+  benchmarks::get_pipeline_arguments_from_cmdline();
   cmdline::argmap_dispatch c;
   c.add("direct", [&] {
     choose_edge_algorithm();
@@ -3444,7 +3449,7 @@ int main(int argc, char** argv) {
   cmdline::set(argc, argv);
   std::string cmd = pasl::util::cmdline::parse_string(cmd_param);
   if (cmd == "incounter_microbench") {
-    tests::launch_incounter_microbenchmark();
+    benchmarks::launch_incounter_microbenchmark();
   } else {
     pasl::sched::threaddag::init();
     launch();
