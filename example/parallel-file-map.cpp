@@ -124,7 +124,7 @@ public:
 static int par_file_map_rec_locked (ifstream &f, int n, spin_lock &f_lock, int block_size, int i, int j)
 {
 
-  if ( j-i <= 1) {
+  if ( j-i <= cutoff) {
     char block[4];
 
     // begin read: take the file lock, read, and release.
@@ -174,7 +174,7 @@ static int par_file_map_locked (string file_name, int n)
 static int par_file_map_rec (string file_name, int n, int block_size, int i, int j)
 {
 
-  if ( j-i <= 1) {
+  if ( j-i <= cutoff) {
     char block[4];
     ifstream f;
 		
