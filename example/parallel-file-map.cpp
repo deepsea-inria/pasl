@@ -195,7 +195,7 @@ static double g (int* data, int start, int end)
   double sum = 0.0;
 
   if (end-start < cutoff) {
-    sum = par_fib (42);
+//    sum = par_fib (22);
     for (int i = start; i < end; ++i) {
       sum = sum + (int) data[i];
     }
@@ -262,7 +262,7 @@ static double par_file_map_rec (string file_name, int n, int block_size, int i, 
     f.read (data, block_size*m);
 		f.close ();
     // end read.
-    double s = g_seq ((int*) data, 0, m);		
+    double s = g ((int*) data, 0, m);		
   	return s;
 	}
 	else {
