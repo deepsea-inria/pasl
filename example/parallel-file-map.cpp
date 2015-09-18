@@ -195,7 +195,7 @@ static double g (int* data, int start, int end)
   double sum = 0.0;
 
   if (end-start < cutoff) {
-//    sum = par_fib (22);
+    sum = par_fib (30);
     for (int i = start; i < end; ++i) {
       sum = sum + (int) data[i];
     }
