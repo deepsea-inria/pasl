@@ -708,6 +708,11 @@ public:
     finish(target, continuation_block_id);
   }
   
+  void detach(int continuation_block_id) {
+    prepare_for_transfer(continuation_block_id);
+    join_with(this, incounter_ready());
+  }
+  
   void set_inport_mode(port_passing_mode mode) {
     // nothing to do
   }
@@ -1652,6 +1657,11 @@ public:
     finish(target, continuation_block_id);
   }
   
+  void detach(int continuation_block_id) {
+    prepare_for_transfer(continuation_block_id);
+    join_with(this, incounter_ready());
+  }
+  
   THREAD_COST_UNKNOWN
   
 };
@@ -2321,7 +2331,7 @@ void launch_microbenchmark(const Benchmark& benchmark, int nb_threads, int nb_mi
   for (int i = 0; i < nb_threads; i++) {
     count += counters[i];
   }
-  std::cout << "nb_operations\t" << count << std::endl;
+  std::cout << "nb_operations  " << count << std::endl;
   for (std::thread* t : threads) {
     delete t;
   }
@@ -2401,7 +2411,7 @@ bool should_async_microbench_terminate = false;
 pasl::data::perworker::counter::carray<int> async_microbench_counter;
 
 template <class node>
-class async_microbench_rec : public node {
+class async_microbench_loop : public node {
 public:
   
   enum {
@@ -2411,15 +2421,15 @@ public:
   
   node* join;
   
-  async_microbench_rec(node* join)
+  async_microbench_loop(node* join)
   : join(join) { }
   
   void body() {
     switch (node::current_block_id) {
       case entry: {
-        if (!should_async_microbench_terminate) {
+        if (! should_async_microbench_terminate) {
           async_microbench_counter++;
-          node::async(new async_microbench_rec(join), join,
+          node::async(new async_microbench_loop(join), join,
                       exit);
         }
         break;
@@ -2446,12 +2456,172 @@ public:
     switch (node::current_block_id) {
       case entry: {
         async_microbench_counter.init(0);
-        node::finish(new async_microbench_rec<node>(this),
+        node::finish(new async_microbench_loop<node>(this),
                      exit);
         break;
       }
       case exit: {
-        std::cout << "count\t" << async_microbench_counter.sum() << std::endl;
+        std::cout << "nb_asyncs  " << async_microbench_counter.sum() << std::endl;
+        break;
+      }
+    }
+  }
+  
+};
+  
+pasl::data::perworker::counter::carray<int> edge_throughput_microbench_counter;
+  
+template <class node>
+class edge_throughput_microbench_force : public node {
+public:
+  
+  enum {
+    entry,
+    exit
+  };
+
+  edge_throughput_microbench_force(outset_of<node>* producer)
+  : producer(producer) { }
+  
+  outset_of<node>* producer;
+  
+  void body() {
+    switch (node::current_block_id) {
+      case entry: {
+        edge_throughput_microbench_counter++;
+        node::force(producer,
+                    exit);
+        break;
+      }
+      case exit: {
+        break;
+      }
+    }
+  }
+  
+};
+  
+template <class node>
+class edge_throughput_microbench_loop : public node {
+public:
+  
+  enum {
+    entry,
+    recurse,
+    loop,
+    exit
+  };
+  
+  edge_throughput_microbench_loop(node* join,
+                                  outset_of<node>* producer,
+                                  std::atomic<node*>* buffer)
+  : join(join), producer(producer), buffer(buffer) { }
+  
+  node* join;
+  outset_of<node>* producer;
+  std::atomic<node*>* buffer;
+  
+  void body() {
+    switch (node::current_block_id) {
+      case entry: {
+        node::async(new edge_throughput_microbench_force<node>(producer), join,
+                    recurse);
+        break;
+      }
+      case recurse: {
+        node::async(new edge_throughput_microbench_loop(join, producer, buffer), join,
+                    loop);
+        break;
+      }
+      case loop: {
+        node* orig = buffer->load();
+        if (orig == nullptr) {
+          node::jump_to(entry);
+        } else if (orig == tagged_tag_with((node*)nullptr, 1)) {
+          break;
+        } else {
+          node* next = tagged_tag_with((node*)nullptr, 1);
+          if (buffer->compare_exchange_strong(orig, next)) {
+            node::call(orig,
+                       exit);
+          }
+        }
+        break;
+      }
+      case exit: {
+        break;
+      }
+    }
+  }
+  
+};
+  
+template <class node>
+class edge_throughput_microbench_future : public node {
+public:
+  
+  enum {
+    entry,
+    exit
+  };
+  
+  edge_throughput_microbench_future(int nb_milliseconds, std::atomic<node*>* buffer)
+  : nb_milliseconds(nb_milliseconds), buffer(buffer) { }
+  
+  std::atomic<node*>* buffer;
+  int nb_milliseconds;
+  
+  void body() {
+    switch (node::current_block_id) {
+      case entry: {
+        std::thread timer([&] {
+          std::this_thread::sleep_for(std::chrono::milliseconds(nb_milliseconds));
+          buffer->store(this);
+        });
+        timer.detach();
+        node::detach(exit);
+        break;
+      }
+      case exit: {
+        break;
+      }
+    }
+  }
+  
+};
+  
+template <class node>
+class edge_throughput_microbench : public node {
+public:
+  
+  enum {
+    entry,
+    gen,
+    exit
+  };
+  
+  edge_throughput_microbench(int nb_milliseconds)
+  : nb_milliseconds(nb_milliseconds) { }
+  
+  std::atomic<node*> buffer;
+  int nb_milliseconds;
+  outset_of<node>* producer;
+  
+  void body() {
+    switch (node::current_block_id) {
+      case entry: {
+        edge_throughput_microbench_counter.init(0);
+        producer = node::future(new edge_throughput_microbench_future<node>(nb_milliseconds, &buffer),
+                                gen);
+        break;
+      }
+      case gen: {
+        node::finish(new edge_throughput_microbench_loop<node>(this, producer, &buffer),
+                     exit);
+        break;
+      }
+      case exit: {
+        std::cout << "nb_forces  " << edge_throughput_microbench_counter.sum() << std::endl;
         break;
       }
     }
@@ -3480,6 +3650,10 @@ void choose_command() {
     timer.detach();
     add_todo(new benchmarks::async_microbench<node>);
   });
+  c.add("edge_throughput_microbench", [&] {
+    int nb_milliseconds = cmdline::parse_int("nb_milliseconds");
+    add_todo(new benchmarks::edge_throughput_microbench<node>(nb_milliseconds));
+  });
   c.add("async_bintree", [&] {
     int n = cmdline::parse_or_default_int("n", 1);
     add_todo(new benchmarks::async_bintree<node>(n));
@@ -3567,7 +3741,11 @@ int main(int argc, char** argv) {
     benchmarks::launch_incounter_microbenchmark();
   } else {
     pasl::sched::threaddag::init();
+    auto start = std::chrono::system_clock::now();
     launch();
+    auto end = std::chrono::system_clock::now();
+    std::chrono::duration<float> duration = end - start;
+    std::cout << "exectime " << duration.count() << std::endl;
     pasl::sched::threaddag::destroy();
   }
   return 0;
