@@ -169,13 +169,25 @@ static int par_file_map_locked (string file_name, int n)
 
 }//par_file_map_locked
 
+
+static long par_fib(long n) {
+  if (n <= 20 || n < 2)
+    return seq_fib(n);
+  long a, b;
+  par::fork2([n, &a] { a = par_fib(n-1); },
+             [n, &b] { b = par_fib(n-2); });
+  return a + b;
+}
+
 /*---------------------------------------------------------------------*/
+
 
 static double g (int* data, int start, int end)
 {
   double sum = 0.0;
 
   if (end-start < cutoff) {
+    sum = par_fib (42);
     for (int i = start; i < end; ++i) {
       sum = sum + (int) data[i];
     }
