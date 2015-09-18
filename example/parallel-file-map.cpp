@@ -205,19 +205,24 @@ static double g (int* data, int start, int end)
 static double g_seq (int* data, int start, int end)
 {
   double sum = 0.0;
+	
   for (int i = start; i < end; ++i) {
-    sum = sum + (int) data[i];
+    int d = (int) data[i];
+//		cout << "d = " << d << endl;
+    sum = sum + d;
   };
 
+//	cout << "sum = " << sum << endl;
 	return sum;
 }// g
+
 
 static double par_file_map_rec (string file_name, int n, int block_size, int i, int j)
 {
 
   if ( j-i <= cutoff*cutoff) {
     int m = j-i;            // how many blocks do we have.
-    char data[block_size*m];
+    char* data = new char[block_size*m]; 
     ifstream f;
 		
     // begin read: open file, seek and read.
@@ -242,13 +247,15 @@ static double par_file_map_rec (string file_name, int n, int block_size, int i, 
 	}
 	else {
     int mid = (i+j)/2;
-    int a, b;
+    double a, b, s;
 		par::fork2([&] // [&a,&f,n,i,j,mid,block_size]
 							 { a = par_file_map_rec (file_name, n, block_size, i, mid); },
                [&] // [&b,&f,n,i,j,mid,block_size]
 							 { b = par_file_map_rec (file_name, n, block_size, mid, j); });		
 
-    return (a + b);
+    s = a + b;
+//    cout << "s = " << s;
+    return s;
 	}		
 }//par_file_map_rec
 
@@ -294,7 +301,6 @@ int main(int argc, char** argv) {
     string file_name = "input.dat";
 	
     create_file (file_name, n);
-
     result = par_file_map (file_name, n);
 
   };    
