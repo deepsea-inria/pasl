@@ -3,7 +3,7 @@
 #include "hash.hpp"
 
 bool heads(long a, long b) {
-  return (hash_signed(a) + hash_signed(b)) % 2 == 0;
+  return (hash_signed(a * 100000 + b)) % 2 == 0;
 }
 
 template <class T>
@@ -22,7 +22,9 @@ using controller_type = par::control_by_prediction;
 #endif
 using loop_controller_type = par::loop_by_eager_binary_splitting<controller_type>;
 
-/****************************************************************************/
+/****************************************************************************
+ ************** REIMPLEMENTATION OF FILTER (AVOIDING SPARRAYS) **************
+ ****************************************************************************/
 
 template <class LIFT>
 class plus_up_sweep_contr {
@@ -116,31 +118,46 @@ std::pair<long*, long> filter(const PRED& pred, long* xs, long n) {
   return std::pair<long*, long>(out, final_len);
 }
 
-/****************************************************************************/
+/****************************************************************************
+ ************************** FOREST AND CONTRACTION **************************
+ ****************************************************************************/
 
 const long MAX_DEGREE = 4l;
 const long NOT_A_VERTEX = -1l;
 
 struct Node {
-  bool alive;
   long neighbors[MAX_DEGREE];
 };
 
 struct Forest {
-  long n;
+  long num_nodes; // total number of nodes
   Node* nodes;
+
+  long num_alive; // number of nodes currently alive
+  long* alive;    // IDs of currently alive nodes
 };
+
+void display_forest(Forest* F) {
+  std::cout << "=======================" << std::endl;
+  for (long i = 0; i < F->num_alive; i++) {
+    long v = F->alive[i];
+    std::cout << v << ": ";
+    for (int j = 0; j < MAX_DEGREE; j++) {
+      if (F->nodes[v].neighbors[j] == NOT_A_VERTEX)
+        std::cout << ". ";
+      else
+        std::cout << F->nodes[v].neighbors[j] << " ";
+    }
+    std::cout << std::endl;
+  }
+  std::cout << "=======================" << std::endl;
+}
 
 Forest* blank_forest(long n) {
   Forest* F = my_malloc<Forest>(1);
-  F->n = n;
+  F->num_nodes = n;
   F->nodes = my_malloc<Node>(n);
   return F;
-}
-
-void free_forest(Forest* F) {
-  free(F->nodes);
-  free(F);
 }
 
 long degree(Forest* F, long v) {
@@ -151,56 +168,163 @@ long degree(Forest* F, long v) {
   return d;
 }
 
-bool alive(Forest* F, long v) {
-  return F->nodes[v].alive;
+long num_nodes(Forest* F) {
+  return F->num_nodes;
 }
 
-void kill(Forest* F, long v) {
-  F->nodes[v].alive = false;
+long num_alive(Forest* F) {
+  return F->num_alive;
 }
 
-long size_forest(Forest* F) {
-  return F->n;
+template <class ACTION>
+class apply_to_each_contr {
+public:
+  static loop_controller_type contr;
+};
+
+template <class ACTION>
+loop_controller_type apply_to_each_contr<ACTION>::contr("apply_to_each" + par::string_of_template_arg<ACTION>());
+
+template <class ACTION>
+void apply_to_each_alive_node(Forest* F, const ACTION& action) {
+  par::parallel_for(apply_to_each_contr<ACTION>::contr, 0l, num_alive(F), [&] (long i) {
+    action(F->alive[i]);
+  });
 }
 
-/* SEQUENTIAL AND PARALLEL-UNSAFE STUFF *************************************/
+// Assuming v has degree 1 in F, return its neighbor
+long neighbor(Forest* F, long v) {
+  for (long i = 0; i < MAX_DEGREE; i++)
+    if (F->nodes[v].neighbors[i] != NOT_A_VERTEX)
+      return F->nodes[v].neighbors[i];
+}
 
-void display_forest(Forest* F) {
-  std::cout << "=======================" << std::endl;
-  for (long v = 0; v < size_forest(F); v++) {
-    std::cout << v << ": ";
-    if (!alive(F, v)) std::cout << "DEAD";
-    else for (int i = 0; i < MAX_DEGREE; i++) {
-      if (F->nodes[v].neighbors[i] == NOT_A_VERTEX)
-        std::cout << ". ";
-      else
-        std::cout << F->nodes[v].neighbors[i] << " ";
+// Assuming v has degree 2 in F, return its two neighbors
+std::pair<long,long> neighbors(Forest* F, long v) {
+  long i = 0;
+  while (i < MAX_DEGREE && F->nodes[v].neighbors[i] == NOT_A_VERTEX) i++;
+  long u = F->nodes[v].neighbors[i];
+  i++;
+  while (i < MAX_DEGREE && F->nodes[v].neighbors[i] == NOT_A_VERTEX) i++;
+  long w = F->nodes[v].neighbors[i];
+
+  return std::pair<long,long>(u,w);
+}
+
+// In the forest F, rake v into u
+// (don't modify F -- make changes in FF)
+void rake(Forest* F, Forest* FF, long v, long u) {
+  for (long i = 0; i < MAX_DEGREE; i++) {
+    // remove v as neighbor of u in FF
+    if (F->nodes[u].neighbors[i] == v) {
+      FF->nodes[u].neighbors[i] = NOT_A_VERTEX;
+      return;
     }
-    std::cout << std::endl;
   }
-  std::cout << "=======================" << std::endl;
 }
 
-void display_forest_with_alive_set(Forest* F, long* alive_nodes, long num_alive) {
-  long n = size_forest(F);
-  bool alive[n];
-  for (long v = 0; v < n; v++) alive[v] = false;
-  for (long i = 0; i < num_alive; i++) alive[alive_nodes[i]] = true;
+// In the forest F, compress v by adding the edge (u,w)
+// (don't modify F -- make changes in FF)
+void compress(Forest* F, Forest* FF, long u, long v, long w) {
+  for (long i = 0; i < MAX_DEGREE; i++) {
+    // replace v with w as neighbor of u in FF
+    if (F->nodes[u].neighbors[i] == v) FF->nodes[u].neighbors[i] = w;
+    // replace v with u as neighbor of w in FF
+    if (F->nodes[w].neighbors[i] == v) FF->nodes[w].neighbors[i] = u;
+  }
+}
 
-  std::cout << "=======================" << std::endl;
-  for (long v = 0; v < n; v++) {
-    std::cout << v << ": ";
-    if (!alive[v]) std::cout << "DEAD";
-    else for (int i = 0; i < MAX_DEGREE; i++) {
-      if (F->nodes[v].neighbors[i] == NOT_A_VERTEX)
-        std::cout << ". ";
-      else
-        std::cout << F->nodes[v].neighbors[i] << " ";
+
+void copy_to_next_forest(Forest* F, Forest* FF, long v) {
+  for (int i = 0; i < MAX_DEGREE; i++)
+    FF->nodes[v].neighbors[i] = F->nodes[v].neighbors[i];
+}
+
+void set_alive(Forest* F, long* alive, long num_alive) {
+  F->alive = alive;
+  F->num_alive = num_alive;
+}
+
+bool has_edges(Forest* F) {
+  std::atomic<bool> found_edge;
+  found_edge.store(false);
+  apply_to_each_alive_node(F, [&] (long v) {
+    if (degree(F, v) > 0) {
+      bool orig = false;
+      found_edge.compare_exchange_strong(orig, true);
     }
-    std::cout << std::endl;
-  }
-  std::cout << "=======================" << std::endl;
+  });
+  return found_edge.load();
 }
+
+
+void contract(Forest* F, Forest* FF, bool* is_alive, long round) {
+  apply_to_each_alive_node(F, [&] (long v) {
+    copy_to_next_forest(F, FF, v);
+  });
+
+  apply_to_each_alive_node(F, [&] (long v) {
+    if (degree(F, v) == 0) {
+      is_alive[v] = false;
+    }
+    else if (degree(F, v) == 1) {
+      long u = neighbor(F, v);
+      if (degree(F, u) > 1 || v > u) {
+        is_alive[v] = false;
+        rake(F, FF, v, u);
+      }
+    }
+    else if (degree(F, v) == 2) {
+      std::pair<long, long> uw = neighbors(F, v);
+      long u = uw.first;
+      long w = uw.second;
+      if (degree(F, u) > 1 && degree(F, w) > 1 && !heads(u, round) && heads(v, round) && !heads(w, round)) {
+        is_alive[v] = false;
+        compress(F, FF, u, v, w);
+      }
+    }
+  });
+
+  auto pair = filter([&] (long v) { return is_alive[v]; }, F->alive, F->num_alive);
+  set_alive(FF, pair.first, pair.second);
+}
+
+
+
+loop_controller_type init_contr("init_contr");
+
+Forest* forest_contract(Forest* F) {
+  long n = num_nodes(F);
+
+  bool* is_alive = my_malloc<bool>(n);
+  par::parallel_for(init_contr, 0l, n, [&] (long i) {
+    is_alive[i] = true;
+  });
+
+  Forest* FF = blank_forest(n);
+
+  long round = 0;
+  while (has_edges(F)) {
+    contract(F, FF, is_alive, round);
+    free(F->alive);
+
+    Forest* temp = FF;
+    FF = F;
+    F = temp;
+
+    round++;
+  }
+
+  free(is_alive);
+  free(FF->nodes);
+  free(FF);
+  return F;
+}
+
+
+/***************************************************************************
+ ************************ INITIALIZATION-ONLY STUFF ************************
+ ***************************************************************************/
 
 long find_empty_neighbor_slot(Forest* F, long v) {
   for (long i = 0; i < MAX_DEGREE; i++)
@@ -231,151 +355,18 @@ long ith_neighbor(Forest* F, long v, long i) {
   return NOT_A_VERTEX;
 }
 
-void format_empty(Forest* F) {
-  for (long v = 0; v < size_forest(F); v++) {
-    F->nodes[v].alive = true;
+void initialize_empty(Forest* F) {
+  F->alive = my_malloc<long>(num_nodes(F));
+  F->num_alive = num_nodes(F);
+  for (long v = 0; v < num_nodes(F); v++) {
+    F->alive[v] = v;
     for (long i = 0; i < MAX_DEGREE; i++) {
       F->nodes[v].neighbors[i] = NOT_A_VERTEX;
     }
   }
 }
 
-/* PARALLEL-SAFE STUFF ******************************************************/
-
-long neighbor(Forest* F, long v) {
-  for (long i = 0; i < MAX_DEGREE; i++)
-    if (F->nodes[v].neighbors[i] != NOT_A_VERTEX) return F->nodes[v].neighbors[i];
-}
-
-std::pair<long,long> neighbors(Forest* F, long v) {
-  long i = 0;
-  while (i < MAX_DEGREE && F->nodes[v].neighbors[i] == NOT_A_VERTEX) i++;
-  long u = F->nodes[v].neighbors[i];
-  i++;
-  while (i < MAX_DEGREE && F->nodes[v].neighbors[i] == NOT_A_VERTEX) i++;
-  long w = F->nodes[v].neighbors[i];
-
-  return std::pair<long,long>(u,w);
-}
-
-// In the forest F, rake v into u
-// (don't modify F -- make changes in FF)
-void rake(Forest* F, Forest* FF, long v, long u) {
-  FF->nodes[v].alive = false;
-  for (long i = 0; i < MAX_DEGREE; i++) {
-    // remove v as neighbor of u in FF
-    if (F->nodes[u].neighbors[i] == v) {
-      FF->nodes[u].neighbors[i] = NOT_A_VERTEX;
-      return;
-    }
-  }
-}
-
-// In the forest F, compress v by adding the edge (u,w)
-// (don't modify F -- make changes in FF)
-void compress(Forest* F, Forest* FF, long u, long v, long w) {
-  FF->nodes[v].alive = false;
-  for (long i = 0; i < MAX_DEGREE; i++) {
-    // replace v with w as neighbor of u in FF
-    if (F->nodes[u].neighbors[i] == v) FF->nodes[u].neighbors[i] = w;
-    // replace v with u as neighbor of w in FF
-    if (F->nodes[w].neighbors[i] == v) FF->nodes[w].neighbors[i] = u;
-  }
-}
-
-void copy_to_next_forest(Forest* F, Forest* FF, long v) {
-  FF->nodes[v].alive = F->nodes[v].alive;
-  for (long i = 0; i < MAX_DEGREE; i++) {
-    FF->nodes[v].neighbors[i] = F->nodes[v].neighbors[i];
-  }
-}
-
-loop_controller_type has_edges_contr("has_edges_contr");
-
-bool has_edges(Forest* F, long* alive_nodes, long num_alive) {
-  std::atomic<bool> found_edge;
-  found_edge.store(false);
-
-  par::parallel_for(has_edges_contr, 0l, num_alive, [&] (long i) {
-    if (degree(F, alive_nodes[i]) > 0) {
-      bool orig = false;
-      found_edge.compare_exchange_strong(orig, true);
-    }
-  });
-
-  return found_edge.load();
-}
-
-loop_controller_type contract_contr_1("contract_contr_1");
-loop_controller_type contract_contr_2("contract_contr_2");
-
-std::pair<long*, long> contract(Forest* F, Forest* FF, long* alive_nodes, long num_alive, long round) {
-  par::parallel_for(contract_contr_1, 0l, num_alive, [&] (long i) {
-    copy_to_next_forest(F, FF, alive_nodes[i]);
-  });
-
-  par::parallel_for(contract_contr_2, 0l, num_alive, [&] (long i) {
-    long v = alive_nodes[i];
-    if (degree(F, v) == 1) {
-      long u = neighbor(F, v);
-      if (degree(F, u) > 1 || v > u)
-        rake(F, FF, v, u);
-    }
-    else if (degree(F, v) == 2) {
-      std::pair<long, long> uw = neighbors(F, v);
-      long u = uw.first;
-      long w = uw.second;
-      if (degree(F, u) > 1 && degree(F, w) > 1 && !heads(u, round) && heads(v, round) && !heads(w, round))
-        compress(F, FF, u, v, w);
-    }
-  });
-
-  return filter([&] (long v) { return alive(FF, v); }, alive_nodes, num_alive);
-}
-
-loop_controller_type init_contr("init_contr");
-
-Forest* forest_contract(Forest* F) {
-  long n = size_forest(F);
-
-  Forest* FF = blank_forest(n);
-  long* alive_nodes = my_malloc<long>(n);
-  par::parallel_for(init_contr, 0l, n, [&] (long i) {
-    alive_nodes[i] = i;
-  });
-
-  long round = 0;
-  long num_alive = n;
-  Forest* temp;
-  while (has_edges(F, alive_nodes, num_alive)) {
-    // display_forest_with_alive_set(F, alive_nodes, num_alive);
-    // std::cout << std::endl << std::endl;
-    // std::cout << "ROUND " << round << std::endl;
-
-    auto pair = contract(F, FF, alive_nodes, num_alive, round);
-    free(alive_nodes);
-    alive_nodes = pair.first;
-    num_alive = pair.second;
-
-    temp = FF;
-    FF = F;
-    F = temp;
-
-    round++;
-  }
-  // display_forest_with_alive_set(F, alive_nodes, num_alive);
-  return F;
-}
-
-
-/****************************************************************************/
-
-// void check_max_degree(long lower) {
-//   if (MAX_DEGREE < lower) {
-//     std::cout << "Error: MAX_DEGREE must be at least " << lower << std::endl;
-//     abort();
-//   }
-// }
+/***************************************************************************/
 
 int main (int argc, char** argv) {
 
@@ -393,9 +384,9 @@ int main (int argc, char** argv) {
     print = pasl::util::cmdline::parse_or_default_bool("print", false);
 
     F = blank_forest(n);
-    format_empty(F);
+    initialize_empty(F);
 
-    std::cout << "Generating forest..." << std::endl;
+    std::cout << "Generating forest... " << std::flush;
 
     long b = MAX_DEGREE - 1;
     long r = std::max(n - lround(f * (double) n), 2l);
@@ -422,7 +413,7 @@ int main (int argc, char** argv) {
     for (long v = 0; v < n; v++) {
       if (degree(F, v) == 2) count++;
     }
-    std::cout << "Generated forest: " << (((double) count) / ((double) n) * 100.0)
+    std::cout << "done. " << (((double) count) / ((double) n) * 100.0)
               << "% of vertices have degree 2." << std::endl;
 
     if (print) display_forest(F);
