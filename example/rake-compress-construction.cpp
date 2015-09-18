@@ -10,10 +10,14 @@ int main(int argc, char** argv) {
      n = (long)pasl::util::cmdline::parse_or_default_int("n", 24);
      std::string graph = pasl::util::cmdline::parse_or_default_string("graph", std::string("bamboo"));
      seq = pasl::util::cmdline::parse_or_default_int("seq", 1) == 1;
+     int k = pasl::util::cmdline::parse_or_default_int("k", 1);
+     int seed = pasl::util::cmdline::parse_or_default_int("seed", 239);
+     int degree = pasl::util::cmdline::parse_or_default_int("degree", 4);
+     double f = pasl::util::cmdline::parse_or_default_double("fraction", 0.5);
 
      std::vector<int>* children = new std::vector<int>[n];
      int* parent = new int[n];
-     generate_graph(graph, n, children, parent);
+     generate_graph(graph, n, children, parent, k, seed, degree, f);
      initialization_construction(n, children, parent);
      delete [] children;
      delete [] parent;
