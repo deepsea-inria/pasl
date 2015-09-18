@@ -1,5 +1,6 @@
 #include<vector>
 #include <string>
+#include <unordered_set>
 
 #ifndef _RAKE_COMPRESS_GENERATORS_
 #define _RAKE_COMPRESS_GENERATORS_
@@ -73,7 +74,7 @@ void add_edge(std::vector<int>* children, int* parent, int u, int v) {
   children[u].push_back(v);
 }
 
-void generate_random_graph(int n, std::vector<int>* children, int* parent, int seed, int degree, double f) {
+void generate_random_graph(int n, std::vector<int>* children, int* parent, int k, int seed, int degree, double f) {
   for (int i = 0; i < n; i++) {
     parent[i] = i;
   }
@@ -111,6 +112,51 @@ void generate_random_graph(int n, std::vector<int>* children, int* parent, int s
   std::cout << "done. " << ((double) cnt / n * 100) << "% of vertices have degree 2." << std::endl;
 }
 
+struct hasher {
+  std::size_t operator()(const std::pair<int, int>& val) const {
+    return val.first * 1000007 + val.second;
+  }
+};
+
+void choose_edges(int n, std::vector<int>* children, int* parent, int k, int* p, int* v, int seed) {
+  std::unordered_set<std::pair<int, int>, hasher> taken;
+  for (int i = 0; i < k; i++) {
+    int u = rand() % n;
+    int w = -1;
+    while (true) {
+      if (children[u].size() > 0) {
+        int start = rand() % children[u].size();
+        for (int j = 0; j < children[u].size(); j++) {
+          int c = children[u][(start + j) % children[u].size()];
+          if (taken.count({ u, c }) == 0) {
+            w = c;
+            break;
+          }
+        }
+        if (w != -1) {
+          break;
+        }
+      }
+    }
+    taken.insert({ u, w });
+    p[i] = u;
+    v[i] = w;
+  }
+}
+
+void remove_edges(int n, std::vector<int>* old_children, int* old_parent, std::vector<int>* new_children, int* new_parent,
+                int k, int* p, int* v) {
+  for (int i = 0; i < n; i++) {
+    new_children[i] = old_children[i];
+    new_parent[i] = old_parent[i];
+  }
+
+  for (int i = 0; i < k; i++) {
+    new_parent[v[i]] = v[i];
+    new_children[p[i]].erase(std::remove(new_children[p[i]].begin(), new_children[p[i]].end(), v[i]), new_children[p[i]].end());
+  }
+}
+
 void generate_graph(std::string type, int n, std::vector<int>* children, int* parent, int k = 1, int seed = 239, int degree = 4, double f = 0) {
   if (type.compare("binary_tree") == 0) {
     // let us firstly think about binary tree
@@ -125,7 +171,7 @@ void generate_graph(std::string type, int n, std::vector<int>* children, int* pa
   } else if (type.compare("k_bamboos") == 0) {
     generate_k_bamboos(n, children, parent, k);
   } else {
-    generate_random_graph(n, children, parent, seed, degree, f);
+    generate_random_graph(n, children, parent, k, seed, degree, f);
   }
 }
 
