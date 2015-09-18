@@ -169,6 +169,14 @@ static int par_file_map_locked (string file_name, int n)
 
 }//par_file_map_locked
 
+/*---------------------------------------------------------------------*/
+
+static long seq_fib (long n){
+  if (n < 2)
+    return n;
+  else
+    return seq_fib (n - 1) + seq_fib (n - 2);
+}
 
 static long par_fib(long n) {
   if (n <= 20 || n < 2)
