@@ -82,6 +82,8 @@ void generate_random_graph(int n, std::vector<int>* children, int* parent, int k
   int each = 3;
   int r = std::max(n - (int)ceil(n * f), 2);
 
+  std::cerr << n << " " << degree << " " << r << std::endl;
+
   srand(seed);
 
   for (int i = 1; i < r; i++) {
@@ -137,6 +139,7 @@ void choose_edges(int n, std::vector<int>* children, int* parent, int k, int* p,
           break;
         }
       }
+      u = rand() % n;
     }
     taken.insert({ u, w });
     p[i] = u;
