@@ -361,14 +361,14 @@ template <class Random_int>
 void incounter_add_to_freelist(std::atomic<incounter_node*>& freelist,
                                incounter_node* old_node,
                                const Random_int& random_int) {
-  old_node = tagged_tag_with(old_node, incounter_node::removing_tag);
   std::atomic<incounter_node*>* current = &freelist;
   while (true) {
     assert(tagged_tag_of(current->load()) == incounter_node::removing_tag);
     incounter_node* target = tagged_pointer_of(current->load());
     if (target == nullptr) {
       incounter_node* orig = tagged_tag_with(target, incounter_node::removing_tag);
-      if (current->compare_exchange_strong(orig, old_node)) {
+      incounter_node* next = tagged_tag_with(old_node, incounter_node::removing_tag);
+      if (current->compare_exchange_strong(orig, next)) {
         return;
       }
     } else {
@@ -396,6 +396,7 @@ bool incounter_try_remove(incounter_node* current) {
   if (i == branching_factor) {
     return true;
   }
+  i--;
   while (i >= 0) {
     current->children[i].store(nullptr);
     i--;
@@ -437,12 +438,15 @@ bool incounter_decrement(std::atomic<incounter_node*>& root,
                          std::atomic<incounter_node*>& freelist,
                          const Random_int& random_int) {
   incounter_node* result = nullptr;
+  incounter_node* current;
   while (result == nullptr) {
-    result = incounter_decrement_rec(root.load(), freelist, random_int);
+    current = root.load();
+    result = incounter_decrement_rec(current, freelist, random_int);
   }
-  bool is_zero = result == root.load();
+  bool is_zero = (result == root.load());
   if (is_zero) {
     root.store(nullptr);
+    incounter_add_to_freelist(freelist, result, random_int);
   }
   return is_zero;
 }
@@ -2253,7 +2257,6 @@ void benchmark_incounter_thread(int my_id, Incounter& incounter, bool& should_st
     incounter.decrement(my_id, random_int);
     nb_pending_increments--;
   }
-  assert(incounter.is_activated());
   nb_operations = c;
 }
   
@@ -2465,11 +2468,14 @@ void launch_incounter_microbenchmark() {
     }
   };
   launch_microbenchmark(benchmark_thread, nb_threads, nb_milliseconds);
-  if (simple_incounter == nullptr) {
+  if (simple_incounter != nullptr) {
+    assert(simple_incounter->is_activated());
     delete simple_incounter;
   } else if (snzi_incounter != nullptr) {
+    assert(snzi_incounter->is_activated());
     delete snzi_incounter;
   } else if (dyntree_incounter != nullptr) {
+    assert(dyntree_incounter->is_activated());
     delete dyntree_incounter;
   }
 }
