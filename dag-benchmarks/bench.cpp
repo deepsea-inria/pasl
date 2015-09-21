@@ -2383,10 +2383,9 @@ void launch_microbenchmark(const Benchmark& benchmark, int nb_threads, int nb_mi
   std::vector<std::thread*> threads;
   int counters[nb_threads];
   for (int i = 0; i < nb_threads; i++) {
-    int& counter = counters[i];
-    counter = 0;
-    threads.push_back(new std::thread([&] {
-      benchmark(i, should_stop, counter);
+    counters[i] = 0;
+    threads.push_back(new std::thread([&, i] {
+      benchmark(i, should_stop, counters[i]);
     }));
   }
   auto start = std::chrono::high_resolution_clock::now();
