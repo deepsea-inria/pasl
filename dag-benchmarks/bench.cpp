@@ -2431,6 +2431,9 @@ void launch_outset_microbenchmark() {
   if (simple_outset != nullptr) {
     delete simple_outset;
   } else if (dyntree_outset != nullptr) {
+    direct::dyntree::outset_node* n = dyntree_outset->outset.root.load();
+    dyntree_outset->outset.root.store(nullptr);
+    dyntree_outset->outset.freelist.store(n);
     delete dyntree_outset;
   }
 }
@@ -3812,6 +3815,8 @@ int main(int argc, char** argv) {
   std::string cmd = pasl::util::cmdline::parse_string(cmd_param);
   if (cmd == "incounter_microbench") {
     benchmarks::launch_incounter_microbenchmark();
+  } else if (cmd == "outset_microbench") {
+    benchmarks::launch_outset_microbenchmark();
   } else {
     pasl::sched::threaddag::init();
     auto start = std::chrono::system_clock::now();
