@@ -121,29 +121,19 @@ struct hasher {
 };
 
 void choose_edges(int n, std::vector<int>* children, int* parent, int k, int* p, int* v, int seed) {
-  std::unordered_set<std::pair<int, int>, hasher> taken;
-  for (int i = 0; i < k; i++) {
-    int u = rand() % n;
-    int w = -1;
-    while (true) {
-      if (children[u].size() > 0) {
-        int start = rand() % children[u].size();
-        for (int j = 0; j < children[u].size(); j++) {
-          int c = children[u][(start + j) % children[u].size()];
-          if (taken.count({ u, c }) == 0) {
-            w = c;
-            break;
-          }
-        }
-        if (w != -1) {
-          break;
-        }
-      }
-      u = rand() % n;
+  std::vector<std::pair<int, int>> edges;
+
+  for (int i = 0; i < n; i++) {
+    if (parent[i] != i) {
+      edges.push_back({parent[i], i});
     }
-    taken.insert({ u, w });
-    p[i] = u;
-    v[i] = w;
+  }
+
+  std::shuffle(edges.begin(), edges.end(), std::default_random_engine(seed));
+
+  for (int i = 0; i < k; i++) {
+    p[i] = edges[i].first;
+    v[i] = edges[i].second;
   }
 }
 

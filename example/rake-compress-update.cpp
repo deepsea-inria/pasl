@@ -13,7 +13,10 @@ int main(int argc, char** argv) {
      std::string graph = pasl::util::cmdline::parse_or_default_string("graph", std::string("bamboo"));
      seq = pasl::util::cmdline::parse_or_default_int("seq", 1) == 1;
      std::string type = pasl::util::cmdline::parse_or_default_string("type", std::string("add"));
-     int k = pasl::util::cmdline::parse_or_default_int("k", 2);
+     int k = pasl::util::cmdline::parse_or_default_int("k", n - 1);
+     int seed = pasl::util::cmdline::parse_or_default_int("seed", 239);
+     int degree = pasl::util::cmdline::parse_or_default_int("degree", 4);
+     double f = pasl::util::cmdline::parse_or_default_double("fraction", 0.5);
 
      std::vector<int>* children = new std::vector<int>[n];
      int* parent = new int[n];
@@ -23,118 +26,43 @@ int main(int argc, char** argv) {
      int* delete_v;
      int add_no, delete_no;
 
-     if (type.compare("add") == 0) { 
-       if (graph.compare("two_bamboos") == 0) {
-         generate_graph("two_bamboos", n, children, parent);
-         add_no = 1;
-         delete_no = 0;
-         add_p = new int[1];
-         add_v = new int[1];
-         delete_p = new int[0];
-         delete_v = new int[0];
-         add_p[0] = n / 2 - 1;
-         add_v[0] = add_p[0] + 1;
-       } else if (graph.compare("k_bamboos") == 0) {
-         generate_graph("k_bamboos", n, children, parent, k);
-         add_no = k - 1;
-         delete_no = 0;
-         add_p = new int[k - 1];
-         add_v = new int[k - 1];
-         delete_p = new int[0];
-         delete_v = new int[0];
-         for (int i = 0; i < k - 1; i++) {
-           add_p[i] = (i + 1) * (n / k) - 1;
-           add_v[i] = (i + 1) * (n / k);
-         }
-         ;
-       } else {
-         generate_graph("empty_graph", n, children, parent);
- 
-         add_no = n - 1;
-         delete_no = 0;
-         add_p = new int[n - 1];
-         add_v = new int[n - 1];
-         delete_p = new int[0];
-         delete_v = new int[0];
-         if (graph.compare("binary_tree") == 0) {
-           // let us firstly think about binary tree
-           int id = 0;
-           for (int i = 0; i < n; i++) {
-             if (2 * i + 1 < n) {
-               add_p[id] = i;
-               add_v[id] = 2 * i + 1;
-               id++;
-             }
-             if (2 * i + 2 < n) {
-               add_p[id] = i;
-               add_v[id] = 2 * i + 2;
-               id++;
-             }
-           }
-         } else if (graph.compare("bamboo") == 0) {
-           // bambooooooo
-           for (int i = 0; i < n - 1; i++) {
-             add_p[i] = i;
-             add_v[i] = i + 1;
-           }
-         }
+     std::vector<int>* tmp_children = new std::vector<int>[n];
+     int* tmp_parent = new int[n];
+
+     generate_graph(graph, n, tmp_children, tmp_parent, k, seed, degree, f);
+     int* p = new int[k];
+     int* v = new int[k];
+
+     if (graph.compare("bamboo") == 0) {
+       for (int i = 0; i < k; i++) {
+         p[i] = (i + 1) * (n / (k + 1)) - 1;
+         v[i] = p[i] + 1;
        }
      } else {
-       if (graph.compare("two_bamboos") == 0) {
-         generate_graph("bamboo", n, children, parent);
-         add_no = 0;
-         delete_no = 1;
-         add_p = new int[0];
-         add_v = new int[0];
-         delete_p = new int[1];
-         delete_v = new int[1];
-         delete_p[0] = n / 2 - 1;
-         delete_v[0] = delete_p[0] + 1;
-       } else if (graph.compare("k_bamboos") == 0) {
-         generate_graph("bamboo", n, children, parent);
-         add_no = 0;
-         delete_no = k - 1;
-         add_p = new int[0];
-         add_v = new int[0];
-         delete_p = new int[k - 1];
-         delete_v = new int[k - 1];
-         for (int i = 0; i < k - 1; i++) {
-           delete_p[i] = (i + 1) * (n / k) - 1;
-           delete_v[i] = (i + 1) * (n / k);
-         }
-       } else {
-         generate_graph(graph, n, children, parent);
-
-         add_no = 0;
-         delete_no = n - 1;
-         add_p = new int[0];
-         add_v = new int[0];
-         delete_p = new int[n - 1];
-         delete_v = new int[n - 1];
-         if (graph.compare("binary_tree") == 0) {
-           // let us firstly think about binary tree
-           int id = 0;
-           for (int i = 0; i < n; i++) {
-             if (2 * i + 1 < n) {
-               delete_p[id] = i;
-               delete_v[id] = 2 * i + 1;
-               id++;
-             }
-             if (2 * i + 2 < n) {
-               delete_p[id] = i;
-               delete_v[id] = 2 * i + 2;
-               id++;
-            }
-           }
-         } else {
-           // bambooooooo
-           for (int i = 0; i < n - 1; i++) {
-             delete_p[i] = i;
-             delete_v[i] = i + 1;
-           }
-         }
-       }
+       choose_edges(n, tmp_children, tmp_parent, k, p, v, seed);
      }
+
+     if (type.compare("add") == 0) {
+       add_no = k;
+       add_p = p;
+       add_v = v;
+       delete_no = 0;
+       delete_p = new int[0];
+       delete_v = new int[0];
+       remove_edges(n, tmp_children, tmp_parent, children, parent, k, add_p, add_v);
+       delete[] tmp_children;
+       delete[] tmp_parent;
+     } else {
+       add_no = 0;
+       add_p = new int[0];
+       add_v = new int[0];
+       delete_no = k;
+       delete_p = p;
+       delete_v = v;
+       children = tmp_children;
+       parent = tmp_parent;
+     }
+     
      initialization_construction(n, children, parent);
      construction(n, [&] (int round_no) {construction_round_seq(round_no);});
 //     print_roots(n);
@@ -192,4 +120,4 @@ int main(int argc, char** argv) {
    pasl::sched::launch(argc, argv, init, run, output, destroy);
 
    return 0;
-}                
+}
