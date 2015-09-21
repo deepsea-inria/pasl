@@ -367,7 +367,7 @@ void incounter_add_to_freelist(std::atomic<incounter_node*>& freelist,
     assert(tagged_tag_of(current->load()) == incounter_node::removing_tag);
     incounter_node* target = tagged_pointer_of(current->load());
     if (target == nullptr) {
-      incounter_node* orig = nullptr;
+      incounter_node* orig = tagged_tag_with(target, incounter_node::removing_tag);
       if (current->compare_exchange_strong(orig, old_node)) {
         return;
       }
@@ -440,7 +440,11 @@ bool incounter_decrement(std::atomic<incounter_node*>& root,
   while (result == nullptr) {
     result = incounter_decrement_rec(root.load(), freelist, random_int);
   }
-  return result == root.load();
+  bool is_zero = result == root.load();
+  if (is_zero) {
+    root.store(nullptr);
+  }
+  return is_zero;
 }
   
 bool incounter_decrement(std::atomic<incounter_node*>& root,
