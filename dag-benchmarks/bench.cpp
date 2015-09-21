@@ -79,6 +79,7 @@ namespace direct {
 
 class node;
 class incounter;
+class incounter_node;
 class outset;
 
 void add_node(node*);
@@ -288,19 +289,23 @@ namespace dyntree {
   
 int branching_factor = 2;
   
+bool should_deallocate_sequentially = false;
+  
 class dyntree_incounter;
 class dyntree_outset;
 class incounter_node;
 class outset_node;
 
-void deallocate_incounter_tree(incounter_node*);
-void notify_outset_nodes(dyntree_outset*);
-void deallocate_outset_tree(outset_node*);
+void incounter_tree_deallocate(incounter_node*);
+void incounter_tree_deallocate_sequential(incounter_node*);
+void outset_finish(dyntree_outset*);
+void outset_tree_deallocate(outset_node*);
+void outset_tree_deallocate_sequential(outset_node*);
   
 class incounter_node {
 public:
   
-  static constexpr int minus_tag = 1;
+  static constexpr int removing_tag = 1;
   
   std::atomic<incounter_node*>* children;
   
@@ -323,136 +328,161 @@ public:
     delete [] children;
   }
   
-  bool is_leaf() const {
-    for (int i = 0; i < branching_factor; i++) {
-      incounter_node* child = tagged_pointer_of(children[i].load());
-      if (child != nullptr) {
-        return false;
+};
+  
+template <class Random_int>
+void incounter_increment(std::atomic<incounter_node*>& root,
+                         const Random_int& random_int) {
+  incounter_node* new_node = new incounter_node;
+  std::atomic<incounter_node*>* current = &root;
+  while (true) {
+    incounter_node* target = current->load();
+    if (target == nullptr) {
+      incounter_node* orig = nullptr;
+      if (current->compare_exchange_strong(orig, new_node)) {
+        return;
       }
+    } else if (tagged_tag_of(target) == incounter_node::removing_tag) {
+      current = &root;
+    } else {
+      int i = random_int(0, branching_factor);
+      current = &(target->children[i]);
     }
+  }
+}
+
+void incounter_increment(std::atomic<incounter_node*>& root) {
+  incounter_increment(root, [&] (int lo, int hi) {
+    return random_int(lo, hi);
+  });
+}
+  
+template <class Random_int>
+void incounter_add_to_freelist(std::atomic<incounter_node*>& freelist,
+                               incounter_node* old_node,
+                               const Random_int& random_int) {
+  old_node = tagged_tag_with(old_node, incounter_node::removing_tag);
+  std::atomic<incounter_node*>* current = &freelist;
+  while (true) {
+    assert(tagged_tag_of(current->load()) == incounter_node::removing_tag);
+    incounter_node* target = tagged_pointer_of(current->load());
+    if (target == nullptr) {
+      incounter_node* orig = nullptr;
+      if (current->compare_exchange_strong(orig, old_node)) {
+        return;
+      }
+    } else {
+      int i = random_int(0, branching_factor);
+      current = &(target->children[i]);
+    }
+  }
+}
+
+bool incounter_try_remove(incounter_node* current) {
+  for (int j = 0; j < branching_factor; j++) {
+    if (current->children[j].load() != nullptr) {
+      return false;
+    }
+  }
+  int i = 0;
+  while (i < branching_factor) {
+    incounter_node* orig = nullptr;
+    incounter_node* next = tagged_tag_with(orig, incounter_node::removing_tag);
+    if (! (current->children[i].compare_exchange_strong(orig, next))) {
+      break;
+    }
+    i++;
+  }
+  if (i == branching_factor) {
     return true;
   }
+  while (i >= 0) {
+    current->children[i].store(nullptr);
+    i--;
+  }
+  return false;
+}
   
-};
+template <class Random_int>
+incounter_node* incounter_decrement_rec(incounter_node* current,
+                                        std::atomic<incounter_node*>& freelist,
+                                        const Random_int& random_int) {
+  if (incounter_try_remove(current)) {
+    return current;
+  }
+  int i = random_int(0, branching_factor);
+  for (int j = 0; j < branching_factor; j++) {
+    int k = (j + i) % branching_factor;
+    incounter_node* target = current->children[k].load();
+    if (target == nullptr) {
+      continue;
+    } else if (tagged_tag_of(target) == incounter_node::removing_tag) {
+      return nullptr;
+    } else {
+      incounter_node* result = incounter_decrement_rec(target, freelist, random_int);
+      if (result == nullptr) {
+        continue;
+      } else if (result == target) {
+        current->children[k].store(nullptr);
+        incounter_add_to_freelist(freelist, target, random_int);
+      }
+      return result;
+    }
+  }
+  return nullptr;
+}
+
+template <class Random_int>
+bool incounter_decrement(std::atomic<incounter_node*>& root,
+                         std::atomic<incounter_node*>& freelist,
+                         const Random_int& random_int) {
+  incounter_node* result = nullptr;
+  while (result == nullptr) {
+    result = incounter_decrement_rec(root.load(), freelist, random_int);
+  }
+  return result == root.load();
+}
+  
+bool incounter_decrement(std::atomic<incounter_node*>& root,
+                         std::atomic<incounter_node*>& freelist) {
+  return incounter_decrement(root, freelist, [&] (int lo, int hi) {
+    return random_int(lo, hi);
+  });
+}
 
 class dyntree_incounter : public incounter {
 public:
   
-  incounter_node* in;
-  incounter_node* out;
-  
-  incounter_node* minus() const {
-    return tagged_tag_with((incounter_node*)nullptr, incounter_node::minus_tag);
-  }
+  std::atomic<incounter_node*> root;
+  std::atomic<incounter_node*> freelist;
   
   dyntree_incounter() {
-    in = nullptr;
-    out = new incounter_node(minus());
-    out = tagged_tag_with(out, incounter_node::minus_tag);
+    root.store(nullptr);
+    freelist.store(tagged_tag_with((incounter_node*)nullptr, incounter_node::removing_tag));
   }
   
   ~dyntree_incounter() {
     assert(is_activated());
-    deallocate_incounter_tree(tagged_pointer_of(out));
-    out = nullptr;
+    incounter_node* n = tagged_pointer_of(freelist.load());
+    freelist.store(nullptr);
+    if (n != nullptr) {
+      incounter_tree_deallocate(n);
+    }
   }
   
   bool is_activated() const {
-    return in == nullptr;
+    return root.load() == nullptr;
   }
   
   void increment(node*) {
-    incounter_node* leaf = new incounter_node;
-    while (true) {
-      if (in == nullptr) {
-        in = leaf;
-        return;
-      }
-      assert(in != nullptr);
-      incounter_node* current = in;
-      while (true) {
-        int i = random_int(0, branching_factor);
-        std::atomic<incounter_node*>& branch = current->children[i];
-        incounter_node* next = branch.load();
-        if (tagged_tag_of(next) == incounter_node::minus_tag) {
-          break;
-        }
-        if (next == nullptr) {
-          incounter_node* orig = nullptr;
-          if (branch.compare_exchange_strong(orig, leaf)) {
-            return;
-          } else {
-            break;
-          }
-        }
-        current = next;
-      }
-    }
+    incounter_increment(root);
   }
   
   status_type decrement(node*) {
-    while (true) {
-      incounter_node* current = in;
-      assert(current != nullptr);
-      if (current->is_leaf()) {
-        if (try_to_detatch(current)) {
-          in = nullptr;
-          add_to_out(current);
-          return activated;
-        }
-      }
-      while (true) {
-        int i = random_int(0, branching_factor);
-        std::atomic<incounter_node*>& branch = current->children[i];
-        incounter_node* next = branch.load();
-        if (   (next == nullptr)
-            || (tagged_tag_of(next) == incounter_node::minus_tag) ) {
-          break;
-        }
-        if (next->is_leaf()) {
-          if (try_to_detatch(next)) {
-            branch.store(nullptr);
-            add_to_out(next);
-            return not_activated;
-          }
-          break;
-        }
-        current = next;
-      }
-    }
-    return not_activated;
-  }
-  
-  bool try_to_detatch(incounter_node* n) {
-    for (int i = 0; i < branching_factor; i++) {
-      incounter_node* orig = nullptr;
-      if (! (n->children[i].compare_exchange_strong(orig, minus()))) {
-        for (int j = i - 1; j >= 0; j--) {
-          n->children[j].store(nullptr);
-        }
-        return false;
-      }
-    }
-    return true;
-  }
-  
-  void add_to_out(incounter_node* n) {
-    n = tagged_tag_with(n, incounter_node::minus_tag);
-    while (true) {
-      incounter_node* current = tagged_pointer_of(out);
-      while (true) {
-        int i = random_int(0, branching_factor);
-        std::atomic<incounter_node*>& branch = current->children[i];
-        incounter_node* next = branch.load();
-        if (tagged_pointer_of(next) == nullptr) {
-          incounter_node* orig = next;
-          if (branch.compare_exchange_strong(orig, n)) {
-            return;
-          }
-          break;
-        }
-        current = tagged_pointer_of(next);
-      }
+    if (incounter_decrement(root, freelist)) {
+      return activated;
+    } else {
+      return not_activated;
     }
   }
   
@@ -461,28 +491,15 @@ public:
 class outset_node {
 public:
   
-  enum {
-    empty=1,
-    leaf=2,
-    interior=3,
-    finished_empty=4,
-    finished_leaf=5,
-    finished_interior=6
-  };
+  static constexpr int finished_tag = 1;
   
-  using tagged_pointer_type = union {
-    outset_node* interior;
-    node* leaf;
-  };
-  
-  std::atomic<tagged_pointer_type>* children;
+  node* n;
+  std::atomic<outset_node*>* children;
   
   void init() {
-    children = new std::atomic<tagged_pointer_type>[branching_factor];
+    children = new std::atomic<outset_node*>[branching_factor];
     for (int i = 0; i < branching_factor; i++) {
-      tagged_pointer_type p;
-      p.interior = tagged_tag_with((outset_node*)nullptr, empty);
-      children[i].store(p);
+      children[i].store(nullptr);
     }
   }
   
@@ -490,106 +507,92 @@ public:
     init();
   }
   
-  outset_node(tagged_pointer_type child1, tagged_pointer_type child2) {
-    init();
-    children[0].store(child1);
-    children[1].store(child2);
-  }
-  
   ~outset_node() {
     delete [] children;
   }
   
-  static tagged_pointer_type make_finished(tagged_pointer_type p) {
-    tagged_pointer_type result;
-    int tag = tagged_tag_of(p.interior);
-    if (tag == empty) {
-      outset_node* n = tagged_pointer_of(p.interior);
-      result.interior = tagged_tag_with(n, finished_empty);
-    } else if (tag == leaf) {
-      node* n = tagged_pointer_of(p.leaf);
-      result.leaf = tagged_tag_with(n, finished_leaf);
-    } else if (tag == interior) {
-      outset_node* n = tagged_pointer_of(p.interior);
-      result.interior = tagged_tag_with(n, finished_interior);
-    } else {
-      assert(false);
-    }
-    return result;
-  }
-  
 };
+  
+template <class Random_int>
+bool outset_insert(std::atomic<outset_node*>& root, node* n, const Random_int& random_int) {
+  outset_node* new_node = new outset_node;
+  new_node->n = n;
+  std::atomic<outset_node*>* current = &root;
+  while (true) {
+    outset_node* target = current->load();
+    if (target == nullptr) {
+      outset_node* orig = nullptr;
+      if (current->compare_exchange_strong(orig, new_node)) {
+        return true;
+      }
+      target = current->load();
+    }
+    if (tagged_tag_of(target) == outset_node::finished_tag) {
+      delete new_node;
+      return false;
+    } else {
+      int i = random_int(0, branching_factor);
+      current = &target->children[i];
+    }
+  }
+}
+  
+bool outset_insert(std::atomic<outset_node*>& root, node* n) {
+  return outset_insert(root, n, [&] (int lo, int hi) {
+    return random_int(lo, hi);
+  });
+}
+  
+void outset_add_to_freelist(std::atomic<outset_node*>& freelist, outset_node* old_node) {
+  std::atomic<outset_node*>* current = &freelist;
+  while (true) {
+    outset_node* target = current->load();
+    if (tagged_pointer_of(target) == nullptr) {
+      outset_node* orig = tagged_tag_with((outset_node*)nullptr, outset_node::finished_tag);
+      if (current->compare_exchange_strong(orig, old_node)) {
+        return;
+      }
+      target = current->load();
+    }
+    int i = random_int(0, branching_factor);
+    current = &target->children[i];
+  }
+}
   
 class dyntree_outset : public outset {
 public:
  
-  outset_node* root;
+  std::atomic<outset_node*> root;
+  std::atomic<outset_node*> freelist;
   
   dyntree_outset() {
-    root = new outset_node;
+    root.store(nullptr);
+    freelist.store(tagged_tag_with((outset_node*)nullptr, outset_node::finished_tag));
   }
   
   ~dyntree_outset() {
-    deallocate_outset_tree(root);
-  }
-  
-  insert_status_type insert(outset_node::tagged_pointer_type val) {
-    outset_node* current = root;
-    outset_node* next = nullptr;
-    while (true) {
-      outset_node::tagged_pointer_type n;
-      while (true) {
-        int i = random_int(0, branching_factor);
-        n = current->children[i].load();
-        int tag = tagged_tag_of(n.interior);
-        if (   (tag == outset_node::finished_empty)
-            || (tag == outset_node::finished_leaf)
-            || (tag == outset_node::finished_interior) ) {
-          return insert_fail;
-        }
-        if (tag == outset_node::empty) {
-          outset_node::tagged_pointer_type orig = n;
-          if (current->children[i].compare_exchange_strong(orig, val)) {
-            return insert_success;
-          }
-          n = current->children[i].load();
-          tag = tagged_tag_of(n.interior);
-        }
-        if (tag == outset_node::leaf) {
-          outset_node::tagged_pointer_type orig = n;
-          outset_node* tmp = new outset_node(val, n);
-          outset_node::tagged_pointer_type next;
-          next.interior = tagged_tag_with(tmp, outset_node::interior);
-          if (current->children[i].compare_exchange_strong(orig, next)) {
-            return insert_success;
-          }
-          delete tmp;
-          n = current->children[i].load();
-          tag = tagged_tag_of(n.interior);
-        }
-        if (tag == outset_node::interior) {
-          next = tagged_pointer_of(n.interior);
-          break;
-        }
-      }
-      current = next;
+    assert(root.load() == nullptr);
+    outset_node* n = freelist.load();
+    freelist.store(nullptr);
+    if (n != nullptr) {
+      outset_tree_deallocate(n);
     }
-    assert(false); // control should never reach here
-    return insert_fail;
   }
   
-  insert_status_type insert(node* leaf) {
-    outset_node::tagged_pointer_type val;
-    val.leaf = tagged_tag_with(leaf, outset_node::leaf);
-    return insert(val);
+  insert_status_type insert(node* n) {
+    if (outset_insert(root, n)) {
+      return insert_success;
+    } else {
+      return insert_fail;
+    }
   }
 
-  void add(pasl::sched::thread_p t) {
-    assert(false);
+  void finish() {
+    outset_finish(this);
   }
   
-  void finish() {
-    notify_outset_nodes(this);
+  void add(pasl::sched::thread_p t) {
+    assert(false);
   }
 
 };
@@ -953,7 +956,7 @@ node* new_parallel_for(long lo, long hi, node* join, const Body& body) {
   
 namespace dyntree {
   
-void deallocate_incounter_tree_partial(std::deque<incounter_node*>& todo) {
+void incounter_tree_deallocate_partial(std::deque<incounter_node*>& todo) {
   int k = 0;
   while ( (k < communication_delay) && (! todo.empty()) ) {
     incounter_node* current = todo.back();
@@ -970,10 +973,8 @@ void deallocate_incounter_tree_partial(std::deque<incounter_node*>& todo) {
   }
 }
   
-class deallocate_incounter_tree_par : public node {
+class incounter_tree_deallocate_par : public node {
 public:
-  
-  using self_type = deallocate_incounter_tree_par;
   
   enum {
     process_block=0,
@@ -985,7 +986,7 @@ public:
   void body() {
     switch (current_block_id) {
       case process_block: {
-        deallocate_incounter_tree_partial(todo);
+        incounter_tree_deallocate_partial(todo);
         jump_to(repeat_block);
         break;
       }
@@ -1008,54 +1009,68 @@ public:
     assert(size() >= 2);
     auto n = todo.front();
     todo.pop_front();
-    auto t = new self_type();
+    auto t = new incounter_tree_deallocate_par();
     t->todo.push_back(n);
     return t;
   }
   
 };
   
-void deallocate_incounter_tree(incounter_node* root) {
-  deallocate_incounter_tree_par d;
+void incounter_tree_deallocate(incounter_node* root) {
+  if (should_deallocate_sequentially) {
+    incounter_tree_deallocate_sequential(root);
+    return;
+  }
+  incounter_tree_deallocate_par d;
   d.todo.push_back(root);
-  deallocate_incounter_tree_partial(d.todo);
+  incounter_tree_deallocate_partial(d.todo);
   if (! d.todo.empty()) {
-    node* n = new deallocate_incounter_tree_par(d);
+    node* n = new incounter_tree_deallocate_par(d);
     prepare_node(n);
     add_node(n);
   }
 }
   
-void notify_outset_tree_nodes_partial(std::deque<outset_node*>& todo) {
+void incounter_tree_deallocate_sequential(incounter_node* root) {
+  incounter_tree_deallocate_par d;
+  d.todo.push_back(root);
+  while (! d.todo.empty()) {
+    incounter_tree_deallocate_partial(d.todo);
+  }
+}
+  
+void outset_finish_partial(std::atomic<outset_node*>* freelist, std::deque<std::atomic<outset_node*>*>& todo) {
+  outset_node* finished_tag = tagged_tag_with((outset_node*)nullptr, outset_node::finished_tag);
   int k = 0;
   while ( (k < communication_delay) && (! todo.empty()) ) {
-    outset_node* current = todo.back();
+    std::atomic<outset_node*>* current = todo.back();
     todo.pop_back();
-    for (int i = 0; i < branching_factor; i++) {
-      outset_node::tagged_pointer_type n;
-      while (true) {
-        n = current->children[i].load();
-        outset_node::tagged_pointer_type orig = n;
-        outset_node::tagged_pointer_type next = outset_node::make_finished(n);
-        if (current->children[i].compare_exchange_strong(orig, next)) {
-          break;
-        }
+    assert(current != nullptr);
+    outset_node* target = current->load();
+    if (target == nullptr) {
+      outset_node* orig = nullptr;
+      if (current->compare_exchange_strong(orig, finished_tag)) {
+        k++;
+        continue;
       }
-      int tag = tagged_tag_of(n.leaf);
-      if (tag == outset_node::leaf) {
-        decrement_incounter(tagged_pointer_of(n.leaf));
-      } else if (tag == outset_node::interior) {
-        todo.push_back(tagged_pointer_of(n.interior));
-      }
+      target = current->load();
     }
+    outset_node* orig = target;
+    bool b = current->compare_exchange_strong(orig, finished_tag);
+    assert(b);
+    for (int i = 0; i < branching_factor; i++) {
+      todo.push_back(&target->children[i]);
+    }
+    node* n = target->n;
+    assert(n != nullptr);
+    decrement_incounter(n);
+    outset_add_to_freelist(*freelist, target);
     k++;
   }
 }
   
-class notify_outset_tree_nodes_par_rec : public node {
+class outset_finish_parallel_rec : public node {
 public:
-  
-  using self_type = notify_outset_tree_nodes_par_rec;
   
   enum {
     process_block=0,
@@ -1064,22 +1079,27 @@ public:
   };
 
   node* join;
-  std::deque<outset_node*> todo;
+  std::atomic<outset_node*>* freelist;
+  std::deque<std::atomic<outset_node*>*> todo;
   
-  notify_outset_tree_nodes_par_rec(node* join, outset_node* n)
-  : join(join) {
+  outset_finish_parallel_rec(node* join,
+                             std::atomic<outset_node*>* freelist,
+                             std::atomic<outset_node*>* n)
+  : join(join), freelist(freelist) {
     todo.push_back(n);
   }
   
-  notify_outset_tree_nodes_par_rec(node* join, std::deque<outset_node*>& _todo)
-  : join(join) {
+  outset_finish_parallel_rec(node* join,
+                             std::atomic<outset_node*>* freelist,
+                             std::deque<std::atomic<outset_node*>*>& _todo)
+  : join(join), freelist(freelist) {
     _todo.swap(todo);
   }
   
   void body() {
     switch (current_block_id) {
       case process_block: {
-        notify_outset_tree_nodes_partial(todo);
+        outset_finish_partial(freelist, todo);
         jump_to(repeat_block);
         break;
       }
@@ -1102,17 +1122,15 @@ public:
     assert(size() >= 2);
     auto n = todo.front();
     todo.pop_front();
-    auto t = new self_type(join, n);
+    auto t = new outset_finish_parallel_rec(join, freelist, n);
     add_edge(t, join);
     return t;
   }
   
 };
   
-class notify_outset_tree_nodes_par : public node {
+class outset_finish_parallel : public node {
 public:
-  
-  using self_type = notify_outset_tree_nodes_par;
   
   enum {
     entry_block=0,
@@ -1120,9 +1138,9 @@ public:
   };
   
   dyntree_outset* out;
-  std::deque<outset_node*> todo;
+  std::deque<std::atomic<outset_node*>*> todo;
   
-  notify_outset_tree_nodes_par(dyntree_outset* out, std::deque<outset_node*>& _todo)
+  outset_finish_parallel(dyntree_outset* out, std::deque<std::atomic<outset_node*>*>& _todo)
   : out(out) {
     todo.swap(_todo);
   }
@@ -1130,7 +1148,7 @@ public:
   void body() {
     switch (current_block_id) {
       case entry_block: {
-        finish(new notify_outset_tree_nodes_par_rec(this, todo),
+        finish(new outset_finish_parallel_rec(this, &(out->freelist), todo),
                exit_block);
         break;
       }
@@ -1147,12 +1165,12 @@ public:
   
 };
   
-void notify_outset_nodes(dyntree_outset* out) {
-  std::deque<outset_node*> todo;
-  todo.push_back(out->root);
-  notify_outset_tree_nodes_partial(todo);
+void outset_finish(dyntree_outset* out) {
+  std::deque<std::atomic<outset_node*>*> todo;
+  todo.push_back(&(out->root));
+  outset_finish_partial(&(out->freelist), todo);
   if (! todo.empty()) {
-    auto n = new notify_outset_tree_nodes_par(out, todo);
+    auto n = new outset_finish_parallel(out, todo);
     prepare_node(n);
     add_node(n);
   } else {
@@ -1162,33 +1180,25 @@ void notify_outset_nodes(dyntree_outset* out) {
   }
 }
   
-void deallocate_outset_tree_partial(std::deque<outset_node*>& todo) {
+void outset_tree_deallocate_partial(std::deque<outset_node*>& todo) {
   int k = 0;
   while ( (k < communication_delay) && (! todo.empty()) ) {
-    outset_node* n = todo.back();
+    outset_node* target = todo.back();
     todo.pop_back();
+    assert(target != nullptr);
     for (int i = 0; i < branching_factor; i++) {
-      outset_node::tagged_pointer_type c = n->children[i].load();
-      int tag = tagged_tag_of(c.interior);
-      if (   (tag == outset_node::finished_empty)
-          || (tag == outset_node::finished_leaf) ) {
-        // nothing to do
-      } else if (tag == outset_node::finished_interior) {
-        todo.push_back(tagged_pointer_of(c.interior));
-      } else {
-        // should not occur, given that finished() has been called
-        assert(false);
+      outset_node* n = target->children[i].load();
+      if (n != nullptr) {
+        todo.push_back(tagged_pointer_of(n));
       }
     }
-    delete n;
+    delete target;
     k++;
   }
 }
   
-class deallocate_outset_tree_par : public node {
+class outset_tree_deallocate_parallel : public node {
 public:
-  
-  using self_type = deallocate_outset_tree_par;
   
   enum {
     process_block=0,
@@ -1200,7 +1210,7 @@ public:
   void body() {
     switch (current_block_id) {
       case process_block: {
-        deallocate_outset_tree_partial(todo);
+        outset_tree_deallocate_partial(todo);
         jump_to(repeat_block);
         break;
       }
@@ -1223,21 +1233,33 @@ public:
     assert(size() >= 2);
     auto n = todo.front();
     todo.pop_front();
-    auto t = new self_type();
+    auto t = new outset_tree_deallocate_parallel();
     t->todo.push_back(n);
     return t;
   }
   
 };
   
-void deallocate_outset_tree(outset_node* root) {
-  deallocate_outset_tree_par d;
+void outset_tree_deallocate(outset_node* root) {
+  if (should_deallocate_sequentially) {
+    outset_tree_deallocate_sequential(root);
+    return;
+  }
+  outset_tree_deallocate_parallel d;
   d.todo.push_back(root);
-  deallocate_outset_tree_partial(d.todo);
+  outset_tree_deallocate_partial(d.todo);
   if (! d.todo.empty()) {
-    node* n = new deallocate_outset_tree_par(d);
+    node* n = new outset_tree_deallocate_parallel(d);
     prepare_node(n);
     add_node(n);
+  }
+}
+  
+void outset_tree_deallocate_sequential(outset_node* root) {
+  outset_tree_deallocate_parallel d;
+  d.todo.push_back(root);
+  while (! d.todo.empty()) {
+    outset_tree_deallocate_partial(d.todo);
   }
 }
   
@@ -1291,7 +1313,7 @@ void insert_outport(node*, outset*, outset_node*);
 void insert_outport(node*, node*, outset_node*);
 void deallocate_future(node*, outset*);
 void notify_outset_tree_nodes(outset*);
-void deallocate_outset_tree(outset_node*);
+void outset_tree_deallocate(outset_node*);
 template <class Body>
 node* new_parallel_for(long, long, node*, const Body&);
   
@@ -1419,7 +1441,7 @@ public:
   }
   
   ~outset() {
-    deallocate_outset_tree(root);
+    outset_tree_deallocate(root);
   }
   
   outset_node* find_leaf() const {
@@ -1978,7 +2000,7 @@ node* new_parallel_for(long lo, long hi, node* join, const Body& body) {
   return new lazy_parallel_for_rec<Body>(lo, hi, join, body);
 }
   
-void notify_outset_tree_nodes_partial(std::deque<outset_node*>& todo) {
+void outset_finish_partial(std::deque<outset_node*>& todo) {
   int k = 0;
   while ( (k < communication_delay) && (! todo.empty()) ) {
     outset_node* n = todo.back();
@@ -2003,10 +2025,10 @@ void notify_outset_tree_nodes_partial(std::deque<outset_node*>& todo) {
   }
 }
   
-class notify_outset_tree_nodes_par_rec : public node {
+class outset_finish_parallel_rec : public node {
 public:
   
-  using self_type = notify_outset_tree_nodes_par_rec;
+  using self_type = outset_finish_parallel_rec;
   
   enum {
     process_block=0,
@@ -2017,12 +2039,12 @@ public:
   node* join;
   std::deque<outset_node*> todo;
   
-  notify_outset_tree_nodes_par_rec(node* join, outset_node* n)
+  outset_finish_parallel_rec(node* join, outset_node* n)
   : join(join) {
     todo.push_back(n);
   }
   
-  notify_outset_tree_nodes_par_rec(node* join, std::deque<outset_node*>& _todo)
+  outset_finish_parallel_rec(node* join, std::deque<outset_node*>& _todo)
   : join(join) {
     _todo.swap(todo);
   }
@@ -2030,7 +2052,7 @@ public:
   void body() {
     switch (current_block_id) {
       case process_block: {
-        notify_outset_tree_nodes_partial(todo);
+        outset_finish_partial(todo);
         jump_to(repeat_block);
         break;
       }
@@ -2064,10 +2086,10 @@ public:
   
 };
   
-class notify_outset_tree_nodes_par : public node {
+class outset_finish_parallel : public node {
 public:
   
-  using self_type = notify_outset_tree_nodes_par;
+  using self_type = outset_finish_parallel;
   
   enum {
     entry_block=0,
@@ -2077,7 +2099,7 @@ public:
   outset* out;
   std::deque<outset_node*> todo;
   
-  notify_outset_tree_nodes_par(outset* out, std::deque<outset_node*>& _todo)
+  outset_finish_parallel(outset* out, std::deque<outset_node*>& _todo)
   : out(out) {
     todo.swap(_todo);
   }
@@ -2085,7 +2107,7 @@ public:
   void body() {
     switch (current_block_id) {
       case entry_block: {
-        finish(new notify_outset_tree_nodes_par_rec(this, todo),
+        finish(new outset_finish_parallel_rec(this, todo),
                exit_block);
         break;
       }
@@ -2105,9 +2127,9 @@ public:
 void notify_outset_tree_nodes(outset* out) {
   std::deque<outset_node*> todo;
   todo.push_back(out->root);
-  notify_outset_tree_nodes_partial(todo);
+  outset_finish_partial(todo);
   if (! todo.empty()) {
-    auto n = new notify_outset_tree_nodes_par(out, todo);
+    auto n = new outset_finish_parallel(out, todo);
     prepare_node(n);
     add_node(n);
   } else {
@@ -2117,7 +2139,7 @@ void notify_outset_tree_nodes(outset* out) {
   }
 }
   
-void deallocate_outset_tree_partial(std::deque<outset_node*>& todo) {
+void outset_tree_deallocate_partial(std::deque<outset_node*>& todo) {
   int k = 0;
   while ( (k < communication_delay) && (! todo.empty()) ) {
     outset_node* n = todo.back();
@@ -2133,10 +2155,10 @@ void deallocate_outset_tree_partial(std::deque<outset_node*>& todo) {
   }
 }
 
-class deallocate_outset_tree_par : public node {
+class outset_tree_deallocate_par : public node {
 public:
   
-  using self_type = deallocate_outset_tree_par;
+  using self_type = outset_tree_deallocate_par;
   
   enum {
     process_block=0,
@@ -2148,7 +2170,7 @@ public:
   void body() {
     switch (current_block_id) {
       case process_block: {
-        deallocate_outset_tree_partial(todo);
+        outset_tree_deallocate_partial(todo);
         jump_to(repeat_block);
         break;
       }
@@ -2179,12 +2201,12 @@ public:
   
 };
   
-void deallocate_outset_tree(outset_node* root) {
-  deallocate_outset_tree_par d;
+void outset_tree_deallocate(outset_node* root) {
+  outset_tree_deallocate_par d;
   d.todo.push_back(root);
-  deallocate_outset_tree_partial(d.todo);
+  outset_tree_deallocate_partial(d.todo);
   if (! d.todo.empty()) {
-    node* n = new deallocate_outset_tree_par(d);
+    node* n = new outset_tree_deallocate_par(d);
     prepare_node(n);
     add_node(n);
   }
@@ -2202,38 +2224,33 @@ namespace benchmarks {
   
 template <class node>
 using outset_of = typename node::outset_type;
-  
-unsigned int hashu(unsigned int a) {
-  a = (a+0x7ed55d16) + (a<<12);
-  a = (a^0xc761c23c) ^ (a>>19);
-  a = (a+0x165667b1) + (a<<5);
-  a = (a+0xd3a2646c) ^ (a<<9);
-  a = (a+0xfd7046c5) + (a<<3);
-  a = (a^0xb55a4f09) ^ (a>>16);
-  return a;
-}
 
 template <class Incounter>
-void benchmark_incounter_thread(int my_id, Incounter& incounter, bool& should_stop, int& counter, unsigned int seed) {
+void benchmark_incounter_thread(int my_id, Incounter& incounter, bool& should_stop, int& nb_operations, unsigned int seed) {
+  std::mt19937 generator(seed);
+  auto random_int = [&] (int lo, int hi) {
+    std::uniform_int_distribution<int> distribution(lo, hi-1);
+    return distribution(generator);
+  };
   int c = 0;
-  unsigned int rng = seed;
   int nb_pending_increments = 0;
   while (! should_stop) {
-    if (nb_pending_increments > 0 && rng % 2 == 0) {
-      incounter.decrement(my_id);
+    if ((nb_pending_increments > 0) && (random_int(0, 2) == 0)) {
+      nb_pending_increments--;
+      incounter.decrement(my_id, random_int);
     } else {
       nb_pending_increments++;
-      incounter.increment(my_id);
+      incounter.increment(my_id, random_int);
     }
-    rng = hashu(rng);
     c++;
   }
+  c += nb_pending_increments;
   while (nb_pending_increments > 0) {
-    incounter.decrement(my_id);
+    incounter.decrement(my_id, random_int);
     nb_pending_increments--;
-    c++;
   }
-  counter = c;
+  assert(incounter.is_activated());
+  nb_operations = c;
 }
   
 class simple_incounter_wrapper {
@@ -2245,12 +2262,18 @@ public:
     counter.store(0);
   }
   
-  void increment(int) {
+  template <class Random_int>
+  void increment(int, const Random_int&) {
     counter++;
   }
   
-  bool decrement(int) {
+  template <class Random_int>
+  bool decrement(int, const Random_int&) {
     return counter-- == 0;
+  }
+  
+  bool is_activated() const {
+    return counter.load() == 0;
   }
   
 };
@@ -2267,14 +2290,20 @@ public:
     return abs(hash) % snzi.get_nb_leaf_nodes();
   }
   
-  void increment(int hash) {
+  template <class Random_int>
+  void increment(int hash, const Random_int&) {
     int i = my_leaf_node(hash);
     snzi.ith_leaf_node(i)->arrive();
   }
   
-  bool decrement(int hash) {
+  template <class Random_int>
+  bool decrement(int hash, const Random_int&) {
     int i = my_leaf_node(hash);
     return snzi.ith_leaf_node(i)->depart();
+  }
+  
+  bool is_activated() const {
+    return ! snzi.is_nonzero();
   }
   
 };
@@ -2286,29 +2315,64 @@ public:
   
   dyntree_incounter_wrapper() { }
   
-  void increment(int) {
-    incounter.increment(nullptr);
+  template <class Random_int>
+  void increment(int, const Random_int& random_int) {
+    direct::dyntree::incounter_increment(incounter.root, random_int);
   }
   
-  bool decrement(int) {
-    return incounter.decrement(nullptr);
+  template <class Random_int>
+  bool decrement(int, const Random_int& random_int) {
+    return direct::dyntree::incounter_decrement(incounter.root, incounter.freelist, random_int);
+  }
+  
+  bool is_activated() const {
+    return incounter.is_activated();
   }
   
 };
 
 template <class Outset>
-void benchmark_outset_thread(Outset& outset, bool& should_stop, int& counter) {
+void benchmark_outset_thread(Outset& outset, bool& should_stop, int& nb_operations) {
+  std::mt19937 generator;
   int c = 0;
   while (! should_stop) {
-    outset.add(nullptr);
+    outset.add(nullptr, [&] (int lo, int hi) {
+      std::uniform_int_distribution<int> distribution(lo, hi-1);
+      return distribution(generator);
+    });
     c++;
   }
-  counter = c;
+  nb_operations = c;
 }
+  
+class dyntree_outset_wrapper {
+public:
+  
+  direct::dyntree::dyntree_outset outset;
+  
+  template <class Random_int>
+  void add(void*, const Random_int& random_int) {
+    direct::dyntree::outset_insert(outset.root, nullptr, random_int);
+  }
+  
+};
+  
+class simple_outset_wrapper {
+public:
+  
+  direct::simple::simple_outset outset;
+  
+  template <class Random_int>
+  void add(void*, const Random_int&) {
+    outset.insert(nullptr);
+  }
+  
+};
 
 template <class Benchmark>
 void launch_microbenchmark(const Benchmark& benchmark, int nb_threads, int nb_milliseconds) {
   bool should_stop = false;
+  direct::dyntree::should_deallocate_sequentially = true;
   std::vector<std::thread*> threads;
   int counters[nb_threads];
   for (int i = 0; i < nb_threads; i++) {
@@ -2327,11 +2391,11 @@ void launch_microbenchmark(const Benchmark& benchmark, int nb_threads, int nb_mi
   auto end = std::chrono::high_resolution_clock::now();
   std::chrono::duration<double> diff = end-start;
   std::cout << "exectime\t" << diff.count() << std::endl;
-  int count = 0;
+  int nb_operations = 0;
   for (int i = 0; i < nb_threads; i++) {
-    count += counters[i];
+    nb_operations += counters[i];
   }
-  std::cout << "nb_operations  " << count << std::endl;
+  std::cout << "nb_operations  " << nb_operations << std::endl;
   for (std::thread* t : threads) {
     delete t;
   }
@@ -2340,14 +2404,14 @@ void launch_microbenchmark(const Benchmark& benchmark, int nb_threads, int nb_mi
 void launch_outset_microbenchmark() {
   int nb_threads = pasl::util::cmdline::parse_int("proc");
   int nb_milliseconds = pasl::util::cmdline::parse_int("nb_milliseconds");
-  direct::simple::simple_outset* simple_outset = nullptr;
-  direct::dyntree::dyntree_outset* dyntree_outset = nullptr;
+  simple_outset_wrapper* simple_outset = nullptr;
+  dyntree_outset_wrapper* dyntree_outset = nullptr;
   pasl::util::cmdline::argmap_dispatch c;
   c.add("simple", [&] {
-    simple_outset = new direct::simple::simple_outset;
+    simple_outset = new simple_outset_wrapper;
   });
   c.add("dyntree", [&] {
-    dyntree_outset = new direct::dyntree::dyntree_outset;
+    dyntree_outset = new dyntree_outset_wrapper;
   });
   c.find_by_arg("outset")();
   auto benchmark_thread = [&] (int, bool& should_stop, int& counter) {
