@@ -540,7 +540,7 @@ bool outset_insert(std::atomic<outset_node*>& root, node* n, const Random_int& r
       return false;
     } else {
       int i = random_int(0, branching_factor);
-      current = &target->children[i];
+      current = &(target->children[i]);
     }
   }
 }
@@ -563,7 +563,7 @@ void outset_add_to_freelist(std::atomic<outset_node*>& freelist, outset_node* ol
       target = current->load();
     }
     int i = random_int(0, branching_factor);
-    current = &target->children[i];
+    current = &(target->children[i]);
   }
 }
   
@@ -579,10 +579,10 @@ public:
   }
   
   ~dyntree_outset() {
-    assert(root.load() == nullptr);
-    outset_node* n = freelist.load();
-    freelist.store(nullptr);
+    assert(tagged_pointer_of(root.load()) == nullptr);
+    outset_node* n = tagged_pointer_of(freelist.load());
     if (n != nullptr) {
+      freelist.store(nullptr);
       outset_tree_deallocate(n);
     }
   }
@@ -1055,6 +1055,7 @@ void outset_finish_partial(std::atomic<outset_node*>* freelist, std::deque<std::
     todo.pop_back();
     assert(current != nullptr);
     outset_node* target = current->load();
+    assert(tagged_tag_of(target) != outset_node::finished_tag);
     if (target == nullptr) {
       outset_node* orig = nullptr;
       if (current->compare_exchange_strong(orig, finished_tag)) {
@@ -1067,7 +1068,7 @@ void outset_finish_partial(std::atomic<outset_node*>* freelist, std::deque<std::
     bool b = current->compare_exchange_strong(orig, finished_tag);
     assert(b);
     for (int i = 0; i < branching_factor; i++) {
-      todo.push_back(&target->children[i]);
+      todo.push_back(&(target->children[i]));
     }
     node* n = target->n;
     assert(n != nullptr);
@@ -1195,9 +1196,9 @@ void outset_tree_deallocate_partial(std::deque<outset_node*>& todo) {
     todo.pop_back();
     assert(target != nullptr);
     for (int i = 0; i < branching_factor; i++) {
-      outset_node* n = target->children[i].load();
+      outset_node* n = tagged_pointer_of(target->children[i].load());
       if (n != nullptr) {
-        todo.push_back(tagged_pointer_of(n));
+        todo.push_back(n);
       }
     }
     delete target;
@@ -1241,7 +1242,7 @@ public:
     assert(size() >= 2);
     auto n = todo.front();
     todo.pop_front();
-    auto t = new outset_tree_deallocate_parallel();
+    auto t = new outset_tree_deallocate_parallel;
     t->todo.push_back(n);
     return t;
   }
@@ -1320,7 +1321,7 @@ void insert_inport(node*, node*, incounter_node*);
 void insert_outport(node*, outset*, outset_node*);
 void insert_outport(node*, node*, outset_node*);
 void deallocate_future(node*, outset*);
-void notify_outset_tree_nodes(outset*);
+void outset_finish(outset*);
 void outset_tree_deallocate(outset_node*);
 template <class Body>
 node* new_parallel_for(long, long, node*, const Body&);
@@ -1511,7 +1512,7 @@ public:
     if (n != nullptr) {
       decrement_inports(n);
     }
-    notify_outset_tree_nodes(this);
+    outset_finish(this);
   }
   
   bool should_deallocate_automatically = true;
@@ -2132,7 +2133,7 @@ public:
   
 };
   
-void notify_outset_tree_nodes(outset* out) {
+void outset_finish(outset* out) {
   std::deque<outset_node*> todo;
   todo.push_back(out->root);
   outset_finish_partial(todo);
