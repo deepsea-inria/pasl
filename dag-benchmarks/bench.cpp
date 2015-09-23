@@ -523,6 +523,9 @@ public:
   
 template <class Random_int>
 bool outset_insert(std::atomic<outset_node*>& root, node* n, const Random_int& random_int) {
+  if (tagged_tag_of(root.load()) == outset_node::finished_tag) {
+    return false;
+  }
   outset_node* new_node = new outset_node;
   new_node->n = n;
   std::atomic<outset_node*>* current = &root;
@@ -554,13 +557,15 @@ bool outset_insert(std::atomic<outset_node*>& root, node* n) {
 void outset_add_to_freelist(std::atomic<outset_node*>& freelist, outset_node* old_node) {
   std::atomic<outset_node*>* current = &freelist;
   while (true) {
-    outset_node* target = current->load();
-    if (tagged_pointer_of(target) == nullptr) {
-      outset_node* orig = tagged_tag_with((outset_node*)nullptr, outset_node::finished_tag);
-      if (current->compare_exchange_strong(orig, old_node)) {
+    assert(tagged_tag_of(current->load()) == outset_node::finished_tag);
+    outset_node* target = tagged_pointer_of(current->load());
+    if (target == nullptr) {
+      outset_node* orig = tagged_tag_with(target, outset_node::finished_tag);
+      outset_node* next = tagged_tag_with(old_node, outset_node::finished_tag);
+      if (current->compare_exchange_strong(orig, next)) {
         return;
       }
-      target = current->load();
+      target = tagged_pointer_of(current->load());
     }
     int i = random_int(0, branching_factor);
     current = &(target->children[i]);
@@ -1047,33 +1052,28 @@ void incounter_tree_deallocate_sequential(incounter_node* root) {
   }
 }
   
-void outset_finish_partial(std::atomic<outset_node*>* freelist, std::deque<std::atomic<outset_node*>*>& todo) {
+void outset_finish_partial(std::atomic<outset_node*>* freelist, std::deque<outset_node*>& todo) {
   outset_node* finished_tag = tagged_tag_with((outset_node*)nullptr, outset_node::finished_tag);
   int k = 0;
   while ( (k < communication_delay) && (! todo.empty()) ) {
-    std::atomic<outset_node*>* current = todo.back();
+    outset_node* current = todo.back();
     todo.pop_back();
     assert(current != nullptr);
-    outset_node* target = current->load();
-    assert(tagged_tag_of(target) != outset_node::finished_tag);
-    if (target == nullptr) {
-      outset_node* orig = nullptr;
-      if (current->compare_exchange_strong(orig, finished_tag)) {
-        k++;
-        continue;
-      }
-      target = current->load();
-    }
-    outset_node* orig = target;
-    bool b = current->compare_exchange_strong(orig, finished_tag);
-    assert(b);
     for (int i = 0; i < branching_factor; i++) {
-      todo.push_back(&(target->children[i]));
+      while (true) {
+        outset_node* child = current->children[i].load();
+        outset_node* orig = child;
+        if (current->children[i].compare_exchange_strong(orig, finished_tag)) {
+          if (child != nullptr) {
+            todo.push_back(child);
+          }
+          break;
+        }
+      }
     }
-    node* n = target->n;
-    assert(n != nullptr);
+    node* n = current->n;
     decrement_incounter(n);
-    outset_add_to_freelist(*freelist, target);
+    outset_add_to_freelist(*freelist, current);
     k++;
   }
 }
@@ -1089,18 +1089,18 @@ public:
 
   node* join;
   std::atomic<outset_node*>* freelist;
-  std::deque<std::atomic<outset_node*>*> todo;
+  std::deque<outset_node*> todo;
   
   outset_finish_parallel_rec(node* join,
                              std::atomic<outset_node*>* freelist,
-                             std::atomic<outset_node*>* n)
+                             outset_node* n)
   : join(join), freelist(freelist) {
     todo.push_back(n);
   }
   
   outset_finish_parallel_rec(node* join,
                              std::atomic<outset_node*>* freelist,
-                             std::deque<std::atomic<outset_node*>*>& _todo)
+                             std::deque<outset_node*>& _todo)
   : join(join), freelist(freelist) {
     _todo.swap(todo);
   }
@@ -1147,9 +1147,9 @@ public:
   };
   
   dyntree_outset* out;
-  std::deque<std::atomic<outset_node*>*> todo;
+  std::deque<outset_node*> todo;
   
-  outset_finish_parallel(dyntree_outset* out, std::deque<std::atomic<outset_node*>*>& _todo)
+  outset_finish_parallel(dyntree_outset* out, std::deque<outset_node*>& _todo)
   : out(out) {
     todo.swap(_todo);
   }
@@ -1175,8 +1175,17 @@ public:
 };
   
 void outset_finish(dyntree_outset* out) {
-  std::deque<std::atomic<outset_node*>*> todo;
-  todo.push_back(&(out->root));
+  outset_node* finished_tag = tagged_tag_with((outset_node*)nullptr, outset_node::finished_tag);
+  std::deque<outset_node*> todo;
+  outset_node* orig = out->root.load();
+  while (true) {
+    if (out->root.compare_exchange_strong(orig, finished_tag)) {
+      break;
+    }
+  }
+  if (orig != nullptr) {
+    todo.push_back(orig);
+  }
   outset_finish_partial(&(out->freelist), todo);
   if (! todo.empty()) {
     auto n = new outset_finish_parallel(out, todo);
