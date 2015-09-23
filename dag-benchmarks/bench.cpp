@@ -192,7 +192,7 @@ public:
   
   std::atomic<concurrent_list_type*> head;
   
-  const int finished_code = 1;
+  const int finished_tag = 1;
   
   simple_outset() {
     head.store(nullptr);
@@ -204,7 +204,7 @@ public:
     cell->n = n;
     while (true) {
       concurrent_list_type* orig = head.load();
-      if (tagged_tag_of(orig) == finished_code) {
+      if (tagged_tag_of(orig) == finished_tag) {
         result = insert_fail;
         delete cell;
         break;
@@ -223,7 +223,7 @@ public:
     while (true) {
       concurrent_list_type* orig = head.load();
       concurrent_list_type* v = (concurrent_list_type*)nullptr;
-      concurrent_list_type* next = tagged_tag_with(v, finished_code);
+      concurrent_list_type* next = tagged_tag_with(v, finished_tag);
       if (head.compare_exchange_strong(orig, next)) {
         todo = orig;
         break;
@@ -2615,21 +2615,24 @@ public:
         break;
       }
       case recurse: {
-        node::async(new edge_throughput_microbench_loop(join, producer, buffer), join,
-                    loop);
+        if (buffer->load() != nullptr) {
+          node::jump_to(loop);
+        } else {
+          node::async(new edge_throughput_microbench_loop(join, producer, buffer), join,
+                      loop);
+        }
         break;
       }
       case loop: {
         node* orig = buffer->load();
+        node* next = tagged_tag_with((node*)nullptr, 1);
         if (orig == nullptr) {
           node::jump_to(entry);
-        } else if (orig == tagged_tag_with((node*)nullptr, 1)) {
+        } else if (orig == next) {
           break;
         } else {
-          node* next = tagged_tag_with((node*)nullptr, 1);
           if (buffer->compare_exchange_strong(orig, next)) {
-            node::call(orig,
-                       exit);
+            pasl::sched::instrategy::schedule(orig);
           }
         }
         break;
@@ -2656,16 +2659,20 @@ public:
   
   std::atomic<node*>* buffer;
   int nb_milliseconds;
+  outset_of<node>* cont;
   
   void body() {
     switch (node::current_block_id) {
       case entry: {
         std::thread timer([&] {
           std::this_thread::sleep_for(std::chrono::milliseconds(nb_milliseconds));
+          node::out = cont;
           buffer->store(this);
         });
         timer.detach();
         node::detach(exit);
+        cont = (outset_of<node>*)node::out;
+        node::out = nullptr;
         break;
       }
       case exit: {
@@ -2697,6 +2704,7 @@ public:
     switch (node::current_block_id) {
       case entry: {
         edge_throughput_microbench_counter.init(0);
+        buffer.store(nullptr);
         producer = node::future(new edge_throughput_microbench_future<node>(nb_milliseconds, &buffer),
                                 gen);
         break;
