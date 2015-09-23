@@ -2406,7 +2406,7 @@ void launch_microbenchmark(const Benchmark& benchmark, int nb_threads, int nb_mi
   }
   auto end = std::chrono::high_resolution_clock::now();
   std::chrono::duration<double> diff = end-start;
-  std::cout << "exectime\t" << diff.count() << std::endl;
+  printf ("exectime %.3lf\n", diff.count());
   int nb_operations = 0;
   for (int i = 0; i < nb_threads; i++) {
     nb_operations += counters[i];
@@ -3832,8 +3832,8 @@ int main(int argc, char** argv) {
     auto start = std::chrono::system_clock::now();
     launch();
     auto end = std::chrono::system_clock::now();
-    std::chrono::duration<float> duration = end - start;
-    std::cout << "exectime " << duration.count() << std::endl;
+    std::chrono::duration<float> diff = end - start;
+    printf ("exectime %.3lf\n", diff.count());
     pasl::sched::threaddag::destroy();
   }
   return 0;
