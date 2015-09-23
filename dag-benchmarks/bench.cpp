@@ -2245,7 +2245,7 @@ using outset_of = typename node::outset_type;
 
 template <class Incounter>
 void benchmark_incounter_thread(int my_id, Incounter& incounter, bool& should_stop, int& nb_operations, unsigned int seed) {
-  std::mt19937 generator(seed);
+  std::mt19937 generator(seed+my_id);
   auto random_int = [&] (int lo, int hi) {
     std::uniform_int_distribution<int> distribution(lo, hi-1);
     return distribution(generator);
