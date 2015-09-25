@@ -736,7 +736,21 @@ template <class Random_int>
 void incounter_add_to_freelist(std::atomic<incounter_node*>& freelist,
                                incounter_node* old_node,
                                const Random_int& random_int) {
-//  assert(false);
+  std::atomic<incounter_node*>* current = &freelist;
+  while (true) {
+    assert(tagged_tag_of(current->load()) == incounter_node::removing_tag);
+    incounter_node* target = tagged_pointer_of(current->load());
+    if (target == nullptr) {
+      incounter_node* orig = tagged_tag_with(target, incounter_node::removing_tag);
+      incounter_node* next = tagged_tag_with(old_node, incounter_node::removing_tag);
+      if (current->compare_exchange_strong(orig, next)) {
+        return;
+      }
+    } else {
+      int i = random_int(0, branching_factor);
+      current = &(target->children[i]);
+    }
+  }
 }
   
 template <class Random_int>
@@ -2725,6 +2739,7 @@ template <class Benchmark>
 void launch_microbenchmark(const Benchmark& benchmark, int nb_threads, int nb_milliseconds) {
   bool should_stop = false;
   direct::dyntree::should_deallocate_sequentially = true;
+  direct::dyntreeopt::should_deallocate_sequentially = true;
   std::vector<std::thread*> threads;
   int counters[nb_threads];
   for (int i = 0; i < nb_threads; i++) {
