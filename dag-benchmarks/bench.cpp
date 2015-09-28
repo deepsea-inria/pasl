@@ -180,7 +180,8 @@ public:
 using edge_algorithm_type = enum {
   edge_algorithm_simple,
   edge_algorithm_distributed,
-  edge_algorithm_tree
+  edge_algorithm_dyntree,
+  edge_algorithm_dyntreeopt
 };
   
 edge_algorithm_type edge_algorithm;
@@ -619,19 +620,23 @@ namespace dyntreeopt {
 #define DYNTREEOPT_BRANCHING_FACTOR 8
 #endif
   
+#ifndef DYNTREEOPT_AMORTIZATION_FACTOR
+#define DYNTREEOPT_AMORTIZATION_FACTOR 128
+#endif
+  
 constexpr int branching_factor = DYNTREEOPT_BRANCHING_FACTOR;
-int amortization_factor = 128;
+constexpr int amortization_factor = DYNTREEOPT_AMORTIZATION_FACTOR;
 
 bool should_deallocate_sequentially = false;
 
 class dyntreeopt_incounter;
-class dyntree_outset;
+class dyntreeopt_outset;
 class incounter_node;
 class outset_node;
 
 void incounter_tree_deallocate(incounter_node*);
 void incounter_tree_deallocate_sequential(incounter_node*);
-void outset_finish(dyntree_outset*);
+void outset_finish(dyntreeopt_outset*);
 void outset_tree_deallocate(outset_node*);
 void outset_tree_deallocate_sequential(outset_node*);
 
@@ -705,11 +710,6 @@ bool incounter_node_is_leaf(incounter_node* current) {
 }
   
 bool incounter_try_remove(incounter_node* current) {
-  for (int j = 0; j < branching_factor; j++) {
-    if (current->children[j].load() != nullptr) {
-      return false;
-    }
-  }
   int i = 0;
   while (i < branching_factor) {
     incounter_node* orig = nullptr;
@@ -856,6 +856,140 @@ public:
     } else {
       return not_activated;
     }
+  }
+  
+};
+
+class outset_node {
+public:
+  
+  static constexpr int finished_tag = 1;
+  
+  std::atomic<node*> contents[amortization_factor];
+  std::atomic<outset_node*> children[branching_factor];
+  
+  outset_node() {
+    for (int i = 0; i < amortization_factor; i++) {
+      contents[i].store(nullptr);
+    }
+    for (int i = 0; i < branching_factor; i++) {
+      children[i].store(nullptr);
+    }
+  }
+  
+};
+  
+template <class Random_int>
+bool outset_insert(std::atomic<outset_node*>& root, node* n, const Random_int& random_int) {
+  outset_node* new_node = nullptr;
+  std::atomic<outset_node*>* current = &root;
+  while (true) {
+    outset_node* target = current->load();
+    if (target == nullptr) {
+      if (new_node == nullptr) {
+        new_node = new outset_node;
+        int i = random_int(0, amortization_factor);
+        new_node->contents[i].store(n);
+      }
+      outset_node* orig = nullptr;
+      if (current->compare_exchange_strong(orig, new_node)) {
+        return true;
+      }
+      target = current->load();
+    }
+    if (tagged_tag_of(target) == outset_node::finished_tag) {
+      if (new_node != nullptr) {
+        delete new_node;
+      }
+      return false;
+    }
+    int i = random_int(0, amortization_factor);
+    node* m = target->contents[i].load();
+    if (m == nullptr) {
+      node* orig = nullptr;
+      if (target->contents[i].compare_exchange_strong(orig, n)) {
+        if (new_node != nullptr) {
+          delete new_node;
+        }
+        return true;
+      }
+    } else if (tagged_tag_of(m) == outset_node::finished_tag) {
+      if (new_node != nullptr) {
+        delete new_node;
+      }
+      return false;
+    } else {
+      int i = random_int(0, branching_factor);
+      current = &(target->children[i]);
+    }
+  }
+}
+  
+bool outset_insert(std::atomic<outset_node*>& root, node* n) {
+  return outset_insert(root, n, [&] (int lo, int hi) {
+    return random_int(lo, hi);
+  });
+}
+  
+template <class Random_int>
+void outset_add_to_freelist(std::atomic<outset_node*>& freelist, outset_node* old_node, const Random_int& random_int) {
+  std::atomic<outset_node*>* current = &freelist;
+  while (true) {
+    assert(tagged_tag_of(current->load()) == outset_node::finished_tag);
+    outset_node* target = tagged_pointer_of(current->load());
+    if (target == nullptr) {
+      outset_node* orig = tagged_tag_with(target, outset_node::finished_tag);
+      outset_node* next = tagged_tag_with(old_node, outset_node::finished_tag);
+      if (current->compare_exchange_strong(orig, next)) {
+        return;
+      }
+      target = tagged_pointer_of(current->load());
+    }
+    int i = random_int(0, branching_factor);
+    current = &(target->children[i]);
+  }
+}
+  
+void outset_add_to_freelist(std::atomic<outset_node*>& freelist, outset_node* old_node) {
+  outset_add_to_freelist(freelist, old_node, [&] (int lo, int hi) {
+    return random_int(lo, hi);
+  });
+}
+  
+class dyntreeopt_outset : public outset {
+public:
+  
+  std::atomic<outset_node*> root;
+  std::atomic<outset_node*> freelist;
+  
+  dyntreeopt_outset() {
+    root.store(nullptr);
+    freelist.store(tagged_tag_with((outset_node*)nullptr, outset_node::finished_tag));
+  }
+  
+  ~dyntreeopt_outset() {
+    assert(tagged_pointer_of(root.load()) == nullptr);
+    outset_node* n = tagged_pointer_of(freelist.load());
+    if (n != nullptr) {
+      freelist.store(nullptr);
+      outset_tree_deallocate(n);
+    }
+  }
+  
+  insert_status_type insert(node* n) {
+    if (outset_insert(root, n)) {
+      return insert_success;
+    } else {
+      return insert_fail;
+    }
+  }
+  
+  void finish() {
+    outset_finish(this);
+  }
+  
+  void add(pasl::sched::thread_p t) {
+    assert(false);
   }
   
 };
@@ -1008,8 +1142,10 @@ incounter* incounter_new(node* n) {
     return incounter_fetch_add();
   } else if (edge_algorithm == edge_algorithm_distributed) {
     return new distributed::distributed_incounter(n);
-  } else if (edge_algorithm == edge_algorithm_tree) {
+  } else if (edge_algorithm == edge_algorithm_dyntree) {
     return new dyntree::dyntree_incounter;
+  } else if (edge_algorithm == edge_algorithm_dyntreeopt) {
+    return new dyntreeopt::dyntreeopt_incounter;
   } else {
     assert(false);
     return nullptr;
@@ -1035,8 +1171,10 @@ outset* outset_new() {
     return new simple::simple_outset;
   } else if (edge_algorithm == edge_algorithm_distributed) {
     return new dyntree::dyntree_outset;
-  } else if (edge_algorithm == edge_algorithm_tree) {
+  } else if (edge_algorithm == edge_algorithm_dyntree) {
     return new dyntree::dyntree_outset;
+  } else if (edge_algorithm == edge_algorithm_dyntreeopt) {
+    return new dyntreeopt::dyntreeopt_outset;
   } else {
     assert(false);
     return nullptr;
@@ -1542,10 +1680,9 @@ void incounter_tree_deallocate_partial(std::deque<incounter_node*>& todo) {
     todo.pop_back();
     for (int i = 0; i < branching_factor; i++) {
       incounter_node* child = tagged_pointer_of(current->children[i].load());
-      if (child == nullptr) {
-        continue;
+      if (child != nullptr) {
+        todo.push_back(child);
       }
-      todo.push_back(child);
     }
     delete current;
     k++;
@@ -1608,7 +1745,254 @@ void incounter_tree_deallocate(incounter_node* root) {
     incounter_tree_deallocate_sequential(root);
     return;
   }
-  assert(false);
+  incounter_tree_deallocate_par d;
+  d.todo.push_back(root);
+  incounter_tree_deallocate_partial(d.todo);
+  if (! d.todo.empty()) {
+    node* n = new incounter_tree_deallocate_par(d);
+    prepare_node(n);
+    add_node(n);
+  }
+}
+  
+void outset_finish_partial(std::atomic<outset_node*>* freelist, std::deque<outset_node*>& todo) {
+  int k = 0;
+  while ( (k < communication_delay) && (! todo.empty()) ) {
+    outset_node* current = todo.back();
+    todo.pop_back();
+    assert(current != nullptr);
+    for (int i = 0; i < branching_factor; i++) {
+      while (true) {
+        outset_node* child = current->children[i].load();
+        outset_node* orig = child;
+        outset_node* next = tagged_tag_with<outset_node>(outset_node::finished_tag);
+        if (current->children[i].compare_exchange_strong(orig, next)) {
+          if (child != nullptr) {
+            todo.push_back(child);
+          }
+          break;
+        }
+      }
+    }
+    for (int i = 0; i < amortization_factor; i++) {
+      while (true) {
+        node* n = current->contents[i].load();
+        node* orig = n;
+        node* next = tagged_tag_with<node>(outset_node::finished_tag);
+        if (current->contents[i].compare_exchange_strong(orig, next)) {
+          if (n != nullptr) {
+            decrement_incounter(n);
+          }
+          break;
+        }
+      }
+    }
+    outset_add_to_freelist(*freelist, current);
+    k++;
+  }
+}
+
+class outset_finish_parallel_rec : public node {
+public:
+  
+  enum {
+    process_block=0,
+    repeat_block,
+    exit_block
+  };
+  
+  node* join;
+  std::atomic<outset_node*>* freelist;
+  std::deque<outset_node*> todo;
+  
+  outset_finish_parallel_rec(node* join,
+                             std::atomic<outset_node*>* freelist,
+                             outset_node* n)
+  : join(join), freelist(freelist) {
+    todo.push_back(n);
+  }
+  
+  outset_finish_parallel_rec(node* join,
+                             std::atomic<outset_node*>* freelist,
+                             std::deque<outset_node*>& _todo)
+  : join(join), freelist(freelist) {
+    _todo.swap(todo);
+  }
+  
+  void body() {
+    switch (current_block_id) {
+      case process_block: {
+        outset_finish_partial(freelist, todo);
+        jump_to(repeat_block);
+        break;
+      }
+      case repeat_block: {
+        if (! todo.empty()) {
+          jump_to(process_block);
+        }
+        break;
+      }
+      default:
+        break;
+    }
+  }
+  
+  size_t size() const {
+    return todo.size();
+  }
+  
+  pasl::sched::thread_p split() {
+    assert(size() >= 2);
+    auto n = todo.front();
+    todo.pop_front();
+    auto t = new outset_finish_parallel_rec(join, freelist, n);
+    add_edge(t, join);
+    return t;
+  }
+  
+};
+
+class outset_finish_parallel : public node {
+public:
+  
+  enum {
+    entry_block=0,
+    exit_block
+  };
+  
+  dyntreeopt_outset* out;
+  std::deque<outset_node*> todo;
+  
+  outset_finish_parallel(dyntreeopt_outset* out, std::deque<outset_node*>& _todo)
+  : out(out) {
+    todo.swap(_todo);
+  }
+  
+  void body() {
+    switch (current_block_id) {
+      case entry_block: {
+        finish(new outset_finish_parallel_rec(this, &(out->freelist), todo),
+               exit_block);
+        break;
+      }
+      case exit_block: {
+        if (out->should_deallocate_automatically) {
+          delete out;
+        }
+        break;
+      }
+      default:
+        break;
+    }
+  }
+  
+};
+
+void outset_finish(dyntreeopt_outset* out) {
+  outset_node* finished_tag = tagged_tag_with<outset_node>(outset_node::finished_tag);
+  std::deque<outset_node*> todo;
+  outset_node* orig = out->root.load();
+  while (true) {
+    if (out->root.compare_exchange_strong(orig, finished_tag)) {
+      break;
+    }
+  }
+  if (orig != nullptr) {
+    todo.push_back(orig);
+  }
+  outset_finish_partial(&(out->freelist), todo);
+  if (! todo.empty()) {
+    auto n = new outset_finish_parallel(out, todo);
+    prepare_node(n);
+    add_node(n);
+  } else {
+    if (out->should_deallocate_automatically) {
+      delete out;
+    }
+  }
+}
+  
+void outset_tree_deallocate_partial(std::deque<outset_node*>& todo) {
+  int k = 0;
+  while ( (k < communication_delay) && (! todo.empty()) ) {
+    outset_node* target = todo.back();
+    todo.pop_back();
+    assert(target != nullptr);
+    for (int i = 0; i < branching_factor; i++) {
+      outset_node* n = tagged_pointer_of(target->children[i].load());
+      if (n != nullptr) {
+        todo.push_back(n);
+      }
+    }
+    delete target;
+    k++;
+  }
+}
+
+class outset_tree_deallocate_parallel : public node {
+public:
+  
+  enum {
+    process_block=0,
+    repeat_block
+  };
+  
+  std::deque<outset_node*> todo;
+  
+  void body() {
+    switch (current_block_id) {
+      case process_block: {
+        outset_tree_deallocate_partial(todo);
+        jump_to(repeat_block);
+        break;
+      }
+      case repeat_block: {
+        if (! todo.empty()) {
+          jump_to(process_block);
+        }
+        break;
+      }
+      default:
+        break;
+    }
+  }
+  
+  size_t size() const {
+    return todo.size();
+  }
+  
+  pasl::sched::thread_p split() {
+    assert(size() >= 2);
+    auto n = todo.front();
+    todo.pop_front();
+    auto t = new outset_tree_deallocate_parallel;
+    t->todo.push_back(n);
+    return t;
+  }
+  
+};
+
+void outset_tree_deallocate(outset_node* root) {
+  if (should_deallocate_sequentially) {
+    outset_tree_deallocate_sequential(root);
+    return;
+  }
+  outset_tree_deallocate_parallel d;
+  d.todo.push_back(root);
+  outset_tree_deallocate_partial(d.todo);
+  if (! d.todo.empty()) {
+    node* n = new outset_tree_deallocate_parallel(d);
+    prepare_node(n);
+    add_node(n);
+  }
+}
+
+void outset_tree_deallocate_sequential(outset_node* root) {
+  outset_tree_deallocate_parallel d;
+  d.todo.push_back(root);
+  while (! d.todo.empty()) {
+    outset_tree_deallocate_partial(d.todo);
+  }
 }
 
 } // end namespace
@@ -2711,6 +3095,18 @@ void benchmark_outset_thread(Outset& outset, bool& should_stop, int& nb_operatio
   nb_operations = c;
 }
   
+class simple_outset_wrapper {
+public:
+  
+  direct::simple::simple_outset outset;
+  
+  template <class Random_int>
+  void add(void*, const Random_int&) {
+    outset.insert(nullptr);
+  }
+  
+};
+  
 class dyntree_outset_wrapper {
 public:
   
@@ -2723,14 +3119,14 @@ public:
   
 };
   
-class simple_outset_wrapper {
+class dyntreeopt_outset_wrapper {
 public:
   
-  direct::simple::simple_outset outset;
+  direct::dyntreeopt::dyntreeopt_outset outset;
   
   template <class Random_int>
-  void add(void*, const Random_int&) {
-    outset.insert(nullptr);
+  void add(void*, const Random_int& random_int) {
+    direct::dyntreeopt::outset_insert(outset.root, nullptr, random_int);
   }
   
 };
@@ -2772,6 +3168,7 @@ void launch_outset_microbenchmark() {
   int nb_milliseconds = pasl::util::cmdline::parse_int("nb_milliseconds");
   simple_outset_wrapper* simple_outset = nullptr;
   dyntree_outset_wrapper* dyntree_outset = nullptr;
+  dyntreeopt_outset_wrapper* dyntreeopt_outset = nullptr;
   pasl::util::cmdline::argmap_dispatch c;
   c.add("simple", [&] {
     simple_outset = new simple_outset_wrapper;
@@ -2779,12 +3176,17 @@ void launch_outset_microbenchmark() {
   c.add("dyntree", [&] {
     dyntree_outset = new dyntree_outset_wrapper;
   });
+  c.add("dyntreeopt", [&] {
+    dyntreeopt_outset = new dyntreeopt_outset_wrapper;
+  });
   c.find_by_arg("outset")();
   auto benchmark_thread = [&] (int, bool& should_stop, int& counter) {
     if (simple_outset != nullptr) {
       benchmark_outset_thread(*simple_outset, should_stop, counter);
     } else if (dyntree_outset != nullptr) {
       benchmark_outset_thread(*dyntree_outset, should_stop, counter);
+    } else if (dyntreeopt_outset != nullptr) {
+      benchmark_outset_thread(*dyntreeopt_outset, should_stop, counter);
     }
   };
   launch_microbenchmark(benchmark_thread, nb_threads, nb_milliseconds);
@@ -2795,6 +3197,11 @@ void launch_outset_microbenchmark() {
     dyntree_outset->outset.root.store(nullptr);
     dyntree_outset->outset.freelist.store(n);
     delete dyntree_outset;
+  } else if (dyntreeopt_outset != nullptr) {
+    direct::dyntreeopt::outset_node* n = dyntreeopt_outset->outset.root.load();
+    dyntreeopt_outset->outset.root.store(nullptr);
+    dyntreeopt_outset->outset.freelist.store(n);
+    delete dyntreeopt_outset;
   }
 }
 
@@ -4073,10 +4480,13 @@ void choose_edge_algorithm() {
     direct::edge_algorithm = direct::edge_algorithm_distributed;
   });
   c.add("dyntree", [&] {
-    direct::edge_algorithm = direct::edge_algorithm_tree;
+    direct::edge_algorithm = direct::edge_algorithm_dyntree;
     direct::dyntree::branching_factor =
     cmdline::parse_or_default_int("branching_factor",
                                   direct::dyntree::branching_factor);
+  });
+  c.add("dyntreeopt", [&] {
+    direct::edge_algorithm = direct::edge_algorithm_dyntreeopt;
   });
   c.find_by_arg_or_default_key("edge_algo", "tree")();
 }
