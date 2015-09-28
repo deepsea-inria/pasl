@@ -2966,8 +2966,16 @@ void benchmark_incounter_thread(int my_id, Incounter& incounter, bool& should_st
   };
   int c = 0;
   int nb_pending_increments = 0;
+  int incr_prob_a = pasl::util::cmdline::parse_int("incr_prob_a");
+  int incr_prob_b = pasl::util::cmdline::parse_int("incr_prob_b");
+  if (incr_prob_a < 0 && incr_prob_a > incr_prob_b) {
+    pasl::util::atomic::die("bogus incr_prob");
+  }
+  auto should_increment = [&] {
+    return random_int(0, incr_prob_b) < incr_prob_a;
+  };
   while (! should_stop) {
-    if ((nb_pending_increments > 0) && (random_int(0, 2) == 0)) {
+    if ((nb_pending_increments > 0) && (! should_increment())) {
       nb_pending_increments--;
       incounter.decrement(my_id, random_int);
     } else {
