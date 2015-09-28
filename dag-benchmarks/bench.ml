@@ -53,20 +53,46 @@ let file_plots exp_name =
 (** Evaluation functions *)
 
 let eval_exectime = fun env all_results results ->
-   Results.get_mean_of "exectime" results
+  Results.get_mean_of "exectime" results
+
+let eval_nb_operations_per_second = fun env all_results results ->
+  let t = eval_exectime env all_results results in
+  let nb_operations = Results.get_mean_of "nb_operations" results in
+  nb_operations /. t
 
 (*****************************************************************************)
-(** Fibonacci experiment *)
+(** Incounter microbenchmark experiment *)
 
-module ExpFib = struct
+module ExpIncounterMicrobench = struct
 
-let name = "fib"
+let name = "incounter_microbench"
 
-let prog = "./fib"
+let prog = "./bench.opt"
 
-let mk_algos = mk_list string "algo" ["recursive";"cached"]
+let mk_cmd = mk string "cmd" "incounter_microbench"
 
-let mk_ns = mk_list int "n" [30;35;39]
+let mk_incr_probs =
+     ((mk int "incr_prob_a" 1) & (mk int "incr_prob_b" 2))
+  ++ ((mk int "incr_prob_a" 2) & (mk int "incr_prob_b" 3))
+  ++ ((mk int "incr_prob_a" 9) & (mk int "incr_prob_b" 10))
+
+let nb_milliseconds_target = 1000
+
+let mk_nb_milliseconds = mk int "nb_milliseconds" nb_milliseconds_target
+
+let mk_seed = mk int "seed" 1234
+
+let mk_branching_factors = mk_list int "branching_factor" [6;]
+
+let mk_nb_levels = mk_list int "nb_levels" [3;]
+
+let mk_incounters =
+      mk string "incounter" "simple"
+   ++ (mk string "incounter" "snzi" & mk_branching_factors & mk_nb_levels)
+   ++ mk string "incounter" "dyntree"
+   ++ mk string "incounter" "dyntreeopt"
+
+let mk_proc = mk_list int "proc" [1;40]
 
 let make() =
   build "." [prog] arg_virtual_build
@@ -74,17 +100,21 @@ let make() =
 let run() =
   Mk_runs.(call (run_modes @ [
     Output (file_results name);
-    Timeout 400;
+    Timeout 1000;
     Args (
       mk_prog prog
-    & mk_algos
-    & mk_ns)]))
+    & mk_incr_probs
+    & mk_cmd
+    & mk_nb_milliseconds
+    & mk_seed
+    & mk_incounters
+    & mk_proc)]))
 
 let check = nothing  (* do something here *)
 
-let fib_formatter =
+let incounter_microbench_formatter =
  Env.format (Env.(
-   [ ("n", Format_custom (fun n -> sprintf "fib(%s)" n)); ]
+    [ (*("n", Format_custom (fun n -> sprintf "fib(%s)" n)); *) ]
   ))
 
 let plot() =
@@ -92,14 +122,14 @@ let plot() =
       Bar_plot_opt Bar_plot.([
          X_titles_dir Vertical;
          Y_axis [Axis.Lower (Some 0.)] ]);
-       Formatter fib_formatter;
-      Charts mk_unit;
-      Series mk_algos;
-      X mk_ns;
+       Formatter incounter_microbench_formatter;
+      Charts mk_incr_probs;
+      Series mk_incounters;
+      X mk_proc;
       Input (file_results name);
       Output (file_plots name);
-      Y_label "exectime";
-      Y eval_exectime;
+      Y_label "nb_operations/second";
+      Y eval_nb_operations_per_second;
   ]))
 
 let all () = select make run check plot
@@ -112,7 +142,7 @@ end
 let _ =
   let arg_actions = XCmd.get_others() in
   let bindings = [
-    "fib", ExpFib.all;
+    "incounter_microbench", ExpIncounterMicrobench.all;
   ]
   in
   Pbench.execute_from_only_skip arg_actions [] bindings;
