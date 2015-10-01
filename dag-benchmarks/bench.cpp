@@ -3138,6 +3138,12 @@ public:
   }
   
 };
+  
+double since(std::chrono::time_point<std::chrono::high_resolution_clock> start) {
+  auto end = std::chrono::high_resolution_clock::now();
+  std::chrono::duration<double> diff = end-start;
+  return diff.count();
+}
 
 template <class Benchmark>
 void launch_microbenchmark(const Benchmark& benchmark, int nb_threads, int nb_milliseconds) {
@@ -3155,12 +3161,13 @@ void launch_microbenchmark(const Benchmark& benchmark, int nb_threads, int nb_mi
   auto start = std::chrono::high_resolution_clock::now();
   std::this_thread::sleep_for(std::chrono::milliseconds(nb_milliseconds));
   should_stop = true;
+  printf ("exectime_phase1 %.3lf\n", since(start));
+  auto start_phase2 = std::chrono::high_resolution_clock::now();
   for (std::thread* thread : threads) {
     thread->join();
   }
-  auto end = std::chrono::high_resolution_clock::now();
-  std::chrono::duration<double> diff = end-start;
-  printf ("exectime %.3lf\n", diff.count());
+  printf ("exectime %.3lf\n", since(start));
+  printf ("exectime_phase2 %.3lf\n", since(start_phase2));
   int nb_operations = 0;
   for (int i = 0; i < nb_threads; i++) {
     nb_operations += counters[i];
@@ -4582,8 +4589,6 @@ void choose_command() {
   });
   c.find_by_arg(cmd_param)();
 }
-
-
 
 void launch() {
   communication_delay = cmdline::parse_or_default_int("communication_delay",
