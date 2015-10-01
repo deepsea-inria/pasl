@@ -52,13 +52,50 @@ T* tagged_tag_with(int t) {
 /*---------------------------------------------------------------------*/
 /* Random-number generator */
 
+#ifndef USE_STL_RANDGEN
+
+static inline
+unsigned int hashu(unsigned int a) {
+  a = (a+0x7ed55d16) + (a<<12);
+  a = (a^0xc761c23c) ^ (a>>19);
+  a = (a+0x165667b1) + (a<<5);
+  a = (a+0xd3a2646c) ^ (a<<9);
+  a = (a+0xfd7046c5) + (a<<3);
+  a = (a^0xb55a4f09) ^ (a>>16);
+  return a;
+}
+
+// generate a random number in the range (lo, hi], assuming non-negative lo
+static inline
+int random_int_in_range(unsigned int& rng, int lo, int hi) {
+  unsigned int r = hashu(rng);
+  rng = r;
+  assert((hi - lo) > 0);
+  r = (r % (hi - lo)) + lo;
+  assert(r >= lo);
+  assert(r < hi);
+  return r;
+}
+
+pasl::data::perworker::array<unsigned int> generator;
+
+static inline
+int random_int(int lo, int hi) {
+  unsigned int& rng = generator.mine();
+  return random_int_in_range(rng, lo, hi);
+}
+
+#else
+
 pasl::data::perworker::array<std::mt19937> generator;
 
-// returns a random integer in the range [lo, hi)
+// generate a random number in the range (lo, hi], assuming non-negative lo
 int random_int(int lo, int hi) {
   std::uniform_int_distribution<int> distribution(lo, hi-1);
   return distribution(generator.mine());
 }
+
+#endif
 
 /*---------------------------------------------------------------------*/
 
@@ -617,7 +654,7 @@ public:
 namespace dyntreeopt {
   
 #ifndef DYNTREEOPT_BRANCHING_FACTOR
-#define DYNTREEOPT_BRANCHING_FACTOR 8
+#define DYNTREEOPT_BRANCHING_FACTOR 12
 #endif
   
 #ifndef DYNTREEOPT_AMORTIZATION_FACTOR
@@ -2958,12 +2995,25 @@ template <class node>
 using outset_of = typename node::outset_type;
 
 template <class Incounter>
-void benchmark_incounter_thread(int my_id, Incounter& incounter, bool& should_stop, int& nb_operations, unsigned int seed) {
+void benchmark_incounter_thread(int my_id,
+                                Incounter& incounter,
+                                bool& should_stop,
+                                int& nb_operations1,
+                                int& nb_operations2,
+                                unsigned int seed) {
+#ifndef USE_STL_RANDGEN
+  unsigned int rng = seed+my_id;
+  auto random_int = [&] (int lo, int hi) {
+    int r = random_int_in_range(rng, lo, hi);
+    return r;
+  };
+#else
   std::mt19937 generator(seed+my_id);
   auto random_int = [&] (int lo, int hi) {
     std::uniform_int_distribution<int> distribution(lo, hi-1);
     return distribution(generator);
   };
+#endif
   int c = 0;
   int nb_pending_increments = 0;
   int incr_prob_a = pasl::util::cmdline::parse_int("incr_prob_a");
@@ -2984,12 +3034,12 @@ void benchmark_incounter_thread(int my_id, Incounter& incounter, bool& should_st
     }
     c++;
   }
-  c += nb_pending_increments;
+  nb_operations1 = c;
+  nb_operations2 = nb_pending_increments;
   while (nb_pending_increments > 0) {
     incounter.decrement(my_id, random_int);
     nb_pending_increments--;
   }
-  nb_operations = c;
 }
   
 class simple_incounter_wrapper {
@@ -3090,14 +3140,27 @@ public:
 };
 
 template <class Outset>
-void benchmark_outset_thread(Outset& outset, bool& should_stop, int& nb_operations) {
-  std::mt19937 generator;
+void benchmark_outset_thread(int my_id,
+                             Outset& outset,
+                             bool& should_stop,
+                             int& nb_operations,
+                             unsigned int seed) {
+#ifndef USE_STL_RANDGEN
+  unsigned int rng = seed+my_id;
+  auto random_int = [&] (int lo, int hi) {
+    int r = random_int_in_range(rng, lo, hi);
+    return r;
+  };
+#else
+  std::mt19937 generator(seed+my_id);
+  auto random_int = [&] (int lo, int hi) {
+    std::uniform_int_distribution<int> distribution(lo, hi-1);
+    return distribution(generator);
+  };
+#endif
   int c = 0;
   while (! should_stop) {
-    outset.add(nullptr, [&] (int lo, int hi) {
-      std::uniform_int_distribution<int> distribution(lo, hi-1);
-      return distribution(generator);
-    });
+    outset.add(nullptr, random_int);
     c++;
   }
   nb_operations = c;
@@ -3142,7 +3205,15 @@ public:
 double since(std::chrono::time_point<std::chrono::high_resolution_clock> start) {
   auto end = std::chrono::high_resolution_clock::now();
   std::chrono::duration<double> diff = end-start;
-  return diff.count();
+  return diff.count() * 1000.0;
+}
+
+int sum(int n, int* xs) {
+  int r = 0;
+  for (int i = 0; i < n; i++) {
+    r += xs[i];
+  }
+  return r;
 }
 
 template <class Benchmark>
@@ -3151,11 +3222,13 @@ void launch_microbenchmark(const Benchmark& benchmark, int nb_threads, int nb_mi
   direct::dyntree::should_deallocate_sequentially = true;
   direct::dyntreeopt::should_deallocate_sequentially = true;
   std::vector<std::thread*> threads;
-  int counters[nb_threads];
+  int counters1[nb_threads];
+  int counters2[nb_threads];
   for (int i = 0; i < nb_threads; i++) {
-    counters[i] = 0;
+    counters1[i] = 0;
+    counters2[i] = 0;
     threads.push_back(new std::thread([&, i] {
-      benchmark(i, should_stop, counters[i]);
+      benchmark(i, should_stop, counters1[i], counters2[i]);
     }));
   }
   auto start = std::chrono::high_resolution_clock::now();
@@ -3168,17 +3241,19 @@ void launch_microbenchmark(const Benchmark& benchmark, int nb_threads, int nb_mi
   }
   printf ("exectime %.3lf\n", since(start));
   printf ("exectime_phase2 %.3lf\n", since(start_phase2));
-  int nb_operations = 0;
-  for (int i = 0; i < nb_threads; i++) {
-    nb_operations += counters[i];
-  }
+  int nb_operations_phase1 = sum(nb_threads, counters1);
+  std::cout << "nb_operations_phase1  " << nb_operations_phase1 << std::endl;
+  int nb_operations_phase2 = sum(nb_threads, counters2);
+  int nb_operations = nb_operations_phase1 + nb_operations_phase2;
   std::cout << "nb_operations  " << nb_operations << std::endl;
+  std::cout << "nb_operations_phase2  " << nb_operations_phase2 << std::endl;
   for (std::thread* t : threads) {
     delete t;
   }
 }
 
 void launch_outset_microbenchmark() {
+  int seed = pasl::util::cmdline::parse_int("seed");
   int nb_threads = pasl::util::cmdline::parse_int("proc");
   int nb_milliseconds = pasl::util::cmdline::parse_int("nb_milliseconds");
   simple_outset_wrapper* simple_outset = nullptr;
@@ -3195,13 +3270,13 @@ void launch_outset_microbenchmark() {
     dyntreeopt_outset = new dyntreeopt_outset_wrapper;
   });
   c.find_by_arg("outset")();
-  auto benchmark_thread = [&] (int, bool& should_stop, int& counter) {
+  auto benchmark_thread = [&] (int my_id, bool& should_stop, int& counter1, int& counter2) {
     if (simple_outset != nullptr) {
-      benchmark_outset_thread(*simple_outset, should_stop, counter);
+      benchmark_outset_thread(my_id, *simple_outset, should_stop, counter1, seed);
     } else if (dyntree_outset != nullptr) {
-      benchmark_outset_thread(*dyntree_outset, should_stop, counter);
+      benchmark_outset_thread(my_id, *dyntree_outset, should_stop, counter1, seed);
     } else if (dyntreeopt_outset != nullptr) {
-      benchmark_outset_thread(*dyntreeopt_outset, should_stop, counter);
+      benchmark_outset_thread(my_id, *dyntreeopt_outset, should_stop, counter1, seed);
     }
   };
   launch_microbenchmark(benchmark_thread, nb_threads, nb_milliseconds);
@@ -3244,15 +3319,15 @@ void launch_incounter_microbenchmark() {
     dyntreeopt_incounter = new dyntreeopt_incounter_wrapper;
   });
   c.find_by_arg("incounter")();
-  auto benchmark_thread = [&] (int my_id, bool& should_stop, int& counter) {
+  auto benchmark_thread = [&] (int my_id, bool& should_stop, int& counter1, int& counter2) {
     if (simple_incounter != nullptr) {
-      benchmark_incounter_thread(my_id, *simple_incounter, should_stop, counter, seed);
+      benchmark_incounter_thread(my_id, *simple_incounter, should_stop, counter1, counter2, seed);
     } else if (snzi_incounter != nullptr) {
-      benchmark_incounter_thread(my_id, *snzi_incounter, should_stop, counter, seed);
+      benchmark_incounter_thread(my_id, *snzi_incounter, should_stop, counter1, counter2, seed);
     } else if (dyntree_incounter != nullptr) {
-      benchmark_incounter_thread(my_id, *dyntree_incounter, should_stop, counter, seed);
+      benchmark_incounter_thread(my_id, *dyntree_incounter, should_stop, counter1, counter2, seed);
     } else if (dyntreeopt_incounter != nullptr) {
-      benchmark_incounter_thread(my_id, *dyntreeopt_incounter, should_stop, counter, seed);
+      benchmark_incounter_thread(my_id, *dyntreeopt_incounter, should_stop, counter1, counter2, seed);
     } else {
       assert(false);
     }

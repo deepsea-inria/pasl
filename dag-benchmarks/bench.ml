@@ -58,18 +58,29 @@ let eval_exectime = fun env all_results results ->
 let eval_nb_operations_per_second = fun env all_results results ->
   let t = eval_exectime env all_results results in
   let nb_operations = Results.get_mean_of "nb_operations" results in
-  nb_operations /. t
+  let nb_proc = Env.get_as_float env "proc" in
+  let nb_operations_per_proc = nb_operations /. nb_proc in
+  nb_operations_per_proc /. t
+                     
+let eval_nb_operations_per_second_error = fun env all_results results ->
+  let ts = Results.get Env.as_float "exectime" results in
+  let nb_operations = Results.get Env.as_float "nb_operations" results in
+  let nb_proc = Env.get_as_float env "proc" in
+  let nb_operations_per_proc = List.map (fun nb_operations -> nb_operations /. nb_proc) nb_operations in  
+  let ps = List.map (fun (x, y) -> x /. y) (List.combine nb_operations_per_proc ts) in
+  let (_, stddev) = XFloat.list_mean_and_stddev ps in
+  stddev
 
 (*****************************************************************************)
 (* Fixed constants *)
 
 let mk_algos = mk_list string "algo" ["direct"; "portpassing";]
 
-let dflt_snzi_branching_factor = 6
+let dflt_snzi_branching_factor = 4
 let dflt_snzi_nb_levels = 3
 
-let mk_snzi_branching_factors = mk_list int "branching_factor" [dflt_snzi_branching_factor;4]
-let mk_snzi_nb_levels = mk_list int "nb_levels" [2;dflt_snzi_nb_levels;]
+let mk_snzi_branching_factors = mk_list int "branching_factor" [dflt_snzi_branching_factor]
+let mk_snzi_nb_levels = mk_list int "nb_levels" [dflt_snzi_nb_levels;]
 
 let mk_distributed_edge_algo =
     mk string "edge_algo" "distributed"
@@ -92,7 +103,7 @@ let mk_seed = mk int "seed" 1234
 let mk_incr_prob (a, b) =
   (mk int "incr_prob_a" a) & (mk int "incr_prob_b" b)
 
-let incr_probs = [(1,2); (2,3); (9,10)]
+let incr_probs = [(1,2); (2,3); (9,10); (1,1);]
 
 let mk_incr_probs =
   let mks = List.map mk_incr_prob incr_probs in
@@ -106,13 +117,17 @@ module ExpIncounterTune = struct
 let name = "incounter_tune"
 
 let branching_factors = [4;12]
-let amortization_factors = [8;128]
+let amortization_factors = [8;32;128]
 
 let prog_of (branching_factor, amortization_factor) =
   "./bench.opt_" ^ (string_of_int branching_factor) ^ "_" ^ (string_of_int amortization_factor)
 
+let cross xs ys =
+  let pairs x = List.map (fun y -> (x, y)) ys in
+  List.concat (List.map pairs xs)
+              
 let progs = 
-  let params = List.combine branching_factors amortization_factors in
+  let params = cross branching_factors amortization_factors in
   List.map prog_of params
            
 let mk_progs =
@@ -151,13 +166,14 @@ let plot() =
          X_titles_dir Vertical;
          Y_axis [Axis.Lower (Some 0.)] ]);
        Formatter incounter_microbench_formatter;
-      Charts mk_unit;
+      Charts mk_proc;
       Series mk_progs;
-      X mk_proc;
+      X mk_incr_probs;
       Input (file_results name);
       Output (file_plots name);
-      Y_label "nb_operations/second";
+      Y_label "nb_operations/ms (per thread)";
       Y eval_nb_operations_per_second;
+      Y_whiskers eval_nb_operations_per_second_error;
   ]))
 
 let all () = select make run check plot
@@ -173,8 +189,8 @@ let name = "snzi_tune"
 
 let prog = "./bench.opt"
              
-let branching_factors = [4;6;8;12]
-let nb_levels = [1;2;4;6;]
+let branching_factors = [2;4]
+let nb_levels = [2;3;5;]
 
 let mk_configurations =
     (mk_list int "branching_factor" branching_factors)
@@ -214,13 +230,14 @@ let plot() =
          X_titles_dir Vertical;
          Y_axis [Axis.Lower (Some 0.)] ]);
        Formatter incounter_microbench_formatter;
-      Charts mk_unit;
+      Charts mk_proc;
       Series mk_configurations;
-      X mk_proc;
+      X mk_incr_probs;
       Input (file_results name);
       Output (file_plots name);
-      Y_label "nb_operations/second";
+      Y_label "nb_operations/ms (per thread)";
       Y eval_nb_operations_per_second;
+      Y_whiskers eval_nb_operations_per_second_error;
   ]))
 
 let all () = select make run check plot
@@ -273,13 +290,14 @@ let plot() =
          X_titles_dir Vertical;
          Y_axis [Axis.Lower (Some 0.)] ]);
        Formatter incounter_microbench_formatter;
-      Charts mk_incr_probs;
+      Charts mk_proc;
       Series mk_incounters;
-      X mk_proc;
+      X mk_incr_probs;
       Input (file_results name);
       Output (file_plots name);
-      Y_label "nb_operations/second";
+      Y_label "nb_operations/ms (per thread)";
       Y eval_nb_operations_per_second;
+      Y_whiskers eval_nb_operations_per_second_error;
   ]))
 
 let all () = select make run check plot
@@ -335,8 +353,9 @@ let plot() =
       X mk_proc;
       Input (file_results name);
       Output (file_plots name);
-      Y_label "nb_operations/second";
+      Y_label "nb_operations/ms (per thread)";
       Y eval_nb_operations_per_second;
+      Y_whiskers eval_nb_operations_per_second_error;
   ]))
 
 let all () = select make run check plot
@@ -388,8 +407,9 @@ let plot() =
       X mk_proc;
       Input (file_results name);
       Output (file_plots name);
-      Y_label "nb_asyncs/second";
+      Y_label "nb_operations/ms (per thread)";
       Y eval_nb_operations_per_second;
+      Y_whiskers eval_nb_operations_per_second_error;
   ]))
 
 let all () = select make run check plot
@@ -441,8 +461,9 @@ let plot() =
       X mk_proc;
       Input (file_results name);
       Output (file_plots name);
-      Y_label "nb_edges/second";
+      Y_label "nb_operations/ms (per thread)";
       Y eval_nb_operations_per_second;
+      Y_whiskers eval_nb_operations_per_second_error;
   ]))
 
 let all () = select make run check plot
