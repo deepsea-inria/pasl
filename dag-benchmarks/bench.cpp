@@ -3403,7 +3403,7 @@ public:
         break;
       }
       case exit: {
-        std::cout << "nb_asyncs  " << async_microbench_counter.sum() << std::endl;
+        std::cout << "nb_operations  " << async_microbench_counter.sum() << std::endl;
         break;
       }
     }
@@ -3571,7 +3571,7 @@ public:
         break;
       }
       case exit: {
-        std::cout << "nb_forces  " << edge_throughput_microbench_counter.sum() << std::endl;
+        std::cout << "nb_operations  " << edge_throughput_microbench_counter.sum() << std::endl;
         break;
       }
     }

@@ -117,7 +117,7 @@ module ExpIncounterTune = struct
 let name = "incounter_tune"
 
 let branching_factors = [4;12]
-let amortization_factors = [8;32;128]
+let amortization_factors = [8;64;128]
 
 let prog_of (branching_factor, amortization_factor) =
   "./bench.opt_" ^ (string_of_int branching_factor) ^ "_" ^ (string_of_int amortization_factor)
@@ -159,7 +159,7 @@ let incounter_microbench_formatter =
  Env.format (Env.(
     [ (*("n", Format_custom (fun n -> sprintf "fib(%s)" n)); *) ]
   ))
-
+            
 let plot() =
   Mk_bar_plot.(call ([
       Bar_plot_opt Bar_plot.([
@@ -175,7 +175,7 @@ let plot() =
       Y eval_nb_operations_per_second;
       Y_whiskers eval_nb_operations_per_second_error;
   ]))
-
+                
 let all () = select make run check plot
 
 end
@@ -284,7 +284,31 @@ let incounter_microbench_formatter =
     [ (*("n", Format_custom (fun n -> sprintf "fib(%s)" n)); *) ]
   ))
 
+let eval_nb_operations_per_phase_per_second = fun phase env all_results results ->
+  let t = Results.get_mean_of ("exectime_"^phase) results in
+  let nb_operations = Results.get_mean_of ("nb_operations_"^phase) results in
+  let nb_proc = Env.get_as_float env "proc" in
+  let nb_operations_per_proc = nb_operations /. nb_proc in
+  nb_operations_per_proc /. t
+            
+let plot_phase phase =
+  let name2 = name^"_"^phase in
+    Mk_bar_plot.(call ([
+      Bar_plot_opt Bar_plot.([
+         X_titles_dir Vertical;
+         Y_axis [Axis.Lower (Some 0.)] ]);
+       Formatter incounter_microbench_formatter;
+      Charts mk_proc;
+      Series mk_incounters;
+      X mk_incr_probs;
+      Input (file_results name);
+      Output (file_plots name2);
+      Y_label "nb_operations/ms (per thread)";
+      Y (eval_nb_operations_per_phase_per_second phase);
+  ]))
+            
 let plot() =
+  begin
   Mk_bar_plot.(call ([
       Bar_plot_opt Bar_plot.([
          X_titles_dir Vertical;
@@ -298,7 +322,10 @@ let plot() =
       Y_label "nb_operations/ms (per thread)";
       Y eval_nb_operations_per_second;
       Y_whiskers eval_nb_operations_per_second_error;
-  ]))
+  ]));
+  plot_phase "phase1";
+  plot_phase "phase2";
+  end
 
 let all () = select make run check plot
 
@@ -402,9 +429,9 @@ let plot() =
          X_titles_dir Vertical;
          Y_axis [Axis.Lower (Some 0.)] ]);
        Formatter outset_microbench_formatter;
-      Charts mk_unit;
+      Charts mk_proc;
       Series mk_edge_algos;
-      X mk_proc;
+      X mk_algos;
       Input (file_results name);
       Output (file_plots name);
       Y_label "nb_operations/ms (per thread)";
@@ -456,9 +483,9 @@ let plot() =
          X_titles_dir Vertical;
          Y_axis [Axis.Lower (Some 0.)] ]);
        Formatter outset_microbench_formatter;
-      Charts mk_unit;
+      Charts mk_proc;
       Series mk_edge_algos;
-      X mk_proc;
+      X mk_algos;
       Input (file_results name);
       Output (file_plots name);
       Y_label "nb_operations/ms (per thread)";
