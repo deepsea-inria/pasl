@@ -74,8 +74,6 @@ let eval_nb_operations_per_second_error = fun env all_results results ->
 (*****************************************************************************)
 (* Fixed constants *)
 
-let mk_algos = mk_list string "algo" ["direct"; "portpassing";]
-
 let dflt_snzi_branching_factor = 4
 let dflt_snzi_nb_levels = 3
 
@@ -93,6 +91,10 @@ let mk_edge_algos =
   ++ mk string "edge_algo" "dyntree"
   ++ mk string "edge_algo" "dyntreeopt"
 
+let mk_algos =
+    ((mk string "algo" "direct") & mk_edge_algos)
+  ++ mk string "algo" "portpassing"
+        
 let nb_milliseconds_target = 1000
 let mk_nb_milliseconds = mk int "nb_milliseconds" nb_milliseconds_target
 
@@ -108,6 +110,16 @@ let incr_probs = [(1,2); (2,3); (9,10); (1,1);]
 let mk_incr_probs =
   let mks = List.map mk_incr_prob incr_probs in
   List.fold_left (++) (List.hd mks) (List.tl mks)
+
+let microbench_formatter =
+  Env.format (Env.(
+    [
+      ("branching_factor", Format_custom (fun n -> sprintf "B=%s" n));
+      ("nb_levels", Format_custom (fun n -> sprintf "D=%s" n));
+      ("algo", Format_custom (fun algo -> sprintf "%s" (if algo = "portpassing" then algo else "")));
+      ("edge_algo", Format_custom (fun edge_algo -> sprintf "%s" edge_algo));
+    ]
+  ))                
                  
 (*****************************************************************************)
 (** Incounter-tune experiment *)
@@ -154,18 +166,13 @@ let run() =
     & mk_proc)]))
 
 let check = nothing  (* do something here *)
-
-let incounter_microbench_formatter =
- Env.format (Env.(
-    [ (*("n", Format_custom (fun n -> sprintf "fib(%s)" n)); *) ]
-  ))
-            
+           
 let plot() =
   Mk_bar_plot.(call ([
       Bar_plot_opt Bar_plot.([
          X_titles_dir Vertical;
          Y_axis [Axis.Lower (Some 0.)] ]);
-       Formatter incounter_microbench_formatter;
+       Formatter microbench_formatter;
       Charts mk_proc;
       Series mk_progs;
       X mk_incr_probs;
@@ -219,17 +226,12 @@ let run() =
 
 let check = nothing  (* do something here *)
 
-let incounter_microbench_formatter =
- Env.format (Env.(
-    [ (*("n", Format_custom (fun n -> sprintf "fib(%s)" n)); *) ]
-  ))
-
 let plot() =
   Mk_bar_plot.(call ([
       Bar_plot_opt Bar_plot.([
          X_titles_dir Vertical;
          Y_axis [Axis.Lower (Some 0.)] ]);
-       Formatter incounter_microbench_formatter;
+       Formatter microbench_formatter;
       Charts mk_proc;
       Series mk_configurations;
       X mk_incr_probs;
@@ -279,11 +281,6 @@ let run() =
 
 let check = nothing  (* do something here *)
 
-let incounter_microbench_formatter =
- Env.format (Env.(
-    [ (*("n", Format_custom (fun n -> sprintf "fib(%s)" n)); *) ]
-  ))
-
 let eval_nb_operations_per_phase_per_second = fun phase env all_results results ->
   let t = Results.get_mean_of ("exectime_"^phase) results in
   let nb_operations = Results.get_mean_of ("nb_operations_"^phase) results in
@@ -297,7 +294,7 @@ let plot_phase phase =
       Bar_plot_opt Bar_plot.([
          X_titles_dir Vertical;
          Y_axis [Axis.Lower (Some 0.)] ]);
-       Formatter incounter_microbench_formatter;
+       Formatter microbench_formatter;
       Charts mk_proc;
       Series mk_incounters;
       X mk_incr_probs;
@@ -313,7 +310,7 @@ let plot() =
       Bar_plot_opt Bar_plot.([
          X_titles_dir Vertical;
          Y_axis [Axis.Lower (Some 0.)] ]);
-       Formatter incounter_microbench_formatter;
+       Formatter microbench_formatter;
       Charts mk_proc;
       Series mk_incounters;
       X mk_incr_probs;
@@ -364,17 +361,12 @@ let run() =
 
 let check = nothing  (* do something here *)
 
-let outset_microbench_formatter =
- Env.format (Env.(
-    [ (*("n", Format_custom (fun n -> sprintf "fib(%s)" n)); *) ]
-  ))
-
 let plot() =
   Mk_bar_plot.(call ([
       Bar_plot_opt Bar_plot.([
          X_titles_dir Vertical;
          Y_axis [Axis.Lower (Some 0.)] ]);
-       Formatter outset_microbench_formatter;
+       Formatter microbench_formatter;
       Charts mk_unit;
       Series mk_outsets;
       X mk_proc;
@@ -413,25 +405,19 @@ let run() =
     & mk_algos
     & mk_nb_milliseconds
     & mk_seed
-    & mk_edge_algos
     & mk_proc)]))
 
 let check = nothing  (* do something here *)
-
-let outset_microbench_formatter =
- Env.format (Env.(
-    [ (*("n", Format_custom (fun n -> sprintf "fib(%s)" n)); *) ]
-  ))
 
 let plot() =
   Mk_bar_plot.(call ([
       Bar_plot_opt Bar_plot.([
          X_titles_dir Vertical;
          Y_axis [Axis.Lower (Some 0.)] ]);
-       Formatter outset_microbench_formatter;
+       Formatter microbench_formatter;
       Charts mk_proc;
-      Series mk_edge_algos;
-      X mk_algos;
+      Series mk_algos;
+      X mk_unit;
       Input (file_results name);
       Output (file_plots name);
       Y_label "nb_operations/ms (per thread)";
@@ -467,25 +453,19 @@ let run() =
     & mk_algos
     & mk_nb_milliseconds
     & mk_seed
-    & mk_edge_algos
     & mk_proc)]))
 
 let check = nothing  (* do something here *)
-
-let outset_microbench_formatter =
- Env.format (Env.(
-    [ (*("n", Format_custom (fun n -> sprintf "fib(%s)" n)); *) ]
-  ))
-
+            
 let plot() =
   Mk_bar_plot.(call ([
       Bar_plot_opt Bar_plot.([
          X_titles_dir Vertical;
          Y_axis [Axis.Lower (Some 0.)] ]);
-       Formatter outset_microbench_formatter;
+       Formatter microbench_formatter;
       Charts mk_proc;
-      Series mk_edge_algos;
-      X mk_algos;
+      Series mk_algos;
+      X mk_unit;
       Input (file_results name);
       Output (file_plots name);
       Y_label "nb_operations/ms (per thread)";
