@@ -2797,8 +2797,6 @@ void outset_finish_partial(std::deque<outset_node*>& todo) {
 class outset_finish_parallel_rec : public node {
 public:
   
-  using self_type = outset_finish_parallel_rec;
-  
   enum {
     process_block=0,
     repeat_block,
@@ -2846,7 +2844,7 @@ public:
     todo.pop_front();
     node* consumer = join;
     node* caller = this;
-    auto producer = new self_type(join, n);
+    auto producer = new outset_finish_parallel_rec(join, n);
     prepare_node(producer);
     insert_inport(producer, (incounter*)consumer->in, (incounter_node*)nullptr);
     propagate_ports_for(caller, producer);
@@ -2857,8 +2855,6 @@ public:
   
 class outset_finish_parallel : public node {
 public:
-  
-  using self_type = outset_finish_parallel;
   
   enum {
     entry_block=0,
