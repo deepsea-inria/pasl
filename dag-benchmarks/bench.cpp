@@ -1829,7 +1829,7 @@ void outset_finish_partial(std::atomic<outset_node*>* freelist, std::deque<outse
   }
 }
 
-class outset_finish_parallel_rec : public node {
+class outset_finish_and_deallocate_parallel_rec : public node {
 public:
   
   enum {
@@ -1842,16 +1842,16 @@ public:
   std::atomic<outset_node*>* freelist;
   std::deque<outset_node*> todo;
   
-  outset_finish_parallel_rec(node* join,
-                             std::atomic<outset_node*>* freelist,
-                             outset_node* n)
+  outset_finish_and_deallocate_parallel_rec(node* join,
+                                            std::atomic<outset_node*>* freelist,
+                                            outset_node* n)
   : join(join), freelist(freelist) {
     todo.push_back(n);
   }
   
-  outset_finish_parallel_rec(node* join,
-                             std::atomic<outset_node*>* freelist,
-                             std::deque<outset_node*>& _todo)
+  outset_finish_and_deallocate_parallel_rec(node* join,
+                                            std::atomic<outset_node*>* freelist,
+                                            std::deque<outset_node*>& _todo)
   : join(join), freelist(freelist) {
     _todo.swap(todo);
   }
@@ -1882,9 +1882,99 @@ public:
     assert(size() >= 2);
     auto n = todo.front();
     todo.pop_front();
-    auto t = new outset_finish_parallel_rec(join, freelist, n);
+    auto t = new outset_finish_and_deallocate_parallel_rec(join, freelist, n);
     add_edge(t, join);
     return t;
+  }
+  
+};
+
+class outset_finish_and_deallocate_parallel : public node {
+public:
+  
+  enum {
+    entry_block=0,
+    exit_block
+  };
+  
+  dyntreeopt_outset* out;
+  std::deque<outset_node*> todo;
+  
+  outset_finish_and_deallocate_parallel(dyntreeopt_outset* out,
+                                        std::deque<outset_node*>& _todo)
+  : out(out) {
+    todo.swap(_todo);
+  }
+  
+  void body() {
+    switch (current_block_id) {
+      case entry_block: {
+        finish(new outset_finish_and_deallocate_parallel_rec(this, &(out->freelist), todo),
+               exit_block);
+        break;
+      }
+      case exit_block: {
+        assert(out->should_deallocate_automatically);
+        break;
+      }
+      default:
+        break;
+    }
+  }
+  
+};
+  
+class outset_finish_parallel_rec : public node {
+public:
+  
+  enum {
+    process_block=0,
+    repeat_block,
+    exit_block
+  };
+  
+  std::atomic<outset_node*>* freelist;
+  std::deque<outset_node*> todo;
+  
+  outset_finish_parallel_rec(std::atomic<outset_node*>* freelist,
+                             outset_node* n)
+  : freelist(freelist) {
+    todo.push_back(n);
+  }
+  
+  outset_finish_parallel_rec(std::atomic<outset_node*>* freelist,
+                             std::deque<outset_node*>& _todo)
+  : freelist(freelist) {
+    _todo.swap(todo);
+  }
+  
+  void body() {
+    switch (current_block_id) {
+      case process_block: {
+        outset_finish_partial(freelist, todo);
+        jump_to(repeat_block);
+        break;
+      }
+      case repeat_block: {
+        if (! todo.empty()) {
+          jump_to(process_block);
+        }
+        break;
+      }
+      default:
+        break;
+    }
+  }
+  
+  size_t size() const {
+    return todo.size();
+  }
+  
+  pasl::sched::thread_p split() {
+    assert(size() >= 2);
+    auto n = todo.front();
+    todo.pop_front();
+    return new outset_finish_parallel_rec(freelist, n);
   }
   
 };
@@ -1900,7 +1990,8 @@ public:
   dyntreeopt_outset* out;
   std::deque<outset_node*> todo;
   
-  outset_finish_parallel(dyntreeopt_outset* out, std::deque<outset_node*>& _todo)
+  outset_finish_parallel(dyntreeopt_outset* out,
+                         std::deque<outset_node*>& _todo)
   : out(out) {
     todo.swap(_todo);
   }
@@ -1908,14 +1999,12 @@ public:
   void body() {
     switch (current_block_id) {
       case entry_block: {
-        finish(new outset_finish_parallel_rec(this, &(out->freelist), todo),
-               exit_block);
+        call(new outset_finish_parallel_rec(&(out->freelist), todo),
+             exit_block);
         break;
       }
       case exit_block: {
-        if (out->should_deallocate_automatically) {
-          delete out;
-        }
+        assert(! out->should_deallocate_automatically);
         break;
       }
       default:
@@ -1939,7 +2028,12 @@ void outset_finish(dyntreeopt_outset* out) {
   }
   outset_finish_partial(&(out->freelist), todo);
   if (! todo.empty()) {
-    auto n = new outset_finish_parallel(out, todo);
+    node* n;
+    if (out->should_deallocate_automatically) {
+      n = new outset_finish_and_deallocate_parallel(out, todo);
+    } else {
+      n = new outset_finish_parallel(out, todo);
+    }
     prepare_node(n);
     add_node(n);
   } else {
@@ -2794,7 +2888,7 @@ void outset_finish_partial(std::deque<outset_node*>& todo) {
   }
 }
   
-class outset_finish_parallel_rec : public node {
+class outset_finish_and_deallocate_parallel_rec : public node {
 public:
   
   enum {
@@ -2806,12 +2900,12 @@ public:
   node* join;
   std::deque<outset_node*> todo;
   
-  outset_finish_parallel_rec(node* join, outset_node* n)
+  outset_finish_and_deallocate_parallel_rec(node* join, outset_node* n)
   : join(join) {
     todo.push_back(n);
   }
   
-  outset_finish_parallel_rec(node* join, std::deque<outset_node*>& _todo)
+  outset_finish_and_deallocate_parallel_rec(node* join, std::deque<outset_node*>& _todo)
   : join(join) {
     _todo.swap(todo);
   }
@@ -2844,7 +2938,7 @@ public:
     todo.pop_front();
     node* consumer = join;
     node* caller = this;
-    auto producer = new outset_finish_parallel_rec(join, n);
+    auto producer = new outset_finish_and_deallocate_parallel_rec(join, n);
     prepare_node(producer);
     insert_inport(producer, (incounter*)consumer->in, (incounter_node*)nullptr);
     propagate_ports_for(caller, producer);
@@ -2853,6 +2947,92 @@ public:
   
 };
   
+class outset_finish_and_deallocate_parallel : public node {
+public:
+  
+  enum {
+    entry_block=0,
+    exit_block
+  };
+  
+  outset* out;
+  std::deque<outset_node*> todo;
+  
+  outset_finish_and_deallocate_parallel(outset* out, std::deque<outset_node*>& _todo)
+  : out(out) {
+    todo.swap(_todo);
+  }
+  
+  void body() {
+    switch (current_block_id) {
+      case entry_block: {
+        finish(new outset_finish_and_deallocate_parallel_rec(this, todo),
+               exit_block);
+        break;
+      }
+      case exit_block: {
+        if (out->should_deallocate_automatically) {
+          delete out;
+        }
+        break;
+      }
+      default:
+        break;
+    }
+  }
+  
+};
+
+class outset_finish_parallel_rec : public node {
+public:
+  
+  enum {
+    process_block=0,
+    repeat_block,
+    exit_block
+  };
+  
+  std::deque<outset_node*> todo;
+  
+  outset_finish_parallel_rec(outset_node* n) {
+    todo.push_back(n);
+  }
+  
+  outset_finish_parallel_rec(std::deque<outset_node*>& _todo) {
+    _todo.swap(todo);
+  }
+  
+  void body() {
+    switch (current_block_id) {
+      case process_block: {
+        outset_finish_partial(todo);
+        jump_to(repeat_block);
+        break;
+      }
+      case repeat_block: {
+        if (! todo.empty()) {
+          jump_to(process_block);
+        }
+        break;
+      }
+      default:
+        break;
+    }
+  }
+  
+  size_t size() const {
+    return todo.size();
+  }
+  
+  pasl::sched::thread_p split() {
+    assert(size() >= 2);
+    auto n = todo.front();
+    todo.pop_front();
+    return new outset_finish_parallel_rec(n);
+  }
+  
+};
+
 class outset_finish_parallel : public node {
 public:
   
@@ -2872,14 +3052,12 @@ public:
   void body() {
     switch (current_block_id) {
       case entry_block: {
-        finish(new outset_finish_parallel_rec(this, todo),
+        call(new outset_finish_parallel_rec(todo),
                exit_block);
         break;
       }
       case exit_block: {
-        if (out->should_deallocate_automatically) {
-          delete out;
-        }
+        assert(! out->should_deallocate_automatically);
         break;
       }
       default:
@@ -2894,7 +3072,12 @@ void outset_finish(outset* out) {
   todo.push_back(out->root);
   outset_finish_partial(todo);
   if (! todo.empty()) {
-    auto n = new outset_finish_parallel(out, todo);
+    node* n;
+    if (out->should_deallocate_automatically) {
+      n = new outset_finish_and_deallocate_parallel(out, todo);
+    } else {
+      n = new outset_finish_parallel(out, todo);
+    }
     prepare_node(n);
     add_node(n);
   } else {
@@ -2920,10 +3103,8 @@ void outset_tree_deallocate_partial(std::deque<outset_node*>& todo) {
   }
 }
 
-class outset_tree_deallocate_par : public node {
+class outset_tree_deallocate_parallel : public node {
 public:
-  
-  using self_type = outset_tree_deallocate_par;
   
   enum {
     process_block=0,
@@ -2958,7 +3139,7 @@ public:
     assert(size() >= 2);
     auto n = todo.front();
     todo.pop_front();
-    auto t = new self_type();
+    auto t = new outset_tree_deallocate_parallel;
     prepare_node(t);
     t->todo.push_back(n);
     return t;
@@ -2967,11 +3148,11 @@ public:
 };
   
 void outset_tree_deallocate(outset_node* root) {
-  outset_tree_deallocate_par d;
+  outset_tree_deallocate_parallel d;
   d.todo.push_back(root);
   outset_tree_deallocate_partial(d.todo);
   if (! d.todo.empty()) {
-    node* n = new outset_tree_deallocate_par(d);
+    node* n = new outset_tree_deallocate_parallel(d);
     prepare_node(n);
     add_node(n);
   }
