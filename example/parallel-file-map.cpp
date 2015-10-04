@@ -1,7 +1,7 @@
 /*!
- * \file tree-contract.cpp
- * \brief Parallel tree contraction
- * \example tree-contract.cpp
+ * \file parallel-file-map.cpp
+ * \brief Parallel File Map
+ * \example parallel-file-map.cpp
  * \date 2014
  * \copyright COPYRIGHT (c) 2012 Umut Acar, Arthur Chargueraud,
  * Michael Rainey. All rights reserved.
@@ -17,16 +17,98 @@
  *
  * Implementation: File map
  *
- * Given $n$ this file creates a file with $n$ integers 
- * from $0$ to $n-1$ and then reads them in parallel to compute 
- * their sum.  It uses a spin lock to ensure atomic access
- * to the file.
+ * Given $n$ this file creates a file with $n$ integers from $0$ to
+ * $n-1$ and then reads them in parallel to compute their sum.  For
+ * the parallel reduction, the algorithm divides the file into blocks
+ * of size "cutoff*cutoff" and reads and reduces them in parallel.
  *
- * The effect that I (Umut) would like to see was how the program
- * behaves when end up getting blocked for I/O.  I am not sure
- * if this program demonstrates the issue because the lock will
- * be held by only one processor, causing essentially a serialization
- * of all file accesses anyway.  More thinking is needed...
+ * Note that the reduction is also done in parallel with the specified
+ * cutoff.
+ *
+ * One factor here is the "thrashing effect" though work-stealing
+ * should approximate quite well the order in which the file is read.
+ *
+ * The other factor is that when a thread is waiting for a chunk to be
+ * served, it does not release the processor.  This is the real effect
+ * that we are after, because it will prevent parallel reductions to
+ * be done effectively.  This effect should be most noticable when the
+ * file size is large.
+ *
+ *
+ * Here is a run wuth buffering
+ ../pbench/prun speedup -baseline "./parallel-file-map.opt -proc 1" -parallel "./parallel-file-map.opt -proc 1,2,4,8" -n 100000000 -cutoff 100
+[1/5]
+./parallel-file-map.opt -n 100000000 -cutoff 100 -proc 1
+exectime 4.377
+[2/5]
+./parallel-file-map.opt -n 100000000 -cutoff 100 -proc 1
+exectime 4.197
+[3/5]
+./parallel-file-map.opt -n 100000000 -cutoff 100 -proc 2
+exectime 3.633
+[4/5]
+./parallel-file-map.opt -n 100000000 -cutoff 100 -proc 4
+exectime 3.332
+[5/5]
+./parallel-file-map.opt -n 100000000 -cutoff 100 -proc 8
+exectime 5.119
+ *
+ *
+ * Here is the same run without buffering.
+ 
+ ../pbench/prun speedup -baseline "./parallel-file-map.opt -proc 1" -parallel "./parallel-file-map.opt -proc 1,2,4,8" -n 100000000 -cutoff 100
+./_build/opt/compile.sh -o _build/opt/parallel-file-map.o -c ./parallel-file-map.cpp
+=================
+g++ -std=c++11 -DNDEBUG -O2 -fno-optimize-sibling-calls -DDISABLE_INTERRUPTS -DSTATS_IDLE -D_GNU_SOURCE -Wfatal-errors -m64 -DTARGET_X86_64 -DTARGET_MAC_OS -pthread -DHAVE_GCC_TLS -I . -I ../tools/build//../../sequtil -I ../tools/build//../../parutil -I ../tools/build//../../sched -I ../tools/build//../../tools/pbbs -I ../tools/build//../../tools/malloc_count -I _build/opt $* _build/opt/parallel-file-map.o _build/opt/cmdline.o _build/opt/threaddag.o _build/opt/callback.o _build/opt/atomic.o _build/opt/machine.o _build/opt/worker.o _build/opt/logging.o _build/opt/stats.o _build/opt/microtime.o _build/opt/ticks.o _build/opt/scheduler.o _build/opt/messagestrategy.o _build/opt/estimator.o _build/opt/workstealing.o _build/opt/native.o -o parallel-file-map.opt
+=================
+clang: warning: argument unused during compilation: '-pthread'
+bash-3.2$ make: `parallel-file-map.opt' is up to date.
+bash-3.2$ [1/5]
+./parallel-file-map.opt -n 100000000 -cutoff 100 -proc 1
+exectime 38.323
+[2/5]
+./parallel-file-map.opt -n 100000000 -cutoff 100 -proc 1
+exectime 38.504
+[3/5]
+./parallel-file-map.opt -n 100000000 -cutoff 100 -proc 2
+exectime 36.417
+[4/5]
+./parallel-file-map.opt -n 100000000 -cutoff 100 -proc 4
+exectime 44.774
+[5/5]
+./parallel-file-map.opt -n 100000000 -cutoff 100 -proc 8
+exectime 69.791
+
+ * What is interesting here is that buffering changes a lot but speedup
+ * seems very similar.
+ *
+ *
+ * Here is the same experiment using arrays.  Note that the speedups
+ * are a lot better.  We see the memory bottleneck kicking in at 4
+ * procossors. but there is a marked impvoment at 2.  In the file
+ * example, there is no improvement.
+
+bash-3.2$ ../pbench/prun speedup -baseline "./parallel-array-map.opt -proc 1" -parallel "./parallel-array-map.opt -proc 1,2,4,8" -n 100000000 -cutoff 100
+[1/5]
+./parallel-array-map.opt -n 100000000 -cutoff 100 -proc 1
+exectime 0.921
+[2/5]
+./parallel-array-map.opt -n 100000000 -cutoff 100 -proc 1
+exectime 0.907
+[3/5]
+./parallel-array-map.opt -n 100000000 -cutoff 100 -proc 2
+exectime 0.577
+[4/5]
+./parallel-array-map.opt -n 100000000 -cutoff 100 -proc 4
+exectime 0.454
+[5/5]
+./parallel-array-map.opt -n 100000000 -cutoff 100 -proc 8
+exectime 0.487
+
+*
+* 
+*
+* TODO: Asses the situation with cilk.
  */
 
 
@@ -42,6 +124,71 @@ namespace par = pasl::sched::native;
 
 long cutoff = 0;
 
+/*---------------------------------------------------------------------*/
+
+static long seq_fib (long n){
+  if (n < 2)
+    return n;
+  else
+    return seq_fib (n - 1) + seq_fib (n - 2);
+}
+
+static long par_fib(long n) {
+  if (n <= 20 || n < 2)
+    return seq_fib(n);
+  long a, b;
+  par::fork2([n, &a] { a = par_fib(n-1); },
+             [n, &b] { b = par_fib(n-2); });
+  return a + b;
+}
+
+/*---------------------------------------------------------------------*/
+
+
+static double sum_data (int* data, int start, int end)
+{
+  double sum = 0.0;
+
+  if (end-start < cutoff) {
+//    sum = par_fib (30);
+    for (int i = start; i < end; ++i) {
+//      cout << "i = " << i << " data[i] = " << data[i] << endl ;
+      sum = sum + (int) data[i];
+    }
+
+  }
+  else {
+    int mid = (start + end) / 2;
+    double a = 0.0;
+    double b = 0.0;
+
+		par::fork2([&] 
+							 { a = sum_data (data, start, mid); },
+               [&] 
+            	 { b = sum_data (data, mid, end); });		
+
+//    cout << "|";
+    sum = a + b ;    
+  };
+
+  return sum;
+
+}// sum_data
+
+// Assume that block_size = 4 and convert it into integers for addition.
+static double sum_data_seq (int* data, int start, int end)
+{
+  double sum = 0.0;
+	
+  for (int i = start; i < end; ++i) {
+    int d = (int) data[i];
+//		cout << "d = " << d << endl;
+    sum = sum + d;
+  };
+
+//	cout << "sum = " << sum << endl;
+	return sum;
+}// sum_data_seq
 
 /*---------------------------------------------------------------------*/
 
@@ -70,7 +217,6 @@ void create_file (const string file_name, int n)
   return;
 }
 
-
 static double seq_file_map (ifstream &f, int n)
 {
   int block_size = sizeof (int);  
@@ -87,9 +233,7 @@ static double seq_file_map (ifstream &f, int n)
   }
  
   return sum;
-    
 }
-
 
 class spin_lock {
 private:
@@ -123,19 +267,28 @@ public:
 
 static int par_file_map_rec_locked (ifstream &f, int n, spin_lock &f_lock, int block_size, int i, int j)
 {
-
+		
   if ( j-i <= cutoff) {
-    char block[4];
+    int m = j-i;            // how many blocks do we have.
+    char* data = new char[block_size*m]; 
 
-    // begin read: take the file lock, read, and release.
+    // take lock.
     f_lock.spin_to_lock ();     				
+
+    // turn off file buffering
+    f.rdbuf()->pubsetbuf(0, 0);
+		
     f.seekg (i * block_size, ios::beg);        
-    f.read (block, block_size);
+    f.read (data, block_size*m);
+		f.close ();
+    // end read.
+
+		// release lock.
 		f_lock.release ();
-    // end read.		
-    int m = (int) *block;
-//    cout << "i = " << i << " j = " << j << " m = " << m << endl;
-		return m; 
+
+		// reduce over the block.
+    double s = sum_data ((int*) data, 0, m);		
+  	return s;
 	}
 	else {
     int mid = (i+j)/2;
@@ -169,73 +322,6 @@ static int par_file_map_locked (string file_name, int n)
 
 }//par_file_map_locked
 
-/*---------------------------------------------------------------------*/
-
-static long seq_fib (long n){
-  if (n < 2)
-    return n;
-  else
-    return seq_fib (n - 1) + seq_fib (n - 2);
-}
-
-static long par_fib(long n) {
-  if (n <= 20 || n < 2)
-    return seq_fib(n);
-  long a, b;
-  par::fork2([n, &a] { a = par_fib(n-1); },
-             [n, &b] { b = par_fib(n-2); });
-  return a + b;
-}
-
-/*---------------------------------------------------------------------*/
-
-
-static double g (int* data, int start, int end)
-{
-  double sum = 0.0;
-
-  if (end-start < cutoff) {
-    sum = par_fib (30);
-    for (int i = start; i < end; ++i) {
-      sum = sum + (int) data[i];
-    }
-//    cout << "x";
-  }
-  else {
-    int mid = (start + end) / 2;
-    double a = 0.0;
-    double b = 0.0;
-
-		par::fork2([&] 
-							 { a = g (data, start, mid); },
-               [&] 
-            	 { b = g (data, mid, end); });		
-
-//    cout << "|";
-    sum = a + b ;    
-  };
-
-  return sum;
-
-}// g
-
-
-
-// Assume that block_size = 4 and convert it into integers for addition.
-static double g_seq (int* data, int start, int end)
-{
-  double sum = 0.0;
-	
-  for (int i = start; i < end; ++i) {
-    int d = (int) data[i];
-//		cout << "d = " << d << endl;
-    sum = sum + d;
-  };
-
-//	cout << "sum = " << sum << endl;
-	return sum;
-}// g
-
 
 static double par_file_map_rec (string file_name, int n, int block_size, int i, int j)
 {
@@ -262,7 +348,9 @@ static double par_file_map_rec (string file_name, int n, int block_size, int i, 
     f.read (data, block_size*m);
 		f.close ();
     // end read.
-    double s = g ((int*) data, 0, m);		
+
+		// reduce over the block.
+    double s = sum_data ((int*) data, 0, m);		
   	return s;
 	}
 	else {
