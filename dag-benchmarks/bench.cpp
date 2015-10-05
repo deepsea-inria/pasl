@@ -103,7 +103,7 @@ int random_int(int lo, int hi) {
 /*---------------------------------------------------------------------*/
 /* Global parameters */
 
-int communication_delay = 1024;
+int communication_delay = 512;
 
 using port_passing_mode = enum {
   port_passing_default,
