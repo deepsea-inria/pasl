@@ -3648,11 +3648,11 @@ public:
         break;
       }
       case recurse: {
-        if (buffer->load() != nullptr) {
-          node::jump_to(loop);
-        } else {
+        if (buffer->load() == nullptr && pasl::sched::threaddag::my_sched()->should_call_communicate()) {
           node::async(new edge_throughput_microbench_loop(join, producer, buffer), join,
                       loop);
+        } else {
+          node::jump_to(loop);
         }
         break;
       }
