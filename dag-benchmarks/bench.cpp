@@ -1213,7 +1213,7 @@ outset* outset_new() {
   if (edge_algorithm == edge_algorithm_simple) {
     return new simple::simple_outset;
   } else if (edge_algorithm == edge_algorithm_distributed) {
-    return new dyntree::dyntree_outset;
+    return new dyntreeopt::dyntreeopt_outset;
   } else if (edge_algorithm == edge_algorithm_dyntree) {
     return new dyntree::dyntree_outset;
   } else if (edge_algorithm == edge_algorithm_dyntreeopt) {
