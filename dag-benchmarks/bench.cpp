@@ -103,7 +103,7 @@ int random_int(int lo, int hi) {
 /*---------------------------------------------------------------------*/
 /* Global parameters */
 
-int communication_delay = 100;
+int communication_delay = 1024;
 
 using port_passing_mode = enum {
   port_passing_default,
@@ -1139,8 +1139,8 @@ public:
     add_node(producer);
   }
   
-  void split_with(node*) {
-    // nothing to do
+  void split_with(node* n) {
+    prepare_node(n);
   }
   
   void call(node* target, int continuation_block_id) {
@@ -1390,6 +1390,7 @@ public:
   pasl::sched::thread_p split(size_t) {
     long mid = (hi + lo) / 2;
     lazy_parallel_for_rec* n = new lazy_parallel_for_rec(mid, hi, join, _body);
+    prepare_node(n, incounter_ready(), outset_unary());
     hi = mid;
     add_edge(n, join);
     return n;
@@ -1457,7 +1458,8 @@ public:
     assert(size() >= 2);
     auto n = todo.front();
     todo.pop_front();
-    auto t = new incounter_tree_deallocate_par();
+    auto t = new incounter_tree_deallocate_par;
+    prepare_node(t, incounter_ready(), outset_noop());
     t->todo.push_back(n);
     return t;
   }
@@ -1567,6 +1569,7 @@ public:
     auto n = todo.front();
     todo.pop_front();
     auto t = new outset_finish_parallel_rec(join, freelist, n);
+    prepare_node(t, incounter_ready(), outset_noop());
     add_edge(t, join);
     return t;
   }
@@ -1687,6 +1690,7 @@ public:
     auto n = todo.front();
     todo.pop_front();
     auto t = new outset_tree_deallocate_parallel;
+    prepare_node(t, incounter_ready(), outset_unary());
     t->todo.push_back(n);
     return t;
   }
@@ -1772,7 +1776,8 @@ public:
     assert(size() >= 2);
     auto n = todo.front();
     todo.pop_front();
-    auto t = new incounter_tree_deallocate_par();
+    auto t = new incounter_tree_deallocate_par;
+    prepare_node(t, incounter_ready(), outset_noop());
     t->todo.push_back(n);
     return t;
   }
@@ -1869,8 +1874,8 @@ public:
   void body() {
     switch (current_block_id) {
       case process_block: {
-        outset_finish_partial(freelist, todo);
         jump_to(repeat_block);
+        outset_finish_partial(freelist, todo);
         break;
       }
       case repeat_block: {
@@ -1893,6 +1898,7 @@ public:
     auto n = todo.front();
     todo.pop_front();
     auto t = new outset_finish_and_deallocate_parallel_rec(join, freelist, n);
+    prepare_node(t, incounter_ready(), outset_unary());
     add_edge(t, join);
     return t;
   }
@@ -1961,8 +1967,8 @@ public:
   void body() {
     switch (current_block_id) {
       case process_block: {
-        outset_finish_partial(freelist, todo);
         jump_to(repeat_block);
+        outset_finish_partial(freelist, todo);
         break;
       }
       case repeat_block: {
@@ -1984,7 +1990,9 @@ public:
     assert(size() >= 2);
     auto n = todo.front();
     todo.pop_front();
-    return new outset_finish_parallel_rec(freelist, n);
+    auto t = new outset_finish_parallel_rec(freelist, n);
+    prepare_node(t, incounter_ready(), outset_noop());
+    return t;
   }
   
 };
@@ -2107,6 +2115,7 @@ public:
     auto n = todo.front();
     todo.pop_front();
     auto t = new outset_tree_deallocate_parallel;
+    prepare_node(t, incounter_ready(), outset_noop());
     t->todo.push_back(n);
     return t;
   }
@@ -2857,10 +2866,11 @@ public:
   pasl::sched::thread_p split(size_t) {
     node* consumer = join;
     node* caller = this;
-    int mid = (hi + lo) / 2;
+    long mid = (hi + lo) / 2;
     lazy_parallel_for_rec* producer = new lazy_parallel_for_rec(mid, hi, join, _body);
     hi = mid;
-    prepare_node(producer);
+//    prepare_node(producer);
+    prepare_node(producer, incounter_ready(), outset_unary(nullptr));
     insert_inport(producer, (incounter*)consumer->in, (incounter_node*)nullptr);
     propagate_ports_for(caller, producer);
     return producer;
@@ -2923,8 +2933,8 @@ public:
   void body() {
     switch (current_block_id) {
       case process_block: {
-        outset_finish_partial(todo);
         jump_to(repeat_block);
+        outset_finish_partial(todo);
         break;
       }
       case repeat_block: {
@@ -2949,7 +2959,8 @@ public:
     node* consumer = join;
     node* caller = this;
     auto producer = new outset_finish_and_deallocate_parallel_rec(join, n);
-    prepare_node(producer);
+//    prepare_node(producer);
+    prepare_node(producer, incounter_ready(), outset_unary(nullptr));
     insert_inport(producer, (incounter*)consumer->in, (incounter_node*)nullptr);
     propagate_ports_for(caller, producer);
     return producer;
@@ -3015,8 +3026,8 @@ public:
   void body() {
     switch (current_block_id) {
       case process_block: {
-        outset_finish_partial(todo);
         jump_to(repeat_block);
+        outset_finish_partial(todo);
         break;
       }
       case repeat_block: {
@@ -3038,7 +3049,9 @@ public:
     assert(size() >= 2);
     auto n = todo.front();
     todo.pop_front();
-    return new outset_finish_parallel_rec(n);
+    auto t = new outset_finish_parallel_rec(n);
+    prepare_node(t, incounter_ready(), outset_unary(nullptr));
+    return t;
   }
   
 };
@@ -3150,7 +3163,8 @@ public:
     auto n = todo.front();
     todo.pop_front();
     auto t = new outset_tree_deallocate_parallel;
-    prepare_node(t);
+//    prepare_node(t);
+    prepare_node(t, incounter_ready(), outset_unary(nullptr));
     t->todo.push_back(n);
     return t;
   }
