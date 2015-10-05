@@ -9,7 +9,7 @@ let system = XSys.command_must_succeed_or_virtual
 let arg_virtual_run = XCmd.mem_flag "virtual_run"
 let arg_virtual_build = XCmd.mem_flag "virtual_build"
 let arg_nb_runs = XCmd.parse_or_default_int "runs" 1
-let arg_mode = "replace"   (* later: investigate the purpose of "mode" *)
+let arg_mode = "normal"   (* later: investigate the purpose of "mode" *)
 let arg_skips = XCmd.parse_or_default_list_string "skip" []
 let arg_onlys = XCmd.parse_or_default_list_string "only" []
 
@@ -118,6 +118,8 @@ let microbench_formatter =
       ("nb_levels", Format_custom (fun n -> sprintf "D=%s" n));
       ("algo", Format_custom (fun algo -> sprintf "%s" (if algo = "portpassing" then algo else "")));
       ("edge_algo", Format_custom (fun edge_algo -> sprintf "%s" edge_algo));
+      ("outset", Format_custom (fun outset -> sprintf "%s" outset));
+      ("incounter", Format_custom (fun incounter -> sprintf "%s" incounter));
     ]
   ))                
                  
@@ -367,9 +369,9 @@ let plot() =
          X_titles_dir Vertical;
          Y_axis [Axis.Lower (Some 0.)] ]);
        Formatter microbench_formatter;
-      Charts mk_unit;
+      Charts mk_proc;
       Series mk_outsets;
-      X mk_proc;
+      X mk_unit;
       Input (file_results name);
       Output (file_plots name);
       Y_label "nb_operations/ms (per thread)";
@@ -443,6 +445,18 @@ let mk_cmd = mk string "cmd" "edge_throughput_microbench"
 let make() =
   build "." [prog] arg_virtual_build
 
+let mk_edge_algos =
+     mk string "edge_algo" "simple"
+     (*     ++ mk_distributed_edge_algo  
+  ++ mk string "edge_algo" "dyntree" *)
+  ++ mk string "edge_algo" "dyntreeopt"
+  ++ mk string "edge_algo" "simple_dyntreeopt"
+  ++ mk string "edge_algo" "dyntreeopt_simple"
+       
+let mk_algos =
+    ((mk string "algo" "direct") & mk_edge_algos)
+(*  ++ mk string "algo" "portpassing" *)
+
 let run() =
   Mk_runs.(call (run_modes @ [
     Output (file_results name);
@@ -461,6 +475,7 @@ let plot() =
   Mk_bar_plot.(call ([
       Bar_plot_opt Bar_plot.([
          X_titles_dir Vertical;
+         Chart_opt Chart.([Dimensions (10.,8.) ]);
          Y_axis [Axis.Lower (Some 0.)] ]);
        Formatter microbench_formatter;
       Charts mk_proc;
