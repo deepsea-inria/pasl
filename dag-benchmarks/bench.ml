@@ -445,18 +445,6 @@ let mk_cmd = mk string "cmd" "edge_throughput_microbench"
 let make() =
   build "." [prog] arg_virtual_build
 
-let mk_edge_algos =
-     mk string "edge_algo" "simple"
-     (*     ++ mk_distributed_edge_algo  
-  ++ mk string "edge_algo" "dyntree" *)
-  ++ mk string "edge_algo" "dyntreeopt"
-  ++ mk string "edge_algo" "simple_dyntreeopt"
-  ++ mk string "edge_algo" "dyntreeopt_simple"
-       
-let mk_algos =
-    ((mk string "algo" "direct") & mk_edge_algos)
-(*  ++ mk string "algo" "portpassing" *)
-
 let run() =
   Mk_runs.(call (run_modes @ [
     Output (file_results name);
