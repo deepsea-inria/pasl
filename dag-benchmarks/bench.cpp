@@ -2869,8 +2869,7 @@ public:
     long mid = (hi + lo) / 2;
     lazy_parallel_for_rec* producer = new lazy_parallel_for_rec(mid, hi, join, _body);
     hi = mid;
-//    prepare_node(producer);
-    prepare_node(producer, incounter_ready(), outset_unary(nullptr));
+    prepare_node(producer);
     insert_inport(producer, (incounter*)consumer->in, (incounter_node*)nullptr);
     propagate_ports_for(caller, producer);
     return producer;
@@ -2959,8 +2958,7 @@ public:
     node* consumer = join;
     node* caller = this;
     auto producer = new outset_finish_and_deallocate_parallel_rec(join, n);
-//    prepare_node(producer);
-    prepare_node(producer, incounter_ready(), outset_unary(nullptr));
+    prepare_node(producer);
     insert_inport(producer, (incounter*)consumer->in, (incounter_node*)nullptr);
     propagate_ports_for(caller, producer);
     return producer;
@@ -3050,7 +3048,7 @@ public:
     auto n = todo.front();
     todo.pop_front();
     auto t = new outset_finish_parallel_rec(n);
-    prepare_node(t, incounter_ready(), outset_unary(nullptr));
+    prepare_node(t);
     return t;
   }
   
@@ -3163,8 +3161,7 @@ public:
     auto n = todo.front();
     todo.pop_front();
     auto t = new outset_tree_deallocate_parallel;
-//    prepare_node(t);
-    prepare_node(t, incounter_ready(), outset_unary(nullptr));
+    prepare_node(t);
     t->todo.push_back(n);
     return t;
   }
