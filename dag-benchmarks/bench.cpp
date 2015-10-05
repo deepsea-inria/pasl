@@ -1383,13 +1383,13 @@ public:
     }
   }
   
-  size_t size() const {
+  size_t size() {
     return hi - lo;
   }
   
-  pasl::sched::thread_p split() {
+  pasl::sched::thread_p split(size_t) {
     long mid = (hi + lo) / 2;
-    lazy_parallel_for_rec n = new lazy_parallel_for_rec(mid, hi, join, _body);
+    lazy_parallel_for_rec* n = new lazy_parallel_for_rec(mid, hi, join, _body);
     hi = mid;
     add_edge(n, join);
     return n;
@@ -1449,11 +1449,11 @@ public:
     }
   }
   
-  size_t size() const {
+  size_t size() {
     return todo.size();
   }
   
-  pasl::sched::thread_p split() {
+  pasl::sched::thread_p split(size_t) {
     assert(size() >= 2);
     auto n = todo.front();
     todo.pop_front();
@@ -1558,11 +1558,11 @@ public:
     }
   }
   
-  size_t size() const {
+  size_t size() {
     return todo.size();
   }
   
-  pasl::sched::thread_p split() {
+  pasl::sched::thread_p split(size_t) {
     assert(size() >= 2);
     auto n = todo.front();
     todo.pop_front();
@@ -1678,11 +1678,11 @@ public:
     }
   }
   
-  size_t size() const {
+  size_t size() {
     return todo.size();
   }
   
-  pasl::sched::thread_p split() {
+  pasl::sched::thread_p split(size_t) {
     assert(size() >= 2);
     auto n = todo.front();
     todo.pop_front();
@@ -1764,11 +1764,11 @@ public:
     }
   }
   
-  size_t size() const {
+  size_t size() {
     return todo.size();
   }
   
-  pasl::sched::thread_p split() {
+  pasl::sched::thread_p split(size_t) {
     assert(size() >= 2);
     auto n = todo.front();
     todo.pop_front();
@@ -1884,11 +1884,11 @@ public:
     }
   }
   
-  size_t size() const {
+  size_t size() {
     return todo.size();
   }
   
-  pasl::sched::thread_p split() {
+  pasl::sched::thread_p split(size_t) {
     assert(size() >= 2);
     auto n = todo.front();
     todo.pop_front();
@@ -1976,11 +1976,11 @@ public:
     }
   }
   
-  size_t size() const {
+  size_t size() {
     return todo.size();
   }
-  
-  pasl::sched::thread_p split() {
+
+  pasl::sched::thread_p split(size_t) {
     assert(size() >= 2);
     auto n = todo.front();
     todo.pop_front();
@@ -2098,11 +2098,11 @@ public:
     }
   }
   
-  size_t size() const {
+  size_t size() {
     return todo.size();
   }
   
-  pasl::sched::thread_p split() {
+  pasl::sched::thread_p split(size_t) {
     assert(size() >= 2);
     auto n = todo.front();
     todo.pop_front();
@@ -2850,15 +2850,15 @@ public:
     }
   }
   
-  size_t size() const {
+  size_t size() {
     return hi - lo;
   }
   
-  pasl::sched::thread_p split() {
+  pasl::sched::thread_p split(size_t) {
     node* consumer = join;
     node* caller = this;
     int mid = (hi + lo) / 2;
-    lazy_parallel_for_rec producer = new lazy_parallel_for_rec(mid, hi, join, _body);
+    lazy_parallel_for_rec* producer = new lazy_parallel_for_rec(mid, hi, join, _body);
     hi = mid;
     prepare_node(producer);
     insert_inport(producer, (incounter*)consumer->in, (incounter_node*)nullptr);
@@ -2938,11 +2938,11 @@ public:
     }
   }
   
-  size_t size() const {
+  size_t size() {
     return todo.size();
   }
   
-  pasl::sched::thread_p split() {
+  pasl::sched::thread_p split(size_t) {
     assert(size() >= 2);
     auto n = todo.front();
     todo.pop_front();
@@ -3030,11 +3030,11 @@ public:
     }
   }
   
-  size_t size() const {
+  size_t size() {
     return todo.size();
   }
   
-  pasl::sched::thread_p split() {
+  pasl::sched::thread_p split(size_t) {
     assert(size() >= 2);
     auto n = todo.front();
     todo.pop_front();
@@ -3141,11 +3141,11 @@ public:
     }
   }
   
-  size_t size() const {
+  size_t size() {
     return todo.size();
   }
   
-  pasl::sched::thread_p split() {
+  pasl::sched::thread_p split(size_t) {
     assert(size() >= 2);
     auto n = todo.front();
     todo.pop_front();
@@ -3758,6 +3758,7 @@ public:
         break;
       }
       case exit: {
+        node::deallocate_future(producer);
         std::cout << "nb_operations  " << edge_throughput_microbench_counter.sum() << std::endl;
         break;
       }
@@ -4574,11 +4575,11 @@ public:
     }
   }
   
-  size_t size() const {
+  size_t size() {
     return c_hi - c_lo;
   }
   
-  pasl::sched::thread_p split() {
+  pasl::sched::thread_p split(size_t) {
     int mid = (c_lo + c_hi) / 2;
     int c_lo2 = mid;
     int c_hi2 = c_hi;
@@ -4887,9 +4888,14 @@ int main(int argc, char** argv) {
     benchmarks::launch_outset_microbenchmark();
   } else {
     pasl::sched::threaddag::init();
+    LOG_BASIC(ENTER_ALGO);
     auto start = std::chrono::system_clock::now();
     launch();
     auto end = std::chrono::system_clock::now();
+    LOG_BASIC(EXIT_ALGO);
+    STAT_IDLE(sum());
+    STAT(dump(stdout));
+    STAT_IDLE(print_idle(stdout));
     std::chrono::duration<float> diff = end - start;
     printf ("exectime %.3lf\n", diff.count());
     pasl::sched::threaddag::destroy();
