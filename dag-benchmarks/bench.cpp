@@ -218,7 +218,9 @@ using edge_algorithm_type = enum {
   edge_algorithm_simple,
   edge_algorithm_distributed,
   edge_algorithm_dyntree,
-  edge_algorithm_dyntreeopt
+  edge_algorithm_dyntreeopt,
+  edge_algorithm_simple_dyntreeopt,
+  edge_algorithm_dyntreeopt_simple
 };
   
 edge_algorithm_type edge_algorithm;
@@ -1183,6 +1185,10 @@ incounter* incounter_new(node* n) {
     return new dyntree::dyntree_incounter;
   } else if (edge_algorithm == edge_algorithm_dyntreeopt) {
     return new dyntreeopt::dyntreeopt_incounter;
+  } else if (edge_algorithm == edge_algorithm_simple_dyntreeopt) {
+    return incounter_fetch_add();
+  } else if (edge_algorithm == edge_algorithm_dyntreeopt_simple) {
+    return new dyntreeopt::dyntreeopt_incounter;
   } else {
     assert(false);
     return nullptr;
@@ -1212,6 +1218,10 @@ outset* outset_new() {
     return new dyntree::dyntree_outset;
   } else if (edge_algorithm == edge_algorithm_dyntreeopt) {
     return new dyntreeopt::dyntreeopt_outset;
+  } else if (edge_algorithm == edge_algorithm_simple_dyntreeopt) {
+    return new dyntreeopt::dyntreeopt_outset;
+  } else if (edge_algorithm == edge_algorithm_dyntreeopt_simple) {
+    return new simple::simple_outset;
   } else {
     assert(false);
     return nullptr;
@@ -4754,6 +4764,12 @@ void choose_edge_algorithm() {
   });
   c.add("dyntreeopt", [&] {
     direct::edge_algorithm = direct::edge_algorithm_dyntreeopt;
+  });
+  c.add("simple_dyntreeopt", [&] {
+    direct::edge_algorithm = direct::edge_algorithm_simple_dyntreeopt;
+  });
+  c.add("dyntreeopt_simple", [&] {
+    direct::edge_algorithm = direct::edge_algorithm_dyntreeopt_simple;
   });
   c.find_by_arg_or_default_key("edge_algo", "tree")();
 }
