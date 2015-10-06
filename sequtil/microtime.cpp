@@ -3,6 +3,7 @@
 #include "microtime.hpp"
 #include <sys/time.h>
 #include <time.h>
+#include <stdio.h>
 
 namespace pasl {
 namespace util {
@@ -28,6 +29,7 @@ double seconds(microtime_t t) {
   return ((double) t) / 1000000l;
 }
 
+  
 double seconds_since(microtime_t t) {
   return seconds(since(t));
 }
@@ -37,11 +39,14 @@ double microseconds_since(microtime_t t) {
 }
 
 // wait for a very little time
-
-void microsleep(double t) { 
-  for (int k = 0; k < (int) (10*t); k++) {
-    for (int j = k; j < k + 5; j++)
-      (k/(j+1));
+// t is number of cycles
+void microsleep(double t) {
+  long r = 0;
+  for (long k = 0; k < (long) t; k++) {
+    r += k;
+  }
+  if (r == 1234) {
+    printf("ERROR\n");
   }
 }
 

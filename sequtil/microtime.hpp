@@ -46,7 +46,7 @@ double seconds_since(microtime_t t);
 double microseconds_since(microtime_t t);
 
 
-  // todo: microsleep(
+  // t is number of cycles
 void microsleep(double t);
 
 // todo: present as class!

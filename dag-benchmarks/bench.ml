@@ -80,20 +80,30 @@ let dflt_snzi_nb_levels = 3
 let mk_snzi_branching_factors = mk_list int "branching_factor" [dflt_snzi_branching_factor]
 let mk_snzi_nb_levels = mk_list int "nb_levels" [dflt_snzi_nb_levels;]
 
+let mk_simple_edge_algo = mk string "edge_algo" "simple"
+
 let mk_distributed_edge_algo =
-    mk string "edge_algo" "distributed"
-  & mk int "branching_factor" dflt_snzi_branching_factor
-  & mk int "nb_levels" dflt_snzi_nb_levels
+  mk string "edge_algo" "distributed"
+
+let mk_dyntree_algo = mk string "edge_algo" "dyntree"
+
+let mk_dyntreeopt_algo = mk string "edge_algo" "dyntreeopt"
 
 let mk_edge_algos =
-     mk string "edge_algo" "simple"
+     mk_simple_edge_algo
   ++ mk_distributed_edge_algo
-  ++ mk string "edge_algo" "dyntree"
-  ++ mk string "edge_algo" "dyntreeopt"
+  ++ mk_dyntree_algo
+  ++ mk_dyntreeopt_algo
 
+let mk_direct_algo = mk string "algo" "direct"
+       
+let mk_direct_algos = mk_direct_algo & mk_edge_algos
+
+let mk_portpassing_algo = mk string "algo" "portpassing"
+       
 let mk_algos =
-    ((mk string "algo" "direct") & mk_edge_algos)
-  ++ mk string "algo" "portpassing"
+     mk_direct_algos
+  ++ mk_portpassing_algo
         
 let nb_milliseconds_target = 1000
 let mk_nb_milliseconds = mk int "nb_milliseconds" nb_milliseconds_target
@@ -111,6 +121,19 @@ let mk_incr_probs =
   let mks = List.map mk_incr_prob incr_probs in
   List.fold_left (++) (List.hd mks) (List.tl mks)
 
+let mk_incounter_mixed_duration =
+    mk string "cmd" "incounter_mixed_duration"
+  & mk_incr_probs
+  & mk_nb_milliseconds
+      
+let mk_incounter_async_duration =
+    mk string "cmd" "incounter_async_duration"
+  & mk_nb_milliseconds
+
+let mk_incounter_async_nb =
+    mk string "cmd" "incounter_async_nb"
+  & mk int "n" 10000000
+
 let microbench_formatter =
   Env.format (Env.(
     [
@@ -118,11 +141,10 @@ let microbench_formatter =
       ("nb_levels", Format_custom (fun n -> sprintf "D=%s" n));
       ("algo", Format_custom (fun algo -> sprintf "%s" (if algo = "portpassing" then algo else "")));
       ("edge_algo", Format_custom (fun edge_algo -> sprintf "%s" edge_algo));
-      ("outset", Format_custom (fun outset -> sprintf "%s" outset));
-      ("incounter", Format_custom (fun incounter -> sprintf "%s" incounter));
+      ("cmd", Format_custom (fun cmd -> sprintf "%s" cmd));
     ]
   ))                
-                 
+         
 (*****************************************************************************)
 (** Incounter-tune experiment *)
 
@@ -130,26 +152,21 @@ module ExpIncounterTune = struct
 
 let name = "incounter_tune"
 
-let branching_factors = [4;12]
-let amortization_factors = [8;64;128]
-
+let parameters = [  (4,1); (4,4); (4,8); (4,32); (4,128); (4,256); (4,512); (8,32); ]
+(*(2,1); (2,8); (2,32);*)
+                   
 let prog_of (branching_factor, amortization_factor) =
   "./bench.opt_" ^ (string_of_int branching_factor) ^ "_" ^ (string_of_int amortization_factor)
-
-let cross xs ys =
-  let pairs x = List.map (fun y -> (x, y)) ys in
-  List.concat (List.map pairs xs)
-              
-let progs = 
-  let params = cross branching_factors amortization_factors in
-  List.map prog_of params
+             
+let progs = List.map prog_of parameters
            
 let mk_progs =
   mk_list string "prog" progs
-             
-let mk_cmd = mk string "cmd" "incounter_microbench"
-                 
-let mk_incounter = mk string "incounter" "dyntreeopt"
+
+let mk_all_benchmarks =
+     mk_incounter_mixed_duration
+  ++ mk_incounter_async_duration
+  ++ mk_incounter_async_nb
 
 let make() =
   build "." progs arg_virtual_build
@@ -160,11 +177,10 @@ let run() =
     Timeout 1000;
     Args (
       mk_progs
-    & mk_incr_probs
-    & mk_cmd
-    & mk_nb_milliseconds
+    & mk_all_benchmarks
     & mk_seed
-    & mk_incounter
+    & mk string "algo" "direct"
+    & mk string "edge_algo" "dyntreeopt"
     & mk_proc)]))
 
 let check = nothing  (* do something here *)
@@ -177,14 +193,67 @@ let plot() =
        Formatter microbench_formatter;
       Charts mk_proc;
       Series mk_progs;
-      X mk_incr_probs;
+      X mk_all_benchmarks;
       Input (file_results name);
       Output (file_plots name);
-      Y_label "nb_operations/ms (per thread)";
+      Y_label "nb_operations/second (per thread)";
       Y eval_nb_operations_per_second;
       Y_whiskers eval_nb_operations_per_second_error;
   ]))
                 
+let all () = select make run check plot
+
+end
+
+(*****************************************************************************)
+(** Scalability experiment *)
+
+module ExpScalability = struct
+
+let name = "scalability"
+
+let prog = "./bench.opt"
+
+let make() =
+  build "." [prog] arg_virtual_build
+
+let mk_all_benchmarks =
+  (   mk_incounter_async_duration
+      ++ mk_incounter_async_nb)
+  & mk_direct_algo & mk_edge_algos
+
+let mk_procs = mk_list int "proc" [1;4;16;40;]
+
+let run() =
+  Mk_runs.(call (run_modes @ [
+    Output (file_results name);
+    Timeout 1000;
+    Args (
+      mk_prog prog
+    & mk_all_benchmarks
+    & mk_seed
+    & mk_procs)]))
+
+let check = nothing  (* do something here *)
+
+let plot() =
+  Mk_scatter_plot.(call ([
+      Scatter_plot_opt Scatter_plot.([
+         Draw_lines true; 
+         (*         X_titles_dir Vertical;*)
+         Y_axis [Axis.Lower (Some 0.); Axis.Is_log true;] ]);
+       Formatter microbench_formatter;
+      Charts  (      mk_incounter_async_duration
+                  ++ mk_incounter_async_nb);
+      Series mk_edge_algos;
+      X mk_procs;
+      Input (file_results name);
+      Output (file_plots name);
+      Y_label "nb_operations/second (per thread)";
+      Y eval_nb_operations_per_second;
+      (*      Y_whiskers eval_nb_operations_per_second_error;*)
+  ]))
+
 let all () = select make run check plot
 
 end
@@ -205,9 +274,7 @@ let mk_configurations =
     (mk_list int "branching_factor" branching_factors)
   & (mk_list int "nb_levels" nb_levels)
           
-let mk_cmd = mk string "cmd" "incounter_microbench"
-
-let mk_incounter = mk string "incounter" "snzi"
+let mk_cmd = mk string "cmd" "incounter_mixed_duration"
 
 let make() =
   build "." [prog] arg_virtual_build
@@ -222,7 +289,7 @@ let run() =
     & mk_cmd
     & mk_nb_milliseconds
     & mk_seed
-    & mk_incounter
+    & mk_incounter_mixed_duration
     & mk_configurations
     & mk_proc)]))
 
@@ -239,7 +306,7 @@ let plot() =
       X mk_incr_probs;
       Input (file_results name);
       Output (file_plots name);
-      Y_label "nb_operations/ms (per thread)";
+      Y_label "nb_operations/second (per thread)";
       Y eval_nb_operations_per_second;
       Y_whiskers eval_nb_operations_per_second_error;
   ]))
@@ -251,13 +318,13 @@ end
 (*****************************************************************************)
 (** Incounter microbenchmark experiment *)
 
-module ExpIncounterMicrobench = struct
+module ExpIncounterMixedDuration = struct
 
-let name = "incounter_microbench"
+let name = "incounter_mixed_duration"
 
 let prog = "./bench.opt"
 
-let mk_cmd = mk string "cmd" "incounter_microbench"
+let mk_cmd = mk string "cmd" "incounter_mixed_duration"
 
 let mk_incounters =
       mk string "incounter" "simple"
@@ -302,7 +369,7 @@ let plot_phase phase =
       X mk_incr_probs;
       Input (file_results name);
       Output (file_plots name2);
-      Y_label "nb_operations/ms (per thread)";
+      Y_label "nb_operations/second (per thread)";
       Y (eval_nb_operations_per_phase_per_second phase);
   ]))
             
@@ -318,7 +385,7 @@ let plot() =
       X mk_incr_probs;
       Input (file_results name);
       Output (file_plots name);
-      Y_label "nb_operations/ms (per thread)";
+      Y_label "nb_operations/second (per thread)";
       Y eval_nb_operations_per_second;
       Y_whiskers eval_nb_operations_per_second_error;
   ]));
@@ -333,13 +400,13 @@ end
 (*****************************************************************************)
 (** Outset microbenchmark experiment *)
 
-module ExpOutsetMicrobench = struct
+module ExpOutsetAddDuration = struct
 
-let name = "outset_microbench"
+let name = "outset_add_duration"
 
 let prog = "./bench.opt"
 
-let mk_cmd = mk string "cmd" "outset_microbench"
+let mk_cmd = mk string "cmd" "outset_add_duration"
 
 let mk_outsets =
       mk string "outset" "simple"
@@ -374,7 +441,7 @@ let plot() =
       X mk_unit;
       Input (file_results name);
       Output (file_plots name);
-      Y_label "nb_operations/ms (per thread)";
+      Y_label "nb_operations/second (per thread)";
       Y eval_nb_operations_per_second;
       Y_whiskers eval_nb_operations_per_second_error;
   ]))
@@ -386,13 +453,13 @@ end
 (*****************************************************************************)
 (** Async microbenchmark experiment *)
 
-module ExpAsyncMicrobench = struct
+module ExpIncounterAsyncDuration = struct
 
-let name = "async_microbench"
+let name = "incounter_async_duration"
 
 let prog = "./bench.opt"
 
-let mk_cmd = mk string "cmd" "async_microbench"
+let mk_cmd = mk string "cmd" "incounter_async_duration"
 
 let make() =
   build "." [prog] arg_virtual_build
@@ -422,7 +489,7 @@ let plot() =
       X mk_unit;
       Input (file_results name);
       Output (file_plots name);
-      Y_label "nb_operations/ms (per thread)";
+      Y_label "nb_operations/second (per thread)";
       Y eval_nb_operations_per_second;
       Y_whiskers eval_nb_operations_per_second_error;
   ]))
@@ -434,13 +501,13 @@ end
 (*****************************************************************************)
 (** Edge-throughput microbenchmark experiment *)
 
-module ExpEdgeThroughputMicrobench = struct
+module ExpMixedDuration = struct
 
-let name = "edge_throughput_microbench"
+let name = "mixed_duration"
 
 let prog = "./bench.opt"
 
-let mk_cmd = mk string "cmd" "edge_throughput_microbench"
+let mk_cmd = mk string "cmd" "mixed_duration"
 
 let make() =
   build "." [prog] arg_virtual_build
@@ -471,7 +538,7 @@ let plot() =
       X mk_unit;
       Input (file_results name);
       Output (file_plots name);
-      Y_label "nb_operations/ms (per thread)";
+      Y_label "nb_operations/second (per thread)";
       Y eval_nb_operations_per_second;
       Y_whiskers eval_nb_operations_per_second_error;
   ]))
@@ -483,7 +550,7 @@ end
 (*****************************************************************************)
 (** Gaus-Seidel benchmark experiment *)
 
-module ExpSeidelMicrobench = struct
+module ExpSeidel = struct
 
 let name = "seidel"
 
@@ -521,18 +588,13 @@ let run() =
     & mk_proc)]))
 
 let check = nothing  (* do something here *)
-
-let outset_microbench_formatter =
- Env.format (Env.(
-    [ (*("n", Format_custom (fun n -> sprintf "fib(%s)" n)); *) ]
-  ))
-
+              
 let plot() =
   Mk_bar_plot.(call ([
       Bar_plot_opt Bar_plot.([
          X_titles_dir Vertical;
          Y_axis [Axis.Lower (Some 0.)] ]);
-       Formatter outset_microbench_formatter;
+       Formatter microbench_formatter;
       Charts mk_block_sizes;
       Series (mk_cmd ++ mk_edge_algos);
       X mk_proc;
@@ -546,6 +608,10 @@ let all () = select make run check plot
 
 end
 
+                 (*
+prun ./bench.sta -cmd incounter_async_nb -algo direct -edge_algo dyntreeopt -n 500000 -seed 1234 -proc 1,2,4,8,10,20,30,40 -workload 2000.0
+                      *)
+
 (*****************************************************************************)
 (** Main *)
 
@@ -554,11 +620,12 @@ let _ =
   let bindings = [
     "incounter_tune",                 ExpIncounterTune.all;
     "snzi_tune",                      ExpSNZITune.all;
-    "incounter_microbench",           ExpIncounterMicrobench.all;
-    "outset_microbench",              ExpOutsetMicrobench.all;
-    "async_microbench",               ExpAsyncMicrobench.all;
-    "edge_throughput_microbench",     ExpEdgeThroughputMicrobench.all;
-    "seidel",                         ExpSeidelMicrobench.all;
+    "scalability",                    ExpScalability.all;
+    "incounter_mixed_duration",       ExpIncounterMixedDuration.all;
+    "outset_add_duration",            ExpOutsetAddDuration.all;
+    "incounter_async_duration",       ExpIncounterAsyncDuration.all;
+    "mixed_duration",                 ExpMixedDuration.all;
+    "seidel",                         ExpSeidel.all;
   ]
   in
   Pbench.execute_from_only_skip arg_actions [] bindings;
