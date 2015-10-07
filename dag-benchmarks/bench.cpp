@@ -1,6 +1,6 @@
 /*!
  * \file bench.cpp
- * \brief Benchmarking script for DAG machine
+ * \brief Benchmarking program for DAG-machine experiments
  * \date 2015
  * \copyright COPYRIGHT (c) 2015 Umut Acar, Arthur Chargueraud, and
  * Michael Rainey. All rights reserved.
@@ -217,7 +217,7 @@ public:
 
 using edge_algorithm_type = enum {
   edge_algorithm_simple,
-  edge_algorithm_distributed,
+  edge_algorithm_fixedtreeopt,
   edge_algorithm_dyntree,
   edge_algorithm_dyntreeopt,
   edge_algorithm_simple_dyntreeopt,
@@ -291,17 +291,17 @@ public:
   
 } // end namespace
   
-namespace distributed {
+namespace fixedtreeopt {
   
 int default_branching_factor = 4;
 int default_nb_levels = 3;
   
-class distributed_incounter : public incounter {
+class fixedtreeopt_incounter : public incounter {
 public:
       
   pasl::data::snzi::tree nzi;
   
-  distributed_incounter(node* n)
+  fixedtreeopt_incounter(node* n)
   : nzi(default_branching_factor, default_nb_levels) {
     nzi.set_root_annotation(n);
   }
@@ -1180,8 +1180,8 @@ incounter* incounter_fetch_add() {
 incounter* incounter_new(node* n) {
   if (edge_algorithm == edge_algorithm_simple) {
     return incounter_fetch_add();
-  } else if (edge_algorithm == edge_algorithm_distributed) {
-    return new distributed::distributed_incounter(n);
+  } else if (edge_algorithm == edge_algorithm_fixedtreeopt) {
+    return new fixedtreeopt::fixedtreeopt_incounter(n);
   } else if (edge_algorithm == edge_algorithm_dyntree) {
     return new dyntree::dyntree_incounter;
   } else if (edge_algorithm == edge_algorithm_dyntreeopt) {
@@ -1196,11 +1196,11 @@ incounter* incounter_new(node* n) {
   }
 }
   
-const bool enable_distributed = true;
+const bool enable_fixedtreeopt = true;
 
 outset* outset_unary() {
-  if (enable_distributed && edge_algorithm == edge_algorithm_distributed) {
-    return (outset*)pasl::sched::outstrategy::direct_distributed_unary_new(nullptr);
+  if (enable_fixedtreeopt && edge_algorithm == edge_algorithm_fixedtreeopt) {
+    return (outset*)pasl::sched::outstrategy::direct_fixedtreeopt_unary_new(nullptr);
   } else {
     return (outset*)pasl::sched::outstrategy::unary_new();
   }
@@ -1213,7 +1213,7 @@ outset* outset_noop() {
 outset* outset_new() {
   if (edge_algorithm == edge_algorithm_simple) {
     return new simple::simple_outset;
-  } else if (edge_algorithm == edge_algorithm_distributed) {
+  } else if (edge_algorithm == edge_algorithm_fixedtreeopt) {
     return new dyntreeopt::dyntreeopt_outset;
   } else if (edge_algorithm == edge_algorithm_dyntree) {
     return new dyntree::dyntree_outset;
@@ -1238,7 +1238,7 @@ void increment_incounter(node* source, node* target, incounter* target_in) {
     pasl::data::tagged::atomic_fetch_and_add<pasl::sched::instrategy_p>(&(target->in), 1l);
   } else {
     assert(tag == 0);
-    source = enable_distributed ? source : nullptr;
+    source = enable_fixedtreeopt ? source : nullptr;
     target_in->delta(source, target, +1L);
   }
 }
@@ -1259,7 +1259,7 @@ void decrement_incounter(node* source, node* target, incounter* target_in) {
     }
   } else {
     assert(tag == 0);
-    source = enable_distributed ? source : nullptr;
+    source = enable_fixedtreeopt ? source : nullptr;
     target_in->delta(source, target, -1L);
   }
 }
@@ -1282,13 +1282,13 @@ outset::insert_status_type outset_insert(node* source, outset* source_out, node*
   if (tag == pasl::sched::outstrategy::UNARY_TAG) {
     source->out = pasl::data::tagged::create<pasl::sched::thread_p, pasl::sched::outstrategy_p>(target, tag);
     return outset::insert_success;
-  } else if (tag == pasl::sched::outstrategy::DIRECT_DISTRIBUTED_UNARY_TAG) {
-    auto target_in = (distributed::distributed_incounter*)target->in;
+  } else if (tag == pasl::sched::outstrategy::DIRECT_FIXEDTREEOPT_UNARY_TAG) {
+    auto target_in = (fixedtreeopt::fixedtreeopt_incounter*)target->in;
     long tg = pasl::sched::instrategy::extract_tag(target_in);
-    if ((tg == 0) && (edge_algorithm == edge_algorithm_distributed)) {
+    if ((tg == 0) && (edge_algorithm == edge_algorithm_fixedtreeopt)) {
       auto leaf = target_in->nzi.random_leaf_of(source);
       auto t = (pasl::sched::thread_p)leaf;
-      source->out = pasl::sched::outstrategy::direct_distributed_unary_new(t);
+      source->out = pasl::sched::outstrategy::direct_fixedtreeopt_unary_new(t);
     } else {
       tag = pasl::sched::outstrategy::UNARY_TAG;
       source->out = pasl::data::tagged::create<pasl::sched::thread_p, pasl::sched::outstrategy_p>(target, tag);
@@ -3186,7 +3186,467 @@ void outset_tree_deallocate(outset_node* root) {
 
 
 /*---------------------------------------------------------------------*/
-/* Benchmarks */
+/* Test programs */
+
+namespace tests {
+  
+template <class node>
+using outset_of = typename node::outset_type;
+  
+std::atomic<int> async_leaf_counter;
+std::atomic<int> async_interior_counter;
+
+template <class node>
+class async_bintree_rec : public node {
+public:
+  
+  enum {
+    async_bintree_rec_entry,
+    async_bintree_rec_mid,
+    async_bintree_rec_exit
+  };
+  
+  int lo;
+  int hi;
+  node* consumer;
+  
+  int mid;
+  
+  async_bintree_rec(int lo, int hi, node* consumer)
+  : lo(lo), hi(hi), consumer(consumer) { }
+  
+  void body() {
+    switch (node::current_block_id) {
+      case async_bintree_rec_entry: {
+        int n = hi - lo;
+        if (n == 0) {
+          return;
+        } else if (n == 1) {
+          async_leaf_counter.fetch_add(1);
+        } else {
+          async_interior_counter.fetch_add(1);
+          mid = (lo + hi) / 2;
+          node::async(new async_bintree_rec(lo, mid, consumer), consumer,
+                      async_bintree_rec_mid);
+        }
+        break;
+      }
+      case async_bintree_rec_mid: {
+        node::async(new async_bintree_rec(mid, hi, consumer), consumer,
+                    async_bintree_rec_exit);
+        break;
+      }
+      case async_bintree_rec_exit: {
+        break;
+      }
+      default:
+        break;
+    }
+  }
+  
+};
+
+template <class node>
+class async_bintree : public node {
+public:
+  
+  enum {
+    async_bintree_entry,
+    async_bintree_exit
+  };
+  
+  int n;
+  
+  async_bintree(int n)
+  : n(n) { }
+  
+  void body() {
+    switch (node::current_block_id) {
+      case async_bintree_entry: {
+        async_leaf_counter.store(0);
+        async_interior_counter.store(0);
+        node::finish(new async_bintree_rec<node>(0, n, this),
+                     async_bintree_exit);
+        break;
+      }
+      case async_bintree_exit: {
+        assert(async_leaf_counter.load() == n);
+        assert(async_interior_counter.load() + 1 == n);
+        break;
+      }
+      default:
+        break;
+    }
+  }
+  
+};
+
+std::atomic<int> future_leaf_counter;
+std::atomic<int> future_interior_counter;
+
+template <class node>
+class future_bintree_rec : public node {
+public:
+  
+  enum {
+    future_bintree_entry,
+    future_bintree_branch2,
+    future_bintree_force1,
+    future_bintree_force2,
+    future_bintree_exit
+  };
+  
+  int lo;
+  int hi;
+  
+  outset_of<node>* branch1_out;
+  outset_of<node>* branch2_out;
+  
+  int mid;
+  
+  future_bintree_rec(int lo, int hi)
+  : lo(lo), hi(hi) { }
+  
+  void body() {
+    switch (node::current_block_id) {
+      case future_bintree_entry: {
+        int n = hi - lo;
+        if (n == 0) {
+          return;
+        } else if (n == 1) {
+          future_leaf_counter.fetch_add(1);
+        } else {
+          mid = (lo + hi) / 2;
+          branch1_out = node::future(new future_bintree_rec<node>(lo, mid),
+                                     future_bintree_branch2);
+        }
+        break;
+      }
+      case future_bintree_branch2: {
+        branch2_out = node::future(new future_bintree_rec<node>(mid, hi),
+                                   future_bintree_force1);
+        break;
+      }
+      case future_bintree_force1: {
+        node::force(branch1_out,
+                    future_bintree_force2);
+        break;
+      }
+      case future_bintree_force2: {
+        node::force(branch2_out,
+                    future_bintree_exit);
+        break;
+      }
+      case future_bintree_exit: {
+        future_interior_counter.fetch_add(1);
+        node::deallocate_future(branch1_out);
+        node::deallocate_future(branch2_out);
+        break;
+      }
+      default:
+        break;
+    }
+  }
+  
+};
+
+template <class node>
+class future_bintree : public node {
+public:
+  
+  enum {
+    future_bintree_entry,
+    future_bintree_force,
+    future_bintree_exit
+  };
+  
+  int n;
+  
+  outset_of<node>* root_out;
+  
+  future_bintree(int n)
+  : n(n) { }
+  
+  void body() {
+    switch (node::current_block_id) {
+      case future_bintree_entry: {
+        future_leaf_counter.store(0);
+        future_interior_counter.store(0);
+        root_out = node::future(new future_bintree_rec<node>(0, n),
+                                future_bintree_force);
+        break;
+      }
+      case future_bintree_force: {
+        node::force(root_out,
+                    future_bintree_exit);
+        break;
+      }
+      case future_bintree_exit: {
+        node::deallocate_future(root_out);
+        assert(future_leaf_counter.load() == n);
+        assert(future_interior_counter.load() + 1 == n);
+        break;
+      }
+      default:
+        break;
+    }
+  }
+  
+};
+
+template <class node>
+class parallel_for_test : public node {
+public:
+  
+  long n;
+  int* array;
+  
+  enum {
+    entry,
+    exit
+  };
+  
+  parallel_for_test(long n)
+  : n(n) { }
+  
+  bool check() {
+    for (long i = 0; i < n; i++) {
+      if (array[i] != i) {
+        return false;
+      }
+    }
+    return true;
+  }
+  
+  void body() {
+    switch (node::current_block_id) {
+      case entry: {
+        array = (int*)malloc(n* sizeof(int));
+        node::parallel_for(0, n, [&] (long i) {
+          array[i] = (int)i;
+        }, exit);
+        break;
+      }
+      case exit: {
+        assert(check());
+        free(array);
+        break;
+      }
+    }
+  }
+  
+};
+
+std::atomic<int> future_pool_leaf_counter;
+std::atomic<int> future_pool_interior_counter;
+
+static long fib (long n){
+  if (n < 2)
+    return n;
+  else
+    return fib (n - 1) + fib (n - 2);
+}
+
+int fib_input = 22;
+
+long fib_result;
+
+template <class node>
+class future_body : public node {
+public:
+  
+  enum {
+    future_body_entry,
+    future_body_exit
+  };
+  
+  void body() {
+    switch (node::current_block_id) {
+      case future_body_entry: {
+        fib_result = fib(fib_input);
+        break;
+      }
+      case future_body_exit: {
+        break;
+      }
+      default:
+        break;
+    }
+  }
+  
+};
+
+std::atomic<int> future_pool_counter;
+
+template <class node>
+class future_reader : public node {
+public:
+  
+  enum {
+    future_reader_entry,
+    future_reader_exit
+  };
+  
+  outset_of<node>* f;
+  
+  int i;
+  
+  future_reader(outset_of<node>* f, int i)
+  : f(f), i(i) { }
+  
+  void body() {
+    switch (node::current_block_id) {
+      case future_reader_entry: {
+        node::force(f,
+                    future_reader_exit);
+        break;
+      }
+      case future_reader_exit: {
+        future_pool_counter.fetch_add(1);
+        assert(fib_result == fib(fib_input));
+        break;
+      }
+      default:
+        break;
+    }
+  }
+  
+};
+  
+template <class Body_gen, class node>
+class eager_parallel_for_rec : public node {
+public:
+  
+  enum {
+    parallel_for_rec_entry,
+    parallel_for_rec_branch2,
+    parallel_for_rec_exit
+  };
+  
+  int lo;
+  int hi;
+  Body_gen body_gen;
+  node* join;
+  
+  int mid;
+  
+  eager_parallel_for_rec(int lo, int hi, Body_gen body_gen, node* join)
+  : lo(lo), hi(hi), body_gen(body_gen), join(join) { }
+  
+  void body() {
+    switch (node::current_block_id) {
+      case parallel_for_rec_entry: {
+        int n = hi - lo;
+        if (n == 0) {
+          // nothing to do
+        } else if (n == 1) {
+          node::call(body_gen(lo),
+                     parallel_for_rec_exit);
+        } else {
+          mid = (hi + lo) / 2;
+          node::async(new eager_parallel_for_rec(lo, mid, body_gen, join), join,
+                      parallel_for_rec_branch2);
+        }
+        break;
+      }
+      case parallel_for_rec_branch2: {
+        node::async(new eager_parallel_for_rec(mid, hi, body_gen, join), join,
+                    parallel_for_rec_exit);
+        break;
+      }
+      case parallel_for_rec_exit: {
+        // nothing to do
+        break;
+      }
+      default:
+        break;
+    }
+  }
+  
+};
+
+template <class Body_gen, class node>
+class eager_parallel_for : public node {
+public:
+  
+  enum {
+    parallel_for_entry,
+    parallel_for_exit
+  };
+  
+  int lo;
+  int hi;
+  Body_gen body_gen;
+  
+  eager_parallel_for(int lo, int hi, Body_gen body_gen)
+  : lo(lo), hi(hi), body_gen(body_gen) { }
+  
+  void body() {
+    switch (node::current_block_id) {
+      case parallel_for_entry: {
+        node::finish(new eager_parallel_for_rec<Body_gen, node>(lo, hi, body_gen, this),
+                     parallel_for_exit);
+        break;
+      }
+      case parallel_for_exit: {
+        // nothing to do
+        break;
+      }
+      default:
+        break;
+    }
+  }
+  
+};
+
+template <class node>
+class future_pool : public node {
+public:
+  
+  enum {
+    future_pool_entry,
+    future_pool_call,
+    future_pool_exit
+  };
+  
+  int n;
+  
+  outset_of<node>* f;
+  
+  future_pool(int n)
+  : n(n) { }
+  
+  void body() {
+    switch (node::current_block_id) {
+      case future_pool_entry: {
+        f = node::future(new future_body<node>,
+                         future_pool_call);
+        break;
+      }
+      case future_pool_call: {
+        auto loop_body = [=] (int i) {
+          return new future_reader<node>(f, i);
+        };
+        node::call(new eager_parallel_for<decltype(loop_body), node>(0, n, loop_body),
+                   future_pool_exit);
+        break;
+      }
+      case future_pool_exit: {
+        node::deallocate_future(f);
+        assert(future_pool_counter.load() == n);
+        break;
+      }
+      default:
+        break;
+    }
+  }
+  
+};
+  
+} // end namespace
+
+/*---------------------------------------------------------------------*/
+/* Benchmark programs */
 
 namespace benchmarks {
   
@@ -3850,456 +4310,6 @@ public:
 
 };
   
-std::atomic<int> async_leaf_counter;
-std::atomic<int> async_interior_counter;
-
-template <class node>
-class async_bintree_rec : public node {
-public:
-  
-  enum {
-    async_bintree_rec_entry,
-    async_bintree_rec_mid,
-    async_bintree_rec_exit
-  };
-  
-  int lo;
-  int hi;
-  node* consumer;
-  
-  int mid;
-  
-  async_bintree_rec(int lo, int hi, node* consumer)
-  : lo(lo), hi(hi), consumer(consumer) { }
-  
-  void body() {
-    switch (node::current_block_id) {
-      case async_bintree_rec_entry: {
-        int n = hi - lo;
-        if (n == 0) {
-          return;
-        } else if (n == 1) {
-          async_leaf_counter.fetch_add(1);
-        } else {
-          async_interior_counter.fetch_add(1);
-          mid = (lo + hi) / 2;
-          node::async(new async_bintree_rec(lo, mid, consumer), consumer,
-                      async_bintree_rec_mid);
-        }
-        break;
-      }
-      case async_bintree_rec_mid: {
-        node::async(new async_bintree_rec(mid, hi, consumer), consumer,
-                    async_bintree_rec_exit);
-        break;
-      }
-      case async_bintree_rec_exit: {
-        break;
-      }
-      default:
-        break;
-    }
-  }
-  
-};
-
-template <class node>
-class async_bintree : public node {
-public:
-  
-  enum {
-    async_bintree_entry,
-    async_bintree_exit
-  };
-  
-  int n;
-  
-  async_bintree(int n)
-  : n(n) { }
-  
-  void body() {
-    switch (node::current_block_id) {
-      case async_bintree_entry: {
-        async_leaf_counter.store(0);
-        async_interior_counter.store(0);
-        node::finish(new async_bintree_rec<node>(0, n, this),
-                     async_bintree_exit);
-        break;
-      }
-      case async_bintree_exit: {
-        assert(async_leaf_counter.load() == n);
-        assert(async_interior_counter.load() + 1 == n);
-        break;
-      }
-      default:
-        break;
-    }
-  }
-  
-};
-
-std::atomic<int> future_leaf_counter;
-std::atomic<int> future_interior_counter;
-
-template <class node>
-class future_bintree_rec : public node {
-public:
-  
-  enum {
-    future_bintree_entry,
-    future_bintree_branch2,
-    future_bintree_force1,
-    future_bintree_force2,
-    future_bintree_exit
-  };
-  
-  int lo;
-  int hi;
-  
-  outset_of<node>* branch1_out;
-  outset_of<node>* branch2_out;
-  
-  int mid;
-  
-  future_bintree_rec(int lo, int hi)
-  : lo(lo), hi(hi) { }
-  
-  void body() {
-    switch (node::current_block_id) {
-      case future_bintree_entry: {
-        int n = hi - lo;
-        if (n == 0) {
-          return;
-        } else if (n == 1) {
-          future_leaf_counter.fetch_add(1);
-        } else {
-          mid = (lo + hi) / 2;
-          branch1_out = node::future(new future_bintree_rec<node>(lo, mid),
-                                     future_bintree_branch2);
-        }
-        break;
-      }
-      case future_bintree_branch2: {
-        branch2_out = node::future(new future_bintree_rec<node>(mid, hi),
-                                   future_bintree_force1);
-        break;
-      }
-      case future_bintree_force1: {
-        node::force(branch1_out,
-                    future_bintree_force2);
-        break;
-      }
-      case future_bintree_force2: {
-        node::force(branch2_out,
-                    future_bintree_exit);
-        break;
-      }
-      case future_bintree_exit: {
-        future_interior_counter.fetch_add(1);
-        node::deallocate_future(branch1_out);
-        node::deallocate_future(branch2_out);
-        break;
-      }
-      default:
-        break;
-    }
-  }
-  
-};
-
-template <class node>
-class future_bintree : public node {
-public:
-  
-  enum {
-    future_bintree_entry,
-    future_bintree_force,
-    future_bintree_exit
-  };
-  
-  int n;
-  
-  outset_of<node>* root_out;
-  
-  future_bintree(int n)
-  : n(n) { }
-  
-  void body() {
-    switch (node::current_block_id) {
-      case future_bintree_entry: {
-        future_leaf_counter.store(0);
-        future_interior_counter.store(0);
-        root_out = node::future(new future_bintree_rec<node>(0, n),
-                                future_bintree_force);
-        break;
-      }
-      case future_bintree_force: {
-        node::force(root_out,
-                    future_bintree_exit);
-        break;
-      }
-      case future_bintree_exit: {
-        node::deallocate_future(root_out);
-        assert(future_leaf_counter.load() == n);
-        assert(future_interior_counter.load() + 1 == n);
-        break;
-      }
-      default:
-        break;
-    }
-  }
-  
-};
-  
-template <class node>
-class parallel_for_test : public node {
-public:
-  
-  long n;
-  int* array;
-  
-  enum {
-    entry,
-    exit
-  };
-  
-  parallel_for_test(long n)
-  : n(n) { }
-  
-  bool check() {
-    for (long i = 0; i < n; i++) {
-      if (array[i] != i) {
-        return false;
-      }
-    }
-    return true;
-  }
-  
-  void body() {
-    switch (node::current_block_id) {
-      case entry: {
-        array = (int*)malloc(n* sizeof(int));
-        node::parallel_for(0, n, [&] (long i) {
-          array[i] = (int)i;
-        }, exit);
-        break;
-      }
-      case exit: {
-        assert(check());
-        free(array);
-        break;
-      }
-    }
-  }
-  
-};
-
-template <class Body_gen, class node>
-class eager_parallel_for_rec : public node {
-public:
-  
-  enum {
-    parallel_for_rec_entry,
-    parallel_for_rec_branch2,
-    parallel_for_rec_exit
-  };
-  
-  int lo;
-  int hi;
-  Body_gen body_gen;
-  node* join;
-  
-  int mid;
-  
-  eager_parallel_for_rec(int lo, int hi, Body_gen body_gen, node* join)
-  : lo(lo), hi(hi), body_gen(body_gen), join(join) { }
-  
-  void body() {
-    switch (node::current_block_id) {
-      case parallel_for_rec_entry: {
-        int n = hi - lo;
-        if (n == 0) {
-          // nothing to do
-        } else if (n == 1) {
-          node::call(body_gen(lo),
-                     parallel_for_rec_exit);
-        } else {
-          mid = (hi + lo) / 2;
-          node::async(new eager_parallel_for_rec(lo, mid, body_gen, join), join,
-                      parallel_for_rec_branch2);
-        }
-        break;
-      }
-      case parallel_for_rec_branch2: {
-        node::async(new eager_parallel_for_rec(mid, hi, body_gen, join), join,
-                    parallel_for_rec_exit);
-        break;
-      }
-      case parallel_for_rec_exit: {
-        // nothing to do
-        break;
-      }
-      default:
-        break;
-    }
-  }
-  
-};
-
-template <class Body_gen, class node>
-class eager_parallel_for : public node {
-public:
-  
-  enum {
-    parallel_for_entry,
-    parallel_for_exit
-  };
-  
-  int lo;
-  int hi;
-  Body_gen body_gen;
-  
-  eager_parallel_for(int lo, int hi, Body_gen body_gen)
-  : lo(lo), hi(hi), body_gen(body_gen) { }
-  
-  void body() {
-    switch (node::current_block_id) {
-      case parallel_for_entry: {
-        node::finish(new eager_parallel_for_rec<Body_gen, node>(lo, hi, body_gen, this),
-                     parallel_for_exit);
-        break;
-      }
-      case parallel_for_exit: {
-        // nothing to do
-        break;
-      }
-      default:
-        break;
-    }
-  }
-  
-};
-
-std::atomic<int> future_pool_leaf_counter;
-std::atomic<int> future_pool_interior_counter;
-
-static long fib (long n){
-  if (n < 2)
-    return n;
-  else
-    return fib (n - 1) + fib (n - 2);
-}
-
-int fib_input = 22;
-
-long fib_result;
-
-template <class node>
-class future_body : public node {
-public:
-  
-  enum {
-    future_body_entry,
-    future_body_exit
-  };
-  
-  void body() {
-    switch (node::current_block_id) {
-      case future_body_entry: {
-        fib_result = fib(fib_input);
-        break;
-      }
-      case future_body_exit: {
-        break;
-      }
-      default:
-        break;
-    }
-  }
-  
-};
-
-std::atomic<int> future_pool_counter;
-
-template <class node>
-class future_reader : public node {
-public:
-  
-  enum {
-    future_reader_entry,
-    future_reader_exit
-  };
-  
-  outset_of<node>* f;
-  
-  int i;
-  
-  future_reader(outset_of<node>* f, int i)
-  : f(f), i(i) { }
-  
-  void body() {
-    switch (node::current_block_id) {
-      case future_reader_entry: {
-        node::force(f,
-                    future_reader_exit);
-        break;
-      }
-      case future_reader_exit: {
-        future_pool_counter.fetch_add(1);
-        assert(fib_result == fib(fib_input));
-        break;
-      }
-      default:
-        break;
-    }
-  }
-  
-};
-
-template <class node>
-class future_pool : public node {
-public:
-  
-  enum {
-    future_pool_entry,
-    future_pool_call,
-    future_pool_exit
-  };
-  
-  int n;
-  
-  outset_of<node>* f;
-  
-  future_pool(int n)
-  : n(n) { }
-  
-  void body() {
-    switch (node::current_block_id) {
-      case future_pool_entry: {
-        f = node::future(new future_body<node>,
-                         future_pool_call);
-        break;
-      }
-      case future_pool_call: {
-        auto loop_body = [=] (int i) {
-          return new future_reader<node>(f, i);
-        };
-        node::call(new eager_parallel_for<decltype(loop_body), node>(0, n, loop_body),
-                   future_pool_exit);
-        break;
-      }
-      case future_pool_exit: {
-        node::deallocate_future(f);
-        assert(future_pool_counter.load() == n);
-        break;
-      }
-      default:
-        break;
-    }
-  }
-  
-};
-
 int nb_levels(int n) {
   assert(n >= 1);
   return 2 * (n - 1) + 1;
@@ -4830,15 +4840,15 @@ void choose_edge_algorithm() {
   c.add("simple", [&] {
     direct::edge_algorithm = direct::edge_algorithm_simple;
   });
-  c.add("distributed", [&] {
-    direct::distributed::default_branching_factor =
+  c.add("fixedtreeopt", [&] {
+    direct::fixedtreeopt::default_branching_factor =
     cmdline::parse_or_default_int("branching_factor",
-                                  direct::distributed::default_branching_factor);
-    direct::dyntree::branching_factor = direct::distributed::default_branching_factor;
-    direct::distributed::default_nb_levels =
+                                  direct::fixedtreeopt::default_branching_factor);
+    direct::dyntree::branching_factor = direct::fixedtreeopt::default_branching_factor;
+    direct::fixedtreeopt::default_nb_levels =
     cmdline::parse_or_default_int("nb_levels",
-                                  direct::distributed::default_nb_levels);
-    direct::edge_algorithm = direct::edge_algorithm_distributed;
+                                  direct::fixedtreeopt::default_nb_levels);
+    direct::edge_algorithm = direct::edge_algorithm_fixedtreeopt;
   });
   c.add("dyntree", [&] {
     direct::edge_algorithm = direct::edge_algorithm_dyntree;
@@ -4890,20 +4900,20 @@ void choose_command() {
   });
   c.add("async_bintree", [&] {
     int n = cmdline::parse_or_default_int("n", 1);
-    add_todo(new benchmarks::async_bintree<node>(n));
+    add_todo(new tests::async_bintree<node>(n));
   });
   c.add("future_bintree", [&] {
     int n = cmdline::parse_or_default_int("n", 1);
-    add_todo(new benchmarks::future_bintree<node>(n));
+    add_todo(new tests::future_bintree<node>(n));
   });
   c.add("future_pool", [&] {
     int n = cmdline::parse_or_default_int("n", 1);
-    benchmarks::fib_input = cmdline::parse_or_default_int("fib_input", benchmarks::fib_input);
-    add_todo(new benchmarks::future_pool<node>(n));
+    tests::fib_input = cmdline::parse_or_default_int("fib_input", tests::fib_input);
+    add_todo(new tests::future_pool<node>(n));
   });
   c.add("parallel_for_test", [&] {
     int n = cmdline::parse_or_default_int("n", 1);
-    add_todo(new benchmarks::parallel_for_test<node>(n));
+    add_todo(new tests::parallel_for_test<node>(n));
   });
   c.add("seidel_parallel", [&] {
     int numiters;
