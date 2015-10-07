@@ -275,12 +275,15 @@ let name = "snzi_tune"
 
 let prog = "./bench.opt"
              
-let branching_factors = [2;4]
-let nb_levels = [2;3;5;]
+let parameters = [ (2,4); (2,5); (3,3); (3,4); (4,3); ]
+
+let mk_configuration (branching_factor, nb_levels) =
+    (mk int "branching_factor" branching_factor)
+  & (mk int "nb_levels" nb_levels)
 
 let mk_configurations =
-    (mk_list int "branching_factor" branching_factors)
-  & (mk_list int "nb_levels" nb_levels)
+  let xs = List.map mk_configuration parameters in
+  List.fold_left (fun x y -> x ++ y) (List.hd xs) (List.tl xs)
           
 let mk_cmd = mk string "cmd" "incounter_mixed_duration"
 
