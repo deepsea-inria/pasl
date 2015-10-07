@@ -1148,6 +1148,18 @@ public:
     finish(target, continuation_block_id);
   }
   
+  void fork2(node* producer1, node* producer2, int continuation_block_id) {
+    node* consumer = this;
+    prepare_node(producer1, incounter_ready(), outset_unary());
+    prepare_node(producer2, incounter_ready(), outset_unary());
+    join_with(consumer, incounter_new(this));
+    add_edge(producer1, consumer);
+    add_edge(producer2, consumer);
+    add_node(producer1);
+    add_node(producer2);
+    prepare_for_transfer(continuation_block_id);
+  }
+  
   void detach(int continuation_block_id) {
     prepare_for_transfer(continuation_block_id);
     join_with(this, incounter_ready());
@@ -2560,6 +2572,10 @@ public:
   
   void call(node* target, int continuation_block_id) {
     finish(target, continuation_block_id);
+  }
+  
+  void fork2(node* producer1, node* producer2, int continuation_block_id) {
+    assert(false); // todo
   }
   
   void detach(int continuation_block_id) {
@@ -4309,6 +4325,73 @@ public:
   }
 
 };
+
+template <class node>
+class incounter_forkjoin_nb_rec : public node {
+public:
+  
+  int lo;
+  int hi;
+  
+  enum {
+    entry,
+    exit
+  };
+  
+  incounter_forkjoin_nb_rec(int lo, int hi)
+  : lo(lo), hi(hi) { }
+  
+  void body() {
+    switch (node::current_block_id) {
+      case entry: {
+        if ((hi - lo) <= 1) {
+          pasl::util::microtime::microsleep(incounter_async_nb_workload);
+        } else {
+          int mid = (lo + hi) / 2;
+          node::fork2(new incounter_forkjoin_nb_rec(lo, mid),
+                      new incounter_forkjoin_nb_rec(mid, hi),
+                      exit);
+        }
+        break;
+      }
+      case exit: {
+        break;
+      }
+    }
+  }
+  
+};
+  
+template <class node>
+class incounter_forkjoin_nb : public node {
+public:
+  
+  enum {
+    entry,
+    exit
+  };
+  
+  incounter_forkjoin_nb(int n)
+  : n(n) { }
+  
+  int n;
+  
+  void body() {
+    switch (node::current_block_id) {
+      case entry: {
+        incounter_async_nb_workload = pasl::util::cmdline::parse_or_default_double("workload", 0.0);
+        node::call(new incounter_forkjoin_nb_rec<node>(0, n),
+                   exit);
+        break;
+      }
+      case exit: {
+        printf("nb_operations %d\n", n);
+        break;
+      }
+    }
+  }
+  
+};
   
 int nb_levels(int n) {
   assert(n >= 1);
@@ -4897,6 +4980,10 @@ void choose_command() {
   c.add("incounter_async_nb", [&] {
     int n = cmdline::parse_or_default_int("n", 1);
     add_todo(new benchmarks::incounter_async_nb<node>(n));
+  });
+  c.add("incounter_forkjoin_nb", [&] {
+    int n = cmdline::parse_or_default_int("n", 1);
+    add_todo(new benchmarks::incounter_forkjoin_nb<node>(n));
   });
   c.add("async_bintree", [&] {
     int n = cmdline::parse_or_default_int("n", 1);
