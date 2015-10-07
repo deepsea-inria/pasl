@@ -30,6 +30,7 @@ VERBOSE_DEPENDENCIES=0
 PROGRAMS=\
 	fib.cpp \
 	parallel-file-map.cpp \
+	parallel-array-map.cpp \
 	rake-compress-construction.cpp \
 	rake-compress-update.cpp \
 	rake-compress-check.cpp \
@@ -58,7 +59,7 @@ include $(TOOLS_BUILD_FOLDER)/Makefile_options
 # (If extending the list, need to add cases for the definition
 # of COMPILE_OPTIONS_FOR further below, and also for "clean".
 
-MODES=dbg log sta opt seq cilk dbgfs
+MODES=dbg elision log sta opt seq cilk dbgfs
 
 # Compilation options for each mode
 
