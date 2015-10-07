@@ -104,6 +104,12 @@ void initialization_update(int n, std::unordered_map<int, std::vector<std::pair<
   for (auto p : add) {
     make_affected(lists[p.first]->head, id++, false);
   }
+  live[0] = new int[id];
+  for (int i = 0; i < id; i++) {
+    live[0][i] = i;
+  }
+  len[0] = id;
+  live[1] = new int[id];
 }
 
 void initialization_update(int n, int add_no, int* add_p, int* add_v, int delete_no, int* delete_p, int* delete_v) {
@@ -225,7 +231,8 @@ void update_round_seq(int round) {
 
 void update_round(int round) {
 //  for (int i = 0; i < set_number; i++) {
-  pasl::sched::native::parallel_for(0, set_number, [&] (int i) {
+  pasl::sched::native::parallel_for(0, len[round % 2], [&] (int j) {
+    int i = live[round % 2][j];
     old_live_affected_sets[i].clear();
     live_affected_sets[i].swap(old_live_affected_sets[i]);
     old_deleted_affected_sets[i].clear();
@@ -233,7 +240,8 @@ void update_round(int round) {
   });
 
 //  for (int i = 0; i < set_number; i++) {
-  pasl::sched::native::parallel_for(0, set_number, [&] (int i) {
+  pasl::sched::native::parallel_for(0, len[round % 2], [&] (int j) {
+    int i = live[round % 2][j];
     for (Node* v : old_live_affected_sets[i]) {
       is_contracted(v, round);
       if (on_frontier(v)) {
@@ -265,7 +273,8 @@ void update_round(int round) {
   });
 
 //  for (int i = 0; i < set_number; i++) {
-  pasl::sched::native::parallel_for(0, set_number, [&] (int i) {
+  pasl::sched::native::parallel_for(0, len[round % 2], [&] (int j) {
+    int i = live[round % 2][j];
     for (Node* v : old_live_affected_sets[i]) {
       Node* p = v->get_parent();
       if (p->is_contracted() || v->is_contracted()) {
@@ -299,7 +308,8 @@ void update_round(int round) {
   });
 
 //  for (int i = 0; i < set_number; i++) {
-  pasl::sched::native::parallel_for(0, set_number, [&] (int i) {
+  pasl::sched::native::parallel_for(0, len[round % 2], [&] (int j) {
+    int i = live[round % 2][j];
     for (Node* v : live_affected_sets[i]) {
       if (v->get_parent()->is_contracted()) {
         delete_node_for(v->get_parent(), v);
@@ -314,7 +324,8 @@ void update_round(int round) {
   });
 
 //  for (int i = 0; i < set_number; i++) {
-  pasl::sched::native::parallel_for(0, set_number, [&] (int i) {
+  pasl::sched::native::parallel_for(0, len[round % 2], [&] (int j) {
+    int i = live[round % 2][j];
     for (Node* v : live_affected_sets[i]) {
       v->advance();
       v->prepare();
@@ -322,16 +333,21 @@ void update_round(int round) {
   });
 
 //  for (int i = 0; i < set_number; i++) {
-  pasl::sched::native::parallel_for(0, set_number, [&] (int i) {
+  pasl::sched::native::parallel_for(0, len[round % 2], [&] (int j) {
+    int i = live[round % 2][j];
     for (Node* v : old_deleted_affected_sets[i]) {
       if (v->next != NULL)
         deleted_affected_sets[i].insert(v->next);
       delete v;
     }
   });
+
+  len[1 - round % 2] = pbbs::sequence::filter(live[round % 2], live[1 - round % 2], len[round % 2], [&] (int i) {
+    return live_affected_sets[i].size() + deleted_affected_sets[i].size() != 0;
+  });
 }
 
-bool end_condition_seq() {
+bool end_condition_seq(int round_no) {
   int cnt = 0;
   for (int i = 0; i < set_number; i++) {
     cnt += live_affected_sets[i].size() + deleted_affected_sets[i].size();
@@ -339,14 +355,14 @@ bool end_condition_seq() {
   return cnt;
 }
 
-bool end_condition() {
-  return pbbs::sequence::plusReduce(ids, set_number, [&] (int i) { return live_affected_sets[i].size() + deleted_affected_sets[i].size();});
+bool end_condition(int round_no) {
+ return len[round_no % 2];//pbbs::sequence::plusReduce(ids, set_number, [&] (int i) { return live_affected_sets[i].size() + deleted_affected_sets[i].size();});
 }
 
 template <typename Round, typename Condition>
 void update(int n, Round round_function, Condition condition_function) {
   int round_no = 0;
-  while (condition_function() > 0) {
+  while (condition_function(round_no) > 0) {
     round_function(round_no);
     round_no++;
   }

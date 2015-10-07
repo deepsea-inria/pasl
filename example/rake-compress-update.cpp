@@ -65,6 +65,10 @@ int main(int argc, char** argv) {
      
      initialization_construction(n, children, parent);
      construction(n, [&] (int round_no) {construction_round_seq(round_no);});
+
+     delete [] live[0];
+     delete [] live[1];
+
 //     print_roots(n);
      if (seq) {
        initialization_update_seq(n, add_no, add_p, add_v, delete_no, delete_p, delete_v);
@@ -78,18 +82,16 @@ int main(int argc, char** argv) {
      delete [] add_v;
      delete [] delete_p;
      delete [] delete_v;
-     delete [] live[0];
-     delete [] live[1];
    };
 
    auto run = [&] (bool sequential) {
      if (seq) {
        std::cerr << "Sequential run" << std::endl;
 //       update(n, [&] (int round_no) {update_round_seq(round_no);}, [&] () {});
-       update(n, std::bind(update_round_seq, std::placeholders::_1), std::bind(end_condition_seq));
+       update(n, std::bind(update_round_seq, std::placeholders::_1), std::bind(end_condition_seq, std::placeholders::_1));
      } else {
        std::cerr << "Parallel run" << std::endl;
-       update(n, std::bind(update_round, std::placeholders::_1), std::bind(end_condition));
+       update(n, std::bind(update_round, std::placeholders::_1), std::bind(end_condition, std::placeholders::_1));
      }
    };
 
@@ -108,6 +110,10 @@ int main(int argc, char** argv) {
        }
      }
 
+     if (!seq) {
+       delete [] live[0];
+       delete [] live[1];
+     }
      delete [] lists;
      delete [] live_affected_sets;
      delete [] deleted_affected_sets;

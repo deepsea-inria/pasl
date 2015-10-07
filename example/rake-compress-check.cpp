@@ -206,6 +206,9 @@ void test_one_way(int n, std::string type, int m, int* p, int* v, bool add, int 
   initialization_construction(n, first_children, first_parent);
   construction(n, [&] (int round_no) {construction_round_seq(round_no);});
 
+  delete [] live[0];
+  delete [] live[1];
+
   GraphNode** first = copy_nodes(n);
 
   int add_no, delete_no;
@@ -233,15 +236,18 @@ void test_one_way(int n, std::string type, int m, int* p, int* v, bool add, int 
   initialization_construction(n, second_children, second_parent);
   construction(n, [&] (int round_no) {construction_round_seq(round_no);});
 
+  delete [] live[0];
+  delete [] live[1];
+
   GraphNode** previous = copy_nodes(n);
 
   if (seq) {
     initialization_update_seq(n, add_no, add_p, add_v, delete_no, delete_p, delete_v);
-    update(n, std::bind(update_round_seq, std::placeholders::_1), std::bind(end_condition_seq));
+    update(n, std::bind(update_round_seq, std::placeholders::_1), std::bind(end_condition_seq, std::placeholders::_1));
   } else {
     initialization_update(n, add_no, add_p, add_v, delete_no, delete_p, delete_v);
 //    initialization_update_seq(n, add_no, add_p, add_v, delete_no, delete_p, delete_v);
-    update(n, std::bind(update_round, std::placeholders::_1), std::bind(end_condition));
+    update(n, std::bind(update_round, std::placeholders::_1), std::bind(end_condition, std::placeholders::_1));
   }
 
   GraphNode** second = copy_nodes(n);
