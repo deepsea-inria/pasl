@@ -134,13 +134,20 @@ let mk_incounter_async_nb =
     mk string "cmd" "incounter_async_nb"
   & mk int "n" 10000000
 
+let pretty_edge_algo edge_algo =
+  match edge_algo with
+  | "simple" -> "simple serial"
+  | "dyntree" -> "ours (unoptimized)"
+  | "dyntreeopt" -> "ours"
+  | "fixedtreeopt" -> "fixed snzi incounter + our outset"
+       
 let microbench_formatter =
   Env.format (Env.(
     [
       ("branching_factor", Format_custom (fun n -> sprintf "B=%s" n));
       ("nb_levels", Format_custom (fun n -> sprintf "D=%s" n));
       ("algo", Format_custom (fun algo -> sprintf "%s" (if algo = "portpassing" then algo else "")));
-      ("edge_algo", Format_custom (fun edge_algo -> sprintf "%s" edge_algo));
+      ("edge_algo", Format_custom pretty_edge_algo);
       ("cmd", Format_custom (fun cmd -> sprintf "%s" cmd));
     ]
   ))                
