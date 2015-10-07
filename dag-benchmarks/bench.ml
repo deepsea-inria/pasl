@@ -140,6 +140,7 @@ let pretty_edge_algo edge_algo =
   | "dyntree" -> "ours (unoptimized)"
   | "dyntreeopt" -> "ours"
   | "fixedtreeopt" -> "fixed snzi incounter + our outset"
+  | _ -> "unknown"
        
 let microbench_formatter =
   Env.format (Env.(
