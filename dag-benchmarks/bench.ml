@@ -82,8 +82,8 @@ let mk_snzi_nb_levels = mk_list int "nb_levels" [dflt_snzi_nb_levels;]
 
 let mk_simple_edge_algo = mk string "edge_algo" "simple"
 
-let mk_fixedtreeopt_edge_algo =
-  mk string "edge_algo" "fixedtreeopt"
+let mk_statreeopt_edge_algo =
+  mk string "edge_algo" "statreeopt"
 
 let mk_dyntree_algo = mk string "edge_algo" "dyntree"
 
@@ -91,7 +91,7 @@ let mk_dyntreeopt_algo = mk string "edge_algo" "dyntreeopt"
 
 let mk_edge_algos =
      mk_simple_edge_algo
-  ++ mk_fixedtreeopt_edge_algo
+  ++ mk_statreeopt_edge_algo
   ++ mk_dyntree_algo
   ++ mk_dyntreeopt_algo
 
@@ -139,7 +139,7 @@ let pretty_edge_algo edge_algo =
   | "simple" -> "simple serial"
   | "dyntree" -> "ours (unoptimized)"
   | "dyntreeopt" -> "ours"
-  | "fixedtreeopt" -> "fixed snzi incounter + our outset"
+  | "statreeopt" -> "fixed snzi incounter + our outset"
   | _ -> "unknown"
        
 let microbench_formatter =

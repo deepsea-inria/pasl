@@ -217,7 +217,7 @@ public:
 
 using edge_algorithm_type = enum {
   edge_algorithm_simple,
-  edge_algorithm_fixedtreeopt,
+  edge_algorithm_statreeopt,
   edge_algorithm_dyntree,
   edge_algorithm_dyntreeopt,
   edge_algorithm_simple_dyntreeopt,
@@ -291,17 +291,17 @@ public:
   
 } // end namespace
   
-namespace fixedtreeopt {
+namespace statreeopt {
   
 int default_branching_factor = 4;
 int default_nb_levels = 3;
   
-class fixedtreeopt_incounter : public incounter {
+class statreeopt_incounter : public incounter {
 public:
       
   pasl::data::snzi::tree nzi;
   
-  fixedtreeopt_incounter(node* n)
+  statreeopt_incounter(node* n)
   : nzi(default_branching_factor, default_nb_levels) {
     nzi.set_root_annotation(n);
   }
@@ -1180,8 +1180,8 @@ incounter* incounter_fetch_add() {
 incounter* incounter_new(node* n) {
   if (edge_algorithm == edge_algorithm_simple) {
     return incounter_fetch_add();
-  } else if (edge_algorithm == edge_algorithm_fixedtreeopt) {
-    return new fixedtreeopt::fixedtreeopt_incounter(n);
+  } else if (edge_algorithm == edge_algorithm_statreeopt) {
+    return new statreeopt::statreeopt_incounter(n);
   } else if (edge_algorithm == edge_algorithm_dyntree) {
     return new dyntree::dyntree_incounter;
   } else if (edge_algorithm == edge_algorithm_dyntreeopt) {
@@ -1196,11 +1196,11 @@ incounter* incounter_new(node* n) {
   }
 }
   
-const bool enable_fixedtreeopt = true;
+const bool enable_statreeopt = true;
 
 outset* outset_unary() {
-  if (enable_fixedtreeopt && edge_algorithm == edge_algorithm_fixedtreeopt) {
-    return (outset*)pasl::sched::outstrategy::direct_fixedtreeopt_unary_new(nullptr);
+  if (enable_statreeopt && edge_algorithm == edge_algorithm_statreeopt) {
+    return (outset*)pasl::sched::outstrategy::direct_statreeopt_unary_new(nullptr);
   } else {
     return (outset*)pasl::sched::outstrategy::unary_new();
   }
@@ -1213,7 +1213,7 @@ outset* outset_noop() {
 outset* outset_new() {
   if (edge_algorithm == edge_algorithm_simple) {
     return new simple::simple_outset;
-  } else if (edge_algorithm == edge_algorithm_fixedtreeopt) {
+  } else if (edge_algorithm == edge_algorithm_statreeopt) {
     return new dyntreeopt::dyntreeopt_outset;
   } else if (edge_algorithm == edge_algorithm_dyntree) {
     return new dyntree::dyntree_outset;
@@ -1238,7 +1238,7 @@ void increment_incounter(node* source, node* target, incounter* target_in) {
     pasl::data::tagged::atomic_fetch_and_add<pasl::sched::instrategy_p>(&(target->in), 1l);
   } else {
     assert(tag == 0);
-    source = enable_fixedtreeopt ? source : nullptr;
+    source = enable_statreeopt ? source : nullptr;
     target_in->delta(source, target, +1L);
   }
 }
@@ -1259,7 +1259,7 @@ void decrement_incounter(node* source, node* target, incounter* target_in) {
     }
   } else {
     assert(tag == 0);
-    source = enable_fixedtreeopt ? source : nullptr;
+    source = enable_statreeopt ? source : nullptr;
     target_in->delta(source, target, -1L);
   }
 }
@@ -1282,13 +1282,13 @@ outset::insert_status_type outset_insert(node* source, outset* source_out, node*
   if (tag == pasl::sched::outstrategy::UNARY_TAG) {
     source->out = pasl::data::tagged::create<pasl::sched::thread_p, pasl::sched::outstrategy_p>(target, tag);
     return outset::insert_success;
-  } else if (tag == pasl::sched::outstrategy::DIRECT_FIXEDTREEOPT_UNARY_TAG) {
-    auto target_in = (fixedtreeopt::fixedtreeopt_incounter*)target->in;
+  } else if (tag == pasl::sched::outstrategy::DIRECT_STATREEOPT_UNARY_TAG) {
+    auto target_in = (statreeopt::statreeopt_incounter*)target->in;
     long tg = pasl::sched::instrategy::extract_tag(target_in);
-    if ((tg == 0) && (edge_algorithm == edge_algorithm_fixedtreeopt)) {
+    if ((tg == 0) && (edge_algorithm == edge_algorithm_statreeopt)) {
       auto leaf = target_in->nzi.random_leaf_of(source);
       auto t = (pasl::sched::thread_p)leaf;
-      source->out = pasl::sched::outstrategy::direct_fixedtreeopt_unary_new(t);
+      source->out = pasl::sched::outstrategy::direct_statreeopt_unary_new(t);
     } else {
       tag = pasl::sched::outstrategy::UNARY_TAG;
       source->out = pasl::data::tagged::create<pasl::sched::thread_p, pasl::sched::outstrategy_p>(target, tag);
@@ -4840,15 +4840,15 @@ void choose_edge_algorithm() {
   c.add("simple", [&] {
     direct::edge_algorithm = direct::edge_algorithm_simple;
   });
-  c.add("fixedtreeopt", [&] {
-    direct::fixedtreeopt::default_branching_factor =
+  c.add("statreeopt", [&] {
+    direct::statreeopt::default_branching_factor =
     cmdline::parse_or_default_int("branching_factor",
-                                  direct::fixedtreeopt::default_branching_factor);
-    direct::dyntree::branching_factor = direct::fixedtreeopt::default_branching_factor;
-    direct::fixedtreeopt::default_nb_levels =
+                                  direct::statreeopt::default_branching_factor);
+    direct::dyntree::branching_factor = direct::statreeopt::default_branching_factor;
+    direct::statreeopt::default_nb_levels =
     cmdline::parse_or_default_int("nb_levels",
-                                  direct::fixedtreeopt::default_nb_levels);
-    direct::edge_algorithm = direct::edge_algorithm_fixedtreeopt;
+                                  direct::statreeopt::default_nb_levels);
+    direct::edge_algorithm = direct::edge_algorithm_statreeopt;
   });
   c.add("dyntree", [&] {
     direct::edge_algorithm = direct::edge_algorithm_dyntree;
