@@ -98,6 +98,6 @@ void construction(int n, Round round_function) {
     round_function(round_no);
     round_no++;
   }
-  std::cout << "Number of rounds: " << round_no << std::endl;
+  std::cerr << "Number of rounds: " << round_no << std::endl;
 }
 

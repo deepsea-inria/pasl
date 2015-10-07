@@ -94,7 +94,7 @@ int main(int argc, char** argv) {
    };
 
    auto output = [&] {
-     std::cout << "the update has finished." << std::endl;
+     std::cerr << "the update has finished." << std::endl;
 //     print_roots(n);
    };
 

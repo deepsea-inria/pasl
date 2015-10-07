@@ -348,10 +348,10 @@ void print_roots(int n) {
     return lists[v]->is_known_root();
   });
 
-  std::cout << "number of roots: " << roots_number << std::endl;
+  std::cerr << "number of roots: " << roots_number << std::endl;
   for (int i = 0; i < roots_number; i++)
-    std::cout << result[i] << " ";
-  std::cout << std::endl;
+    std::cerr << result[i] << " ";
+  std::cerr << std::endl;
   delete [] roots;
   delete [] result;
 }

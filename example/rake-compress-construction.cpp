@@ -46,7 +46,7 @@ int main(int argc, char** argv) {
      if (seq < 2) {
        print_roots(n);
      }
-     std::cout << "the construction has finished." << std::endl;
+     std::cerr << "the construction has finished." << std::endl;
    };
 
    auto destroy = [&] {

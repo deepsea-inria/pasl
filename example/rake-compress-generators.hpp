@@ -111,7 +111,7 @@ void generate_random_graph(int n, std::vector<int>* children, int* parent, int k
     }
   }
 
-  std::cout << "done. " << ((double) cnt / n * 100) << "% of vertices have degree 2." << std::endl;
+  std::cerr << "done. " << ((double) cnt / n * 100) << "% of vertices have degree 2." << std::endl;
 }
 
 struct hasher {
