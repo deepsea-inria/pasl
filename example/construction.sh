@@ -32,6 +32,6 @@ do
     prun speedup -runs $runs -baseline "rake-compress-construction.virtual -seq ${baseline}" -parallel "rake-compress-construction.virtual -seq 0 -proc 1,2,4,6,8,10,12,15,20,30,39" -n 7000000 -graph random_tree -fraction $f -output "plots/construction/random_${f}_construction_${baseline}.txt"
   fi
   cp "plots/construction/random_${f}_construction_${baseline}.txt" "plots/construction/random_${f}_construction_${baseline}.pdf"
-  pplot speedup -input "plots/construction/random_${f}_construction_${baseline}.txt"
+  pplot speedup -input "plots/construction/random_${f}_construction_${baseline}.pdf"
   cp _results/chart-1.pdf plots/construction/random_${f}_construction_${baseline}.pdf
 done
