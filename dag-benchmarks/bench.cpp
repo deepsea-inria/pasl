@@ -21,6 +21,7 @@
 #include "tagged.hpp"
 #include "snzi.hpp"
 #include "microtime.hpp"
+#include "chunkedseq.hpp"
 
 /***********************************************************************/
 
@@ -1140,8 +1141,9 @@ public:
     add_node(producer);
   }
   
-  void split_with(node* n) {
+  void split_with(node* n, node* join) {
     prepare_node(n);
+    add_edge(n, join);
   }
   
   void call(node* target, int continuation_block_id) {
@@ -2564,10 +2566,11 @@ public:
     add_node(producer);
   }
   
-  void split_with(node* new_sibling) {
+  void split_with(node* new_sibling, node* join) {
     node* caller = this;
     prepare_node(new_sibling);
     propagate_ports_for(caller, new_sibling);
+    assert(false);
   }
   
   void call(node* target, int continuation_block_id) {
@@ -4392,30 +4395,6 @@ public:
   }
   
 };
-  
-int nb_levels(int n) {
-  assert(n >= 1);
-  return 2 * (n - 1) + 1;
-}
-
-int nb_cells_in_level(int n, int l) {
-  assert((l >= 1) && (l <= nb_levels(n)));
-  return (l <= n) ? l : (nb_levels(n) + 1) - l;
-}
-
-std::pair<int, int> index_of_cell_at_pos(int n, int l, int pos) {
-  assert((pos >= 0) && (pos < nb_cells_in_level(n, l)));
-  int i;
-  int j;
-  if (l <= n) { // either on or above the diagonal
-    i = pos;
-    j = l - (pos + 1);
-  } else {      // below the diagonal
-    i = (l - n) + pos;
-    j = n - (pos + 1);
-  }
-  return std::make_pair(i, j);
-}
 
 int row_major_index_of(int n, int i, int j) {
   return i * n + j;
@@ -4495,7 +4474,7 @@ std::ostream& operator<<(std::ostream& out, const matrix_type<Item>& xs) {
   return out;
 }
 
-void gauss_seidel_block(int N, double* a, int block_size) {
+void seidel_block(int N, double* a, int block_size) {
   for (int i = 1; i <= block_size; i++) {
     for (int j = 1; j <= block_size; j++) {
       a[i*N+j] = 0.2 * (a[i*N+j] + a[(i-1)*N+j] + a[(i+1)*N+j] + a[i*N+j-1] + a[i*N+j+1]);
@@ -4503,358 +4482,318 @@ void gauss_seidel_block(int N, double* a, int block_size) {
   }
 }
 
-void gauss_seidel_sequential(int numiters, int N, int block_size, double* data) {
+void seidel_sequential(int numiters, int N, int block_size, double* data) {
   for (int iter = 0; iter < numiters; iter++) {
     for (int i = 0; i < N-2; i += block_size) {
       for (int j = 0; j < N-2; j += block_size) {
-        gauss_seidel_block(N, &data[N * i + j], block_size);
+        seidel_block(N, &data[N * i + j], block_size);
       }
     }
   }
 }
   
 template <class node>
-class gauss_seidel_sequential_node : public node {
+class seidel_sequential_node : public node {
 public:
   
   int numiters; int N; int block_size; double* data;
-
-  gauss_seidel_sequential_node(int numiters, int N, int block_size, double* data)
+  
+  seidel_sequential_node(int numiters, int N, int block_size, double* data)
   : numiters(numiters), N(N), block_size(block_size), data(data) { }
   
   void body() {
-    gauss_seidel_sequential(numiters, N, block_size, data);
+    seidel_sequential(numiters, N, block_size, data);
   }
   
 };
   
 template <class node>
-using futures_matrix_type = matrix_type<outset_of<node>*>;
-
-template <class node>
-class gauss_seidel_future_body : public node {
+class seidel_async_parallel_rec : public node {
 public:
+  
+  using coordinate_type = std::pair<int,int>;
+  using frontier_type = pasl::data::chunkedseq::bootstrapped::stack<coordinate_type>;
+  
+  frontier_type frontier;
   
   enum {
     entry,
-    after_force1,
+    loop_header,
+    loop_body,
     exit
   };
   
-  futures_matrix_type<node>* futures;
-  int i, j;
   int N; int block_size; double* data;
+  matrix_type<std::atomic<int>>* incounters;
+  node* join;
+  bool initial_thread = true;
+
+  seidel_async_parallel_rec(matrix_type<std::atomic<int>>* incounters,
+                            node* join,
+                            int N, int block_size, double* data)
+  : incounters(incounters), join(join), N(N), block_size(block_size), data(data) { }
   
-  gauss_seidel_future_body(futures_matrix_type<node>* futures, int i, int j,
-                           int N, int block_size, double* data)
-  : futures(futures), i(i), j(j),
-  N(N), block_size(block_size), data(data) { }
+  void try_to_activate_block(int i, int j) {
+    if ((i == 0) || (j == 0)) {
+      frontier.push_back(std::make_pair(i, j));
+      return;
+    }
+    std::atomic<int>& incounter = incounters->subscript(i, j);
+    int before = incounter++;
+    assert((before == 0) || (before == 1));
+    if (before == 1) {
+      incounter.store(0);
+      frontier.push_back(std::make_pair(i, j));
+    }
+  }
   
   void body() {
     switch (node::current_block_id) {
       case entry: {
-        if (j >= 1) {
-          node::force(futures->subscript(i, j - 1),
-                      after_force1);
+        if (incounters->n < 1) {
+          break;
+        }
+        if (initial_thread) {
+          frontier.push_back(std::make_pair(0, 0));
+        }
+        node::jump_to(loop_header);
+        break;
+      }
+      case loop_header: {
+        if (frontier.empty()) {
+          node::jump_to(exit);
         } else {
-          node::jump_to(after_force1);
+          node::jump_to(loop_body);
         }
         break;
       }
-      case after_force1: {
-        if (i >= 1) {
-          node::force(futures->subscript(i - 1, j),
-                      exit);
+      case loop_body: {
+        assert(! frontier.empty());
+        coordinate_type coordinate = frontier.pop_front();
+        int i = coordinate.first;
+        int j = coordinate.second;
+        int ii = i * block_size;
+        int jj = j * block_size;
+        seidel_block(N, &data[N * ii + jj], block_size);
+        int n = incounters->n;
+        if (((i + 1) < n) && ((j + 1) < n)) {
+          try_to_activate_block(i + 1, j);
+          try_to_activate_block(i, j + 1);
+        } else if (((i + 1) < n) && ((j + 1) == n)) {
+          try_to_activate_block(i + 1, j);
+        } else if (((i + 1) == n) && ((j + 1) < n)) {
+          try_to_activate_block(i, j + 1);
+        } else if (((i + 1) == n) && ((j + 1) == n)) {
+          // nothing to do
         } else {
-          node::jump_to(exit);
+          assert(false);
         }
+        node::jump_to(loop_header);
         break;
       }
       case exit: {
-        int ii = i * block_size;
-        int jj = j * block_size;
-        gauss_seidel_block(N, &data[N * ii + jj], block_size);
-        break;
-      }
-    }
-  }
-  
-};
-  
-int pipeline_window_capacity = 4096;
-int pipeline_burst_rate = std::max(1, pipeline_window_capacity/8);
-
-void get_pipeline_arguments_from_cmdline() {
-  pipeline_window_capacity = pasl::util::cmdline::parse_or_default_int("pipeline_window_capacity",
-                                                                       pipeline_window_capacity);
-  pipeline_burst_rate = pasl::util::cmdline::parse_or_default_int("pipeline_burst_rate",
-                                                                  pipeline_burst_rate);
-}
-
-template <class node>
-class gauss_seidel_generator : public node {
-public:
-  
-  static constexpr int uninitialized = -1;
-  
-  enum {
-    level_loop_entry,
-    level_loop_test,
-    diagonal_loop_entry,
-    diagonal_loop_body,
-    diagonal_loop_test,
-    throttle_loop_entry,
-    throttle_loop_body,
-    throttle_loop_test
-  };
-  
-  futures_matrix_type<node>* futures;
-  int N; int block_size; double* data;
-  
-  int l;
-  int c_lo;
-  int c_hi;
-  int n;
-  
-  using token_type = struct {
-    int l;
-    int c_lo;
-    int c_hi;
-  };
-  
-  std::deque<token_type> tokens;
-  int nb_tokens = 0;
-  int nb_tokens_to_pop;
-  
-  bool need_to_throttle() const {
-    return (nb_tokens >= pipeline_window_capacity);
-  }
-  
-  void push_token(int l, int c) {
-    token_type t;
-    t.l = l;
-    t.c_lo = c;
-    t.c_hi = c + 1;
-    if (! tokens.empty()) {
-      token_type s = tokens.back();
-      if (s.l == l) {
-        tokens.pop_back();
-        assert(s.c_hi == c);
-        t.c_lo = s.c_lo;
-      }
-    }
-    tokens.push_back(t);
-    nb_tokens++;
-  }
-  
-  outset_of<node>* pop_token() {
-    assert(! tokens.empty());
-    token_type t = tokens.front();
-    tokens.pop_front();
-    nb_tokens--;
-    assert(t.c_hi - t.c_lo > 0);
-    int l = t.l;
-    int c_lo = t.c_lo++;
-    if (t.c_hi - t.c_lo > 0) {
-      tokens.push_front(t);
-    }
-    std::pair<int, int> idx = index_of_cell_at_pos(n, l, c_lo);
-    int i = idx.first;
-    int j = idx.second;
-    return futures->subscript(i, j);
-  }
-  
-  gauss_seidel_generator(futures_matrix_type<node>* futures, int N, int block_size, double* data)
-  : futures(futures), N(N), block_size(block_size), data(data),
-  l(uninitialized), c_lo(uninitialized), c_hi(uninitialized) { }
-  
-  gauss_seidel_generator(futures_matrix_type<node>* futures, int N, int block_size, double* data,
-                         int l, int c_lo, int c_hi,
-                         const std::deque<token_type>& tokens, int nb_tokens)
-  : futures(futures), N(N), block_size(block_size), data(data),
-  l(l), c_lo(c_lo), c_hi(c_hi), tokens(tokens), nb_tokens(nb_tokens) { }
-  
-  void body() {
-    switch (node::current_block_id) {
-      case level_loop_entry: {
-        n = (N-2) / block_size;
-        if (l == uninitialized) {
-          l = 1;
-          node::jump_to(level_loop_test);
-        } else {
-          node::jump_to(diagonal_loop_test);
-        }
-        break;
-      }
-      case level_loop_test: {
-        if (l <= nb_levels(n)) {
-          node::jump_to(diagonal_loop_entry);
-        } else {
-          // nothing to do
-        }
-        break;
-      }
-      case diagonal_loop_entry: {
-        c_lo = 0;
-        c_hi = nb_cells_in_level(n, l);
-        node::jump_to(diagonal_loop_test);
-        break;
-      }
-      case diagonal_loop_body: {
-        push_token(l, c_lo);
-        std::pair<int, int> idx = index_of_cell_at_pos(n, l, c_lo);
-        int i = idx.first;
-        int j = idx.second;
-        node* f = new gauss_seidel_future_body<node>(futures, i, j, N, block_size, data);
-        outset_of<node>* f_out = futures->subscript(i, j);
-        c_lo++;
-        if (need_to_throttle()) {
-          node::future(f, f_out,
-                       throttle_loop_entry);
-        } else {
-          node::future(f, f_out,
-                       diagonal_loop_test);
-        }
-        break;
-      }
-      case throttle_loop_entry: {
-        nb_tokens_to_pop = pipeline_burst_rate;
-        node::jump_to(throttle_loop_test);
-        break;
-      }
-      case throttle_loop_body: {
-        outset_of<node>* f_out = pop_token();
-        nb_tokens_to_pop--;
-        node::force(f_out,
-                    throttle_loop_test);
-        break;
-      }
-      case throttle_loop_test: {
-        if ((tokens.empty()) || (nb_tokens_to_pop == 0)) {
-          node::jump_to(diagonal_loop_test);
-        } else {
-          node::jump_to(throttle_loop_body);
-        }
-        break;
-      }
-      case diagonal_loop_test: {
-        if (c_lo < c_hi) {
-          node::jump_to(diagonal_loop_body);
-        } else if (c_hi == nb_cells_in_level(n, l)){
-          l++;
-          node::jump_to(level_loop_test);
-        } else {
-          // nothing to do
-        }
         break;
       }
     }
   }
   
   size_t size() {
-    return c_hi - c_lo;
+    return frontier.size();
   }
   
   pasl::sched::thread_p split(size_t) {
-    int mid = (c_lo + c_hi) / 2;
-    int c_lo2 = mid;
-    int c_hi2 = c_hi;
-    c_hi = mid;
-    auto n = new gauss_seidel_generator(futures, N, block_size, data,
-                                        l, c_lo2, c_hi2, tokens, nb_tokens);
-    node::split_with(n);
+    auto n = new seidel_async_parallel_rec(incounters, join, N, block_size, data);
+    n->initial_thread = false;
+    assert(size() >= 2);
+    size_t half = size() / 2;
+    frontier.split(half, n->frontier);
+    node::split_with(n, join);
     return n;
   }
   
 };
   
 template <class node>
-class gauss_seidel_parallel : public node {
+class seidel_async : public node {
 public:
-  
-  futures_matrix_type<node>* futures;
-  int numiters; int N; int block_size; double* data;
-  
-  int iter;
-  int nb_futures;
-  int n;
-  
-  gauss_seidel_parallel(int numiters, int N, int block_size, double* data)
-  : numiters(numiters), N(N), block_size(block_size), data(data) { }
   
   enum {
     entry,
-    allocate_futures,
-    start_iter,
-    end_iter,
-    deallocate_futures,
-    iter_test
+    loop_header,
+    loop_body,
+    loop_epilogue,
+    exit
   };
-
+  
+  int numiters; int N; int block_size; double* data;
+  
+  int iter;
+  int n;
+  matrix_type<std::atomic<int>>* incounters;
+  int nb_incounters;
+  
+  seidel_async(int numiters, int N, int block_size, double* data)
+  : numiters(numiters), N(N), block_size(block_size), data(data) { }
+  
   void body() {
     switch (node::current_block_id) {
       case entry: {
         iter = 0;
-        n = (N-2) / block_size;
-        futures = new futures_matrix_type<node>(n);
-        nb_futures = n * n;
-        node::jump_to(allocate_futures);
+        n = (N - 2) / block_size;
+        incounters = new matrix_type<std::atomic<int>>(n);
+        nb_incounters = n * n;
+        node::parallel_for(0, nb_incounters, [&] (long i) {
+          incounters->items[i].store(0);
+        }, loop_header);
         break;
       }
-      case allocate_futures: {
-        node::parallel_for(0, nb_futures, [&] (long i) {
-          futures->items[i] = node::allocate_future();
-        }, start_iter);
-        break;
-      }
-      case start_iter: {
-        node::call(new gauss_seidel_generator<node>(futures, N, block_size, data),
-                   end_iter);
-        node::listen_on(futures->subscript(n - 1, n - 1));
-        break;
-      }
-      case end_iter: {
-        node::force(futures->subscript(n - 1, n - 1),
-                    deallocate_futures);
-        break;
-      }
-      case deallocate_futures: {
-        node::parallel_for(0, nb_futures, [&] (long i) {
-          node::deallocate_future(futures->items[i]);
-          futures->items[i] = nullptr;
-        }, iter_test);
-        iter++;
-        break;
-      }
-      case iter_test: {
+      case loop_header: {
         if (iter < numiters) {
-          node::jump_to(allocate_futures);
+          node::jump_to(loop_body);
         } else {
-          delete futures;
+          delete incounters;
+          node::jump_to(exit);
         }
+        break;
+      }
+      case loop_body: {
+        node::finish(new seidel_async_parallel_rec<node>(incounters, this, N, block_size, data),
+                     loop_epilogue);
+        break;
+      }
+      case loop_epilogue: {
+        iter++;
+        node::jump_to(loop_header);
+        break;
+      }
+      case exit: {
         break;
       }
     }
   }
-
+  
 };
   
-void gauss_seidel_by_diagonal(int numiters, int N, int block_size, double* data) {
-  assert(((N-2) % block_size) == 0);
-  int n = (N-2) / block_size;
+int nb_levels(int n) {
+  assert(n >= 1);
+  return 2 * (n - 1) + 1;
+}
+
+int nb_cells_in_level(int n, int l) {
+  assert((l >= 1) && (l <= nb_levels(n)));
+  return (l <= n) ? l : (nb_levels(n) + 1) - l;
+}
+
+std::pair<int, int> index_of_cell_at_pos(int n, int l, int pos) {
+  assert((pos >= 0) && (pos < nb_cells_in_level(n, l)));
+  int i;
+  int j;
+  if (l <= n) { // either on or above the diagonal
+    i = pos;
+    j = l - (pos + 1);
+  } else {      // below the diagonal
+    i = (l - n) + pos;
+    j = n - (pos + 1);
+  }
+  return std::make_pair(i, j);
+}
+  
+void seidel_forkjoin_sequential(int numiters, int N, int block_size, double* data) {
+  assert(((N - 2) % block_size) == 0);
+  int n = (N - 2) / block_size;
   for (int iter = 0; iter < numiters; iter++) {
     for (int l = 1; l <= nb_levels(n); l++) {
       for (int c = 0; c < nb_cells_in_level(n, l); c++) {
         auto idx = index_of_cell_at_pos(n, l, c);
         int i = idx.first * block_size;
         int j = idx.second * block_size;
-        gauss_seidel_block(N, &data[N * i + j], block_size);
+        seidel_block(N, &data[N * i + j], block_size);
       }
     }
   }
 }
+  
+template <class node>
+class seidel_forkjoin : public node {
+public:
+  
+  enum {
+    entry,
+    loop_iter_header,
+    loop_iter_body,
+    loop_iter_epilogue,
+    loop_level_header,
+    loop_level_body,
+    loop_level_epilogue,
+    exit
+  };
+  
+  int numiters; int N; int block_size; double* data;
+  
+  int iter;
+  int n;
+  int l;
+  
+  seidel_forkjoin(int numiters, int N, int block_size, double* data)
+  : numiters(numiters), N(N), block_size(block_size), data(data) { }
+  
+  void body() {
+    switch (node::current_block_id) {
+      case entry: {
+        iter = 0;
+        n = (N - 2) / block_size;
+        node::jump_to(loop_iter_header);
+        break;
+      }
+      case loop_iter_header: {
+        if (iter < numiters) {
+          node::jump_to(loop_iter_body);
+        } else {
+          node::jump_to(exit);
+        }
+        break;
+      }
+      case loop_iter_body: {
+        l = 1;
+        node::jump_to(loop_level_header);
+        break;
+      }
+      case loop_iter_epilogue: {
+        iter++;
+        node::jump_to(loop_iter_header);
+        break;
+      }
+      case loop_level_header: {
+        if (l <= nb_levels(n)) {
+          node::jump_to(loop_level_body);
+        } else {
+          node::jump_to(loop_iter_epilogue);
+        }
+        break;
+      }
+      case loop_level_body: {
+        node::parallel_for(0, nb_cells_in_level(n, l), [&] (int c) {
+          auto idx = index_of_cell_at_pos(n, l, c);
+          int i = idx.first * block_size;
+          int j = idx.second * block_size;
+          seidel_block(N, &data[N * i + j], block_size);
+        }, loop_level_epilogue);
+        break;
+      }
+      case loop_level_epilogue: {
+        l++;
+        node::jump_to(loop_level_header);
+        break;
+      }
+      case exit: {
+        break;
+      }
+    }
+  }
+  
+};
 
-void gauss_seidel_initialize(matrix_type<double>& mtx) {
+void seidel_initialize(matrix_type<double>& mtx) {
   int N = mtx.n;
   for (int i = 0; i < N; ++i) {
     for (int j = 0; j < N; ++j) {
@@ -4951,12 +4890,41 @@ void choose_edge_algorithm() {
   c.find_by_arg_or_default_key("edge_algo", "tree")();
 }
 
-void read_gauss_seidel_params(int& numiters, int& N, int& block_size) {
+void read_seidel_params(int& numiters, int& N, int& block_size) {
   numiters = cmdline::parse_or_default_int("numiters", 1);
   N = cmdline::parse_or_default_int("N", 128);
   block_size = cmdline::parse_or_default_int("block_size", 2);
   benchmarks::epsilon = cmdline::parse_or_default_double("epsilon", benchmarks::epsilon);
   assert((N % block_size) == 0);
+}
+
+template <class seidel_parallel>
+void do_seidel() {
+  int numiters;
+  int N;
+  int block_size;
+  bool do_consistency_check = cmdline::parse_or_default_bool("consistency_check", false);
+  read_seidel_params(numiters, N, block_size);
+  benchmarks::matrix_type<double>* test_mtx = new benchmarks::matrix_type<double>(N+2, 0.0);
+  benchmarks::seidel_initialize(*test_mtx);
+  bool use_reference_solution = cmdline::parse_or_default_bool("reference_solution", false);
+  if (use_reference_solution) {
+    add_todo([=] {
+      benchmarks::seidel_forkjoin_sequential(numiters, N+2, block_size, &(test_mtx->items[0]));
+    });
+  } else {
+    add_todo(new seidel_parallel(numiters, N+2, block_size, &(test_mtx->items[0])));
+  }
+  add_todo([=] {
+    if (do_consistency_check) {
+      benchmarks::matrix_type<double> reference_mtx(N+2, 0.0);
+      benchmarks::seidel_initialize(reference_mtx);
+      benchmarks::seidel_sequential(numiters, N+2, block_size, &reference_mtx.items[0]);
+      int nb_diffs = benchmarks::count_nb_diffs(reference_mtx, *test_mtx);
+      assert(nb_diffs == 0);
+    }
+    delete test_mtx;
+  });
 }
 
 std::string cmd_param = "cmd";
@@ -5002,40 +4970,19 @@ void choose_command() {
     int n = cmdline::parse_or_default_int("n", 1);
     add_todo(new tests::parallel_for_test<node>(n));
   });
-  c.add("seidel_parallel", [&] {
-    int numiters;
-    int N;
-    int block_size;
-    bool do_consistency_check = cmdline::parse_or_default_bool("consistency_check", false);
-    read_gauss_seidel_params(numiters, N, block_size);
-    benchmarks::matrix_type<double>* test_mtx = new benchmarks::matrix_type<double>(N+2, 0.0);
-    benchmarks::gauss_seidel_initialize(*test_mtx);
-    bool use_reference_solution = cmdline::parse_or_default_bool("reference_solution", false);
-    if (use_reference_solution) {
-      add_todo([=] {
-        benchmarks::gauss_seidel_by_diagonal(numiters, N+2, block_size, &(test_mtx->items[0]));
-      });
-    } else {
-      add_todo(new benchmarks::gauss_seidel_parallel<node>(numiters, N+2, block_size, &(test_mtx->items[0])));
-    }
-    add_todo([=] {
-      if (do_consistency_check) {
-        benchmarks::matrix_type<double> reference_mtx(N+2, 0.0);
-        benchmarks::gauss_seidel_initialize(reference_mtx);
-        benchmarks::gauss_seidel_sequential(numiters, N+2, block_size, &reference_mtx.items[0]);
-        int nb_diffs = benchmarks::count_nb_diffs(reference_mtx, *test_mtx);
-        assert(nb_diffs == 0);
-      }
-      delete test_mtx;
-    });
+  c.add("seidel_async", [&] {
+    do_seidel<benchmarks::seidel_async<node>>();
+  });
+  c.add("seidel_forkjoin", [&] {
+    do_seidel<benchmarks::seidel_forkjoin<node>>();
   });
   c.add("seidel_sequential", [&] {
     int numiters;
     int N;
     int block_size;
-    read_gauss_seidel_params(numiters, N, block_size);
+    read_seidel_params(numiters, N, block_size);
     benchmarks::matrix_type<double>* test_mtx = new benchmarks::matrix_type<double>(N+2, 0.0);
-    add_todo(new benchmarks::gauss_seidel_sequential_node<node>(numiters, N+2, block_size, &test_mtx->items[0]));
+    add_todo(new benchmarks::seidel_sequential_node<node>(numiters, N+2, block_size, &test_mtx->items[0]));
     add_todo([=] {
       delete test_mtx;
     });
@@ -5046,7 +4993,6 @@ void choose_command() {
 void launch() {
   communication_delay = cmdline::parse_or_default_int("communication_delay",
                                                       communication_delay);
-  benchmarks::get_pipeline_arguments_from_cmdline();
   cmdline::argmap_dispatch c;
   c.add("direct", [&] {
     choose_edge_algorithm();
