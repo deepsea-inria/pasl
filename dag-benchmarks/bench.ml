@@ -574,7 +574,7 @@ let mk_numiters = mk int "numiters" 4
                      
 let mk_seidel_params =
   mk_numiters &
-    (((mk int "N" 8196) & mk_list int "block_size" [1024;256;])
+    (((mk int "N" 8192) & mk_list int "block_size" [1024;256;])
   ++ ((mk int "N" 1024) & (mk int "block_size" 128))
   ++ ((mk int "N" 256) & (mk int "block_size" 64)))
 
