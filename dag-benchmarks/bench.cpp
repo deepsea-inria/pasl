@@ -4895,7 +4895,6 @@ void read_seidel_params(int& numiters, int& N, int& block_size) {
   N = cmdline::parse_or_default_int("N", 128);
   block_size = cmdline::parse_or_default_int("block_size", 2);
   benchmarks::epsilon = cmdline::parse_or_default_double("epsilon", benchmarks::epsilon);
-  assert((N % block_size) == 0);
 }
 
 template <class seidel_parallel>
