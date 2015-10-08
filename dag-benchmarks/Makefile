@@ -82,7 +82,7 @@ COMPILE_OPTIONS_FOR_opt_4_512=$(COMPILE_OPTIONS_FOR_opt)    -DDYNTREEOPT_BRANCHI
 
 # Folders where to find all the header files and main sources
 
-INCLUDES=. $(SEQUTIL_PATH) $(PARUTIL_PATH) $(SCHED_PATH) $(PBBS_PATH) $(MALLOC_COUNT_PATH)
+INCLUDES=. $(SEQUTIL_PATH) $(PARUTIL_PATH) $(SCHED_PATH) $(PBBS_PATH) $(MALLOC_COUNT_PATH) $(CHUNKEDSEQ_PATH)
 
 # Folders where to find all the source files
 
