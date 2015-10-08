@@ -4918,7 +4918,7 @@ void do_seidel() {
     if (do_consistency_check) {
       benchmarks::matrix_type<double> reference_mtx(N+2, 0.0);
       benchmarks::seidel_initialize(reference_mtx);
-      benchmarks::seidel_sequential(numiters, N+2, block_size, &reference_mtx.items[0]);
+      benchmarks::seidel_sequential(numiters, N+2, block_size, &(reference_mtx.items[0]));
       int nb_diffs = benchmarks::count_nb_diffs(reference_mtx, *test_mtx);
       assert(nb_diffs == 0);
     }
@@ -4981,7 +4981,7 @@ void choose_command() {
     int block_size;
     read_seidel_params(numiters, N, block_size);
     benchmarks::matrix_type<double>* test_mtx = new benchmarks::matrix_type<double>(N+2, 0.0);
-    add_todo(new benchmarks::seidel_sequential_node<node>(numiters, N+2, block_size, &test_mtx->items[0]));
+    add_todo(new benchmarks::seidel_sequential_node<node>(numiters, N+2, block_size, &(test_mtx->items[0])));
     add_todo([=] {
       delete test_mtx;
     });
