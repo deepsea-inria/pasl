@@ -567,19 +567,16 @@ let name = "seidel"
 
 let prog = "./bench.opt"
 
-let mk_pipeline_arguments =
-    mk int "pipeline_window_capacity" 128
-  & mk int "pipeline_burst_rate" 32
-
-let mk_cmd =
-     mk string "cmd" "seidel_sequential"
-  ++ (mk string "cmd" "seidel_parallel" & mk_pipeline_arguments)
-
-let mk_N = mk int "N" 10000
+let mk_cmds =
+  mk_list string "cmd" ["seidel_sequential"; "seidel_async"; "seidel_forkjoin";]
 
 let mk_numiters = mk int "numiters" 4
-
-let mk_block_sizes = mk_list int "block_size" [2;32;64]
+                     
+let mk_seidel_params =
+  mk_numiters &
+    (((mk int "N" 8196) & mk_list int "block_size" [1024;256;])
+  ++ ((mk int "N" 1024) & (mk int "block_size" 128))
+  ++ ((mk int "N" 256) & (mk int "block_size" 64)))
 
 let make() =
   build "." [prog] arg_virtual_build
@@ -590,12 +587,9 @@ let run() =
     Timeout 1000;
     Args (
       mk_prog prog
-    & mk_cmd
-    & mk_N
-    & mk_numiters
-    & mk_block_sizes
+    & mk_cmds
+    & mk_seidel_params
     & mk_algos
-    & mk_edge_algos
     & mk_proc)]))
 
 let check = nothing  (* do something here *)
@@ -606,8 +600,8 @@ let plot() =
          X_titles_dir Vertical;
          Y_axis [Axis.Lower (Some 0.)] ]);
        Formatter microbench_formatter;
-      Charts mk_block_sizes;
-      Series (mk_cmd ++ mk_edge_algos);
+      Charts mk_seidel_params;
+      Series mk_cmds;
       X mk_proc;
       Input (file_results name);
       Output (file_plots name);
