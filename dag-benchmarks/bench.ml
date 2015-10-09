@@ -71,6 +71,13 @@ let eval_nb_operations_per_second_error = fun env all_results results ->
   let (_, stddev) = XFloat.list_mean_and_stddev ps in
   stddev
 
+let eval_speedup mk_seq = fun env all_results results ->
+   let baseline_results =  mk_seq in
+   if baseline_results = [] then Pbench.warning ("no results for baseline: " ^ Env.to_string env);
+   let tp = Results.get_mean_of "exectime" results in
+   let t1 = Results.get_mean_of "exectime" baseline_results in
+   t1 /. tp
+
 (*****************************************************************************)
 (* Fixed constants *)
 
@@ -275,7 +282,7 @@ let name = "snzi_tune"
 
 let prog = "./bench.opt"
              
-let parameters = [ (2,4); (2,5); (3,3); (3,4); (4,3); ]
+let parameters = [ (2,0); (2,1); (2,2); (2,3); (2,4); (2,5); ]
 
 let mk_configuration (branching_factor, nb_levels) =
     (mk int "branching_factor" branching_factor)
@@ -285,7 +292,7 @@ let mk_configurations =
   let xs = List.map mk_configuration parameters in
   List.fold_left (fun x y -> x ++ y) (List.hd xs) (List.tl xs)
           
-let mk_cmd = mk string "cmd" "incounter_mixed_duration"
+let mk_procs = mk_list int "proc" [1;5;10;15;20;25;30;35;40]
 
 let make() =
   build "." [prog] arg_virtual_build
@@ -296,30 +303,26 @@ let run() =
     Timeout 1000;
     Args (
       mk_prog prog
-    & mk_incr_probs
-    & mk_cmd
-    & mk_nb_milliseconds
     & mk_seed
     & mk_incounter_mixed_duration
     & mk_configurations
-    & mk_proc)]))
+    & mk_procs)]))
 
 let check = nothing  (* do something here *)
 
 let plot() =
-  Mk_bar_plot.(call ([
-      Bar_plot_opt Bar_plot.([
-         X_titles_dir Vertical;
-         Y_axis [Axis.Lower (Some 0.)] ]);
+      Mk_scatter_plot.(call ([
+      Scatter_plot_opt Scatter_plot.([
+         Draw_lines true; 
+         Y_axis [Axis.Lower (Some 0.); Axis.Is_log true;] ]);
        Formatter microbench_formatter;
-      Charts mk_proc;
+      Charts  mk_incounter_mixed_duration;
       Series mk_configurations;
-      X mk_incr_probs;
+      X mk_procs;
       Input (file_results name);
       Output (file_plots name);
-      Y_label "nb_operations/second (per thread)";
-      Y eval_nb_operations_per_second;
-      Y_whiskers eval_nb_operations_per_second_error;
+      Y_label "running time (seconds)";
+      Y eval_exectime;
   ]))
 
 let all () = select make run check plot
@@ -595,20 +598,37 @@ let run() =
 let check = nothing  (* do something here *)
               
 let plot() =
+    Mk_scatter_plot.(call ([
+      Scatter_plot_opt Scatter_plot.([
+         Draw_lines true; 
+         (*         X_titles_dir Vertical;*)
+         Y_axis [Axis.Lower (Some 0.); Axis.Is_log true;] ]);
+       Formatter microbench_formatter;
+      Charts  mk_seidel_params;
+      Series (mk_algos & mk_cmds);
+      X mk_proc;
+      Input (file_results name);
+      Output (file_plots name);
+      Y_label "running time (seconds)";
+      Y eval_exectime;
+      (*      Y_whiskers eval_nb_operations_per_second_error;*)
+  ]))
+(*
+                      
   Mk_bar_plot.(call ([
       Bar_plot_opt Bar_plot.([
          X_titles_dir Vertical;
          Y_axis [Axis.Lower (Some 0.)] ]);
        Formatter microbench_formatter;
       Charts mk_seidel_params;
-      Series mk_cmds;
+      Series (mk_algos & mk_cmds);
       X mk_proc;
       Input (file_results name);
       Output (file_plots name);
       Y_label "running time (seconds)";
       Y eval_exectime;
   ]))
-
+ *)
 let all () = select make run check plot
 
 end
