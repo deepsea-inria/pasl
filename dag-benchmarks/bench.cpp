@@ -3985,7 +3985,7 @@ void launch_incounter_mixed_duration() {
   c.add("simple", [&] {
     simple_incounter = new simple_incounter_wrapper;
   });
-  c.add("snzi", [&] {
+  c.add("statreeopt", [&] {
     int branching_factor = pasl::util::cmdline::parse_int("branching_factor");
     int nb_levels = pasl::util::cmdline::parse_int("nb_levels");
     snzi_incounter = new snzi_incounter_wrapper(branching_factor, nb_levels);

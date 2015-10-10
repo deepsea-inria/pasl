@@ -158,10 +158,14 @@ private:
   static constexpr int one_half = -1;
   
   static constexpr int root_node_tag = 1;
+
+  void* _padding1[8];
   
   std::atomic<contents_type> X;
   
   node* parent;
+
+  void* _padding2[8];
   
   static bool is_root_node(const node* n) {
     return tagged_tag_of(n) == 1;

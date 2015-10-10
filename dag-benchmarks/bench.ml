@@ -282,7 +282,7 @@ let name = "snzi_tune"
 
 let prog = "./bench.opt"
              
-let parameters = [ (2,0); (2,1); (2,2); (2,3); (2,4); (2,5); ]
+let parameters = [ (2,1); (2,2); (2,3); (2,4); (2,5); (2,6); (2,7); (2,8);]
 
 let mk_configuration (branching_factor, nb_levels) =
     (mk int "branching_factor" branching_factor)
@@ -292,7 +292,9 @@ let mk_configurations =
   let xs = List.map mk_configuration parameters in
   List.fold_left (fun x y -> x ++ y) (List.hd xs) (List.tl xs)
           
-let mk_procs = mk_list int "proc" [1;5;10;15;20;25;30;35;40]
+let mk_procs = mk_list int "proc" [1;10;20;30;40;48]
+
+let mk_cmd = mk_incounter_mixed_duration & mk_statreeopt_edge_algo
 
 let make() =
   build "." [prog] arg_virtual_build
@@ -304,7 +306,7 @@ let run() =
     Args (
       mk_prog prog
     & mk_seed
-    & mk_incounter_mixed_duration
+    & mk_cmd
     & mk_configurations
     & mk_procs)]))
 
@@ -312,17 +314,20 @@ let check = nothing  (* do something here *)
 
 let plot() =
       Mk_scatter_plot.(call ([
+    Chart_opt Chart.([
+      Legend_opt Legend.([Legend_pos Bottom_right]);
+      ]);
       Scatter_plot_opt Scatter_plot.([
          Draw_lines true; 
          Y_axis [Axis.Lower (Some 0.); Axis.Is_log true;] ]);
        Formatter microbench_formatter;
-      Charts  mk_incounter_mixed_duration;
+      Charts  mk_incr_probs;
       Series mk_configurations;
       X mk_procs;
       Input (file_results name);
       Output (file_plots name);
-      Y_label "running time (seconds)";
-      Y eval_exectime;
+      Y_label "nb_operations/second (per thread)";
+      Y eval_nb_operations_per_second;
   ]))
 
 let all () = select make run check plot
