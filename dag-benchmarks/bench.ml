@@ -81,33 +81,40 @@ let eval_speedup mk_seq = fun env all_results results ->
 (*****************************************************************************)
 (* Fixed constants *)
 
-let is_cadmium _ = Unix.gethostname() = "cadmium"
+let thehostname = Unix.gethostname()
+
+let is_cadmium _ = thehostname = "cadmium"
 
 let mk_procs =
   if is_cadmium()
   then mk_list int "proc" [1;10;20;30;40;48]
   else mk_list int "proc" [1;10;20;30;40;]
 
+let mk_simple_edge_algo = mk string "edge_algo" "simple"
+
 let dflt_snzi_branching_factor = 2
 let dflt_snzi_nb_levels = 7
 
-let mk_snzi_branching_factors = mk_list int "branching_factor" [dflt_snzi_branching_factor]
-let mk_snzi_nb_levels = mk_list int "nb_levels" [dflt_snzi_nb_levels;]
+let mk_snzi_default_parameters =
+    mk int "branching_factor" dflt_snzi_branching_factor
+  & mk int "nb_levels" dflt_snzi_nb_levels
 
-let mk_simple_edge_algo = mk string "edge_algo" "simple"
-
-let mk_statreeopt_edge_algo =
+let mk_statreeopt_edge_algo_with_no_defaults =
   mk string "edge_algo" "statreeopt"
 
-let mk_dyntree_algo = mk string "edge_algo" "dyntree"
+let mk_statreeopt_edge_algo =
+    mk_statreeopt_edge_algo_with_no_defaults
+  & mk_snzi_default_parameters
 
-let mk_dyntreeopt_algo = mk string "edge_algo" "dyntreeopt"
+let mk_dyntree_edge_algo = mk string "edge_algo" "dyntree"
+
+let mk_dyntreeopt_edge_algo = mk string "edge_algo" "dyntreeopt"
 
 let mk_edge_algos =
      mk_simple_edge_algo
   ++ mk_statreeopt_edge_algo
-  ++ mk_dyntree_algo
-  ++ mk_dyntreeopt_algo
+  ++ mk_dyntree_edge_algo
+  ++ mk_dyntreeopt_edge_algo
 
 let mk_direct_algo = mk string "algo" "direct"
        
@@ -240,38 +247,37 @@ let make() =
   build "." [prog] arg_virtual_build
 
 let mk_all_benchmarks =
-  (   mk_incounter_async_duration
-      ++ mk_incounter_async_nb)
-  & mk_direct_algo & mk_edge_algos
-
+     mk_incounter_mixed_duration
+  ++ mk_incounter_async_duration
+  ++ mk_incounter_async_nb
+  
 let run() =
   Mk_runs.(call (run_modes @ [
     Output (file_results name);
     Timeout 1000;
     Args (
       mk_prog prog
-    & mk_all_benchmarks
+    & (mk_all_benchmarks & mk_direct_algo & mk_edge_algos)
     & mk_seed
     & mk_procs)]))
 
 let check = nothing  (* do something here *)
 
+let plot_title name = sprintf "%s (%s)" name thehostname
+
 let plot() =
   Mk_scatter_plot.(call ([
       Scatter_plot_opt Scatter_plot.([
          Draw_lines true; 
-         (*         X_titles_dir Vertical;*)
          Y_axis [Axis.Lower (Some 0.); Axis.Is_log true;] ]);
        Formatter microbench_formatter;
-      Charts  (      mk_incounter_async_duration
-                  ++ mk_incounter_async_nb);
+       Charts mk_all_benchmarks;
       Series mk_edge_algos;
       X mk_procs;
       Input (file_results name);
       Output (file_plots name);
       Y_label "nb_operations/second (per thread)";
       Y eval_nb_operations_per_second;
-      (*      Y_whiskers eval_nb_operations_per_second_error;*)
   ]))
 
 let all () = select make run check plot
@@ -347,12 +353,12 @@ let name = "incounter_mixed_duration"
 let prog = "./bench.opt"
 
 let mk_cmd = mk string "cmd" "incounter_mixed_duration"
-
-let mk_incounters =
-      mk string "incounter" "simple"
-   ++ (mk string "incounter" "snzi" & mk_snzi_branching_factors & mk_snzi_nb_levels)
-   ++ mk string "incounter" "dyntree"
-   ++ mk string "incounter" "dyntreeopt"
+                
+let mk_edge_algos =
+      mk_simple_edge_algo
+   ++ mk_statreeopt_edge_algo
+   ++ mk_dyntree_edge_algo
+   ++ mk_dyntreeopt_edge_algo
 
 let make() =
   build "." [prog] arg_virtual_build
@@ -367,7 +373,7 @@ let run() =
     & mk_cmd
     & mk_nb_milliseconds
     & mk_seed
-    & mk_incounters
+    & mk_edge_algos
     & mk_proc)]))
 
 let check = nothing  (* do something here *)
@@ -387,7 +393,7 @@ let plot_phase phase =
          Y_axis [Axis.Lower (Some 0.)] ]);
        Formatter microbench_formatter;
       Charts mk_proc;
-      Series mk_incounters;
+      Series mk_edge_algos;
       X mk_incr_probs;
       Input (file_results name);
       Output (file_plots name2);
@@ -403,7 +409,7 @@ let plot() =
          Y_axis [Axis.Lower (Some 0.)] ]);
        Formatter microbench_formatter;
       Charts mk_proc;
-      Series mk_incounters;
+      Series mk_edge_algos;
       X mk_incr_probs;
       Input (file_results name);
       Output (file_plots name);
