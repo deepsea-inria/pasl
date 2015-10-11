@@ -1142,7 +1142,7 @@ public:
   }
   
   void split_with(node* n, node* join) {
-    prepare_node(n);
+    prepare_node(n, incounter_ready(), outset_unary());
     add_edge(n, join);
   }
   
