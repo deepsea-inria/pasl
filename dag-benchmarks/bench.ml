@@ -81,8 +81,15 @@ let eval_speedup mk_seq = fun env all_results results ->
 (*****************************************************************************)
 (* Fixed constants *)
 
-let dflt_snzi_branching_factor = 4
-let dflt_snzi_nb_levels = 3
+let is_cadmium _ = Unix.gethostname() = "cadmium"
+
+let mk_procs =
+  if is_cadmium()
+  then mk_list int "proc" [1;10;20;30;40;48]
+  else mk_list int "proc" [1;10;20;30;40;]
+
+let dflt_snzi_branching_factor = 2
+let dflt_snzi_nb_levels = 7
 
 let mk_snzi_branching_factors = mk_list int "branching_factor" [dflt_snzi_branching_factor]
 let mk_snzi_nb_levels = mk_list int "nb_levels" [dflt_snzi_nb_levels;]
@@ -237,8 +244,6 @@ let mk_all_benchmarks =
       ++ mk_incounter_async_nb)
   & mk_direct_algo & mk_edge_algos
 
-let mk_procs = mk_list int "proc" [1;4;16;40;]
-
 let run() =
   Mk_runs.(call (run_modes @ [
     Output (file_results name);
@@ -291,8 +296,6 @@ let mk_configuration (branching_factor, nb_levels) =
 let mk_configurations =
   let xs = List.map mk_configuration parameters in
   List.fold_left (fun x y -> x ++ y) (List.hd xs) (List.tl xs)
-          
-let mk_procs = mk_list int "proc" [1;10;20;30;40;48]
 
 let mk_cmd = mk_incounter_mixed_duration & mk_statreeopt_edge_algo
 
