@@ -141,10 +141,12 @@ void initialization_update(int n, int add_no, int* add_p, int* add_v, int delete
 }
 
 void free_vertex(Node* v, int thread_id) {
+#ifdef STANDART
   if (v->next != NULL) {
     deleted_affected_sets[thread_id].insert(v->next);
   }
   v->next = NULL;
+#endif
   lists[v->get_vertex()] = v;
   vertex_thread[v->get_vertex()] = -1;
   v->prepare();
@@ -314,7 +316,8 @@ void update_round(int round) {
       if (v->get_parent()->is_contracted()) {
         delete_node_for(v->get_parent(), v);
       }
-      std::set<Node*> copy_children = v->get_children();
+//      std::set<Node*> copy_children = v->get_children();
+      std::set<Node*>& copy_children = v->prev->get_children();
       for (Node* c : copy_children) {
         if (c->is_contracted()) {
           delete_node_for(c, v);
@@ -332,6 +335,7 @@ void update_round(int round) {
     }
   });
 
+#ifdef STANDART
 //  for (int i = 0; i < set_number; i++) {
   pasl::sched::native::parallel_for(0, len[round % 2], [&] (int j) {
     int i = live[round % 2][j];
@@ -341,6 +345,7 @@ void update_round(int round) {
       delete v;
     }
   });
+#endif
 
   len[1 - round % 2] = pbbs::sequence::filter(live[round % 2], live[1 - round % 2], len[round % 2], [&] (int i) {
     return live_affected_sets[i].size() + deleted_affected_sets[i].size() != 0;

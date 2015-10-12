@@ -1,9 +1,26 @@
 #include "rake-compress-primitives.hpp"
 
 void initialization_construction(int n, std::vector<int>* children, int* parent) {
+#ifdef SPECIAL
+  memory = new Node**[100];
+  for (int i = 0; i < 100; i++) {
+    memory[i] = new Node*[n];
+    for (int j = 0; j < n; j++) {
+      memory[i][j] = new Node(j);
+      if (i > 0) {
+        memory[i - 1][j]->next = memory[i][j];
+      }
+    }
+  }
+#endif
+
   lists = new Node*[n];
   for (int i = 0; i < n; i++) {
+#ifdef STANDART
     lists[i] = new Node(i);
+#elif SPECIAL
+    lists[i] = memory[0][i];
+#endif
     lists[i]->head = lists[i];
     lists[i]->set_parent(lists[i]);
   }
@@ -26,7 +43,7 @@ void initialization_construction(int n, std::vector<int>* children, int* parent)
 
 void construction_round(int round) {
   if (round % 100 == 0) {
-    std::cerr << round << " " << len[round % 2] << std::endl;
+    std::cerr << round << " " << len[round % 2] << " " << live[round % 2][0] << std::endl;
   }
 
 //  for (int i = 0; i < len[round % 2]; i++) {
@@ -39,14 +56,24 @@ void construction_round(int round) {
     }
   });
 
+/*  len[1 - round % 2] = 0;
+  for (int i = 0; i < len[round % 2]; i++) {
+    int v = live[round % 2][i];
+    if (!lists[v]->is_contracted() && !lists[v]->is_known_root())
+        live[1 - round % 2][len[1 - round % 2]++] = v;
+  }*/
+
+
   len[1 - round % 2] = pbbs::sequence::filter(live[round % 2], live[1 - round % 2], len[round % 2], [&] (int v) {
     return !lists[v]->is_contracted() && !lists[v]->is_known_root();
   });
 
   pasl::sched::native::parallel_for(0, len[1 - round % 2], [&] (int i) {
     int v = live[1 - round % 2][i];
+//    std::set<Node*>& copy_children = lists[v]->prev->get_children();
     std::set<Node*> copy_children = lists[v]->get_children();
     for (auto child : copy_children) {
+//    for (auto child : memory[v][round]->get_children()) {
       if (child->is_contracted())
         delete_node(child);
     }
@@ -61,7 +88,7 @@ void construction_round(int round) {
 
 void construction_round_seq(int round) {
   if (round % 100 == 0) {
-    std::cerr << round << " " << len[round % 2] << std::endl;
+    std::cerr << round << " " << len[round % 2] << " " << live[round % 2][0] << std::endl;
   }
 
   for (int i = 0; i < len[round % 2]; i++) {

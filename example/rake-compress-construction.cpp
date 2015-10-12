@@ -54,6 +54,7 @@ int main(int argc, char** argv) {
        delete [] live[0];
        delete [] live[1];
 
+#ifdef STANDART
        for (int i = 0; i < n; i++) {
          Node* start = lists[i]->head;
          while (start != NULL) {
@@ -62,7 +63,7 @@ int main(int argc, char** argv) {
            start = next;
          }
        }
-
+#endif
        delete [] lists;
      }
    };

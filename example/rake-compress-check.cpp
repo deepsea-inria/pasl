@@ -164,8 +164,8 @@ void destroy(int n) {
     }
   }
 
-  delete [] live[0];
-  delete [] live[1];
+//  delete [] live[0];
+//  delete [] live[1];
   delete [] lists;
   delete [] live_affected_sets;
   delete [] deleted_affected_sets;
@@ -269,6 +269,10 @@ void test_one_way(int n, std::string type, int m, int* p, int* v, bool add, int 
   destroy(n);
   destroy(n, first);
   destroy(n, second);
+  if (!seq) {
+    delete [] live[0];
+    delete [] live[1];
+  }
   delete [] first_children;
   delete [] first_parent;
   delete [] second_children;

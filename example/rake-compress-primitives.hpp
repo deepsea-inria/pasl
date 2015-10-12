@@ -8,6 +8,8 @@
 #ifndef _RAKE_COMPRESS_PRIMITIVES_
 #define _RAKE_COMPRESS_PRIMITIVES_
 
+const int MAX_DEGREE = 5;
+
 void print_array(int* a, int n) {
   for (int i = 0; i < n; i++) {
     std::cerr << a[i] << " ";
@@ -40,6 +42,7 @@ struct State {
 struct Node {
   Node* head;
   Node* next;
+  Node* prev;
   State state;
   int* proposals;
   bool* affected;
@@ -47,13 +50,33 @@ struct Node {
   Node(int _vertex) : state(_vertex) {
     head = NULL;
     next = NULL;
+    prev = NULL;
+/*#ifdef STANDART
     proposals = NULL;
+#elif SPECIAL*/
+    proposals = new int[MAX_DEGREE];
+    affected = new bool[MAX_DEGREE];
+    for (int i = 0; i < MAX_DEGREE; i++) {
+      proposals[i] = 0;
+      affected[i] = false;
+    }
+//#endif
   }
 
   Node(const Node &node) : state(node.state) {
     head = node.head;
     next = NULL;
+    prev = NULL;
+/*#ifdef STANDART
     proposals = NULL;
+#elif SPECIAL*/
+    proposals = new int[MAX_DEGREE];
+    affected = new bool[MAX_DEGREE];
+    for (int i = 0; i < MAX_DEGREE; i++) {
+      proposals[i] = 0;
+      affected[i] = false;
+    }
+//#endif
   }
 
   void add_child(Node* child) {
@@ -89,7 +112,7 @@ struct Node {
     return state.vertex;
   }
 
-  std::set<Node*> get_children() {
+  std::set<Node*>& get_children() {
     return state.children;
   }
 
@@ -151,18 +174,20 @@ struct Node {
   }
 
   void prepare() {state.affected = false;
-    if (proposals != NULL) {
-/*      for (int i = 0; i < state.children.size() + 1; i++) {
-        proposals[i] = 0;
-      }*/
-      delete [] affected;
-      delete [] proposals;
-    }
-    affected = new bool[state.children.size() + 1];
+//#ifdef STANDART    
+//    if (proposals != NULL) {
+///*      for (int i = 0; i < state.children.size() + 1; i++) {
+//        proposals[i] = 0;
+//      }*/
+//      delete [] affected;
+//      delete [] proposals;
+//    }
+//    affected = new bool[state.children.size() + 1];
+//    proposals = new int[state.children.size() + 1];
+//#endif
     for (int i = 0; i < state.children.size() + 1; i++)
       affected[i] = false;
 
-    proposals = new int[state.children.size() + 1];
     for (int i = 0; i < state.children.size() + 1; i++)
       proposals[i] = 0;
   }
@@ -197,12 +222,17 @@ struct Node {
 
   ~Node() {
     delete [] proposals;
+    delete [] affected;
   }
 };
 
 Node** lists;
 int* live[2];
 int len[2];
+
+#ifdef SPECIAL
+Node*** memory;
+#endif
 
 bool hash(int a, int b) {
   return (pbbs::utils::hash(a * 100000 + b)) % 2 == 0;
@@ -238,6 +268,7 @@ void copy_node(Node* v) {
     v->next->copy_state(v);
     lists[v->get_vertex()] = v->next;
   }
+  v->next->prev = v;
   lists[v->get_vertex()]->prepare();
 }
 
