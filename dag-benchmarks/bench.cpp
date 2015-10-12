@@ -1,3 +1,4 @@
+
 /*!
  * \file bench.cpp
  * \brief Benchmarking program for DAG-machine experiments
@@ -658,11 +659,11 @@ public:
 namespace dyntreeopt {
   
 #ifndef DYNTREEOPT_BRANCHING_FACTOR
-#define DYNTREEOPT_BRANCHING_FACTOR 8
+#define DYNTREEOPT_BRANCHING_FACTOR 4
 #endif
   
 #ifndef DYNTREEOPT_AMORTIZATION_FACTOR
-#define DYNTREEOPT_AMORTIZATION_FACTOR 32
+#define DYNTREEOPT_AMORTIZATION_FACTOR 8
 #endif
   
 constexpr int branching_factor = DYNTREEOPT_BRANCHING_FACTOR;
@@ -4026,6 +4027,15 @@ void launch_incounter_mixed_duration() {
   }
 }
 
+double workload = 0.0;
+
+void do_dummy_work() {
+  if (workload == 0.0) {
+    return;
+  }
+  pasl::util::microtime::microsleep(workload);
+}
+  
 bool should_incounter_async_duration_terminate = false;
   
 pasl::data::perworker::counter::carray<int> incounter_async_duration_counter;
@@ -4049,6 +4059,7 @@ public:
       case entry: {
         if (! should_incounter_async_duration_terminate) {
           incounter_async_duration_counter++;
+          do_dummy_work();
           node::async(new incounter_async_duration_loop(join), join,
                       exit);
         }
@@ -4109,6 +4120,7 @@ public:
     switch (node::current_block_id) {
       case entry: {
         mixed_duration_counter++;
+        do_dummy_work();
         node::force(producer,
                     exit);
         break;
@@ -4133,8 +4145,8 @@ public:
   };
   
   mixed_duration_loop(node* join,
-                                  outset_of<node>* producer,
-                                  std::atomic<node*>* buffer)
+                      outset_of<node>* producer,
+                      std::atomic<node*>* buffer)
   : join(join), producer(producer), buffer(buffer) { }
   
   node* join;
@@ -4258,8 +4270,6 @@ public:
   
 };
 
-double incounter_async_nb_workload = 0.0; 
-
 template <class node>
 class incounter_async_nb_rec : public node {
 public:
@@ -4280,7 +4290,7 @@ public:
     switch (node::current_block_id) {
       case entry: {
         if ((hi - lo) <= 1) {
-          pasl::util::microtime::microsleep(incounter_async_nb_workload);
+          do_dummy_work();
         } else {
           int mid = (lo + hi) / 2;
           node::async(new incounter_async_nb_rec(mid, hi, join), join,
@@ -4315,7 +4325,6 @@ public:
   void body() {
     switch (node::current_block_id) {
       case entry: {
-        incounter_async_nb_workload = pasl::util::cmdline::parse_or_default_double("workload", 0.0);
         node::finish(new incounter_async_nb_rec<node>(0, n, this),
                      exit);
         break;
@@ -4348,7 +4357,7 @@ public:
     switch (node::current_block_id) {
       case entry: {
         if ((hi - lo) <= 1) {
-          pasl::util::microtime::microsleep(incounter_async_nb_workload);
+          do_dummy_work();
         } else {
           int mid = (lo + hi) / 2;
           node::fork2(new incounter_forkjoin_nb_rec(lo, mid),
@@ -4382,7 +4391,6 @@ public:
   void body() {
     switch (node::current_block_id) {
       case entry: {
-        incounter_async_nb_workload = pasl::util::cmdline::parse_or_default_double("workload", 0.0);
         node::call(new incounter_forkjoin_nb_rec<node>(0, n),
                    exit);
         break;
@@ -4491,22 +4499,7 @@ void seidel_sequential(int numiters, int N, int block_size, double* data) {
     }
   }
 }
-  
-template <class node>
-class seidel_sequential_node : public node {
-public:
-  
-  int numiters; int N; int block_size; double* data;
-  
-  seidel_sequential_node(int numiters, int N, int block_size, double* data)
-  : numiters(numiters), N(N), block_size(block_size), data(data) { }
-  
-  void body() {
-    seidel_sequential(numiters, N, block_size, data);
-  }
-  
-};
-  
+    
 template <class node>
 class seidel_async_parallel_rec : public node {
 public:
@@ -4831,10 +4824,16 @@ int count_nb_diffs(const matrix_type<double>& lhs,
 
 namespace cmdline = pasl::util::cmdline;
 
-std::deque<pasl::sched::thread_p> todo;
+using todo_type = enum { todo_measured, todo_administrative };
 
-void add_todo(pasl::sched::thread_p t) {
-  todo.push_back(t);
+std::deque<std::pair<todo_type, pasl::sched::thread_p>> todo;
+
+void add_todo(todo_type tp, pasl::sched::thread_p t) {
+  todo.push_back(std::make_pair(tp, t));
+}
+
+void add_measured(pasl::sched::thread_p t) {
+  add_todo(todo_measured, t);
 }
 
 template <class Body>
@@ -4854,7 +4853,19 @@ public:
 };
 
 void add_todo(std::function<void()> f) {
-  add_todo(new todo_function<decltype(f)>(f));
+  add_todo(todo_administrative, new todo_function<decltype(f)>(f));
+}
+
+void add_measured(std::function<void()> f) {
+  add_todo(todo_measured, new todo_function<decltype(f)>(f));
+}
+
+bool should_force_simple_algorithm() {
+  bool result = false;
+  if (cmdline::parse_or_default_string("cmd","") == "seidel_forkjoin") {
+    result = true;
+  }
+  return result;
 }
 
 void choose_edge_algorithm() {
@@ -4912,7 +4923,7 @@ void do_seidel() {
       benchmarks::seidel_forkjoin_sequential(numiters, N+2, block_size, &(test_mtx->items[0]));
     });
   } else {
-    add_todo(new seidel_parallel(numiters, N+2, block_size, &(test_mtx->items[0])));
+    add_measured(new seidel_parallel(numiters, N+2, block_size, &(test_mtx->items[0])));
   }
   add_todo([=] {
     if (do_consistency_check) {
@@ -4938,36 +4949,36 @@ void choose_command() {
       benchmarks::should_incounter_async_duration_terminate = true;
     });
     timer.detach();
-    add_todo(new benchmarks::incounter_async_duration<node>);
+    add_measured(new benchmarks::incounter_async_duration<node>);
   });
   c.add("mixed_duration", [&] {
     int nb_milliseconds = cmdline::parse_int("nb_milliseconds");
-    add_todo(new benchmarks::mixed_duration<node>(nb_milliseconds));
+    add_measured(new benchmarks::mixed_duration<node>(nb_milliseconds));
   });
   c.add("incounter_async_nb", [&] {
     int n = cmdline::parse_or_default_int("n", 1);
-    add_todo(new benchmarks::incounter_async_nb<node>(n));
+    add_measured(new benchmarks::incounter_async_nb<node>(n));
   });
   c.add("incounter_forkjoin_nb", [&] {
     int n = cmdline::parse_or_default_int("n", 1);
-    add_todo(new benchmarks::incounter_forkjoin_nb<node>(n));
+    add_measured(new benchmarks::incounter_forkjoin_nb<node>(n));
   });
   c.add("async_bintree", [&] {
     int n = cmdline::parse_or_default_int("n", 1);
-    add_todo(new tests::async_bintree<node>(n));
+    add_measured(new tests::async_bintree<node>(n));
   });
   c.add("future_bintree", [&] {
     int n = cmdline::parse_or_default_int("n", 1);
-    add_todo(new tests::future_bintree<node>(n));
+    add_measured(new tests::future_bintree<node>(n));
   });
   c.add("future_pool", [&] {
     int n = cmdline::parse_or_default_int("n", 1);
     tests::fib_input = cmdline::parse_or_default_int("fib_input", tests::fib_input);
-    add_todo(new tests::future_pool<node>(n));
+    add_measured(new tests::future_pool<node>(n));
   });
   c.add("parallel_for_test", [&] {
     int n = cmdline::parse_or_default_int("n", 1);
-    add_todo(new tests::parallel_for_test<node>(n));
+    add_measured(new tests::parallel_for_test<node>(n));
   });
   c.add("seidel_async", [&] {
     do_seidel<benchmarks::seidel_async<node>>();
@@ -4975,58 +4986,77 @@ void choose_command() {
   c.add("seidel_forkjoin", [&] {
     do_seidel<benchmarks::seidel_forkjoin<node>>();
   });
-  c.add("seidel_sequential", [&] {
-    int numiters;
-    int N;
-    int block_size;
-    read_seidel_params(numiters, N, block_size);
-    benchmarks::matrix_type<double>* test_mtx = new benchmarks::matrix_type<double>(N+2, 0.0);
-    add_todo(new benchmarks::seidel_sequential_node<node>(numiters, N+2, block_size, &(test_mtx->items[0])));
-    add_todo([=] {
-      delete test_mtx;
-    });
-  });
   c.find_by_arg(cmd_param)();
 }
 
 void launch() {
   communication_delay = cmdline::parse_or_default_int("communication_delay",
                                                       communication_delay);
-  cmdline::argmap_dispatch c;
-  c.add("direct", [&] {
-    choose_edge_algorithm();
+  if (should_force_simple_algorithm()) {
+    direct::edge_algorithm = direct::edge_algorithm_simple;
     choose_command<direct::node>();
-  });
-  c.add("portpassing", [&] {
-    choose_command<portpassing::node>();
-  });
-  c.find_by_arg("algo")();
-  while (! todo.empty()) {
-    pasl::sched::thread_p t = todo.front();
-    todo.pop_front();
-    pasl::sched::threaddag::launch(t);
+  } else {
+    cmdline::argmap_dispatch c;
+    c.add("direct", [&] {
+        choose_edge_algorithm();
+        choose_command<direct::node>();
+      });
+    c.add("portpassing", [&] {
+        choose_command<portpassing::node>();
+      });
+    c.find_by_arg("algo")();
   }
+  while (! todo.empty()) {
+    std::pair<todo_type, pasl::sched::thread_p> p = todo.front();
+    todo.pop_front();
+    pasl::sched::thread_p t = p.second;
+    if (p.first == todo_measured) {
+      LOG_BASIC(ENTER_ALGO);
+      auto start = std::chrono::system_clock::now();
+      pasl::sched::threaddag::launch(t);
+      auto end = std::chrono::system_clock::now();
+      LOG_BASIC(EXIT_ALGO);
+      STAT_IDLE(sum());
+      STAT(dump(stdout));
+      STAT_IDLE(print_idle(stdout));
+      std::chrono::duration<float> diff = end - start;
+      printf ("exectime %.3lf\n", diff.count());
+    } else {
+      pasl::sched::threaddag::launch(t);
+    }
+  }
+}
+
+template <class Benchmark>
+void launch_sequential_baseline_benchmark(const Benchmark& benchmark) {
+  auto start = std::chrono::system_clock::now();
+  benchmark();
+  auto end = std::chrono::system_clock::now();
+  std::chrono::duration<float> diff = end - start;
+  printf ("exectime %.3lf\n", diff.count());
 }
 
 int main(int argc, char** argv) {
   cmdline::set(argc, argv);
+  benchmarks::workload = pasl::util::cmdline::parse_or_default_double("workload", 0.0);
   std::string cmd = pasl::util::cmdline::parse_string(cmd_param);
   if (cmd == "incounter_mixed_duration") {
     benchmarks::launch_incounter_mixed_duration();
   } else if (cmd == "outset_add_duration") {
     benchmarks::launch_outset_add_duration();
+  } else if (cmd == "seidel_sequential") {
+    int numiters;
+    int N;
+    int block_size;
+    read_seidel_params(numiters, N, block_size);
+    benchmarks::matrix_type<double>* test_mtx = new benchmarks::matrix_type<double>(N+2, 0.0);
+    launch_sequential_baseline_benchmark([&] {
+      benchmarks::seidel_sequential(numiters, N+2, block_size, &(test_mtx->items[0]));
+    });
+    delete test_mtx;    
   } else {
     pasl::sched::threaddag::init();
-    LOG_BASIC(ENTER_ALGO);
-    auto start = std::chrono::system_clock::now();
     launch();
-    auto end = std::chrono::system_clock::now();
-    LOG_BASIC(EXIT_ALGO);
-    STAT_IDLE(sum());
-    STAT(dump(stdout));
-    STAT_IDLE(print_idle(stdout));
-    std::chrono::duration<float> diff = end - start;
-    printf ("exectime %.3lf\n", diff.count());
     pasl::sched::threaddag::destroy();
   }
   return 0;

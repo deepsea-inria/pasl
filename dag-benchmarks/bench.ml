@@ -50,6 +50,7 @@ let file_plots exp_name =
 
   Printf.sprintf "plots_%s.pdf" exp_name
 
+(*****************************************************************************)
 (** Evaluation functions *)
 
 let eval_exectime = fun env all_results results ->
@@ -71,13 +72,6 @@ let eval_nb_operations_per_second_error = fun env all_results results ->
   let (_, stddev) = XFloat.list_mean_and_stddev ps in
   stddev
 
-let eval_speedup mk_seq = fun env all_results results ->
-   let baseline_results =  mk_seq in
-   if baseline_results = [] then Pbench.warning ("no results for baseline: " ^ Env.to_string env);
-   let tp = Results.get_mean_of "exectime" results in
-   let t1 = Results.get_mean_of "exectime" baseline_results in
-   t1 /. tp
-
 (*****************************************************************************)
 (* Fixed constants *)
 
@@ -85,11 +79,15 @@ let thehostname = Unix.gethostname()
 
 let is_cadmium _ = thehostname = "cadmium"
 
-let mk_procs =
+let all_procs =
   if is_cadmium()
-  then mk_list int "proc" [1;10;20;30;40;48]
-  else mk_list int "proc" [1;10;20;30;40;]
+  then [1;10;20;30;40;48]
+  else [1;10;20;30;40;]
 
+let mk_procs = mk_list int "proc" all_procs
+                       
+let max_proc = XList.last all_procs
+               
 let mk_simple_edge_algo = mk string "edge_algo" "simple"
 
 let dflt_snzi_branching_factor = 2
@@ -146,15 +144,33 @@ let mk_incounter_mixed_duration =
     mk string "cmd" "incounter_mixed_duration"
   & mk_incr_probs
   & mk_nb_milliseconds
-      
+
+let mk_workload = mk int "workload" 2000
+                     
+let incounter_nb = 10000000
+
+let mk_incounter_nb = mk int "n" incounter_nb
+
 let mk_incounter_async_duration =
     mk string "cmd" "incounter_async_duration"
   & mk_nb_milliseconds
-
+  & mk_workload
+           
 let mk_incounter_async_nb =
     mk string "cmd" "incounter_async_nb"
-  & mk int "n" 10000000
-
+  & mk_incounter_nb
+  & mk_workload
+      
+let mk_incounter_forkjoin_nb =
+    mk string "cmd" "incounter_forkjoin_nb"
+  & mk_incounter_nb
+  & mk_workload
+      
+let mk_mixed_duration =
+    mk string "cmd" "mixed_duration"
+  & mk_nb_milliseconds
+  & mk_workload
+      
 let pretty_edge_algo edge_algo =
   match edge_algo with
   | "simple" -> "simple serial"
@@ -171,6 +187,8 @@ let microbench_formatter =
       ("algo", Format_custom (fun algo -> sprintf "%s" (if algo = "portpassing" then algo else "")));
       ("edge_algo", Format_custom pretty_edge_algo);
       ("cmd", Format_custom (fun cmd -> sprintf "%s" cmd));
+      ("N", Format_custom (fun n -> sprintf "size %s" n));
+      ("block_size", Format_custom (fun n -> sprintf "tile %s" n));
     ]
   ))                
          
@@ -196,7 +214,7 @@ let mk_all_benchmarks =
      mk_incounter_mixed_duration
   ++ mk_incounter_async_duration
   ++ mk_incounter_async_nb
-
+       
 let make() =
   build "." progs arg_virtual_build
 
@@ -230,56 +248,6 @@ let plot() =
       Y_whiskers eval_nb_operations_per_second_error;
   ]))
                 
-let all () = select make run check plot
-
-end
-
-(*****************************************************************************)
-(** Scalability experiment *)
-
-module ExpScalability = struct
-
-let name = "scalability"
-
-let prog = "./bench.opt"
-
-let make() =
-  build "." [prog] arg_virtual_build
-
-let mk_all_benchmarks =
-     mk_incounter_mixed_duration
-  ++ mk_incounter_async_duration
-  ++ mk_incounter_async_nb
-  
-let run() =
-  Mk_runs.(call (run_modes @ [
-    Output (file_results name);
-    Timeout 1000;
-    Args (
-      mk_prog prog
-    & (mk_all_benchmarks & mk_direct_algo & mk_edge_algos)
-    & mk_seed
-    & mk_procs)]))
-
-let check = nothing  (* do something here *)
-
-let plot_title name = sprintf "%s (%s)" name thehostname
-
-let plot() =
-  Mk_scatter_plot.(call ([
-      Scatter_plot_opt Scatter_plot.([
-         Draw_lines true; 
-         Y_axis [Axis.Lower (Some 0.); Axis.Is_log true;] ]);
-       Formatter microbench_formatter;
-       Charts mk_all_benchmarks;
-      Series mk_edge_algos;
-      X mk_procs;
-      Input (file_results name);
-      Output (file_plots name);
-      Y_label "nb_operations/second (per thread)";
-      Y eval_nb_operations_per_second;
-  ]))
-
 let all () = select make run check plot
 
 end
@@ -352,8 +320,6 @@ let name = "incounter_mixed_duration"
 
 let prog = "./bench.opt"
 
-let mk_cmd = mk string "cmd" "incounter_mixed_duration"
-                
 let mk_edge_algos =
       mk_simple_edge_algo
    ++ mk_statreeopt_edge_algo
@@ -369,9 +335,7 @@ let run() =
     Timeout 1000;
     Args (
       mk_prog prog
-    & mk_incr_probs
-    & mk_cmd
-    & mk_nb_milliseconds
+    & mk_incounter_mixed_duration
     & mk_seed
     & mk_edge_algos
     & mk_proc)]))
@@ -487,8 +451,6 @@ let name = "incounter_async_duration"
 
 let prog = "./bench.opt"
 
-let mk_cmd = mk string "cmd" "incounter_async_duration"
-
 let make() =
   build "." [prog] arg_virtual_build
 
@@ -498,9 +460,8 @@ let run() =
     Timeout 1000;
     Args (
       mk_prog prog
-    & mk_cmd
     & mk_algos
-    & mk_nb_milliseconds
+    & mk_incounter_async_duration
     & mk_seed
     & mk_proc)]))
 
@@ -535,8 +496,6 @@ let name = "mixed_duration"
 
 let prog = "./bench.opt"
 
-let mk_cmd = mk string "cmd" "mixed_duration"
-
 let make() =
   build "." [prog] arg_virtual_build
 
@@ -546,9 +505,8 @@ let run() =
     Timeout 1000;
     Args (
       mk_prog prog
-    & mk_cmd
+    & mk_mixed_duration
     & mk_algos
-    & mk_nb_milliseconds
     & mk_seed
     & mk_proc)]))
 
@@ -576,7 +534,107 @@ let all () = select make run check plot
 end
 
 (*****************************************************************************)
-(** Gaus-Seidel benchmark experiment *)
+(** Scalability experiment *)
+
+module ExpScalability = struct
+
+let name = "scalability"
+
+let prog = "./bench.opt"
+
+let make() =
+  build "." [prog] arg_virtual_build
+
+let mk_all_benchmarks =
+     mk_incounter_mixed_duration
+  ++ mk_incounter_async_duration
+  ++ mk_incounter_async_nb
+  ++ mk_mixed_duration
+       
+let run() =
+  Mk_runs.(call (run_modes @ [
+    Output (file_results name);
+    Timeout 1000;
+    Args (
+      mk_prog prog
+    & (mk_all_benchmarks & mk_direct_algo & mk_edge_algos)
+    & mk_seed
+    & mk_procs)]))
+
+let check = nothing  (* do something here *)
+
+let plot() =
+  Mk_scatter_plot.(call ([
+    Chart_opt Chart.([
+      Legend_opt Legend.([Legend_pos Bottom_right]);
+      ]);
+     Scatter_plot_opt Scatter_plot.([
+         Draw_lines true; 
+         Y_axis [Axis.Lower (Some 0.); Axis.Is_log true;] ]);
+       Formatter microbench_formatter;
+       Charts mk_all_benchmarks;
+      Series mk_edge_algos;
+      X mk_procs;
+      Input (file_results name);
+      Output (file_plots name);
+      Y_label "nb_operations/second (per thread)";
+      Y eval_nb_operations_per_second;
+  ]))
+
+let all () = select make run check plot
+
+end
+
+(*****************************************************************************)
+(** Async/finish versus fork/join experiment *)
+
+module ExpAsyncFinishVersusForkJoin = struct
+
+let name = "async_finish_versus_fork_join"
+
+let prog = "./bench.opt"
+
+let make() =
+  build "." [prog] arg_virtual_build
+
+let mk_cmds = mk_incounter_async_nb ++ mk_incounter_forkjoin_nb
+        
+let run() =
+  Mk_runs.(call (run_modes @ [
+    Output (file_results name);
+    Timeout 1000;
+    Args (
+      mk_prog prog
+    & (mk_cmds & mk_direct_algo & mk_dyntreeopt_edge_algo)
+    & mk_seed
+    & mk_procs)]))
+
+let check = nothing  (* do something here *)
+
+let plot() =
+  Mk_scatter_plot.(call ([
+    Chart_opt Chart.([
+      Legend_opt Legend.([Legend_pos Bottom_right]);
+      ]);
+     Scatter_plot_opt Scatter_plot.([
+         Draw_lines true; 
+         Y_axis [Axis.Lower (Some 0.); Axis.Is_log true;] ]);
+       Formatter microbench_formatter;
+       Charts mk_unit;
+      Series mk_cmds;
+      X mk_procs;
+      Input (file_results name);
+      Output (file_plots name);
+      Y_label "nb_operations/second (per thread)";
+      Y eval_nb_operations_per_second;
+  ]))
+
+let all () = select make run check plot
+
+end
+
+(*****************************************************************************)
+(** Gauss-Seidel experiment *)
 
 module ExpSeidel = struct
 
@@ -584,67 +642,108 @@ let name = "seidel"
 
 let prog = "./bench.opt"
 
-let mk_cmds =
-  mk_list string "cmd" ["seidel_sequential"; "seidel_async"; "seidel_forkjoin";]
+let mk_proc = mk int "proc" max_proc
+             
+let mk_params_baseline = Params.(mk string "prun_speedup" "baseline")
+let mk_params_parallel = Params.(mk string "prun_speedup" "parallel")
 
-let mk_numiters = mk int "numiters" 4
-                     
-let mk_seidel_params =
-  mk_numiters &
-    (((mk int "N" 8192) & mk_list int "block_size" [1024;256;])
-  ++ ((mk int "N" 1024) & (mk int "block_size" 128))
-  ++ ((mk int "N" 256) & (mk int "block_size" 64)))
+let mk_seidel_async =
+  mk string "cmd" "seidel_async"  
+     
+let mk_seidel_forkjoin =
+  mk string "cmd" "seidel_forkjoin"
 
-let make() =
-  build "." [prog] arg_virtual_build
-
-let run() =
-  Mk_runs.(call (run_modes @ [
-    Output (file_results name);
-    Timeout 1000;
-    Args (
+let doit id (mk_numiters, mk_seidel_params) =
+  let name = name^"_"^id in
+  
+  let mk_seidel_config =
       mk_prog prog
-    & mk_cmds
+    & mk_numiters
     & mk_seidel_params
-    & mk_algos
-    & mk_proc)]))
-
-let check = nothing  (* do something here *)
+  in
+  
+  let mk_seidel_sequential =
+      mk_seidel_config
+    & mk string "cmd" "seidel_sequential"
+    & mk_params_baseline
+  in
+  
+  let mk_parallel_shared =
+      mk_seidel_config
+    & mk_proc
+    & mk_params_parallel
+  in
+        
+  let mk_parallels =
+      mk_parallel_shared
+    & ( (mk_seidel_async & mk_algos) ++ mk_seidel_forkjoin )
+  in
+        
+  let make() =
+    build "." [prog] arg_virtual_build
+  in
+  
+  let run() =
+    Mk_runs.(call (run_modes @ [
+      Output (file_results name);
+      Timeout 1000;
+      Args (mk_seidel_sequential ++ mk_parallels)]))
+  in
               
-let plot() =
-    Mk_scatter_plot.(call ([
-      Scatter_plot_opt Scatter_plot.([
-         Draw_lines true; 
-         (*         X_titles_dir Vertical;*)
-         Y_axis [Axis.Lower (Some 0.); Axis.Is_log true;] ]);
-       Formatter microbench_formatter;
-      Charts  mk_seidel_params;
-      Series (mk_algos & mk_cmds);
-      X mk_proc;
-      Input (file_results name);
-      Output (file_plots name);
-      Y_label "running time (seconds)";
-      Y eval_exectime;
-      (*      Y_whiskers eval_nb_operations_per_second_error;*)
-  ]))
-(*
-                      
-  Mk_bar_plot.(call ([
-      Bar_plot_opt Bar_plot.([
-         X_titles_dir Vertical;
-         Y_axis [Axis.Lower (Some 0.)] ]);
-       Formatter microbench_formatter;
-      Charts mk_seidel_params;
-      Series (mk_algos & mk_cmds);
-      X mk_proc;
-      Input (file_results name);
-      Output (file_plots name);
-      Y_label "running time (seconds)";
-      Y eval_exectime;
-  ]))
- *)
-let all () = select make run check plot
+  let check = nothing  (* do something here *)
+  in
+  
+  let plot() =
+    let eval_y env all_results results = 
+      let results = ~~ Results.filter_by_params results mk_params_parallel in
+      let baseline_results = ~~ Results.filter_by_params all_results mk_params_baseline in
+      let baseline_env = ~~ Env.filter env (fun k -> List.mem k ["N";"numiters";"block_size";]) in
+      let baseline_results = ~~ Results.filter baseline_results baseline_env in
+      if baseline_results = [] then Pbench.warning ("no results for baseline: " ^ Env.to_string env);
+      let tp = Results.get_mean_of "exectime" results in
+      let tb = Results.get_mean_of "exectime" baseline_results in
+      tb /. tp 
+      in
+      Mk_scatter_plot.(call ([
+      Chart_opt Chart.([
+        Legend_opt Legend.([Legend_pos Bottom_right]);
+        ]);
+        Scatter_plot_opt Scatter_plot.([
+           Draw_lines true; 
+           Y_axis [Axis.Lower (Some 0.); Axis.Is_log true;] ]);
+         Formatter microbench_formatter;
+        Charts (mk_seidel_params);
+        Series ((mk_seidel_async & mk_algos) ++ mk_seidel_forkjoin);
+        X mk_numiters;
+        Input (file_results name);
+        Output (file_plots name);
+        Y_label "speedup";
+        Y (eval_y);
+    ]))
+  in
+  
+  select make run check plot
 
+let mk_seidel_params_small =
+  let mk_numiters =
+    let nb = 20 in
+    let ns = XList.init nb (fun i -> (i+1) * 100) in
+    mk_list int "numiters" ns
+  in
+  (mk_numiters, (mk int "N" 256) & (mk int "block_size" 64))
+      
+let mk_seidel_params_large =
+  let mk_numiters =
+    let nb = 20 in
+    let ns = XList.init nb (fun i -> (i+1) * 10) in
+    mk_list int "numiters" ns
+  in
+  (mk_numiters, (mk int "N" 1024) & (mk int "block_size" 128))
+
+let all () = (
+  doit "small" mk_seidel_params_small;
+  doit "large" mk_seidel_params_large)
+                      
 end
 
                  (*
@@ -664,6 +763,7 @@ let _ =
     "outset_add_duration",            ExpOutsetAddDuration.all;
     "incounter_async_duration",       ExpIncounterAsyncDuration.all;
     "mixed_duration",                 ExpMixedDuration.all;
+    "async_finish_versus_fork_join",  ExpAsyncFinishVersusForkJoin.all;
     "seidel",                         ExpSeidel.all;
   ]
   in
