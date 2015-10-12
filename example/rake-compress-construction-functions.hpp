@@ -1,14 +1,15 @@
 #include "rake-compress-primitives.hpp"
 
+const int MAX_ROUND = 21;
+
 void initialization_construction(int n, std::vector<int>* children, int* parent) {
 #ifdef SPECIAL
-  memory = new Node**[100];
-  for (int i = 0; i < 100; i++) {
-    memory[i] = new Node*[n];
+  memory = new Node*[n * MAX_ROUND];
+  for (int i = 0; i < MAX_ROUND; i++) {
     for (int j = 0; j < n; j++) {
-      memory[i][j] = new Node(j);
+      memory[i * n + j] = new Node(j);
       if (i > 0) {
-        memory[i - 1][j]->next = memory[i][j];
+        memory[(i - 1) * n + j]->next = memory[i * n + j];
       }
     }
   }
@@ -19,7 +20,7 @@ void initialization_construction(int n, std::vector<int>* children, int* parent)
 #ifdef STANDART
     lists[i] = new Node(i);
 #elif SPECIAL
-    lists[i] = memory[0][i];
+    lists[i] = memory[i];
 #endif
     lists[i]->head = lists[i];
     lists[i]->set_parent(lists[i]);
@@ -70,14 +71,27 @@ void construction_round(int round) {
 
   pasl::sched::native::parallel_for(0, len[1 - round % 2], [&] (int i) {
     int v = live[1 - round % 2][i];
-//    std::set<Node*>& copy_children = lists[v]->prev->get_children();
-    std::set<Node*> copy_children = lists[v]->get_children();
+    std::set<Node*>& copy_children = lists[v]->prev->get_children();
+//    std::set<Node*> copy_children = lists[v]->get_children();
     for (auto child : copy_children) {
 //    for (auto child : memory[v][round]->get_children()) {
       if (child->is_contracted())
         delete_node(child);
     }
   });
+
+/*  pasl::sched::native::parallel_for(0, len[1 - round % 2], [&] (int i) {
+    int v = live[1 - round % 2][i];
+    if (lists[v]->get_parent()->is_contracted()) {
+      delete_node_for(lists[v]->get_parent(), lists[v]);
+    }
+
+    std::set<Node*>& copy_children = lists[v]->prev->get_children();
+    for (auto child : copy_children) {
+      if (child->is_contracted())
+        delete_node_for(child, lists[v]);
+    }
+  });*/
 
   pasl::sched::native::parallel_for(0, len[1 - round % 2], [&] (int i) {
     int v = live[1 - round % 2][i];

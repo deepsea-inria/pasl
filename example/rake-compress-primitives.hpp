@@ -231,7 +231,7 @@ int* live[2];
 int len[2];
 
 #ifdef SPECIAL
-Node*** memory;
+Node** memory;
 #endif
 
 bool hash(int a, int b) {
