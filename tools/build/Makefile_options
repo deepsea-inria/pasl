@@ -45,6 +45,10 @@ ifeq ($(HWLOC_PATH),)
    HWLOC_PATH=$(TOOLS_PATH)/hwloc
 endif
 
+ifeq ($(SUPERMALLOC_PATH),)
+   SUPERMALLOC_PATH=$(TOOLS_PATH)/supermalloc
+endif
+
 ifeq ($(MISER_PATH),)
    MISER_PATH=$(TOOLS_PATH)/miser
 endif
@@ -273,7 +277,7 @@ endif
 OPTIONS_MALLOC_COUNT=-DUSE_MALLOC_COUNT $(MALLOC_COUNT_PATH)/malloc_count.o -ldl
 
 # USE_ALLOCATOR should be one of:
-#   [empty], default, miser, hoard, tcmalloc, jemalloc, malloc_count
+#   [empty], default, miser, hoard, tcmalloc, jemalloc, malloc_count supermalloc
 
 ifeq ($(USE_ALLOCATOR),)
    USE_ALLOCATOR=default
@@ -292,6 +296,8 @@ else ifeq ($(USE_ALLOCATOR),jemalloc)
    OPTIONS_ALLOC=-ljemalloc -L$(JEMALLOC_PATH)
 else ifeq ($(USE_ALLOCATOR),malloc_count)
    OPTIONS_ALLOC=$(OPTIONS_MALLOC_COUNT)
+else ifeq ($(USE_ALLOCATOR),supermalloc)
+   OPTIONS_ALLOC=-lsupermalloc -L$(SUPERMALLOC_PATH) -lrt
 else ifeq ($(USE_ALLOCATOR),default)
    OPTIONS_ALLOC=
 else
