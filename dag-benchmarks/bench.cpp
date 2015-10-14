@@ -698,12 +698,15 @@ public:
   }
 
 };
+
+constexpr int incounter_target_depth = 12;
   
 template <class Random_int>
 void incounter_increment(std::atomic<incounter_node*>& root,
                          const Random_int& random_int) {
   incounter_node* new_node = nullptr;
   std::atomic<incounter_node*>* current = &root;
+  int depth = 0;
   while (true) {
     incounter_node* target = current->load();
     if (target == nullptr) {
@@ -720,7 +723,7 @@ void incounter_increment(std::atomic<incounter_node*>& root,
       int count = target->count.load();
       if (count == 0) {
         current = &root;
-      } else if (count < amortization_factor) {
+      } else if (count < amortization_factor || depth >= incounter_target_depth) {
         int orig = count;
         if (target->count.compare_exchange_strong(orig, orig + 1)) {
           if (new_node != nullptr) {
@@ -731,6 +734,7 @@ void incounter_increment(std::atomic<incounter_node*>& root,
       } else {
         int i = random_int(0, branching_factor);
         current = &(target->children[i]);
+        depth++;
       }
     }
   }
