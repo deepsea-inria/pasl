@@ -178,7 +178,7 @@ let pretty_edge_algo edge_algo =
   | "dyntreeopt" -> "ours"
   | "statreeopt" -> "fixed snzi incounter + our outset"
   | _ -> "unknown"
-       
+      
 let microbench_formatter =
   Env.format (Env.(
     [
@@ -188,7 +188,7 @@ let microbench_formatter =
       ("edge_algo", Format_custom pretty_edge_algo);
       ("cmd", Format_custom (fun cmd -> sprintf "%s" cmd));
       ("N", Format_custom (fun n -> sprintf "size %s" n));
-      ("block_size", Format_custom (fun n -> sprintf "tile %s" n));
+      ("block_size", Format_custom (fun n -> sprintf "tile %d" (1 lsl (int_of_string n))));
     ]
   ))                
          
@@ -697,7 +697,7 @@ let doit id (mk_numiters, mk_seidel_params) =
     let eval_y env all_results results = 
       let results = ~~ Results.filter_by_params results mk_params_parallel in
       let baseline_results = ~~ Results.filter_by_params all_results mk_params_baseline in
-      let baseline_env = ~~ Env.filter env (fun k -> List.mem k ["N";"numiters";"block_size";]) in
+      let baseline_env = ~~ Env.filter env (fun k -> List.mem k ["N";"numiters";"block_size_lg";]) in
       let baseline_results = ~~ Results.filter baseline_results baseline_env in
       if baseline_results = [] then Pbench.warning ("no results for baseline: " ^ Env.to_string env);
       let tp = Results.get_mean_of "exectime" results in
@@ -730,7 +730,7 @@ let mk_seidel_params_small =
     let ns = XList.init nb (fun i -> (i+1) * 100) in
     mk_list int "numiters" ns
   in
-  (mk_numiters, (mk int "N" 256) & (mk int "block_size" 64))
+  (mk_numiters, (mk int "N" 256) & (mk int "block_size_lg" 6))
       
 let mk_seidel_params_large =
   let mk_numiters =
@@ -738,7 +738,7 @@ let mk_seidel_params_large =
     let ns = XList.init nb (fun i -> (i+1) * 10) in
     mk_list int "numiters" ns
   in
-  (mk_numiters, (mk int "N" 1024) & (mk int "block_size" 128))
+  (mk_numiters, (mk int "N" 1024) & (mk int "block_size_lg" 7))
 
 let all () = (
   doit "small" mk_seidel_params_small;

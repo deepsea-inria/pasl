@@ -5074,7 +5074,8 @@ void choose_edge_algorithm() {
 void read_seidel_params(int& numiters, int& N, int& block_size) {
   numiters = cmdline::parse_or_default_int("numiters", 1);
   N = cmdline::parse_or_default_int("N", 128);
-  block_size = cmdline::parse_or_default_int("block_size", 2);
+  int block_size_lg = cmdline::parse_or_default_int("block_size_lg", 2);
+  block_size = 1<<block_size_lg;
   benchmarks::epsilon = cmdline::parse_or_default_double("epsilon", benchmarks::epsilon);
 }
 
