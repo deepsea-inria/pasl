@@ -295,16 +295,18 @@ public:
   
 namespace statreeopt {
   
-int default_branching_factor = 4;
-int default_nb_levels = 3;
+#ifndef SNZI_TREE_HEIGHT
+#define SNZI_TREE_HEIGHT 6
+#endif
+  
+constexpr int snzi_tree_height = SNZI_TREE_HEIGHT;
   
 class statreeopt_incounter : public incounter {
 public:
       
-  pasl::data::snzi::tree nzi;
+  pasl::data::snzi::tree<snzi_tree_height> nzi;
   
-  statreeopt_incounter(node* n)
-  : nzi(default_branching_factor, default_nb_levels) {
+  statreeopt_incounter(node* n) {
     nzi.set_root_annotation(n);
   }
   
@@ -3765,10 +3767,9 @@ public:
 class snzi_incounter_wrapper {
 public:
   
-  pasl::data::snzi::tree snzi;
+  pasl::data::snzi::tree<direct::statreeopt::snzi_tree_height> snzi;
   
-  snzi_incounter_wrapper(int branching_factor, int nb_levels)
-  : snzi(branching_factor, nb_levels) { }
+  snzi_incounter_wrapper() { }
   
   int my_leaf_node(int hash) const {
     return abs(hash) % snzi.get_nb_leaf_nodes();
@@ -4003,9 +4004,7 @@ void launch_incounter_mixed_duration() {
     simple_incounter = new simple_incounter_wrapper;
   });
   c.add("statreeopt", [&] {
-    int branching_factor = pasl::util::cmdline::parse_int("branching_factor");
-    int nb_levels = pasl::util::cmdline::parse_int("nb_levels");
-    snzi_incounter = new snzi_incounter_wrapper(branching_factor, nb_levels);
+    snzi_incounter = new snzi_incounter_wrapper;
   });
   c.add("dyntree", [&] {
     dyntree_incounter = new dyntree_incounter_wrapper;
@@ -5045,13 +5044,6 @@ void choose_edge_algorithm() {
     direct::edge_algorithm = direct::edge_algorithm_simple;
   });
   c.add("statreeopt", [&] {
-    direct::statreeopt::default_branching_factor =
-    cmdline::parse_or_default_int("branching_factor",
-                                  direct::statreeopt::default_branching_factor);
-    direct::dyntree::branching_factor = direct::statreeopt::default_branching_factor;
-    direct::statreeopt::default_nb_levels =
-    cmdline::parse_or_default_int("nb_levels",
-                                  direct::statreeopt::default_nb_levels);
     direct::edge_algorithm = direct::edge_algorithm_statreeopt;
   });
   c.add("dyntree", [&] {

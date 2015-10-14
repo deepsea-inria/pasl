@@ -92,19 +92,11 @@ let max_proc = XList.last all_procs
                
 let mk_simple_edge_algo = mk string "edge_algo" "simple"
 
-let dflt_snzi_branching_factor = 2
-let dflt_snzi_nb_levels = 7
-
-let mk_snzi_default_parameters =
-    mk int "branching_factor" dflt_snzi_branching_factor
-  & mk int "nb_levels" dflt_snzi_nb_levels
-
 let mk_statreeopt_edge_algo_with_no_defaults =
   mk string "edge_algo" "statreeopt"
 
 let mk_statreeopt_edge_algo =
     mk_statreeopt_edge_algo_with_no_defaults
-  & mk_snzi_default_parameters
 
 let mk_dyntree_edge_algo = mk string "edge_algo" "dyntree"
 
@@ -257,60 +249,60 @@ end
 
 module ExpSNZITune = struct
 
-let name = "snzi_tune"
+let name = "incounter_tune"
 
-let prog = "./bench.opt"
+let heights = XList.init 7 (fun i -> i)
+                   
+let prog_of height =
+  "./bench.opt_" ^ (string_of_int height)
              
-let parameters = [ (2,1); (2,2); (2,3); (2,4); (2,5); (2,6); (2,7); (2,8);]
+let progs = List.map prog_of heights
+           
+let mk_progs =
+  mk_list string "prog" progs
 
-let mk_configuration (branching_factor, nb_levels) =
-    (mk int "branching_factor" branching_factor)
-  & (mk int "nb_levels" nb_levels)
-
-let mk_configurations =
-  let xs = List.map mk_configuration parameters in
-  List.fold_left (fun x y -> x ++ y) (List.hd xs) (List.tl xs)
-
-let mk_cmd = mk_incounter_mixed_duration & mk_statreeopt_edge_algo
-
+let mk_all_benchmarks =
+     mk_incounter_mixed_duration
+  ++ mk_incounter_async_duration
+  ++ mk_incounter_async_nb
+       
 let make() =
-  build "." [prog] arg_virtual_build
+  build "." progs arg_virtual_build
 
 let run() =
   Mk_runs.(call (run_modes @ [
     Output (file_results name);
     Timeout 1000;
     Args (
-      mk_prog prog
+      mk_progs
+    & mk_all_benchmarks
     & mk_seed
-    & mk_cmd
-    & mk_configurations
-    & mk_procs)]))
+    & mk string "algo" "direct"
+    & mk string "edge_algo" "statreeopt"
+    & mk_proc)]))
 
 let check = nothing  (* do something here *)
-
+           
 let plot() =
-      Mk_scatter_plot.(call ([
-    Chart_opt Chart.([
-      Legend_opt Legend.([Legend_pos Bottom_right]);
-      ]);
-      Scatter_plot_opt Scatter_plot.([
-         Draw_lines true; 
-         Y_axis [Axis.Lower (Some 0.); Axis.Is_log true;] ]);
+  Mk_bar_plot.(call ([
+      Bar_plot_opt Bar_plot.([
+         X_titles_dir Vertical;
+         Y_axis [Axis.Lower (Some 0.)] ]);
        Formatter microbench_formatter;
-      Charts  mk_incr_probs;
-      Series mk_configurations;
-      X mk_procs;
+      Charts mk_proc;
+      Series mk_progs;
+      X mk_all_benchmarks;
       Input (file_results name);
       Output (file_plots name);
       Y_label "nb_operations/second (per thread)";
       Y eval_nb_operations_per_second;
+      Y_whiskers eval_nb_operations_per_second_error;
   ]))
-
+                
 let all () = select make run check plot
 
 end
-
+                            
 (*****************************************************************************)
 (** Incounter microbenchmark experiment *)
 

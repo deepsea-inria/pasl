@@ -123,6 +123,7 @@
 #define _PASL_PARUTIL_SNZI_H_
 
 #include <atomic>
+#include <array>
 
 #include "tagged.hpp"
 
@@ -131,6 +132,9 @@
 namespace pasl {
 namespace data {
 namespace snzi {
+  
+template <int height>
+class tree;
   
 class node {
 private:
@@ -274,25 +278,27 @@ public:
     return (Item)tagged_pointer_of(m);
   }
   
+  template <int height>
+  friend class tree;
+  
 };
 
+template <int height = 6>
 class tree {
 private:
   
-  int branching_factor;
-  int nb_levels;
+  static constexpr int nb_leaf_nodes = 1 << height;
+  static constexpr int nb_nodes = (1 << (height + 1)) - 1;
   
-  std::vector<node*> nodes;
+  std::array<node, nb_nodes> nodes;
   
   void build() {
-    nodes.push_back(new node);
-    for (int i = 1; i <= nb_levels; i++) {
-      int e = (int)nodes.size();
-      int s = e - std::pow(branching_factor, i - 1);
-      for (int j = s; j < e; j++) {
-        for (int k = 0; k < branching_factor; k++) {
-          nodes.push_back(new node(nodes[j]));
-        }
+    assert(height >= 0);
+    int nb_interior_nodes = nb_nodes - nb_leaf_nodes;
+    for (int i = 0; i < nb_interior_nodes; i++) {
+      node* n = &nodes[i];
+      for (int j = 1; j <= 2; j++) {
+        nodes[2 * i + j].parent = n;
       }
     }
   }
@@ -309,30 +315,22 @@ private:
   
 public:
   
-  tree(int branching_factor, int nb_levels)
-  : branching_factor(branching_factor), nb_levels(nb_levels) {
+  tree() {
     build();
   }
-  
-  ~tree() {
-    for (node* n : nodes) {
-      delete n;
-    }
-  }
-  
+
   int get_nb_leaf_nodes() const {
-    return std::pow(branching_factor, nb_levels - 1);
+    return nb_leaf_nodes;
   }
   
-  node* ith_leaf_node(int i) const {
+  node* ith_leaf_node(int i) {
     assert((i >= 0) && (i < get_nb_leaf_nodes()));
-    int n = (int)nodes.size();
-    int j = n - (i + 1);
-    return nodes[j];
+    int j = nb_nodes - (i + 1);
+    return &nodes[j];
   }
   
   template <class Item>
-  node* random_leaf_of(Item x) const {
+  node* random_leaf_of(Item x) {
     union {
       Item x;
       long b;
@@ -345,12 +343,12 @@ public:
   }
   
   bool is_nonzero() const {
-    return nodes[0]->is_nonzero();
+    return nodes[0].is_nonzero();
   }
   
   template <class Item>
   void set_root_annotation(Item x) {
-    node::set_root_annotation(nodes[0], x);
+    node::set_root_annotation(&nodes[0], x);
   }
   
 };
