@@ -4826,7 +4826,161 @@ int count_nb_diffs(const matrix_type<double>& lhs,
   }
   return nb_diffs;
 }
+  
+template <class Index, class Item>
+bool try_to_mark_non_idempotent(std::atomic<Item>* visited, Index target) {
+  Item orig = 0;
+  if (! visited[target].compare_exchange_strong(orig, 1))
+    return false;
+  return true;
+}
 
+template <class Adjlist, class Item, bool idempotent>
+bool try_to_mark(const Adjlist& graph,
+                 std::atomic<Item>* visited,
+                 typename Adjlist::vtxid_type target) {
+  using vtxid_type = typename Adjlist::vtxid_type;
+  const vtxid_type max_outdegree_for_idempotent = 30;
+  if (visited[target].load(std::memory_order_relaxed))
+    return false;
+  if (idempotent) {
+    if (graph.adjlists[target].get_out_degree() <= max_outdegree_for_idempotent) {
+      visited[target].store(1, std::memory_order_relaxed);
+      return true;
+    } else {
+      return try_to_mark_non_idempotent<vtxid_type,Item>(visited, target);
+    }
+  } else {
+    return try_to_mark_non_idempotent<vtxid_type,Item>(visited, target);
+  }
+}
+  
+int pdfs_split_cutoff = 128;
+int pdfs_poll_cutoff = 16;
+  
+template <class node, class Frontier, class Adjlist>
+class pdfs_rec : public node {
+public:
+  
+  using vtxid_type = typename Adjlist::vtxid_type;
+  using edgelist_type = typename Frontier::edgelist_type;
+  
+  const Adjlist& graph;
+  Frontier frontier;
+  std::atomic<int>* visited;
+  
+  int nb_since_last_split;
+  node* join;
+  
+  pdfs_rec(const Adjlist& graph, std::atomic<int>* visited, node* join)
+  : graph(graph), frontier(graph), visited(visited), join(join) { }
+    
+  enum {
+    entry,
+    loop_header,
+    loop_body,
+    exit
+  };
+  
+  void body() {
+    switch (node::current_block_id) {
+      case entry: {
+        nb_since_last_split = 0;
+        node::jump_to(loop_header);
+        break;
+      }
+      case loop_header: {
+        if (frontier.nb_outedges() > 0) {
+          node::jump_to(loop_body);
+        } else {
+          node::jump_to(exit);
+        }
+        break;
+      }
+      case loop_body: {
+        nb_since_last_split +=
+          frontier.for_at_most_nb_outedges(pdfs_poll_cutoff, [&](vtxid_type other_vertex) {
+            if (try_to_mark<Adjlist, int, false>(graph, visited, other_vertex))
+              frontier.push_vertex_back(other_vertex);
+          });
+        node::jump_to(loop_header);
+        break;
+      }
+      case exit: {
+        break;
+      }
+    }
+  }
+  
+  size_t size() {
+    auto f = frontier.nb_outedges();
+    if (f == 0) {
+      nb_since_last_split = 0;
+      return 0;
+    }
+    if (f > pdfs_split_cutoff
+        || (nb_since_last_split > pdfs_split_cutoff && f > 1)) {
+      return f;
+    } else {
+      return 1;
+    }
+  }
+  
+  pasl::sched::thread_p split(size_t) {
+    auto n = new pdfs_rec(graph, visited);
+    node::split_with(n, join);
+    auto m = frontier.nb_outedges() / 2;
+    frontier.split(m, n->frontier);
+    frontier.swap(n->frontier);
+    nb_since_last_split = 0;
+    return nullptr;
+  }
+  
+};
+
+template <class node, class Frontier, class Adjlist>
+class pdfs : public node {
+public:
+  
+  using vtxid_type = typename Adjlist::vtxid_type;
+  using edgelist_type = typename Frontier::edgelist_type;
+  
+  const Adjlist& graph;
+  std::atomic<int>* visited;
+  vtxid_type source;
+  
+  pdfs(const Adjlist& graph, vtxid_type source)
+  : source(source), graph(graph) { }
+  
+  enum {
+    entry,
+    dfs,
+    exit
+  };
+  
+  void body() {
+    switch (node::current_block_id) {
+      case entry: {
+        auto nb_vertices = graph.get_nb_vertices();
+        visited = (std::atomic<int>*)malloc(sizeof(std::atomic<int>) * nb_vertices);
+        node::parallel_for(0, nb_vertices, [&] (int i) {
+          visited[i].store(0);
+        }, dfs);
+        break;
+      }
+      case dfs: {
+        node::finish(new pdfs_rec<node, Frontier, Adjlist>(graph, visited, this),
+                     exit);
+        break;
+      }
+      case exit: {
+        break;
+      }
+    }
+  }
+  
+};
+  
 } // end namespace
 
 /*---------------------------------------------------------------------*/
