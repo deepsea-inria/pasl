@@ -688,9 +688,12 @@ class incounter_node {
 public:
   
   static constexpr int removing_tag = 1;
-  
+
+  void* _padding1[8];
   std::atomic<int> count;
+  void* _padding2[8];
   std::atomic<incounter_node*> children[branching_factor];
+  void* _padding3[8];
   
   incounter_node() {
     count.store(1);
