@@ -249,12 +249,12 @@ end
 
 module ExpSNZITune = struct
 
-let name = "incounter_tune"
+let name = "snzi_tune"
 
 let heights = XList.init 7 (fun i -> i)
                    
 let prog_of height =
-  "./bench.opt_" ^ (string_of_int height)
+  "./bench.opt_snzi_" ^ (string_of_int height)
              
 let progs = List.map prog_of heights
            
