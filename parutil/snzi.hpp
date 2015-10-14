@@ -58,18 +58,17 @@
  * SNZI tree
  * =========
  *
- * Our SNZI tree builder can construct a tree of SNZI nodes
- * with specified branching factor and number of levels. The
- * constructor takes one argument for each of these parameters.
+ * Our SNZI tree builder can construct a (binary) tree of SNZI 
+ * nodes with specified height.
  
-   tree(int branching_factor, int nb_levels)
+   template <int height>
+   tree()
  
  * The resulting tree is one where all leaf nodes occur at the same
- * level. Construction and destruction time are, of course, 
- * branching_factor^nb_levels. The tree builder assigns to
- * each leaf node in the SNZI tree an index starting from zero to
- * n-1, where n = the number of leaf nodes in the tree. The core 
- * interface of the tree builder consists of the following methods.
+ * level. The tree builder assigns to each leaf node in the SNZI tree
+ * an index starting from zero to n-1, where n = the number of leaf
+ * nodes in the tree. The core interface of the tree builder consists
+ * of the following methods.
  
    int get_nb_leaf_nodes() const;
    node* ith_leaf_node(int i) const;
