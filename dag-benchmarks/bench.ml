@@ -75,6 +75,8 @@ let eval_nb_operations_per_second_error = fun env all_results results ->
 (*****************************************************************************)
 (* Fixed constants *)
 
+let path_to_openstream = "/home/rainey/open-stream"
+
 let thehostname = Unix.gethostname()
 
 let is_cadmium _ = thehostname = "cadmium"
@@ -187,8 +189,6 @@ let microbench_formatter =
       ("algo", Format_custom (fun algo -> sprintf "%s" (if algo = "portpassing" then algo else "")));
       ("edge_algo", Format_custom pretty_edge_algo);
       ("cmd", Format_custom (fun cmd -> sprintf "%s" cmd));
-      ("N", Format_custom (fun n -> sprintf "size %s" n));
-      ("block_size", Format_custom (fun n -> sprintf "tile %d" (1 lsl (int_of_string n))));
     ]
   ))                
          
@@ -640,19 +640,30 @@ module ExpSeidel = struct
 
 let name = "seidel"
 
-let prog = "./bench.opt"
+let prog = "./seidel.virtual"
 
 let mk_proc = mk int "proc" max_proc
              
 let mk_params_baseline = Params.(mk string "prun_speedup" "baseline")
 let mk_params_parallel = Params.(mk string "prun_speedup" "parallel")
 
+let mk_system_pasl =
+  mk string "system" "pasl"
+
 let mk_seidel_async =
-  mk string "cmd" "seidel_async"  
+    mk string "cmd" "seidel_async"
+  & mk_system_pasl
      
 let mk_seidel_forkjoin =
-  mk string "cmd" "seidel_forkjoin"
+    mk string "cmd" "seidel_forkjoin"
+  & mk_system_pasl
 
+let mk_seidel_cilk =
+  mk string "system" "cilk"
+
+let mk_seidel_openstream =
+  mk string "system" "openstream"
+     
 let doit id (mk_numiters, mk_seidel_params) =
   let name = name^"_"^id in
   
@@ -665,6 +676,7 @@ let doit id (mk_numiters, mk_seidel_params) =
   let mk_seidel_sequential =
       mk_seidel_config
     & mk string "cmd" "seidel_sequential"
+    & mk_system_pasl
     & mk_params_baseline
   in
   
@@ -676,11 +688,15 @@ let doit id (mk_numiters, mk_seidel_params) =
         
   let mk_parallels =
       mk_parallel_shared
-    & ( (mk_seidel_async & mk_algos) ++ mk_seidel_forkjoin )
+    & ( (mk_seidel_async & mk_algos) ++ mk_seidel_forkjoin ++ mk_seidel_cilk ++ mk_seidel_openstream )
   in
-        
-  let make() =
-    build "." [prog] arg_virtual_build
+  
+  let path_to_openstream_seidel = path_to_openstream ^ "/examples/seidel" in
+                             
+  let make() = (
+    build "." [prog] arg_virtual_build;
+    build path_to_openstream_seidel ["stream_seidel";"cilk_seidel";] arg_virtual_build;
+  )
   in
   
   let run() =
@@ -691,6 +707,21 @@ let doit id (mk_numiters, mk_seidel_params) =
   in
               
   let check = nothing  (* do something here *)
+  in
+
+  let formatter =
+    Env.format (Env.(
+    [
+      ("branching_factor", Format_custom (fun n -> sprintf "B=%s" n));
+      ("nb_levels", Format_custom (fun n -> sprintf "D=%s" n));
+      ("algo", Format_custom (fun algo -> sprintf "%s" (if algo = "portpassing" then algo else "")));
+      ("edge_algo", Format_custom pretty_edge_algo);
+      ("cmd", Format_custom (fun cmd -> if cmd = "seidel_forkjoin" then "fork-join" else ""));
+      ("N", Format_custom (fun n -> sprintf "size %s" n));
+      ("block_size_lg", Format_custom (fun n -> sprintf "tile %d" (1 lsl (int_of_string n))));
+      ("system", Format_custom (fun n -> sprintf "%s" n));
+    ]
+  ))                
   in
   
   let plot() =
@@ -711,9 +742,9 @@ let doit id (mk_numiters, mk_seidel_params) =
         Scatter_plot_opt Scatter_plot.([
            Draw_lines true; 
            Y_axis [Axis.Lower (Some 0.); Axis.Is_log true;] ]);
-         Formatter microbench_formatter;
+         Formatter formatter;
         Charts (mk_seidel_params);
-        Series ((mk_seidel_async & mk_algos) ++ mk_seidel_forkjoin);
+        Series ((mk_seidel_async & mk_algos) ++ mk_seidel_forkjoin ++ mk_seidel_cilk ++ mk_seidel_openstream);
         X mk_numiters;
         Input (file_results name);
         Output (file_plots name);
