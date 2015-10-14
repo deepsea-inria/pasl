@@ -145,7 +145,7 @@ outset* outset_unary();
 outset* outset_noop();
 outset* outset_new();
 template <class Body>
-node* new_parallel_for(long, long, node*, const Body&);
+node* new_parallel_for(long, long, node*, int, const Body&);
   
 class incounter : public pasl::sched::instrategy::common {
 public:
@@ -1136,14 +1136,19 @@ public:
   }
   
   template <class Body>
-  void parallel_for(long lo, long hi, const Body& body, int continuation_block_id) {
+  void parallel_for(long lo, long hi, int cutoff, const Body& body, int continuation_block_id) {
     node* consumer = this;
-    node* producer = new_parallel_for(lo, hi, consumer, body);
+    node* producer = new_parallel_for(lo, hi, consumer, cutoff, body);
     prepare_node(producer, incounter_ready(), outset_unary());
     prepare_for_transfer(continuation_block_id);
     join_with(consumer, incounter_new(this));
     add_edge(producer, consumer);
     add_node(producer);
+  }
+  
+  template <class Body>
+  void parallel_for(long lo, long hi, const Body& body, int continuation_block_id) {
+    parallel_for(lo, hi, communication_delay, body, continuation_block_id);
   }
   
   void split_with(node* n, node* join) {
@@ -1371,10 +1376,11 @@ public:
   long lo;
   long hi;
   node* join;
+  int cutoff;
   Body _body;
   
-  lazy_parallel_for_rec(long lo, long hi, node* join, const Body& _body)
-  : lo(lo), hi(hi), join(join), _body(_body) { }
+  lazy_parallel_for_rec(long lo, long hi, node* join, int cutoff, const Body& _body)
+  : lo(lo), hi(hi), join(join), cutoff(cutoff), _body(_body) { }
   
   enum {
     process_block,
@@ -1385,7 +1391,7 @@ public:
   void body() {
     switch (node::current_block_id) {
       case process_block: {
-        long n = std::min(hi, lo + (long)communication_delay);
+        long n = std::min(hi, lo + (long)cutoff);
         long i;
         for (i = lo; i < n; i++) {
           _body(i);
@@ -1409,7 +1415,7 @@ public:
   
   pasl::sched::thread_p split(size_t) {
     long mid = (hi + lo) / 2;
-    lazy_parallel_for_rec* n = new lazy_parallel_for_rec(mid, hi, join, _body);
+    lazy_parallel_for_rec* n = new lazy_parallel_for_rec(mid, hi, join, cutoff, _body);
     prepare_node(n, incounter_ready(), outset_unary());
     hi = mid;
     add_edge(n, join);
@@ -1419,8 +1425,8 @@ public:
 };
   
 template <class Body>
-node* new_parallel_for(long lo, long hi, node* join, const Body& body) {
-  return new lazy_parallel_for_rec<Body>(lo, hi, join, body);
+node* new_parallel_for(long lo, long hi, node* join, int cutoff, const Body& body) {
+  return new lazy_parallel_for_rec<Body>(lo, hi, join, cutoff, body);
 }
   
 namespace dyntree {
@@ -2217,7 +2223,7 @@ void deallocate_future(node*, outset*);
 void outset_finish(outset*);
 void outset_tree_deallocate(outset_node*);
 template <class Body>
-node* new_parallel_for(long, long, node*, const Body&);
+node* new_parallel_for(long, long, node*, int, const Body&);
   
 class incounter_node {
 public:
@@ -2559,9 +2565,9 @@ public:
   }
   
   template <class Body>
-  void parallel_for(long lo, long hi, const Body& body, int continuation_block_id) {
+  void parallel_for(long lo, long hi, int cutoff, const Body& body, int continuation_block_id) {
     node* consumer = this;
-    node* producer = new_parallel_for(lo, hi, consumer, body);
+    node* producer = new_parallel_for(lo, hi, consumer, cutoff, body);
     prepare_node(producer, incounter_ready(), outset_unary(producer));
     join_with(consumer, new incounter(consumer));
     propagate_ports_for(consumer, producer);
@@ -2569,6 +2575,11 @@ public:
     insert_inport(producer, consumer, consumer_inport);
     consumer->prepare_for_transfer(continuation_block_id);
     add_node(producer);
+  }
+  
+  template <class Body>
+  void parallel_for(long lo, long hi, const Body& body, int continuation_block_id) {
+    parallel_for(lo, hi, communication_delay, body, continuation_block_id);
   }
   
   void split_with(node* new_sibling, node* join) {
@@ -2852,10 +2863,11 @@ public:
   long lo;
   long hi;
   node* join;
+  int cutoff;
   Body _body;
   
-  lazy_parallel_for_rec(long lo, long hi, node* join, const Body& _body)
-  : lo(lo), hi(hi), join(join), _body(_body) { }
+  lazy_parallel_for_rec(long lo, long hi, node* join, int cutoff, const Body& _body)
+  : lo(lo), hi(hi), join(join), cutoff(cutoff), _body(_body) { }
   
   enum {
     process_block,
@@ -2866,7 +2878,7 @@ public:
   void body() {
     switch (node::current_block_id) {
       case process_block: {
-        long n = std::min(hi, lo + communication_delay);
+        long n = std::min(hi, lo + (long)cutoff);
         long i;
         for (i = lo; i < n; i++) {
           _body(i);
@@ -2892,7 +2904,7 @@ public:
     node* consumer = join;
     node* caller = this;
     long mid = (hi + lo) / 2;
-    lazy_parallel_for_rec* producer = new lazy_parallel_for_rec(mid, hi, join, _body);
+    auto producer = new lazy_parallel_for_rec(mid, hi, join, cutoff, _body);
     hi = mid;
     prepare_node(producer);
     insert_inport(producer, (incounter*)consumer->in, (incounter_node*)nullptr);
@@ -2903,8 +2915,8 @@ public:
 };
 
 template <class Body>
-node* new_parallel_for(long lo, long hi, node* join, const Body& body) {
-  return new lazy_parallel_for_rec<Body>(lo, hi, join, body);
+node* new_parallel_for(long lo, long hi, node* join, int cutoff, const Body& body) {
+  return new lazy_parallel_for_rec<Body>(lo, hi, join, cutoff, body);
 }
   
 void outset_finish_partial(std::deque<outset_node*>& todo) {
@@ -4769,7 +4781,7 @@ public:
         break;
       }
       case loop_level_body: {
-        node::parallel_for(0, nb_cells_in_level(n, l), [&] (int c) {
+        node::parallel_for(0, nb_cells_in_level(n, l), 1, [&] (int c) {
           auto idx = index_of_cell_at_pos(n, l, c);
           int i = idx.first * block_size;
           int j = idx.second * block_size;
