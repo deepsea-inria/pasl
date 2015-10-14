@@ -19,7 +19,7 @@ case $key in
     P="$2"
     shift # past argument
     ;;
-    -block_size)
+    -block_size_lg)
     B="$2"
     shift
     ;;
@@ -42,9 +42,12 @@ OPENSTREAM=/home/rainey/open-stream/examples/seidel
 
 case $SYS in
      cilk)
-     ( CILK_NWORKERS=$P; $OPENSTREAM/cilk_seidel -n $N -q $B -r $I )
+     ( CILK_NWORKERS=$P; $OPENSTREAM/cilk_seidel -n $N -b $B -r $I )
      ;;
      openstream)
-     ( OMP_NUM_THREADS=$P; $OPENSTREAM/stream_df_seidel -n $N -q $B -r $I )
+     ( OMP_NUM_THREADS=$P; $OPENSTREAM/stream_df_seidel -n $N -b $B -r $I )
+     ;;
+     pasl)
+     ./bench.opt $@
      ;;
 esac
