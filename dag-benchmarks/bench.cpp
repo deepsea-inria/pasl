@@ -685,6 +685,32 @@ void outset_finish(dyntreeopt_outset*);
 void outset_tree_deallocate(outset_node*);
 void outset_tree_deallocate_sequential(outset_node*);
 
+#ifdef USE_FREELIST_MALLOC
+pasl::data::perworker::array<std::pair<char*,char*>> incounter_buffers;
+  
+size_t roundUp(size_t numToRound, size_t multiple) {
+  if(multiple == 0)
+  {
+    return numToRound;
+  }
+  
+  size_t roundDown = ( (size_t) (numToRound) / multiple) * multiple;
+  size_t roundUp = roundDown + multiple;
+  size_t roundCalc = roundUp;
+  return (roundCalc);
+}
+  
+char* roundUp(char* addrToRound, size_t multiple) {
+  union {
+    size_t n;
+    char* a;
+  } addr;
+  addr.a = addrToRound;
+  addr.n = roundUp(addr.n, multiple);
+  return addrToRound;
+}
+#endif
+
 class incounter_node {
 public:
   
@@ -702,6 +728,36 @@ public:
       children[i].store(nullptr);
     }
   }
+  
+#ifdef USE_FREELIST_MALLOC
+  void* operator new (size_t size) {
+    constexpr int incounter_block_szb = 1 << 20;
+    constexpr int cache_line_szb = 64;
+    std::pair<char*, char*>& entry = incounter_buffers.mine();
+    char*& current = entry.first;
+    char*& last = entry.second;
+    if (current == nullptr) {
+      current = (char*)malloc(incounter_block_szb);
+      assert(current != nullptr);
+      last = current + incounter_block_szb;
+    }
+    char* prev = current;
+    char* next = roundUp(prev + size, cache_line_szb);
+    if (next >= last) {
+      current = (char*)malloc(incounter_block_szb);
+      assert(current != nullptr);
+      last = current + incounter_block_szb;
+      prev = current;
+      next = roundUp(prev + size, cache_line_szb);
+    }
+    current = next;
+    return prev;
+  }
+  
+  void operator delete (void *p) {
+    
+  }
+#endif
 
 };
 
@@ -5137,6 +5193,9 @@ int main(int argc, char** argv) {
     benchmarks::test_random_number_generator();
   } else {
     pasl::sched::threaddag::init();
+#ifdef USE_FREELIST_MALLOC
+    direct::dyntreeopt::incounter_buffers.init(std::make_pair(nullptr, nullptr));
+#endif
     launch();
     pasl::sched::threaddag::destroy();
   }
