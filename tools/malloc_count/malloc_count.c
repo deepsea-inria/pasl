@@ -343,6 +343,9 @@ static __attribute__((constructor)) void init(void)
 
 static __attribute__((destructor)) void finish(void)
 {
+  printf("malloc_count_total %lld\n", total);
+  printf("malloc_count_peak %lld\n", peak);
+  printf("malloc_count_current %lld\n", curr);
 #if 0
     fprintf(stderr,"malloc_count ### exiting, total: %'lld, peak: %'lld, current: %'lld\n",
             total, peak, curr);
