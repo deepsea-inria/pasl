@@ -646,10 +646,6 @@ let mk_seidel_async =
     mk string "cmd" "seidel_async"
   & mk_system_pasl
      
-let mk_seidel_forkjoin =
-    mk string "cmd" "seidel_forkjoin"
-  & mk_system_pasl
-
 let mk_seidel_cilk =
   mk string "system" "cilk"
 
@@ -680,7 +676,7 @@ let doit id (mk_numiters, mk_seidel_params) =
         
   let mk_parallels =
       mk_parallel_shared
-    & ( (mk_seidel_async & mk_algos) ++ mk_seidel_forkjoin ++ mk_seidel_cilk ++ mk_seidel_openstream )
+    & ( (mk_seidel_async & mk_algos) ++ mk_seidel_cilk ++ mk_seidel_openstream )
   in
   
   let path_to_openstream_seidel = path_to_openstream ^ "/examples/seidel" in
@@ -708,7 +704,6 @@ let doit id (mk_numiters, mk_seidel_params) =
       ("nb_levels", Format_custom (fun n -> sprintf "D=%s" n));
       ("algo", Format_custom (fun algo -> sprintf "%s" (if algo = "portpassing" then algo else "")));
       ("edge_algo", Format_custom pretty_edge_algo);
-      ("cmd", Format_custom (fun cmd -> if cmd = "seidel_forkjoin" then "fork-join" else ""));
       ("N", Format_custom (fun n -> sprintf "size %s" n));
       ("block_size_lg", Format_custom (fun n -> sprintf "tile %d" (1 lsl (int_of_string n))));
       ("system", Format_custom (fun n -> sprintf "%s" n));
@@ -736,7 +731,7 @@ let doit id (mk_numiters, mk_seidel_params) =
            Y_axis [Axis.Lower (Some 0.); Axis.Is_log true;] ]);
          Formatter formatter;
         Charts (mk_seidel_params);
-        Series ((mk_seidel_async & mk_algos) ++ mk_seidel_forkjoin ++ mk_seidel_cilk ++ mk_seidel_openstream);
+        Series ((mk_seidel_async & mk_algos) ++ mk_seidel_cilk ++ mk_seidel_openstream);
         X mk_numiters;
         Input (file_results name);
         Output (file_plots name);
