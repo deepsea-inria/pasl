@@ -5200,6 +5200,9 @@ int main(int argc, char** argv) {
     benchmarks::test_random_number_generator();
   } else {
     pasl::sched::threaddag::init();
+#ifdef USE_FREELIST_MALLOC
+    direct::dyntreeopt::incounter_buffers.init(std::make_pair(nullptr, nullptr));
+#endif
     launch();
     pasl::sched::threaddag::destroy();
   }
