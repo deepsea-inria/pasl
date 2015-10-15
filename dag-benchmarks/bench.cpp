@@ -672,6 +672,8 @@ namespace dyntreeopt {
 constexpr int branching_factor = DYNTREEOPT_BRANCHING_FACTOR;
 constexpr int amortization_factor = DYNTREEOPT_AMORTIZATION_FACTOR;
 
+constexpr int incounter_target_depth = 16;
+
 bool should_deallocate_sequentially = false;
 
 class dyntreeopt_incounter;
@@ -705,9 +707,7 @@ public:
 
 };
 
-constexpr int incounter_target_depth = 12;
-
-unsigned int clog2 (unsigned int x) {
+unsigned int clog2(unsigned int x) {
     unsigned int result = 0;
     --x;
     while (x > 0) {
@@ -859,7 +859,7 @@ incounter_node* incounter_decrement_rec(incounter_node* current,
         }
         if (result == target) {
           current->children[k].store(nullptr);
-          incounter_add_to_freelist(freelist, result, random_int);
+	  incounter_add_to_freelist(freelist, result, random_int);
         }
         return result;
       }
@@ -4896,10 +4896,12 @@ void test_random_number_generator() {
   for (int j = 0; j < nb_buckets; j++) {
     buckets[j] = 0;
   }
+#ifndef USE_STL_RANDGEN
   for (int i = 0; i < nb_rounds; i++) {
     int k = random_int_in_range(rng, 0, nb_buckets);
     buckets[k]++;
   }
+#endif
   unsigned int maxv = buckets[0];
   unsigned int minv = buckets[0];
   for (int i = 0; i < nb_buckets; i++) {
