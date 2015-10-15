@@ -4685,125 +4685,6 @@ public:
   }
   
 };
-  
-int nb_levels(int n) {
-  assert(n >= 1);
-  return 2 * (n - 1) + 1;
-}
-
-int nb_cells_in_level(int n, int l) {
-  assert((l >= 1) && (l <= nb_levels(n)));
-  return (l <= n) ? l : (nb_levels(n) + 1) - l;
-}
-
-std::pair<int, int> index_of_cell_at_pos(int n, int l, int pos) {
-  assert((pos >= 0) && (pos < nb_cells_in_level(n, l)));
-  int i;
-  int j;
-  if (l <= n) { // either on or above the diagonal
-    i = pos;
-    j = l - (pos + 1);
-  } else {      // below the diagonal
-    i = (l - n) + pos;
-    j = n - (pos + 1);
-  }
-  return std::make_pair(i, j);
-}
-  
-void seidel_forkjoin_sequential(int numiters, int N, int block_size, double* data) {
-  assert(((N - 2) % block_size) == 0);
-  int n = (N - 2) / block_size;
-  for (int iter = 0; iter < numiters; iter++) {
-    for (int l = 1; l <= nb_levels(n); l++) {
-      for (int c = 0; c < nb_cells_in_level(n, l); c++) {
-        auto idx = index_of_cell_at_pos(n, l, c);
-        int i = idx.first * block_size;
-        int j = idx.second * block_size;
-        seidel_block(N, &data[N * i + j], block_size);
-      }
-    }
-  }
-}
-  
-template <class node>
-class seidel_forkjoin : public node {
-public:
-  
-  enum {
-    entry,
-    loop_iter_header,
-    loop_iter_body,
-    loop_iter_epilogue,
-    loop_level_header,
-    loop_level_body,
-    loop_level_epilogue,
-    exit
-  };
-  
-  int numiters; int N; int block_size; double* data;
-  
-  int iter;
-  int n;
-  int l;
-  
-  seidel_forkjoin(int numiters, int N, int block_size, double* data)
-  : numiters(numiters), N(N), block_size(block_size), data(data) { }
-  
-  void body() {
-    switch (node::current_block_id) {
-      case entry: {
-        iter = 0;
-        n = (N - 2) / block_size;
-        node::jump_to(loop_iter_header);
-        break;
-      }
-      case loop_iter_header: {
-        if (iter < numiters) {
-          node::jump_to(loop_iter_body);
-        } else {
-          node::jump_to(exit);
-        }
-        break;
-      }
-      case loop_iter_body: {
-        l = 1;
-        node::jump_to(loop_level_header);
-        break;
-      }
-      case loop_iter_epilogue: {
-        iter++;
-        node::jump_to(loop_iter_header);
-        break;
-      }
-      case loop_level_header: {
-        if (l <= nb_levels(n)) {
-          node::jump_to(loop_level_body);
-        } else {
-          node::jump_to(loop_iter_epilogue);
-        }
-        break;
-      }
-      case loop_level_body: {
-        node::parallel_for(0, nb_cells_in_level(n, l), 1, [&] (int c) {
-          auto idx = index_of_cell_at_pos(n, l, c);
-          int i = idx.first * block_size;
-          int j = idx.second * block_size;
-          seidel_block(N, &data[N * i + j], block_size);
-        }, loop_level_epilogue);
-        break;
-      }
-      case loop_level_epilogue: {
-        l++;
-        node::jump_to(loop_level_header);
-        break;
-      }
-      case exit: {
-        break;
-      }
-    }
-  }
-  
-};
 
 void seidel_initialize(matrix_type<double>& mtx) {
   int N = mtx.n;
@@ -5084,14 +4965,7 @@ void do_seidel() {
   read_seidel_params(numiters, N, block_size);
   benchmarks::matrix_type<double>* test_mtx = new benchmarks::matrix_type<double>(N+2, 0.0);
   benchmarks::seidel_initialize(*test_mtx);
-  bool use_reference_solution = cmdline::parse_or_default_bool("reference_solution", false);
-  if (use_reference_solution) {
-    add_todo([=] {
-      benchmarks::seidel_forkjoin_sequential(numiters, N+2, block_size, &(test_mtx->items[0]));
-    });
-  } else {
-    add_measured(new seidel_parallel(numiters, N+2, block_size, &(test_mtx->items[0])));
-  }
+  add_measured(new seidel_parallel(numiters, N+2, block_size, &(test_mtx->items[0])));
   add_todo([=] {
     if (do_consistency_check) {
       benchmarks::matrix_type<double> reference_mtx(N+2, 0.0);
@@ -5149,9 +5023,6 @@ void choose_command() {
   });
   c.add("seidel_async", [&] {
     do_seidel<benchmarks::seidel_async<node>>();
-  });
-  c.add("seidel_forkjoin", [&] {
-    do_seidel<benchmarks::seidel_forkjoin<node>>();
   });
   c.find_by_arg(cmd_param)();
 }
