@@ -145,24 +145,36 @@ let incounter_nb = 10000000
 
 let mk_incounter_nb = mk int "n" incounter_nb
 
-let mk_incounter_async_duration =
+let mk_incounter_async_duration_base =
     mk string "cmd" "incounter_async_duration"
   & mk_nb_milliseconds
+
+let mk_incounter_async_duration =
+    mk_incounter_async_duration_base
   & mk_workload
-           
-let mk_incounter_async_nb =
+      
+let mk_incounter_async_nb_base =
     mk string "cmd" "incounter_async_nb"
   & mk_incounter_nb
+
+let mk_incounter_async_nb =
+    mk_incounter_async_nb_base
   & mk_workload
       
-let mk_incounter_forkjoin_nb =
+let mk_incounter_forkjoin_nb_base =
     mk string "cmd" "incounter_forkjoin_nb"
   & mk_incounter_nb
+
+let mk_incounter_forkjoin_nb =
+    mk_incounter_forkjoin_nb_base
   & mk_workload
       
-let mk_mixed_duration =
+let mk_mixed_duration_base =
     mk string "cmd" "mixed_duration"
   & mk_nb_milliseconds
+
+let mk_mixed_duration =
+    mk_mixed_duration_base
   & mk_workload
       
 let pretty_edge_algo edge_algo =
@@ -537,11 +549,13 @@ let prog = "./bench.opt"
 let make() =
   build "." [prog] arg_virtual_build
 
+let mk_workloads = mk_list int "workload" (XList.init 4 (fun i -> (i+1) * 500))
+        
 let mk_all_benchmarks =
      mk_incounter_mixed_duration
-  ++ mk_incounter_async_duration
-  ++ mk_incounter_async_nb
-  ++ mk_mixed_duration
+  ++ (mk_incounter_async_duration_base & mk_workloads)
+  ++ (mk_incounter_async_nb_base & mk_workloads)
+  ++ (mk_mixed_duration_base & mk_workloads)
        
 let run() =
   Mk_runs.(call (run_modes @ [
