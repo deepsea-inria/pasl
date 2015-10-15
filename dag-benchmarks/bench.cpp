@@ -672,7 +672,7 @@ namespace dyntreeopt {
 constexpr int branching_factor = DYNTREEOPT_BRANCHING_FACTOR;
 constexpr int amortization_factor = DYNTREEOPT_AMORTIZATION_FACTOR;
 
-constexpr int incounter_target_depth = 16;
+constexpr int incounter_target_depth = 12;
 
 bool should_deallocate_sequentially = false;
 
@@ -686,6 +686,33 @@ void incounter_tree_deallocate_sequential(incounter_node*);
 void outset_finish(dyntreeopt_outset*);
 void outset_tree_deallocate(outset_node*);
 void outset_tree_deallocate_sequential(outset_node*);
+
+#ifdef USE_FREELIST_MALLOC
+pthread_key_t thread_current_pointer;
+pthread_key_t thread_last_pointer;
+  
+size_t roundUp(size_t numToRound, size_t multiple) {
+  if(multiple == 0)
+  {
+    return numToRound;
+  }
+  
+  size_t roundDown = ( (size_t) (numToRound) / multiple) * multiple;
+  size_t roundUp = roundDown + multiple;
+  size_t roundCalc = roundUp;
+  return (roundCalc);
+}
+  
+char* roundUp(char* addrToRound, size_t multiple) {
+  union {
+    size_t n;
+    char* a;
+  } addr;
+  addr.a = addrToRound;
+  addr.n = roundUp(addr.n, multiple);
+  return addrToRound;
+}
+#endif
 
 class incounter_node {
 public:
@@ -704,6 +731,38 @@ public:
       children[i].store(nullptr);
     }
   }
+  
+#ifdef USE_FREELIST_MALLOC
+  void* operator new (size_t size) {
+    constexpr int incounter_block_szb = 1 << 22;
+    constexpr int cache_line_szb = 64;
+    char* current = (char*)pthread_getspecific(thread_current_pointer);
+    char* last = (char*)pthread_getspecific(thread_last_pointer);
+    if (current == nullptr) {
+      current = (char*)malloc(incounter_block_szb);
+      assert(current != nullptr);
+      last = current + incounter_block_szb;
+      pthread_setspecific(thread_current_pointer, current);
+      pthread_setspecific(thread_last_pointer, last);
+    }
+    char* prev = current;
+    char* next = roundUp(prev + size, cache_line_szb);
+    if (next >= last) {
+      current = (char*)malloc(incounter_block_szb);
+      assert(current != nullptr);
+      last = current + incounter_block_szb;
+      prev = current;
+      next = roundUp(prev + size, cache_line_szb);
+      pthread_setspecific(thread_last_pointer, last);
+    }
+    pthread_setspecific(thread_current_pointer, next);
+    return prev;
+  }
+  
+  void operator delete (void *p) {
+    
+  }
+#endif
 
 };
 
@@ -803,6 +862,7 @@ template <class Random_int>
 void incounter_add_to_freelist(std::atomic<incounter_node*>& freelist,
                                incounter_node* old_node,
                                const Random_int& random_int) {
+#ifndef USE_FREELIST_MALLOC
   std::atomic<incounter_node*>* current = &freelist;
   while (true) {
     assert(tagged_tag_of(current->load()) == incounter_node::removing_tag);
@@ -818,6 +878,7 @@ void incounter_add_to_freelist(std::atomic<incounter_node*>& freelist,
       current = &(target->children[i]);
     }
   }
+#endif
 }
   
 template <class Random_int>
