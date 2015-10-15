@@ -3698,8 +3698,8 @@ template <class Incounter>
 void benchmark_incounter_thread(int my_id,
                                 Incounter& incounter,
                                 bool& should_stop,
-                                int& nb_operations1,
-                                int& nb_operations2,
+                                long& nb_operations1,
+                                long& nb_operations2,
                                 unsigned int seed) {
 #ifndef USE_STL_RANDGEN
   unsigned int rng = seed+my_id;
@@ -3714,8 +3714,8 @@ void benchmark_incounter_thread(int my_id,
     return distribution(generator);
   };
 #endif
-  int c = 0;
-  int nb_pending_increments = 0;
+  long c = 0;
+  long nb_pending_increments = 0;
   int incr_prob_a = pasl::util::cmdline::parse_int("incr_prob_a");
   int incr_prob_b = pasl::util::cmdline::parse_int("incr_prob_b");
   if (incr_prob_a < 0 && incr_prob_a > incr_prob_b) {
@@ -3842,7 +3842,7 @@ template <class Outset>
 void benchmark_outset_thread(int my_id,
                              Outset& outset,
                              bool& should_stop,
-                             int& nb_operations,
+                             long& nb_operations,
                              unsigned int seed) {
 #ifndef USE_STL_RANDGEN
   unsigned int rng = seed+my_id;
@@ -3857,7 +3857,7 @@ void benchmark_outset_thread(int my_id,
     return distribution(generator);
   };
 #endif
-  int c = 0;
+  long c = 0;
   while (! should_stop) {
     outset.add(nullptr, random_int);
     c++;
@@ -3907,8 +3907,8 @@ double since(std::chrono::time_point<std::chrono::high_resolution_clock> start) 
   return diff.count();
 }
 
-int sum(int n, int* xs) {
-  int r = 0;
+long sum(long n, long* xs) {
+  long r = 0;
   for (int i = 0; i < n; i++) {
     r += xs[i];
   }
@@ -3921,8 +3921,8 @@ void launch_microbenchmark(const Benchmark& benchmark, int nb_threads, int nb_mi
   direct::dyntree::should_deallocate_sequentially = true;
   direct::dyntreeopt::should_deallocate_sequentially = true;
   std::vector<std::thread*> threads;
-  int counters1[nb_threads];
-  int counters2[nb_threads];
+  long counters1[nb_threads];
+  long counters2[nb_threads];
   for (int i = 0; i < nb_threads; i++) {
     counters1[i] = 0;
     counters2[i] = 0;
@@ -3940,10 +3940,10 @@ void launch_microbenchmark(const Benchmark& benchmark, int nb_threads, int nb_mi
   }
   printf ("exectime %.3lf\n", since(start));
   printf ("exectime_phase2 %.3lf\n", since(start_phase2));
-  int nb_operations_phase1 = sum(nb_threads, counters1);
+  long nb_operations_phase1 = sum(nb_threads, counters1);
   std::cout << "nb_operations_phase1  " << nb_operations_phase1 << std::endl;
-  int nb_operations_phase2 = sum(nb_threads, counters2);
-  int nb_operations = nb_operations_phase1 + nb_operations_phase2;
+  long nb_operations_phase2 = sum(nb_threads, counters2);
+  long nb_operations = nb_operations_phase1 + nb_operations_phase2;
   std::cout << "nb_operations  " << nb_operations << std::endl;
   std::cout << "nb_operations_phase2  " << nb_operations_phase2 << std::endl;
   for (std::thread* t : threads) {
@@ -3969,7 +3969,7 @@ void launch_outset_add_duration() {
     dyntreeopt_outset = new dyntreeopt_outset_wrapper;
   });
   c.find_by_arg("edge_algo")();
-  auto benchmark_thread = [&] (int my_id, bool& should_stop, int& counter1, int& counter2) {
+  auto benchmark_thread = [&] (int my_id, bool& should_stop, long& counter1, long& counter2) {
     if (simple_outset != nullptr) {
       benchmark_outset_thread(my_id, *simple_outset, should_stop, counter1, seed);
     } else if (dyntree_outset != nullptr) {
@@ -4016,7 +4016,7 @@ void launch_incounter_mixed_duration() {
     dyntreeopt_incounter = new dyntreeopt_incounter_wrapper;
   });
   c.find_by_arg("edge_algo")();
-  auto benchmark_thread = [&] (int my_id, bool& should_stop, int& counter1, int& counter2) {
+  auto benchmark_thread = [&] (int my_id, bool& should_stop, long& counter1, long& counter2) {
     if (simple_incounter != nullptr) {
       benchmark_incounter_thread(my_id, *simple_incounter, should_stop, counter1, counter2, seed);
     } else if (snzi_incounter != nullptr) {
