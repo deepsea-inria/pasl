@@ -728,7 +728,7 @@ void incounter_increment(std::atomic<incounter_node*>& root,
       int count = target->count.load();
       if (count == 0) {
         current = &root;
-      } else if (count < amortization_factor || depth >= incounter_target_depth) {
+      } else if ((count < amortization_factor) || (depth >= incounter_target_depth)) {
         int orig = count;
         if (target->count.compare_exchange_strong(orig, orig + 1)) {
           if (new_node != nullptr) {
@@ -4868,6 +4868,28 @@ public:
   }
   
 };
+
+void test_random_number_generator() {
+  constexpr int nb_buckets = 40;
+  constexpr int nb_rounds = 100000;
+  unsigned int buckets[nb_buckets];
+  unsigned int rng = 123;
+  for (int j = 0; j < nb_buckets; j++) {
+    buckets[j] = 0;
+  }
+  for (int i = 0; i < nb_rounds; i++) {
+    int k = random_int_in_range(rng, 0, nb_buckets);
+    buckets[k]++;
+  }
+  unsigned int maxv = buckets[0];
+  unsigned int minv = buckets[0];
+  for (int i = 0; i < nb_buckets; i++) {
+    maxv = std::max(buckets[i], maxv);
+    minv = std::min(buckets[i], minv);
+  }
+  std::cout << "max = " << maxv << std::endl;
+  std::cout << "min = " << minv << std::endl;
+}
   
 } // end namespace
 
@@ -5091,7 +5113,9 @@ int main(int argc, char** argv) {
     launch_sequential_baseline_benchmark([&] {
       benchmarks::seidel_sequential(numiters, N+2, block_size, &(test_mtx->items[0]));
     });
-    delete test_mtx;    
+    delete test_mtx;
+  } else if (cmd == "test_random_number_generator") {
+    benchmarks::test_random_number_generator();
   } else {
     pasl::sched::threaddag::init();
     launch();
