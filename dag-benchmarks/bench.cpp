@@ -17,6 +17,7 @@
 #include <memory>
 #include <chrono>
 #include <thread>
+#include <climits>
 
 #include "pasl.hpp"
 #include "tagged.hpp"
