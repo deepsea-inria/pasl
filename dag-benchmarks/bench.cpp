@@ -705,12 +705,26 @@ public:
 };
 
 constexpr int incounter_target_depth = 12;
+
+unsigned int clog2 (unsigned int x) {
+    unsigned int result = 0;
+    --x;
+    while (x > 0) {
+        ++result;
+        x >>= 1;
+    }
+    return result;
+}
+
+unsigned int nb_random_bits_per_level = clog2(branching_factor);
+unsigned int random_bits_mask = (1 << nb_random_bits_per_level) - 1;
   
 template <class Random_int>
 void incounter_increment(std::atomic<incounter_node*>& root,
                          const Random_int& random_int) {
   incounter_node* new_node = nullptr;
   std::atomic<incounter_node*>* current = &root;
+  int bits = random_int(0, INT_MAX);
   int depth = 0;
   while (true) {
     incounter_node* target = current->load();
@@ -737,7 +751,8 @@ void incounter_increment(std::atomic<incounter_node*>& root,
           return;
         }
       } else {
-        int i = random_int(0, branching_factor);
+        int i = bits & random_bits_mask;
+        bits = bits >> nb_random_bits_per_level;        
         current = &(target->children[i]);
         depth++;
       }
@@ -807,6 +822,7 @@ void incounter_add_to_freelist(std::atomic<incounter_node*>& freelist,
 template <class Random_int>
 incounter_node* incounter_decrement_rec(incounter_node* current,
                                         std::atomic<incounter_node*>& freelist,
+                                        int bits,
                                         const Random_int& random_int) {
   if (incounter_node_is_leaf(current)) {
     int count = current->count.load();
@@ -826,7 +842,7 @@ incounter_node* incounter_decrement_rec(incounter_node* current,
       }
     }
   } else {
-    int i = random_int(0, branching_factor);
+    int i = bits & random_bits_mask;
     for (int j = 0; j < branching_factor; j++) {
       int k = (j + i) % branching_factor;
       incounter_node* target = current->children[k].load();
@@ -835,7 +851,8 @@ incounter_node* incounter_decrement_rec(incounter_node* current,
       } else if (tagged_tag_of(target) == incounter_node::removing_tag) {
         return nullptr;
       } else {
-        incounter_node* result = incounter_decrement_rec(target, freelist, random_int);
+        bits = bits >> nb_random_bits_per_level;
+        incounter_node* result = incounter_decrement_rec(target, freelist, bits, random_int);
         if (result == nullptr) {
           continue;
         }
@@ -856,7 +873,8 @@ bool incounter_decrement(std::atomic<incounter_node*>& root,
                          const Random_int& random_int) {
   incounter_node* result = nullptr;
   while (result == nullptr) {
-    result = incounter_decrement_rec(root.load(), freelist, random_int);
+    int bits = random_int(0, INT_MAX);
+    result = incounter_decrement_rec(root.load(), freelist, bits, random_int);
   }
   if (result == root.load()) {
     root.store(nullptr);
