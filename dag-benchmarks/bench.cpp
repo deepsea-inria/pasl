@@ -690,6 +690,7 @@ void outset_tree_deallocate_sequential(outset_node*);
 #ifdef USE_FREELIST_MALLOC
 pthread_key_t thread_current_pointer;
 pthread_key_t thread_last_pointer;
+pthread_key_t thread_freelist_pointer;
   
 size_t roundUp(size_t numToRound, size_t multiple) {
   if(multiple == 0)
@@ -733,7 +734,15 @@ public:
   }
   
 #ifdef USE_FREELIST_MALLOC
+  incounter_node* next = nullptr;
+  
   void* operator new (size_t size) {
+    incounter_node* head = (incounter_node*)pthread_getspecific(thread_freelist_pointer);
+    if (head != nullptr) {
+      pthread_setspecific(thread_freelist_pointer, (void*)head->next);
+      head->next = nullptr;
+      return head;
+    }
     constexpr int incounter_block_szb = 1 << 22;
     constexpr int cache_line_szb = 64;
     char* current = (char*)pthread_getspecific(thread_current_pointer);
@@ -760,7 +769,9 @@ public:
   }
   
   void operator delete (void *p) {
-    
+    incounter_node* n = (incounter_node*)p;
+    n->next = (incounter_node*)pthread_getspecific(thread_freelist_pointer);
+    pthread_setspecific(thread_freelist_pointer, (void*)n);
   }
 #endif
 
@@ -5179,6 +5190,11 @@ void launch_sequential_baseline_benchmark(const Benchmark& benchmark) {
 }
 
 int main(int argc, char** argv) {
+#ifdef USE_FREELIST_MALLOC
+  pthread_key_create(&direct::dyntreeopt::thread_current_pointer, nullptr);
+  pthread_key_create(&direct::dyntreeopt::thread_last_pointer, nullptr);
+  pthread_key_create(&direct::dyntreeopt::thread_freelist_pointer, nullptr);
+#endif
   cmdline::set(argc, argv);
   benchmarks::workload = pasl::util::cmdline::parse_or_default_double("workload", 0.0);
   std::string cmd = pasl::util::cmdline::parse_string(cmd_param);
@@ -5200,9 +5216,6 @@ int main(int argc, char** argv) {
     benchmarks::test_random_number_generator();
   } else {
     pasl::sched::threaddag::init();
-#ifdef USE_FREELIST_MALLOC
-    direct::dyntreeopt::incounter_buffers.init(std::make_pair(nullptr, nullptr));
-#endif
     launch();
     pasl::sched::threaddag::destroy();
   }
