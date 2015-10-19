@@ -4674,8 +4674,8 @@ public:
   block_size(block_size), data(data) { }
   
 
-  void incr_time(int i, int j) {
-    clocks->subscript(i, j).time++;
+  void advance_time(int i, int j) {
+    clocks->subscript(i, j).time--;
   }
   
   void process_block(int i, int j) {
@@ -4758,7 +4758,7 @@ public:
         coordinate_type coordinate = frontier.pop_front();
         int i = coordinate.first;
         int j = coordinate.second;
-        incr_time(i, j);
+        advance_time(i, j);
         process_block(i, j);
         reset_block_count(i, j);
         decr_neighbors(i, j);
