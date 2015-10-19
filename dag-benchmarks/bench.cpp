@@ -18,12 +18,19 @@
 #include <chrono>
 #include <thread>
 #include <climits>
+#include <fstream>
+#include <iostream>
+#include <istream>
+#include <ostream>
+#include <sstream>
 
 #include "pasl.hpp"
 #include "tagged.hpp"
 #include "snzi.hpp"
 #include "microtime.hpp"
 #include "chunkedseq.hpp"
+#include "chunkedbag.hpp"
+#include "sequence.hpp"
 
 /***********************************************************************/
 
@@ -105,7 +112,7 @@ int random_int(int lo, int hi) {
 
 
 /*---------------------------------------------------------------------*/
-/* Global parameters */
+/* Globals */
 
 int communication_delay = 512;
 
@@ -114,6 +121,15 @@ using port_passing_mode = enum {
   port_passing_intersection,
   port_passing_difference
 };
+
+bool should_communicate() {
+  return pasl::sched::threaddag::my_sched()->should_call_communicate();
+}
+
+template <class T>
+T* malloc_array(size_t n) {
+  return (T*)malloc(sizeof(T) * n);
+}
 
 /*---------------------------------------------------------------------*/
 
@@ -1250,6 +1266,12 @@ public:
   void split_with(node* n, node* join) {
     prepare_node(n, incounter_ready(), outset_unary());
     add_edge(n, join);
+  }
+  
+  outset_type* split_and_join_with(node* n) {
+    outset_type* result = outset_new();
+    prepare_node(n, incounter_ready(), result);
+    return result;
   }
   
   void call(node* target, int continuation_block_id) {
@@ -2683,6 +2705,12 @@ public:
     prepare_node(new_sibling);
     propagate_ports_for(caller, new_sibling);
     assert(false);
+  }
+  
+  outset_type* split_and_join_with(node* n) {
+    outset_type* result = nullptr;
+    assert(false);
+    return result;
   }
   
   void call(node* target, int continuation_block_id) {
@@ -4270,7 +4298,7 @@ public:
         break;
       }
       case recurse: {
-        if (buffer->load() == nullptr && pasl::sched::threaddag::my_sched()->should_call_communicate()) {
+        if (buffer->load() == nullptr && should_communicate()) {
           node::async(new mixed_duration_loop(join, producer, buffer), join,
                       loop);
         } else {
@@ -4806,6 +4834,788 @@ int count_nb_diffs(const matrix_type<double>& lhs,
   return nb_diffs;
 }
   
+template <class Vertex_id_bag>
+class symmetric_vertex {
+public:
+  
+  typedef Vertex_id_bag vtxid_bag_type;
+  typedef typename vtxid_bag_type::value_type vtxid_type;
+  
+  symmetric_vertex() { }
+  
+  symmetric_vertex(vtxid_bag_type neighbors)
+  : neighbors(neighbors) { }
+  
+  vtxid_bag_type neighbors;
+  
+  vtxid_type get_in_neighbor(vtxid_type j) const {
+    return neighbors[j];
+  }
+  
+  vtxid_type get_out_neighbor(vtxid_type j) const {
+    return neighbors[j];
+  }
+  
+  vtxid_type* get_in_neighbors() const {
+    return neighbors.data();
+  }
+  
+  vtxid_type* get_out_neighbors() const {
+    return neighbors.data();
+  }
+  
+  void set_in_neighbor(vtxid_type j, vtxid_type nbr) {
+    neighbors[j] = nbr;
+  }
+  
+  void set_out_neighbor(vtxid_type j, vtxid_type nbr) {
+    neighbors[j] = nbr;
+  }
+  
+  vtxid_type get_in_degree() const {
+    return vtxid_type(neighbors.size());
+  }
+  
+  vtxid_type get_out_degree() const {
+    return vtxid_type(neighbors.size());
+  }
+  
+  void set_in_degree(vtxid_type j) {
+    neighbors.alloc(j);
+  }
+  
+  // todo: use neighbors.resize()
+  void set_out_degree(vtxid_type j) {
+    neighbors.alloc(j);
+  }
+  
+  void swap_in_neighbors(vtxid_bag_type& other) {
+    neighbors.swap(other);
+  }
+  
+  void swap_out_neighbors(vtxid_bag_type& other) {
+    neighbors.swap(other);
+  }
+  
+  void check(vtxid_type nb_vertices) const {
+#ifndef NDEBUG
+    for (vtxid_type i = 0; i < neighbors.size(); i++)
+      check_vertex(neighbors[i], nb_vertices);
+#endif
+  }
+  
+};
+
+template <class Item>
+class pointer_seq {
+public:
+  
+  typedef size_t size_type;
+  typedef Item value_type;
+  typedef pointer_seq<Item> self_type;
+  
+  value_type* array;
+  size_type sz;
+  
+  pointer_seq()
+  : array(NULL), sz(0) { }
+  
+  pointer_seq(value_type* array, size_type sz)
+  : array(array), sz(sz) { }
+  
+  ~pointer_seq() {
+    clear();
+  }
+  
+  void clear() {
+    sz = 0;
+    array = NULL;
+  }
+  
+  value_type& operator[](size_type ix) const {
+    assert(ix >= 0);
+    assert(ix < sz);
+    return array[ix];
+  }
+  
+  size_type size() const {
+    return sz;
+  }
+  
+  void swap(self_type& other) {
+    std::swap(sz, other.sz);
+    std::swap(array, other.array);
+  }
+  
+  void alloc(size_type n) {
+    assert(false);
+  }
+  
+  void set_data(value_type* data) {
+    this->data = data;
+  }
+  
+  value_type* data() const {
+    return array;
+  }
+  
+  template <class Body>
+  void for_each(const Body& b) const {
+    for (size_type i = 0; i < sz; i++)
+      b(array[i]);
+  }
+  
+};
+
+using edgeid_type = size_t;
+
+template <class Vertex_id, bool Is_alias = false>
+class flat_adjlist_seq {
+public:
+  
+  typedef flat_adjlist_seq<Vertex_id> self_type;
+  typedef Vertex_id vtxid_type;
+  typedef size_t size_type;
+  typedef pointer_seq<vtxid_type> vertex_seq_type;
+  typedef symmetric_vertex<vertex_seq_type> value_type;
+  typedef flat_adjlist_seq<vtxid_type, true> alias_type;
+  
+  char* underlying_array;
+  vtxid_type* offsets;
+  vtxid_type nb_offsets;
+  vtxid_type* edges;
+  
+  flat_adjlist_seq()
+  : underlying_array(NULL), offsets(NULL),
+  nb_offsets(0), edges(NULL) { }
+  
+  flat_adjlist_seq(const flat_adjlist_seq& other) {
+    if (Is_alias) {
+      underlying_array = other.underlying_array;
+      offsets = other.offsets;
+      nb_offsets = other.nb_offsets;
+      edges = other.edges;
+    } else {
+      assert(false);
+    }
+  }
+  
+  ~flat_adjlist_seq() {
+    if (! Is_alias)
+      clear();
+  }
+  
+  void get_alias(alias_type& alias) const {
+    alias.underlying_array = NULL;
+    alias.offsets = offsets;
+    alias.nb_offsets = nb_offsets;
+    alias.edges = edges;
+  }
+  
+  alias_type get_alias() const {
+    alias_type alias;
+    alias.underlying_array = NULL;
+    alias.offsets = offsets;
+    alias.nb_offsets = nb_offsets;
+    alias.edges = edges;
+    return alias;
+  }
+  
+  void clear() {
+    if (underlying_array != NULL)
+      free(underlying_array);
+    offsets = NULL;
+    edges = NULL;
+  }
+  
+  vtxid_type degree(vtxid_type v) const {
+    assert(v >= 0);
+    assert(v < size());
+    return offsets[v + 1] - offsets[v];
+  }
+  
+  value_type operator[](vtxid_type ix) const {
+    assert(ix >= 0);
+    assert(ix < size());
+    return value_type(vertex_seq_type(&edges[offsets[ix]], degree(ix)));
+  }
+  
+  vtxid_type size() const {
+    return nb_offsets - 1;
+  }
+  
+  void swap(self_type& other) {
+    std::swap(underlying_array, other.underlying_array);
+    std::swap(offsets, other.offsets);
+    std::swap(nb_offsets, other.nb_offsets);
+    std::swap(edges, other.edges);
+  }
+  
+  void alloc(size_type) {
+    assert(false);
+  }
+  
+  void init(char* bytes, vtxid_type nb_vertices, edgeid_type nb_edges) {
+    nb_offsets = nb_vertices + 1;
+    underlying_array = bytes;
+    offsets = (vtxid_type*)bytes;
+    edges = &offsets[nb_offsets];
+  }
+  
+  value_type* data() {
+    assert(false);
+    return NULL;
+  }
+  
+};
+
+template <class Adjlist_seq>
+class adjlist {
+public:
+  
+  typedef Adjlist_seq adjlist_seq_type;
+  typedef typename adjlist_seq_type::value_type vertex_type;
+  typedef typename vertex_type::vtxid_bag_type::value_type vtxid_type;
+  typedef typename adjlist_seq_type::alias_type adjlist_seq_alias_type;
+  typedef adjlist<adjlist_seq_alias_type> alias_type;
+  
+  edgeid_type nb_edges;
+  adjlist_seq_type adjlists;
+  
+  adjlist()
+  : nb_edges(0) { }
+  
+  adjlist(edgeid_type nb_edges)
+  : nb_edges(nb_edges) { }
+  
+  vtxid_type get_nb_vertices() const {
+    return vtxid_type(adjlists.size());
+  }
+  
+  void check() const {
+#ifndef NDEBUG
+    for (vtxid_type i = 0; i < adjlists.size(); i++)
+      adjlists[i].check(get_nb_vertices());
+    size_t m = 0;
+    for (vtxid_type i = 0; i < adjlists.size(); i++)
+      m += adjlists[i].get_in_degree();
+    assert(m == nb_edges);
+    m = 0;
+    for (vtxid_type i = 0; i < adjlists.size(); i++)
+      m += adjlists[i].get_out_degree();
+    assert(m == nb_edges);
+#endif
+  }
+  
+};
+
+static constexpr uint64_t GRAPH_TYPE_ADJLIST = 0xdeadbeef;
+
+template <class Vertex_id>
+void read_adjlist_from_file(std::string fname, adjlist<flat_adjlist_seq<Vertex_id>>& graph) {
+  using vtxid_type = Vertex_id;
+  std::ifstream in(fname, std::ifstream::binary);
+  uint64_t graph_type;
+  int nbbits;
+  vtxid_type nb_vertices;
+  edgeid_type nb_edges;
+  bool is_symmetric;
+  uint64_t header[5];
+  in.read((char*)header, sizeof(header));
+  graph_type = header[0];
+  nbbits = int(header[1]);
+  nb_vertices = vtxid_type(header[2]);
+  nb_edges = edgeid_type(header[3]);
+  is_symmetric = bool(header[4]);
+  if (graph_type != GRAPH_TYPE_ADJLIST)
+    assert(false);
+  if (sizeof(vtxid_type) * 8 < nbbits)
+    assert(false);
+  edgeid_type contents_szb;
+  char* bytes;
+  in.seekg (0, in.end);
+  contents_szb = edgeid_type(in.tellg()) - sizeof(header);
+  in.seekg (sizeof(header), in.beg);
+  bytes = (char*)malloc(contents_szb);
+  if (bytes == NULL)
+    assert(false);
+  in.read (bytes, contents_szb);
+  in.close();
+  vtxid_type nb_offsets = nb_vertices + 1;
+  if (contents_szb != sizeof(vtxid_type) * (nb_offsets + nb_edges))
+    assert(false);
+  graph.adjlists.init(bytes, nb_vertices, nb_edges);
+  graph.nb_edges = nb_edges;
+}
+  
+namespace frontiersegbase {
+  
+  template <
+  class Graph,
+  template <
+  class Vertex,
+  class Cache_policy
+  >
+  class Vertex_container
+  >
+  class frontiersegbase {
+  public:
+    
+    /*---------------------------------------------------------------------*/
+    
+    using self_type = frontiersegbase<Graph, Vertex_container>;
+    using size_type = size_t;
+    using graph_type = Graph;
+    using vtxid_type = typename graph_type::vtxid_type;
+    using const_vtxid_pointer = const vtxid_type*;
+    
+    class edgelist_type {
+    public:
+      
+      const_vtxid_pointer lo;
+      const_vtxid_pointer hi;
+      
+      edgelist_type()
+      : lo(nullptr), hi(nullptr) { }
+      
+      edgelist_type(size_type nb, const_vtxid_pointer edges)
+      : lo(edges), hi(edges + nb) { }
+      
+      size_type size() const {
+        return size_type(hi - lo);
+      }
+      
+      void clear() {
+        hi = lo;
+      }
+      
+      static edgelist_type take(edgelist_type edges, size_type nb) {
+        assert(nb <= edges.size());
+        assert(nb >= 0);
+        edgelist_type edges2 = edges;
+        edges2.hi = edges2.lo + nb;
+        assert(edges2.size() == nb);
+        return edges2;
+      }
+      
+      static edgelist_type drop(edgelist_type edges, size_type nb) {
+        assert(nb <= edges.size());
+        assert(nb >= 0);
+        edgelist_type edges2 = edges;
+        edges2.lo = edges2.lo + nb;
+        assert(edges2.size() + nb == edges.size());
+        return edges2;
+      }
+      
+      void swap(edgelist_type& other) {
+        std::swap(lo, other.lo);
+        std::swap(hi, other.hi);
+      }
+      
+      template <class Body>
+      void for_each(const Body& func) const {
+        for (auto e = lo; e < hi; e++)
+          func(*e);
+      }
+    };
+    
+  private:
+    
+    /*---------------------------------------------------------------------*/
+    
+    static size_type out_degree_of_vertex(graph_type g, vtxid_type v) {
+      return size_type(g.adjlists[v].get_out_degree());
+    }
+    
+    static vtxid_type* neighbors_of_vertex(graph_type g, vtxid_type v) {
+      return g.adjlists[v].get_out_neighbors();
+    }
+    
+    edgelist_type create_edgelist(vtxid_type v) const {
+      graph_type g = get_graph();
+      size_type degree = out_degree_of_vertex(g, v);
+      vtxid_type* neighbors = neighbors_of_vertex(g, v);
+      return edgelist_type(vtxid_type(degree), neighbors);
+    }
+    
+    /*---------------------------------------------------------------------*/
+    
+    class graph_env {
+    public:
+      
+      graph_type g;
+      
+      graph_env() { }
+      graph_env(graph_type g) : g(g) { }
+      
+      size_type operator()(vtxid_type v) const {
+        return out_degree_of_vertex(g, v);
+      }
+      
+    };
+    
+    using cache_type = pasl::data::cachedmeasure::weight<vtxid_type, vtxid_type, size_type, graph_env>;
+    using seq_type = Vertex_container<vtxid_type, cache_type>;
+    //  using seq_type = data::chunkedseq::bootstrapped::stack<vtxid_type, chunk_capacity, cache_type>;
+    
+    /*---------------------------------------------------------------------*/
+    
+    // FORMIKE: suggesting rename to fr, mid, bk
+    edgelist_type f;
+    seq_type m;
+    edgelist_type b;
+    
+    /*---------------------------------------------------------------------*/
+    
+    void check() const {
+#ifdef FULLDEBUG
+      size_type nf = f.size();
+      size_type nb = b.size();
+      size_type nm = 0;
+      graph_type g = get_graph();
+      m.for_each([&] (vtxid_type v) {
+        nm += out_degree_of_vertex(g, v);
+      });
+      size_type n = nf + nb + nm;
+      size_type e = nb_outedges();
+      size_type em = nb_outedges_of_middle();
+      size_type szm = m.size();
+      assert(n == e);
+      assert((szm > 0) ? em > 0 : true);
+      assert((em > 0) ? (szm > 0) : true);
+#endif
+    }
+    
+    size_type nb_outedges_of_middle() const {
+      return m.get_cached();
+    }
+    
+  public:
+    
+    /*---------------------------------------------------------------------*/
+    
+    frontiersegbase() { }
+    
+    frontiersegbase(graph_type g) {
+      set_graph(g);
+    }
+    
+    /* We use the following invariant so that client code can use empty check
+     * of the container interchangeably with a check on the number of outedges:
+     *
+     *     empty() iff nb_outedges() == 0
+     */
+    
+    bool empty() const {
+      return f.size() == 0
+      && m.empty()
+      && b.size() == 0;
+    }
+    
+    size_type nb_outedges() const {
+      size_type nb = 0;
+      nb += f.size();
+      nb += nb_outedges_of_middle();
+      nb += b.size();
+      return nb;
+    }
+    
+    void push_vertex_back(vtxid_type v) {
+      check();
+      size_type d = out_degree_of_vertex(get_graph(), v);
+      // FORMIKE: this optimization might actually be slowing down things
+      // MIKE: this is not an optimization; it's necessary to maintain invariant 1 above
+      if (d > 0)
+        m.push_back(v);
+      check();
+    }
+    
+    /*
+     void push_edgelist_back(edgelist_type edges) {
+     assert(b.size() == 0);
+     check();
+     b = edges;
+     check();
+     } */
+    
+    edgelist_type pop_edgelist_back() {
+      size_type nb_outedges1 = nb_outedges();
+      assert(nb_outedges1 > 0);
+      edgelist_type edges;
+      check();
+      if (b.size() > 0) {
+        edges.swap(b);
+      } else if (! m.empty()) {
+        // FORMIKE: if we allow storing nodes with zero out edges,
+        // then we may consider having a while loop here, to pop
+        // from middle until we get a node with more than zero edges
+        edges = create_edgelist(m.pop_back());
+      } else {
+        assert(f.size() > 0);
+        edges.swap(f);
+      }
+      check();
+      size_type nb_popped_edges = edges.size();
+      assert(nb_popped_edges > 0);
+      size_type nb_outedges2 = nb_outedges();
+      assert(nb_outedges2 + nb_popped_edges == nb_outedges1);
+      assert(b.size() == 0);
+      return edges;
+    }
+    
+    // pops the back edgelist containing at most `nb` edges
+    /*
+     edgelist_type pop_edgelist_back_at_most(size_type nb) {
+     size_type nb_outedges1 = nb_outedges();
+     edgelist_type edges = pop_edgelist_back();
+     size_type nb_edges1 = edges.size();
+     if (nb_edges1 > nb) {
+     size_type nb_edges_to_keep = nb_edges1 - nb;
+     // FORMIKE: could have a split(edges, nb_to_keep, edges_dst) method to combine take/drop
+     edgelist_type edges_to_keep = edgelist_type::take(edges, nb_edges_to_keep);
+     edges = edgelist_type::drop(edges, nb_edges_to_keep);
+     push_edgelist_back(edges_to_keep);
+     }
+     size_type nb_edges2 = edges.size();
+     assert(nb_edges2 <= nb);
+     assert(nb_edges2 >= 0);
+     size_type nb_outedges2 = nb_outedges();
+     assert(nb_outedges2 + nb_edges2 == nb_outedges1);
+     check();
+     return edges;
+     } */
+    
+    /* The container is erased after the first `nb` edges.
+     *
+     * The erased edges are moved to `other`.
+     */
+    void split(size_type nb, self_type& other) {
+      check();// other.check();
+      assert(other.nb_outedges() == 0);
+      size_type nb_outedges1 = nb_outedges();
+      assert(nb_outedges1 >= nb);
+      if (nb_outedges1 == nb)
+        return;
+      size_type nb_f = f.size();
+      size_type nb_m = nb_outedges_of_middle();
+      if (nb <= nb_f) { // target in front edgelist
+        m.swap(other.m);
+        b.swap(other.b);
+        edgelist_type edges = f;
+        f = edgelist_type::take(edges, nb);
+        other.f = edgelist_type::drop(edges, nb);
+        nb -= f.size();
+      } else if (nb <= nb_f + nb_m) { // target in middle sequence
+        b.swap(other.b);
+        nb -= nb_f;
+        vtxid_type middle_vertex = -1000;
+        bool found = m.split([nb] (vtxid_type n) { return nb <= n; }, middle_vertex, other.m);
+        assert(found && middle_vertex != -1000);
+        edgelist_type edges = create_edgelist(middle_vertex);
+        nb -= nb_outedges_of_middle();
+        b = edgelist_type::take(edges, nb);
+        other.f = edgelist_type::drop(edges, nb);
+        nb -= b.size();
+      } else { // target in back edgelist
+        nb -= nb_f + nb_m;
+        edgelist_type edges = b;
+        b = edgelist_type::take(edges, nb);
+        other.b = edgelist_type::drop(edges, nb);
+        nb -= b.size();
+      }
+      size_type nb_outedges2 = nb_outedges();
+      size_type nb_other_outedges = other.nb_outedges();
+      assert(nb_outedges1 == nb_outedges2 + nb_other_outedges);
+      assert(nb == 0);
+      check(); other.check();
+    }
+    
+    // concatenate with data of `other`; leaving `other` empty
+    // pre: back edgelist empty
+    // pre: front edgelist of `other` empty
+    void concat(self_type& other) {
+      size_type nb_outedges1 = nb_outedges();
+      size_type nb_outedges2 = other.nb_outedges();
+      assert(b.size() == 0);
+      assert(other.f.size() == 0);
+      m.concat(other.m);
+      b.swap(other.f);
+      assert(nb_outedges() == nb_outedges1 + nb_outedges2);
+      assert(other.nb_outedges() == 0);
+    }
+    // FORMIKE: let's call the function above "concat_core",
+    // and have a function "concat" that pushes s1.b and s2.f into the middle sequences
+    
+    void swap(self_type& other) {
+      check();
+      other.check();
+      // size_type nb1 = nb_outedges();
+      // size_type nb2 = other.nb_outedges();
+      f.swap(other.f);
+      m.swap(other.m);
+      b.swap(other.b);
+      // assert(nb2 == nb_outedges());
+      // assert(nb1 == other.nb_outedges());
+      check(); other.check();
+    }
+    
+    void clear_when_front_and_back_empty() {
+      check();
+      m.clear();
+      assert(nb_outedges() == 0);
+      check();
+    }
+    
+    void clear() {
+      check();
+      f = edgelist_type();
+      m.clear();
+      b = edgelist_type();
+      assert(nb_outedges() == 0);
+      check();
+    }
+    
+    template <class Body>
+    void for_each_edgelist(const Body& func) const {
+      if (f.size() > 0)
+        func(f);
+      m.for_each([&] (vtxid_type v) { func(create_edgelist(v)); });
+      if (b.size() > 0)
+        func(b);
+    }
+    
+    template <class Body>
+    void for_each_edgelist_when_front_and_back_empty(const Body& func) const {
+      m.for_each([&] (vtxid_type v) { func(create_edgelist(v)); });
+    }
+    
+    template <class Body>
+    void for_each_outedge_when_front_and_back_empty(const Body& func) const {
+      for_each_edgelist_when_front_and_back_empty([&] (edgelist_type edges) {
+        for (auto e = edges.lo; e < edges.hi; e++)
+          func(*e);
+      });
+    }
+    
+    template <class Body>
+    void for_each_outedge(const Body& func) const {
+      for_each_edgelist([&] (edgelist_type edges) {
+        for (auto e = edges.lo; e < edges.hi; e++)
+          func(*e);
+      });
+    }
+    
+    // Warning: "func" may only call "push_vertex_back"
+    // Returns the number of edges that have been processed
+    template <class Body>
+    size_type for_at_most_nb_outedges(size_type nb, const Body& func) {
+      size_type nb_left = nb;
+      size_type f_size = f.size();
+      // process front if not empty
+      if (f_size > 0) {
+        if (f_size >= nb_left) {
+          // process only part of the front
+          auto e = edgelist_type::take(f, nb_left);
+          f = edgelist_type::drop(f, nb_left);
+          e.for_each(func);
+          return nb;
+        } else {
+          // process all of the front, to begin with
+          nb_left -= f_size;
+          f.for_each(func);
+          f.clear();
+        }
+      }
+      // assume now front to be empty, and work on middle
+      while (nb_left > 0 && ! m.empty()) {
+        vtxid_type v = m.pop_back();
+        edgelist_type edges = create_edgelist(v);
+        size_type d = edges.size();
+        if (d <= nb_left) {
+          // process all of the edges associated with v
+          edges.for_each(func);
+          nb_left -= d;
+        } else { // d > nb_left
+          // save the remaining edges into the front
+          f = edgelist_type::drop(edges, nb_left);
+          auto edges2 = edgelist_type::take(edges, nb_left);
+          edges2.for_each(func);
+          return nb;
+        }
+      }
+      // process the back if not empty
+      size_type b_size = b.size();
+      if (nb_left > 0 && b_size > 0) {
+        if (b_size >= nb_left) {
+          // process only part of the back, leave the rest to the front
+          auto e = edgelist_type::take(b, nb_left);
+          f = edgelist_type::drop(b, nb_left);
+          b.clear();
+          e.for_each(func);
+          return nb;
+        } else {
+          // process all of the back
+          nb_left -= b_size;
+          b.for_each(func);
+          b.clear();
+        }
+      }
+      return nb - nb_left;
+    }
+    
+    graph_type get_graph() const {
+      return m.get_measure().get_env().g;
+    }
+    
+    void set_graph(graph_type g) {
+      using measure_type = typename cache_type::measure_type;
+      graph_env env(g);
+      measure_type meas(env);
+      m.set_measure(meas);
+    }
+    
+  };
+  
+  /*---------------------------------------------------------------------*/
+  
+  static constexpr int chunk_capacity = 1024;
+  
+  template <
+  class Vertex,
+  class Cache_policy
+  >
+  using chunkedbag = pasl::data::chunkedseq::bootstrapped::bagopt<Vertex, chunk_capacity, Cache_policy>;
+  
+  template <
+  class Vertex,
+  class Cache_policy
+  >
+  using chunkedstack = pasl::data::chunkedseq::bootstrapped::stack<Vertex, chunk_capacity, Cache_policy>;
+  
+} // end namespace
+
+/*---------------------------------------------------------------------*/
+
+template <class Graph>
+using frontiersegbag = frontiersegbase::frontiersegbase<Graph, frontiersegbase::chunkedbag>;
+
+template <class Graph>
+using frontiersegstack = frontiersegbase::frontiersegbase<Graph, frontiersegbase::chunkedstack>;
+
+template <class Vertex_id, bool Is_alias = false>
+using flat_adjlist = adjlist<flat_adjlist_seq<Vertex_id, Is_alias>>;
+
+template <class Vertex_id>
+using flat_adjlist_alias = flat_adjlist<Vertex_id, true>;
+
+template <class Vertex_id>
+flat_adjlist_alias<Vertex_id> get_alias_of_adjlist(const flat_adjlist<Vertex_id>& graph) {
+  flat_adjlist_alias<Vertex_id> alias;
+  alias.adjlists = graph.adjlists.get_alias();
+  alias.nb_edges = graph.nb_edges;
+  return alias;
+}
+  
 template <class Index, class Item>
 bool try_to_mark_non_idempotent(std::atomic<Item>* visited, Index target) {
   Item orig = 0;
@@ -4833,27 +5643,30 @@ bool try_to_mark(const Adjlist& graph,
     return try_to_mark_non_idempotent<vtxid_type,Item>(visited, target);
   }
 }
-  
+
 int pdfs_split_cutoff = 128;
 int pdfs_poll_cutoff = 16;
-  
-template <class node, class Frontier, class Adjlist>
+
+template <class node, class Frontier, class Adjlist_alias>
 class pdfs_rec : public node {
 public:
   
-  using vtxid_type = typename Adjlist::vtxid_type;
+  using vtxid_type = typename Adjlist_alias::vtxid_type;
   using edgelist_type = typename Frontier::edgelist_type;
+  using graph_alias_type = typename Adjlist_alias::alias_type;
   
-  const Adjlist& graph;
   Frontier frontier;
   std::atomic<int>* visited;
+  graph_alias_type graph_alias;
   
   int nb_since_last_split;
   node* join;
   
-  pdfs_rec(const Adjlist& graph, std::atomic<int>* visited, node* join)
-  : graph(graph), frontier(graph), visited(visited), join(join) { }
-    
+  pdfs_rec(const Adjlist_alias& graph_alias, std::atomic<int>* visited, node* join)
+  : visited(visited), join(join), graph_alias(graph_alias) {
+    frontier.set_graph(graph_alias);
+  }
+  
   enum {
     entry,
     loop_header,
@@ -4878,10 +5691,10 @@ public:
       }
       case loop_body: {
         nb_since_last_split +=
-          frontier.for_at_most_nb_outedges(pdfs_poll_cutoff, [&](vtxid_type other_vertex) {
-            if (try_to_mark<Adjlist, int, false>(graph, visited, other_vertex))
-              frontier.push_vertex_back(other_vertex);
-          });
+        frontier.for_at_most_nb_outedges(pdfs_poll_cutoff, [&](vtxid_type other_vertex) {
+          if (try_to_mark<graph_alias_type, int, false>(graph_alias, visited, other_vertex))
+            frontier.push_vertex_back(other_vertex);
+        });
         node::jump_to(loop_header);
         break;
       }
@@ -4906,7 +5719,7 @@ public:
   }
   
   pasl::sched::thread_p split(size_t) {
-    auto n = new pdfs_rec(graph, visited);
+    auto n = new pdfs_rec(graph_alias, visited, join);
     node::split_with(n, join);
     auto m = frontier.nb_outedges() / 2;
     frontier.split(m, n->frontier);
@@ -4915,6 +5728,12 @@ public:
     return nullptr;
   }
   
+};
+
+template <class Vertex_id>
+class graph_constants {
+public:
+  static constexpr Vertex_id unknown_vtxid = Vertex_id(-1);
 };
 
 template <class node, class Frontier, class Adjlist>
@@ -4926,10 +5745,11 @@ public:
   
   const Adjlist& graph;
   std::atomic<int>* visited;
+  std::atomic<int>** result;
   vtxid_type source;
   
-  pdfs(const Adjlist& graph, vtxid_type source)
-  : source(source), graph(graph) { }
+  pdfs(const Adjlist& graph, vtxid_type source, std::atomic<int>*& _result)
+  : source(source), graph(graph), result(&_result) { }
   
   enum {
     entry,
@@ -4941,7 +5761,7 @@ public:
     switch (node::current_block_id) {
       case entry: {
         auto nb_vertices = graph.get_nb_vertices();
-        visited = (std::atomic<int>*)malloc(sizeof(std::atomic<int>) * nb_vertices);
+        visited = malloc_array<std::atomic<int>>(nb_vertices);
         node::parallel_for(0, nb_vertices, [&] (int i) {
           visited[i].store(0);
         }, dfs);
@@ -4953,12 +5773,230 @@ public:
         break;
       }
       case exit: {
+        *result = visited;
         break;
       }
     }
   }
   
 };
+
+int pbfs_cutoff = 1024;
+int pbfs_polling_cutoff = 1024;
+
+template <class Index, class Item>
+static bool pbfs_try_to_set_dist(Index target,
+                                 Item unknown, Item dist,
+                                 std::atomic<Item>* dists) {
+  if (dists[target].load(std::memory_order_relaxed) != unknown)
+    return false;
+  else if (! dists[target].compare_exchange_strong(unknown, dist))
+    return false;
+  return true;
+}
+
+template <class node, class Frontier, class Adjlist_alias>
+class pbfs_process_layer : public node {
+public:
+  
+  using vtxid_type = typename Adjlist_alias::vtxid_type;
+  using edgelist_type = typename Frontier::edgelist_type;
+  vtxid_type unknown = graph_constants<vtxid_type>::unknown_vtxid;
+  using graph_alias_type = typename Adjlist_alias::alias_type;
+  using outset_type = outset_of<node>;
+  
+  graph_alias_type graph_alias;
+  Frontier prev;
+  Frontier next;
+  size_t nb_outedges;
+  vtxid_type dist_of_next;
+  std::atomic<vtxid_type>* dists;
+  Frontier* _next;
+  
+  std::vector<std::pair<outset_type*, Frontier*>> futures;
+  
+  pbfs_process_layer(const Adjlist_alias& graph_alias,
+                     vtxid_type dist_of_next,
+                     std::atomic<vtxid_type>* dists,
+                     Frontier* _prev,
+                     Frontier* _next)
+  : graph_alias(graph_alias), prev(graph_alias), next(graph_alias),
+  dist_of_next(dist_of_next), dists(dists), _next(_next) {
+    _prev->swap(prev);
+  }
+  
+  enum {
+    entry,
+    process_loop_header,
+    process_loop_body,
+    concat_loop_header,
+    concat_loop_body,
+    concat_loop_after_force,
+    exit
+  };
+  
+  void body() {
+    switch (node::current_block_id) {
+      case entry: {
+        nb_outedges = prev.nb_outedges();
+        node::jump_to(process_loop_header);
+        break;
+      }
+      case process_loop_header: {
+        if (nb_outedges > 0) {
+          node::jump_to(process_loop_body);
+        } else {
+          node::jump_to(concat_loop_header);
+        }
+        break;
+      }
+      case process_loop_body: {
+        prev.for_at_most_nb_outedges(pbfs_polling_cutoff, [&] (vtxid_type other) {
+          if (pbfs_try_to_set_dist(other, unknown, dist_of_next, dists)) {
+            next.push_vertex_back(other);
+          }
+        });
+        nb_outedges = prev.nb_outedges();
+        node::jump_to(process_loop_header);
+        break;
+      }
+      case concat_loop_header: {
+        if (futures.empty()) {
+          node::jump_to(exit);
+        } else {
+          node::jump_to(concat_loop_body);
+        }
+        break;
+      }
+      case concat_loop_body: {
+        node::force(futures.back().first,
+                    concat_loop_after_force);
+        break;
+      }
+      case concat_loop_after_force: {
+        auto p = futures.back();
+        futures.pop_back();
+        next.concat(*p.second);
+        delete p.second;
+        node::deallocate_future(p.first);
+        break;
+      }
+      case exit: {
+        _next->swap(next);
+        break;
+      }
+    }
+  }
+  
+  size_t size() {
+    return nb_outedges;
+  }
+  
+  pasl::sched::thread_p split(size_t) {
+    Frontier prev2;
+    prev.split(prev.nb_outedges() / 2, prev2);
+    Frontier* next2 = new Frontier(graph_alias);
+    auto n = new pbfs_process_layer(graph_alias, dist_of_next, dists, &prev2, next2);
+    outset_type* out = node::split_and_join_with(n);
+    futures.push_back(std::make_pair(out, next2));
+    return n;
+  }
+  
+};
+
+template <class node, class Frontier, class Adjlist_alias>
+class pbfs : public node {
+public:
+  
+  using vtxid_type = typename Adjlist_alias::vtxid_type;
+  using edgelist_type = typename Frontier::edgelist_type;
+  vtxid_type unknown = graph_constants<vtxid_type>::unknown_vtxid;
+  using adjlist_alias_type = typename Adjlist_alias::alias_type;
+  
+  adjlist_alias_type graph_alias;
+  std::atomic<vtxid_type>* dists;
+  std::atomic<vtxid_type>** result;
+  vtxid_type source;
+  Frontier frontiers[2];
+  vtxid_type dist = 0;
+  vtxid_type cur = 0; // either 0 or 1, depending on parity of dist
+  vtxid_type nxt = 1; // either 1 or 0, depending on parity of dist
+  
+  pbfs(Adjlist_alias graph_alias, vtxid_type source, std::atomic<vtxid_type>*& _result)
+  : source(source), graph_alias(graph_alias), result(&_result) {
+    frontiers[0].set_graph(graph_alias);
+    frontiers[1].set_graph(graph_alias);
+  }
+  
+  enum {
+    entry,
+    init_source,
+    loop_header,
+    loop_body,
+    exit
+  };
+  
+  void body() {
+    switch (node::current_block_id) {
+      case entry: {
+        auto nb_vertices = graph_alias.get_nb_vertices();
+        dists = malloc_array<std::atomic<vtxid_type>>(nb_vertices);
+        node::parallel_for(0, nb_vertices, [&] (int i) {
+          dists[i].store(unknown);
+        }, init_source);
+        break;
+      }
+      case init_source: {
+        dists[source].store(dist);
+        frontiers[0].push_vertex_back(source);
+        node::jump_to(loop_header);
+        break;
+      }
+      case loop_header: {
+        if (frontiers[cur].empty()) {
+          node::jump_to(exit);
+        } else {
+          node::jump_to(loop_body);
+        }
+        break;
+      }
+      case loop_body: {
+        dist++;
+        if (frontiers[cur].nb_outedges() <= pbfs_cutoff) {
+          frontiers[cur].for_each_outedge_when_front_and_back_empty([&] (vtxid_type other) {
+            if (pbfs_try_to_set_dist(other, unknown, dist, dists))
+              frontiers[nxt].push_vertex_back(other);
+          });
+          frontiers[cur].clear_when_front_and_back_empty();
+        } else {
+          Frontier* prev = &frontiers[cur];
+          Frontier* next = &frontiers[nxt];
+          node::call(new pbfs_process_layer<node, Frontier, adjlist_alias_type>(graph_alias,
+                                                                                dist,
+                                                                                dists,
+                                                                                prev,
+                                                                                next),
+                     loop_header);
+        }
+        cur = 1 - cur;
+        nxt = 1 - nxt;
+        break;
+      }
+      case exit: {
+        *result = dists;
+        break;
+      }
+    }
+  }
+  
+};
+  
+} // end namespace
+
+/*---------------------------------------------------------------------*/
+
+
+/*---------------------------------------------------------------------*/
 
 void test_random_number_generator() {
   constexpr int nb_buckets = 40;
@@ -4983,13 +6021,6 @@ void test_random_number_generator() {
   std::cout << "max = " << maxv << std::endl;
   std::cout << "min = " << minv << std::endl;
 }
-  
-} // end namespace
-
-/*---------------------------------------------------------------------*/
-
-
-/*---------------------------------------------------------------------*/
 
 namespace cmdline = pasl::util::cmdline;
 
@@ -5093,6 +6124,81 @@ void do_seidel() {
   });
 }
 
+template <class Adjlist, class Load_visited_fct>
+void report_dfs_results(const Adjlist& graph,
+                        const Load_visited_fct& load_visited_fct) {
+  using vtxid_type = typename Adjlist::vtxid_type;
+  vtxid_type nb_vertices = graph.get_nb_vertices();
+  vtxid_type nb_visited = pbbs::sequence::plusReduce((vtxid_type*)nullptr, nb_vertices, load_visited_fct);
+  std::cout << "nb_visited\t" << nb_visited << std::endl;
+}
+
+template <class Adjlist, class Counter_cell, class Load_dist_fct>
+void report_bfs_results(const Adjlist& graph,
+                         Counter_cell unknown,
+                         const Load_dist_fct& load_dist_fct) {
+  using vtxid_type = typename Adjlist::vtxid_type;
+  vtxid_type nb_vertices = graph.get_nb_vertices();
+  vtxid_type max_dist = pbbs::sequence::maxReduce((vtxid_type*)nullptr, nb_vertices, load_dist_fct);
+  auto is_visited = [&] (vtxid_type i) { return load_dist_fct(i) == unknown ? 0 : 1; };
+  vtxid_type nb_visited = pbbs::sequence::plusReduce((vtxid_type*)nullptr, nb_vertices, is_visited);
+  std::cout << "max_dist\t" << max_dist << std::endl;
+  std::cout << "nb_visited\t" << nb_visited << std::endl;
+}
+
+template <class node, class Adjlist>
+void launch_graph_benchmark_for_representation(std::string bench) {
+  using vtxid_type = typename Adjlist::vtxid_type;
+  using adjlist_type = Adjlist;
+  using adjlist_alias_type = typename adjlist_type::alias_type;
+  using frontier_type = benchmarks::frontiersegbag<adjlist_alias_type>;
+  int source = cmdline::parse_or_default_int("source", 0);
+  std::string infile = cmdline::parse_or_default_string("infile", "");
+  adjlist_type* graph = new adjlist_type;
+  std::atomic<int>* visited = nullptr;
+  std::atomic<vtxid_type>* dists = nullptr;
+  benchmarks::read_adjlist_from_file<vtxid_type>(infile, *graph);
+  auto graph_alias = benchmarks::get_alias_of_adjlist(*graph);
+  if (bench == "pdfs") {
+    add_measured(new benchmarks::pdfs<node, frontier_type, adjlist_alias_type>(graph_alias, source, visited));
+  } else if (bench == "pbfs") {
+    add_measured(new benchmarks::pbfs<node, frontier_type, adjlist_alias_type>(graph_alias, source, dists));
+  } else {
+    assert(false);
+  }
+  add_todo([=]{
+    if (visited != nullptr) {
+      report_dfs_results(*graph, [&] (vtxid_type i) { return visited[i].load(); });
+    } else if (dists != nullptr) {
+      using vtxid_type = typename Adjlist::vtxid_type;
+      vtxid_type unknown = benchmarks::graph_constants<vtxid_type>::unknown_vtxid;
+      report_bfs_results(*graph, unknown, [&] (vtxid_type i) { return dists[i].load(); });
+    }
+    delete graph;
+    if (visited != nullptr) {
+      free(visited);
+    } else if (dists != nullptr) {
+      free(dists);
+    }
+  });
+}
+
+template <class node>
+void launch_graph_benchmark(std::string bench) {
+  using vtxid_type32 = int;
+  using adjlist_seq_type32 = benchmarks::flat_adjlist_seq<vtxid_type32, false>;
+  using adjlist_type32 = benchmarks::adjlist<adjlist_seq_type32>;
+  using vtxid_type64 = long;
+  using adjlist_seq_type64 = benchmarks::flat_adjlist_seq<vtxid_type64, false>;
+  using adjlist_type64 = benchmarks::adjlist<adjlist_seq_type64>;
+  int nb_bits = cmdline::parse_or_default_int("bits", 32);
+  if (nb_bits == 32) {
+    launch_graph_benchmark_for_representation<node, adjlist_type32>(bench);
+  } else {
+    launch_graph_benchmark_for_representation<node, adjlist_type64>(bench);
+  }
+}
+
 std::string cmd_param = "cmd";
 
 template <class node>
@@ -5138,6 +6244,12 @@ void choose_command() {
   });
   c.add("seidel_async", [&] {
     do_seidel<benchmarks::seidel_async<node>>();
+  });
+  c.add("pdfs", [&] {
+    launch_graph_benchmark<node>("pdfs");
+  });
+  c.add("pbfs", [&] {
+    launch_graph_benchmark<node>("pbfs");
   });
   c.find_by_arg(cmd_param)();
 }
@@ -5213,7 +6325,7 @@ int main(int argc, char** argv) {
     });
     delete test_mtx;
   } else if (cmd == "test_random_number_generator") {
-    benchmarks::test_random_number_generator();
+    test_random_number_generator();
   } else {
     pasl::sched::threaddag::init();
     launch();
