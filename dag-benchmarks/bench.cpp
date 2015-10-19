@@ -4637,7 +4637,12 @@ void seidel_sequential(int numiters, int N, int block_size, double* data) {
     }
   }
 }
-    
+  
+using private_clock_type = struct {
+  long time;
+  void* _padding[7];
+};
+  
 template <class node>
 class seidel_async_parallel_rec : public node {
 public:
@@ -4656,25 +4661,75 @@ public:
   
   int N; int block_size; double* data;
   matrix_type<std::atomic<int>>* incounters;
+  matrix_type<private_clock_type>* clocks;
+  
   node* join;
   bool initial_thread = true;
 
   seidel_async_parallel_rec(matrix_type<std::atomic<int>>* incounters,
+                            matrix_type<private_clock_type>* clocks,
                             node* join,
                             int N, int block_size, double* data)
-  : incounters(incounters), join(join), N(N), block_size(block_size), data(data) { }
+  : incounters(incounters), clocks(clocks), join(join), N(N),
+  block_size(block_size), data(data) { }
   
-  void try_to_activate_block(int i, int j) {
+
+  void incr_time(int i, int j) {
+    clocks->subscript(i, j).time++;
+  }
+  
+  void process_block(int i, int j) {
+    int ii = i * block_size;
+    int jj = j * block_size;
+    seidel_block(N, &data[N * ii + jj], block_size);
+  }
+  
+  void reset_block_count(int i, int j) {
+    int nb_neighbors;
     if ((i == 0) || (j == 0)) {
-      frontier.push_back(std::make_pair(i, j));
-      return;
+      nb_neighbors = 2;
+    } else {
+      nb_neighbors = 4;
     }
-    std::atomic<int>& incounter = incounters->subscript(i, j);
-    int before = incounter++;
+    incounters->subscript(i, j).store(nb_neighbors);
+  }
+  
+  void decr_block(int i, int j) {
+    int before = incounters->subscript(i, j)++;
     assert((before == 0) || (before == 1));
     if (before == 1) {
-      incounter.store(0);
       frontier.push_back(std::make_pair(i, j));
+    }
+  }
+  
+  void decr_neighbors(int i, int j) {
+    if ((i > 0) && (j > 0)) {
+      decr_block(i - 1, j);
+      decr_block(i, j - 1);
+    } else if ((i > 0) && (j == 0)) {
+      decr_block(i - 1, j);
+    } else if ((i == 0) && (j > 0)) {
+      decr_block(i, j - 1);
+    } else if ((i == 0) && (j == 0)) {
+      // nothing to do
+    } else {
+      assert(false);
+    }
+    if (clocks->subscript(i, j).time == 0) {
+      return;
+    }
+    int n = incounters->n;
+    if (((i + 1) < n) && ((j + 1) < n)) {
+      decr_block(i + 1, j);
+      decr_block(i, j + 1);
+    } else if (((i + 1) < n) && ((j + 1) == n)) {
+      decr_block(i + 1, j);
+    } else if (((i + 1) == n) && ((j + 1) < n)) {
+      decr_block(i, j + 1);
+    } else if (((i + 1) == n) && ((j + 1) == n)) {
+      // nothing to do
+    } else {
+      assert(false);
     }
   }
   
@@ -4685,7 +4740,7 @@ public:
           break;
         }
         if (initial_thread) {
-          frontier.push_back(std::make_pair(0, 0));
+          decr_block(0, 0);
         }
         node::jump_to(loop_header);
         break;
@@ -4703,22 +4758,10 @@ public:
         coordinate_type coordinate = frontier.pop_front();
         int i = coordinate.first;
         int j = coordinate.second;
-        int ii = i * block_size;
-        int jj = j * block_size;
-        seidel_block(N, &data[N * ii + jj], block_size);
-        int n = incounters->n;
-        if (((i + 1) < n) && ((j + 1) < n)) {
-          try_to_activate_block(i + 1, j);
-          try_to_activate_block(i, j + 1);
-        } else if (((i + 1) < n) && ((j + 1) == n)) {
-          try_to_activate_block(i + 1, j);
-        } else if (((i + 1) == n) && ((j + 1) < n)) {
-          try_to_activate_block(i, j + 1);
-        } else if (((i + 1) == n) && ((j + 1) == n)) {
-          // nothing to do
-        } else {
-          assert(false);
-        }
+        incr_time(i, j);
+        process_block(i, j);
+        reset_block_count(i, j);
+        decr_neighbors(i, j);
         node::jump_to(loop_header);
         break;
       }
@@ -4733,7 +4776,7 @@ public:
   }
   
   pasl::sched::thread_p split(size_t) {
-    auto n = new seidel_async_parallel_rec(incounters, join, N, block_size, data);
+    auto n = new seidel_async_parallel_rec(incounters, clocks, join, N, block_size, data);
     n->initial_thread = false;
     assert(size() >= 2);
     size_t half = size() / 2;
@@ -4750,18 +4793,19 @@ public:
   
   enum {
     entry,
-    loop_header,
-    loop_body,
-    loop_epilogue,
+    init_first_row_incounters,
+    init_first_col_incounters,
+    init_incounters,
+    launch,
     exit
   };
   
   int numiters; int N; int block_size; double* data;
   
-  int iter;
   int n;
   matrix_type<std::atomic<int>>* incounters;
-  int nb_incounters;
+  matrix_type<private_clock_type>* clocks;
+  int nb_blocks;
   
   seidel_async(int numiters, int N, int block_size, double* data)
   : numiters(numiters), N(N), block_size(block_size), data(data) { }
@@ -4769,35 +4813,41 @@ public:
   void body() {
     switch (node::current_block_id) {
       case entry: {
-        iter = 0;
         n = (N - 2) / block_size;
         incounters = new matrix_type<std::atomic<int>>(n);
-        nb_incounters = n * n;
-        node::parallel_for(0, nb_incounters, [&] (long i) {
-          incounters->items[i].store(0);
-        }, loop_header);
+        clocks = new matrix_type<private_clock_type>(n);
+        nb_blocks = n * n;
+        node::parallel_for(0, nb_blocks, [&] (long i) {
+          clocks->items[i].time = numiters;
+        }, init_incounters);
         break;
       }
-      case loop_header: {
-        if (iter < numiters) {
-          node::jump_to(loop_body);
-        } else {
-          delete incounters;
-          node::jump_to(exit);
-        }
+      case init_incounters: {
+        node::parallel_for(0, nb_blocks, [&] (long i) {
+          incounters->items[i].store(2);
+        }, init_first_row_incounters);
         break;
       }
-      case loop_body: {
-        node::finish(new seidel_async_parallel_rec<node>(incounters, this, N, block_size, data),
-                     loop_epilogue);
+      case init_first_row_incounters: {
+        node::parallel_for(0, n, [&] (int i) {
+          incounters->subscript(i, 0).store(1);
+        }, init_first_col_incounters);
         break;
       }
-      case loop_epilogue: {
-        iter++;
-        node::jump_to(loop_header);
+      case init_first_col_incounters: {
+        node::parallel_for(0, n, [&] (int i) {
+          incounters->subscript(0, i).store(1);
+        }, launch);
+        break;
+      }
+      case launch: {
+        node::finish(new seidel_async_parallel_rec<node>(incounters, clocks, this, N, block_size, data),
+                     exit);
         break;
       }
       case exit: {
+        delete incounters;
+        delete clocks;
         break;
       }
     }
