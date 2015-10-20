@@ -15,6 +15,7 @@
 #include <type_traits>
 
 #include "tagged.hpp"
+#include "microtime.hpp"
 
 /***********************************************************************/
 
@@ -25,10 +26,16 @@ namespace gsnzi {
 static constexpr int cache_align_szb = 128;
 static constexpr int nb_children = 2;
 static constexpr int max_height = 6;
-static constexpr int saturation_upper_bound = 128;
-  
+static constexpr int saturation_upper_bound = 32;
+static constexpr double sleep_time = 10000.0;
+static constexpr int initial_height = 4;
+
+constexpr int nb_leaves = 1 << max_height;
+constexpr int nb_leaves_target = nb_leaves / 2;
+
 class node {
 private:
+public:
   
   template <class T>
   static T* tagged_pointer_of(T* n) {
@@ -124,6 +131,9 @@ public:
       if (succ && (x.v == saturation_upper_bound)) {
         saturated.store(true);
       }
+      if (! succ) {
+        pasl::util::microtime::microsleep(sleep_time);
+      }
       if (x.c == one_half) {
         if (! is_root_node(parent)) {
           parent->increment();
@@ -161,11 +171,14 @@ public:
         } else {
           return false;
         }
+      } else {
+        pasl::util::microtime::microsleep(sleep_time);
       }
     }
   }
   
-  node* try_create_child(int i) {
+  node* try_create_child(int i, bool& created_new_child) {
+    created_new_child = false;
     child_pointer_type& child = child_cell_at(i);
     node* orig = child.load();
     if (orig != nullptr) {
@@ -173,11 +186,18 @@ public:
     }
     node* n = new node(this);
     if (child.compare_exchange_strong(orig, n)) {
+      created_new_child = true;
       return n;
     } else {
+      pasl::util::microtime::microsleep(sleep_time);
       delete n;
       return child.load();
     }
+  }
+
+  node* try_create_child(int i) {
+    bool dummy;
+    return try_create_child(i, dummy);
   }
   
   node* get_child(int i) {
@@ -231,6 +251,10 @@ private:
   }
   
   node* root;
+
+  std::atomic<int> nb_at_leaves;
+
+  node** leaves;
   
   void destroy(node* n) {
     if (n == nullptr) {
@@ -241,6 +265,39 @@ private:
     }
     delete n;
   }
+
+  int nb_nodes(node* n) {
+    int nb = 1;
+    for (int i = 0; i < nb_children; i++) {
+      node* c = n->get_child(0);
+      if (c != nullptr) {
+        nb += nb_nodes(c);
+      }
+    }
+    return nb;
+  }
+
+  void grow_to(int height, node* n) {
+    if (height == 0) {
+      return;
+    }
+    for (int i = 0; i < nb_children; i++) {
+      node* c = n->try_create_child(i);
+      grow_to(height - 1, c);
+    }
+  }
+
+  unsigned int leaf_index_of_path(unsigned int path) {
+    unsigned int result = path & ((1 << (max_height + 1)) - 1);
+    assert( result >= 0);
+    assert(result < nb_leaves);
+    return result;
+  }
+
+  node*& leaf_node_from_path(unsigned int path) {
+    assert(leaves != nullptr);
+    return leaves[leaf_index_of_path(path)];
+  }
   
 public:
   
@@ -248,15 +305,27 @@ public:
   
   tree() {
     root = new node;
+    grow_to(initial_height, root);
+    nb_at_leaves.store(0);
+    leaves = nullptr;
   }
   
   ~tree() {
     destroy(root);
+    if (leaves != nullptr) {
+      free(leaves);
+    }
   }
   
   node* get_target_of_path(unsigned int path) {
     node* result = root;
     int height = 0;
+    if (leaves != nullptr) {
+      node* n = leaf_node_from_path(path);
+      if (n != nullptr) {
+        return n;
+      }
+    }
     while (true) {
       if (height >= max_height) {
         break;
@@ -265,7 +334,19 @@ public:
         break;
       }
       int i = path & 1;
-      result = result->try_create_child(i);
+      bool created_new_child;
+      result = result->try_create_child(i, created_new_child);
+      if (created_new_child && (height + 1 == max_height)) {
+        if ((nb_at_leaves.load() <= nb_leaves_target) && (++nb_at_leaves == nb_leaves_target)) {
+          leaves = (node**)malloc(sizeof(node*) * nb_leaves);
+          for (int i = 0; i < nb_leaves; i++) {
+            leaves[i] = nullptr;
+          }
+        }
+      }
+      if ((leaves != nullptr) && (height + 1 == max_height) && (leaf_node_from_path(path) == nullptr)) {
+        leaf_node_from_path(path) = result;
+      }
       path = (path >> 1);
       height++;
     }

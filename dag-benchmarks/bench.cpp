@@ -3865,7 +3865,8 @@ public:
   snzi_type snzi;
 
   node_type* get_target_for(int id) {
-    return snzi.random_leaf_of(id);
+    //    return snzi.random_leaf_of(id);
+    return snzi.ith_leaf_node(id);
   }
   
   void increment(node_type* target) {
@@ -3887,7 +3888,8 @@ public:
   snzi_type snzi;
   
   node_type* get_target_for(int id) {
-    return snzi.get_target_of_value(id);
+    //return snzi.get_target_of_value(id);
+    return snzi.get_target_of_path(id);
   }
   
   void increment(node_type* target) {
