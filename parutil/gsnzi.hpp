@@ -24,7 +24,7 @@ namespace gsnzi {
   
 static constexpr int cache_align_szb = 128;
 static constexpr int nb_children = 2;
-static constexpr int max_height = 8;
+static constexpr int max_height = 6;
 static constexpr int saturation_upper_bound = 128;
   
 class node {

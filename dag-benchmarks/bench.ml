@@ -403,7 +403,7 @@ let name = "snzi_alternated_duration"
 let prog = "./bench.opt"
 
 let mk_snzis =
-  mk_list string "snzi" ["fixed"; "growable";]
+  mk_list string "snzi" ["fixed"; "growable"; "single_cell";]
 
 let mk_snzi_alternated_mixed_duration =
     mk string "cmd" name

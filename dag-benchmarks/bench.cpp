@@ -3832,6 +3832,29 @@ void benchmark_snzi_thread(int my_id,
   nb_operations1 = c;
   nb_operations2 = 0;
 }
+
+class single_cell_snzi_wrapper {
+public:
+  
+  using snzi_type = std::atomic<int>;
+  using node_type = void*;
+  
+  snzi_type snzi;
+
+  node_type* get_target_for(int id) {
+    return nullptr;
+  }
+  
+  void increment(node_type* target) {
+    snzi++;
+  }
+  
+  void decrement(node_type* target) {
+    snzi--;
+  }
+  
+};
+
   
 class fixed_size_snzi_wrapper {
 public:
@@ -4234,6 +4257,7 @@ void launch_snzi_alternated_duration() {
   int nb_milliseconds = pasl::util::cmdline::parse_int("nb_milliseconds");
   fixed_size_snzi_wrapper* fixed_snzi = nullptr;
   growable_size_snzi_wrapper* growable_snzi = nullptr;
+  single_cell_snzi_wrapper* single_cell_snzi = nullptr;
   pasl::util::cmdline::argmap_dispatch c;
   c.add("fixed", [&] {
     fixed_snzi = new fixed_size_snzi_wrapper;
@@ -4241,12 +4265,17 @@ void launch_snzi_alternated_duration() {
   c.add("growable", [&] {
     growable_snzi = new growable_size_snzi_wrapper;
   });
+  c.add("single_cell", [&] {
+    single_cell_snzi = new single_cell_snzi_wrapper;
+  });
   c.find_by_arg("snzi")();
   auto benchmark_thread = [&] (int my_id, bool& should_stop, long& counter1, long& counter2) {
     if (fixed_snzi != nullptr) {
       benchmark_snzi_thread(my_id, *fixed_snzi, should_stop, counter1, counter2, seed);
     } else if (growable_snzi != nullptr) {
       benchmark_snzi_thread(my_id, *growable_snzi, should_stop, counter1, counter2, seed);
+    } else if (single_cell_snzi != nullptr) {
+      benchmark_snzi_thread(my_id, *single_cell_snzi, should_stop, counter1, counter2, seed);
     } else {
       assert(false);
     }
@@ -4256,6 +4285,8 @@ void launch_snzi_alternated_duration() {
     delete fixed_snzi;
   } else if (growable_snzi != nullptr) {
     delete growable_snzi;
+  } else if (single_cell_snzi != nullptr) {
+    delete single_cell_snzi;
   }
 }
 
