@@ -27,6 +27,7 @@
 #include "pasl.hpp"
 #include "tagged.hpp"
 #include "snzi.hpp"
+#include "gsnzi.hpp"
 #include "microtime.hpp"
 #include "chunkedseq.hpp"
 #include "chunkedbag.hpp"
@@ -3812,6 +3813,69 @@ namespace benchmarks {
   
 template <class node>
 using outset_of = typename node::outset_type;
+  
+template <class Snzi>
+void benchmark_snzi_thread(int my_id,
+                           Snzi& snzi,
+                           bool& should_stop,
+                           long& nb_operations1,
+                           long& nb_operations2,
+                           unsigned int seed) {
+  using node_type = typename Snzi::node_type;
+  long c = 0;
+  while (! should_stop) {
+    node_type* target = snzi.get_target_for(my_id);
+    snzi.increment(target);
+    snzi.decrement(target);
+    c++;
+  }
+  nb_operations1 = c;
+  nb_operations2 = 0;
+}
+  
+class fixed_size_snzi_wrapper {
+public:
+  
+  using snzi_type = pasl::data::snzi::tree<direct::statreeopt::snzi_tree_height>;
+  using node_type = typename snzi_type::node_type;
+  
+  snzi_type snzi;
+
+  node_type* get_target_for(int id) {
+    return snzi.ith_leaf_node(id);
+  }
+  
+  void increment(node_type* target) {
+    target->arrive();
+  }
+  
+  void decrement(node_type* target) {
+    target->depart();
+  }
+  
+};
+  
+class growable_size_snzi_wrapper {
+public:
+  
+  using snzi_type = pasl::data::gsnzi::tree;
+  using node_type = typename snzi_type::node_type;
+  
+  snzi_type snzi;
+  
+  node_type* get_target_for(int id) {
+    return snzi.get_target_of_value(id);
+  }
+  
+  void increment(node_type* target) {
+    target->increment();
+  }
+  
+  void decrement(node_type* target) {
+    target->decrement();
+  }
+  
+};
 
 template <class Incounter>
 void benchmark_incounter_thread(int my_id,
@@ -4161,6 +4225,37 @@ void launch_incounter_mixed_duration() {
   } else if (dyntreeopt_incounter != nullptr) {
     assert(dyntreeopt_incounter->is_activated());
     delete dyntreeopt_incounter;
+  }
+}
+  
+void launch_snzi_alternated_duration() {
+  int seed = pasl::util::cmdline::parse_int("seed");
+  int nb_threads = pasl::util::cmdline::parse_int("proc");
+  int nb_milliseconds = pasl::util::cmdline::parse_int("nb_milliseconds");
+  fixed_size_snzi_wrapper* fixed_snzi = nullptr;
+  growable_size_snzi_wrapper* growable_snzi = nullptr;
+  pasl::util::cmdline::argmap_dispatch c;
+  c.add("fixed", [&] {
+    fixed_snzi = new fixed_size_snzi_wrapper;
+  });
+  c.add("growable", [&] {
+    growable_snzi = new growable_size_snzi_wrapper;
+  });
+  c.find_by_arg("snzi")();
+  auto benchmark_thread = [&] (int my_id, bool& should_stop, long& counter1, long& counter2) {
+    if (fixed_snzi != nullptr) {
+      benchmark_snzi_thread(my_id, *fixed_snzi, should_stop, counter1, counter2, seed);
+    } else if (growable_snzi != nullptr) {
+      benchmark_snzi_thread(my_id, *growable_snzi, should_stop, counter1, counter2, seed);
+    } else {
+      assert(false);
+    }
+  };
+  launch_microbenchmark(benchmark_thread, nb_threads, nb_milliseconds);
+  if (fixed_snzi != nullptr) {
+    delete fixed_snzi;
+  } else if (growable_snzi != nullptr) {
+    delete growable_snzi;
   }
 }
 
@@ -6368,6 +6463,8 @@ int main(int argc, char** argv) {
     benchmarks::launch_incounter_mixed_duration();
   } else if (cmd == "outset_add_duration") {
     benchmarks::launch_outset_add_duration();
+  } else if (cmd == "snzi_alternated_duration") {
+    benchmarks::launch_snzi_alternated_duration();
   } else if (cmd == "seidel_sequential") {
     int numiters;
     int N;

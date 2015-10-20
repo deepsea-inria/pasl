@@ -314,6 +314,8 @@ private:
   
 public:
   
+  using node_type = node;
+  
   tree() {
     build();
   }
