@@ -57,7 +57,7 @@ private:
   static constexpr int child_pointer_szb = sizeof(child_pointer_type);
   using aligned_child_cell_type = std::aligned_storage<child_pointer_szb, cache_align_szb>::type;
   
-  bool saturated = false;
+  std::atomic<bool> saturated;
   char _padding1[cache_align_szb];
   std::atomic<contents_type> X;
   char _padding2[cache_align_szb];
@@ -91,10 +91,11 @@ public:
     for (int i = 0; i < nb_children; i++) {
       child_cell_at(i).store(nullptr);
     }
+    saturated.store(false);
   }
   
   bool is_saturated() const {
-    return saturated;
+    return saturated.load();
   }
   
   void increment() {
@@ -121,7 +122,7 @@ public:
         }
       }
       if (succ && (x.v == saturation_upper_bound)) {
-        saturated = true;
+        saturated.store(true);
       }
       if (x.c == one_half) {
         if (! is_root_node(parent)) {
