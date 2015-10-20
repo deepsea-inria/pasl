@@ -4675,7 +4675,11 @@ public:
   
 
   void advance_time(int i, int j) {
-    clocks->subscript(i, j).time--;
+    long after = --clocks->subscript(i, j).time;
+    int n = incounters->n;
+    if ((after == 0) && ((i + 1) == n) && ((j + 1) == n)) {
+      // schedule the continuation at this point
+    }
   }
   
   void process_block(int i, int j) {
@@ -4685,39 +4689,24 @@ public:
   }
   
   void reset_block_count(int i, int j) {
-    int nb_neighbors;
-    if ((i == 0) || (j == 0)) {
-      nb_neighbors = 2;
-    } else {
-      nb_neighbors = 4;
+    int nb_neighbors = 4;
+    int n = incounters->n;
+    if ((i == 0) || ((i + 1) == n)) {
+      nb_neighbors--;
+    }
+    if ((j == 0) || ((j + 1) == n)) {
+      nb_neighbors--;
     }
     incounters->subscript(i, j).store(nb_neighbors);
   }
   
   void decr_block(int i, int j) {
-    int before = incounters->subscript(i, j)++;
-    assert((before == 0) || (before == 1));
-    if (before == 1) {
+    if (--incounters->subscript(i, j) == 0) {
       frontier.push_back(std::make_pair(i, j));
     }
   }
   
   void decr_neighbors(int i, int j) {
-    if ((i > 0) && (j > 0)) {
-      decr_block(i - 1, j);
-      decr_block(i, j - 1);
-    } else if ((i > 0) && (j == 0)) {
-      decr_block(i - 1, j);
-    } else if ((i == 0) && (j > 0)) {
-      decr_block(i, j - 1);
-    } else if ((i == 0) && (j == 0)) {
-      // nothing to do
-    } else {
-      assert(false);
-    }
-    if (clocks->subscript(i, j).time == 0) {
-      return;
-    }
     int n = incounters->n;
     if (((i + 1) < n) && ((j + 1) < n)) {
       decr_block(i + 1, j);
@@ -4727,6 +4716,21 @@ public:
     } else if (((i + 1) == n) && ((j + 1) < n)) {
       decr_block(i, j + 1);
     } else if (((i + 1) == n) && ((j + 1) == n)) {
+      // nothing to do
+    } else {
+      assert(false);
+    }
+    if (clocks->subscript(i, j).time == 0) {
+      return;
+    }
+    if ((i > 0) && (j > 0)) {
+      decr_block(i - 1, j);
+      decr_block(i, j - 1);
+    } else if ((i > 0) && (j == 0)) {
+      decr_block(i - 1, j);
+    } else if ((i == 0) && (j > 0)) {
+      decr_block(i, j - 1);
+    } else if ((i == 0) && (j == 0)) {
       // nothing to do
     } else {
       assert(false);
