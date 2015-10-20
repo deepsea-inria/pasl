@@ -421,34 +421,27 @@ let run() =
     & mk_snzi_alternated_mixed_duration
     & mk_seed
     & mk_snzis
-    & mk_proc)]))
+    & mk_procs)]))
 
-let check = nothing  (* do something here *)
-
-let eval_nb_operations_per_phase_per_second = fun phase env all_results results ->
-  let t = Results.get_mean_of ("exectime_"^phase) results in
-  let nb_operations = Results.get_mean_of ("nb_operations_"^phase) results in
-  let nb_proc = Env.get_as_float env "proc" in
-  let nb_operations_per_proc = nb_operations /. nb_proc in
-  nb_operations_per_proc /. t
-            
+let check = nothing  (* do something here *)            
            
 let plot() =
-  Mk_bar_plot.(call ([
-      Bar_plot_opt Bar_plot.([
-         X_titles_dir Vertical;
-         Y_axis [Axis.Lower (Some 0.)] ]);
+    Mk_scatter_plot.(call ([
+    Chart_opt Chart.([
+      Legend_opt Legend.([Legend_pos Bottom_right]);
+      ]);
+     Scatter_plot_opt Scatter_plot.([
+         Draw_lines true; 
+         Y_axis [Axis.Lower (Some 0.); Axis.Is_log true;] ]);
        Formatter microbench_formatter;
-      Charts mk_unit;
+       Charts mk_unit;
       Series mk_snzis;
-      X mk_proc;
+      X mk_procs;
       Input (file_results name);
       Output (file_plots name);
       Y_label "nb_operations/second (per thread)";
       Y eval_nb_operations_per_second;
-      Y_whiskers eval_nb_operations_per_second_error;
   ]))
-
 
 let all () = select make run check plot
 

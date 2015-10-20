@@ -3842,7 +3842,7 @@ public:
   snzi_type snzi;
 
   node_type* get_target_for(int id) {
-    return snzi.ith_leaf_node(id);
+    return snzi.random_leaf_of(id);
   }
   
   void increment(node_type* target) {
