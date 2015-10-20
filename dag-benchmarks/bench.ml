@@ -394,6 +394,67 @@ let all () = select make run check plot
 end
 
 (*****************************************************************************)
+(** SNZI microbenchmark experiment *)
+
+module ExpSNZIAlternatedDuration = struct
+
+let name = "snzi_alternated_duration"
+
+let prog = "./bench.opt"
+
+let mk_snzis =
+  mk_list string "snzi" ["fixed"; "growable";]
+
+let mk_snzi_alternated_mixed_duration =
+    mk string "cmd" name
+  & mk_nb_milliseconds
+
+let make() =
+  build "." [prog] arg_virtual_build
+
+let run() =
+  Mk_runs.(call (run_modes @ [
+    Output (file_results name);
+    Timeout 1000;
+    Args (
+      mk_prog prog
+    & mk_snzi_alternated_mixed_duration
+    & mk_seed
+    & mk_snzis
+    & mk_proc)]))
+
+let check = nothing  (* do something here *)
+
+let eval_nb_operations_per_phase_per_second = fun phase env all_results results ->
+  let t = Results.get_mean_of ("exectime_"^phase) results in
+  let nb_operations = Results.get_mean_of ("nb_operations_"^phase) results in
+  let nb_proc = Env.get_as_float env "proc" in
+  let nb_operations_per_proc = nb_operations /. nb_proc in
+  nb_operations_per_proc /. t
+            
+           
+let plot() =
+  Mk_bar_plot.(call ([
+      Bar_plot_opt Bar_plot.([
+         X_titles_dir Vertical;
+         Y_axis [Axis.Lower (Some 0.)] ]);
+       Formatter microbench_formatter;
+      Charts mk_unit;
+      Series mk_snzis;
+      X mk_proc;
+      Input (file_results name);
+      Output (file_plots name);
+      Y_label "nb_operations/second (per thread)";
+      Y eval_nb_operations_per_second;
+      Y_whiskers eval_nb_operations_per_second_error;
+  ]))
+
+
+let all () = select make run check plot
+
+end
+                                     
+(*****************************************************************************)
 (** Outset microbenchmark experiment *)
 
 module ExpOutsetAddDuration = struct
@@ -797,6 +858,7 @@ let _ =
     "mixed_duration",                 ExpMixedDuration.all;
     "async_finish_versus_fork_join",  ExpAsyncFinishVersusForkJoin.all;
     "seidel",                         ExpSeidel.all;
+    "snzi_alternated_duration",       ExpSNZIAlternatedDuration.all;
   ]
   in
   Pbench.execute_from_only_skip arg_actions [] bindings;
