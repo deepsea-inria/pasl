@@ -35,7 +35,6 @@ constexpr int nb_leaves_target = nb_leaves / 2;
 
 class node {
 private:
-public:
   
   template <class T>
   static T* tagged_pointer_of(T* n) {
@@ -66,10 +65,13 @@ public:
   
   std::atomic<bool> saturated;
   char _padding1[cache_align_szb];
+  
   std::atomic<contents_type> X;
   char _padding2[cache_align_szb];
+  
   node* parent;
   char _padding3[cache_align_szb];
+  
   aligned_child_cell_type children[nb_children];
   char _padding4[cache_align_szb];
   
@@ -85,6 +87,10 @@ public:
   child_pointer_type& child_cell_at(std::size_t i) {
     assert((i == 0) || (i == 1));
     return *reinterpret_cast<child_pointer_type*>(children+i);
+  }
+  
+  static void backoff() {
+    pasl::util::microtime::microsleep(sleep_time);
   }
   
 public:
@@ -132,7 +138,7 @@ public:
         saturated.store(true);
       }
       if (! succ) {
-        pasl::util::microtime::microsleep(sleep_time);
+        backoff();
       }
       if (x.c == one_half) {
         if (! is_root_node(parent)) {
@@ -172,7 +178,7 @@ public:
           return false;
         }
       } else {
-        pasl::util::microtime::microsleep(sleep_time);
+        backoff();
       }
     }
   }
@@ -189,8 +195,8 @@ public:
       created_new_child = true;
       return n;
     } else {
-      pasl::util::microtime::microsleep(sleep_time);
       delete n;
+      backoff();
       return child.load();
     }
   }
@@ -318,39 +324,43 @@ public:
   }
   
   node* get_target_of_path(unsigned int path) {
-    node* result = root;
-    int height = 0;
     if (leaves != nullptr) {
       node* n = leaf_node_from_path(path);
       if (n != nullptr) {
         return n;
       }
     }
+    node* target = root;
+    int height = 1;
     while (true) {
       if (height >= max_height) {
         break;
       }
-      if (! result->is_saturated()) {
+      if (! target->is_saturated()) {
         break;
       }
       int i = path & 1;
       bool created_new_child;
-      result = result->try_create_child(i, created_new_child);
+      target = target->try_create_child(i, created_new_child);
       if (created_new_child && (height + 1 == max_height)) {
-        if ((nb_at_leaves.load() <= nb_leaves_target) && (++nb_at_leaves == nb_leaves_target)) {
-          leaves = (node**)malloc(sizeof(node*) * nb_leaves);
+        if (   (nb_at_leaves.load() <= nb_leaves_target)
+            && (++nb_at_leaves == nb_leaves_target)) {
+          node** tmp = (node**)malloc(sizeof(node*) * nb_leaves);
           for (int i = 0; i < nb_leaves; i++) {
-            leaves[i] = nullptr;
+            tmp[i] = nullptr;
           }
+          leaves = tmp;
         }
       }
-      if ((leaves != nullptr) && (height + 1 == max_height) && (leaf_node_from_path(path) == nullptr)) {
-        leaf_node_from_path(path) = result;
+      if (   (leaves != nullptr)
+          && (height + 1 == max_height)
+          && (leaf_node_from_path(path) == nullptr)) {
+        leaf_node_from_path(path) = target;
       }
       path = (path >> 1);
       height++;
     }
-    return result;
+    return target;
   }
   
   template <class Item>
