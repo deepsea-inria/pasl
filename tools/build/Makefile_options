@@ -61,6 +61,10 @@ ifeq ($(TCMALLOC_PATH),)
    TCMALLOC_PATH=$(TOOLS_PATH)/tcmalloc
 endif
 
+ifeq ($(SCALLOC_PATH),)
+   SCALLOC_PATH=$(TOOLS_PATH)/scalloc
+endif
+
 ifeq ($(JEMALLOC_PATH),)
    JEMALLOC_PATH=$(TOOLS_PATH)/jemalloc
 endif
@@ -282,7 +286,7 @@ OPTIONS_MALLOC_COUNT=-DUSE_MALLOC_COUNT $(MALLOC_COUNT_PATH)/malloc_count.o -ldl
 OPTIONS_BUMP_MALLOC=-DUSE_BUMP_MALLOC $(BUMP_MALLOC_PATH)/bump_malloc.o -ldl
 
 # USE_ALLOCATOR should be one of:
-#   [empty], default, miser, hoard, tcmalloc, jemalloc, malloc_count supermalloc bump_malloc
+#   [empty], default, miser, hoard, tcmalloc, jemalloc, malloc_count supermalloc bump_malloc scalloc
 
 ifeq ($(USE_ALLOCATOR),)
    USE_ALLOCATOR=default
@@ -305,6 +309,8 @@ else ifeq ($(USE_ALLOCATOR),bump_malloc)
    OPTIONS_ALLOC=$(OPTIONS_BUMP_MALLOC)
 else ifeq ($(USE_ALLOCATOR),supermalloc)
    OPTIONS_ALLOC=-lsupermalloc -L$(SUPERMALLOC_PATH) -lrt
+else ifeq ($(USE_ALLOCATOR),scalloc)
+   OPTIONS_ALLOC=-lscalloc -L$(SCALLOC_PATH)
 else ifeq ($(USE_ALLOCATOR),default)
    OPTIONS_ALLOC=
 else
