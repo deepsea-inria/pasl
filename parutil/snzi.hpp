@@ -131,6 +131,11 @@
 namespace pasl {
 namespace data {
 namespace snzi {
+
+namespace {
+static constexpr int cache_align_szb = 128;
+static constexpr double sleep_time = 10000.0;
+}
   
 template <int height>
 class tree;
@@ -162,13 +167,13 @@ private:
   
   static constexpr int root_node_tag = 1;
 
-  void* _padding1[8];
+  char _padding1[cache_align_szb];
   
   std::atomic<contents_type> X;
-  
-  node* parent;
+  char _padding2[cache_align_szb];
 
-  void* _padding2[8];
+  node* parent;
+  char _padding3[cache_align_szb];
   
   static bool is_root_node(const node* n) {
     return tagged_tag_of(n) == 1;
@@ -177,6 +182,10 @@ private:
   template <class Item>
   static node* create_root_node(Item x) {
     return (node*)tagged_tag_with(x, root_node_tag);
+  }
+  
+  static void backoff() {
+    pasl::util::microtime::microsleep(sleep_time);
   }
   
 public:
@@ -210,6 +219,9 @@ public:
           x.c = one_half;
           x.v++;
         }
+      }
+      if (! succ) {
+        backoff();
       }
       if (x.c == one_half) {
         if (! is_root_node(parent)) {
@@ -248,6 +260,8 @@ public:
         } else {
           return false;
         }
+      } else {
+        backoff();
       }
     }
   }
