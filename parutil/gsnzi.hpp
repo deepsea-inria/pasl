@@ -23,16 +23,13 @@ namespace pasl {
 namespace data {
 namespace gsnzi {
   
+namespace {
 static constexpr int cache_align_szb = 128;
 static constexpr int nb_children = 2;
-static constexpr int max_height = 6;
-static constexpr int saturation_upper_bound = 32;
 static constexpr double sleep_time = 10000.0;
-static constexpr int initial_height = 4;
-
-constexpr int nb_leaves = 1 << max_height;
-constexpr int nb_leaves_target = nb_leaves / 2;
-
+}
+ 
+template <int saturation_upper_bound>
 class node {
 private:
   
@@ -61,7 +58,7 @@ private:
   
   using child_pointer_type = std::atomic<node*>;
   static constexpr int child_pointer_szb = sizeof(child_pointer_type);
-  using aligned_child_cell_type = std::aligned_storage<child_pointer_szb, cache_align_szb>::type;
+  using aligned_child_cell_type = typename std::aligned_storage<child_pointer_szb, cache_align_szb>::type;
   
   std::atomic<bool> saturated;
   char _padding1[cache_align_szb];
@@ -109,6 +106,10 @@ public:
   
   bool is_saturated() const {
     return saturated.load();
+  }
+  
+  bool is_nonzero() const {
+    return X.load().c > 0;
   }
   
   void increment() {
@@ -233,8 +234,20 @@ public:
   
 };
   
+template <
+  int max_height = 6,
+  int saturation_upper_bound = 32,
+  int initial_height = 4
+>
 class tree {
+public:
+  
+  using node_type = node<saturation_upper_bound>;
+  
 private:
+  
+  static constexpr int nb_leaves = 1 << max_height;
+  static constexpr int nb_leaves_target = nb_leaves / 2;
   
   static unsigned int hashu(unsigned int a) {
     a = (a+0x7ed55d16) + (a<<12);
@@ -256,13 +269,13 @@ private:
     return std::abs((int)hashu((unsigned int)bits.b));
   }
   
-  node* root;
+  node_type* root;
 
   std::atomic<int> nb_at_leaves;
 
-  node** leaves;
+  node_type** leaves;
   
-  void destroy(node* n) {
+  void destroy(node_type* n) {
     if (n == nullptr) {
       return;
     }
@@ -272,10 +285,10 @@ private:
     delete n;
   }
 
-  int nb_nodes(node* n) {
+  int nb_nodes(node_type* n) {
     int nb = 1;
     for (int i = 0; i < nb_children; i++) {
-      node* c = n->get_child(0);
+      node_type* c = n->get_child(0);
       if (c != nullptr) {
         nb += nb_nodes(c);
       }
@@ -283,12 +296,12 @@ private:
     return nb;
   }
 
-  void grow_to(int height, node* n) {
+  void grow_to(int height, node_type* n) {
     if (height == 0) {
       return;
     }
     for (int i = 0; i < nb_children; i++) {
-      node* c = n->try_create_child(i);
+      node_type* c = n->try_create_child(i);
       grow_to(height - 1, c);
     }
   }
@@ -300,17 +313,15 @@ private:
     return result;
   }
 
-  node*& leaf_node_from_path(unsigned int path) {
+  node_type*& leaf_node_from_path(unsigned int path) {
     assert(leaves != nullptr);
     return leaves[leaf_index_of_path(path)];
   }
   
 public:
   
-  using node_type = node;
-  
   tree() {
-    root = new node;
+    root = new node_type;
     grow_to(initial_height, root);
     nb_at_leaves.store(0);
     leaves = nullptr;
@@ -323,14 +334,18 @@ public:
     }
   }
   
-  node* get_target_of_path(unsigned int path) {
+  bool is_nonzero() const {
+    return root->is_nonzero();
+  }
+  
+  node_type* get_target_of_path(unsigned int path) {
     if (leaves != nullptr) {
-      node* n = leaf_node_from_path(path);
+      node_type* n = leaf_node_from_path(path);
       if (n != nullptr) {
         return n;
       }
     }
-    node* target = root;
+    node_type* target = root;
     int height = 1;
     while (true) {
       if (height >= max_height) {
@@ -345,7 +360,7 @@ public:
       if (created_new_child && (height + 1 == max_height)) {
         if (   (nb_at_leaves.load() <= nb_leaves_target)
             && (++nb_at_leaves == nb_leaves_target)) {
-          node** tmp = (node**)malloc(sizeof(node*) * nb_leaves);
+          node_type** tmp = (node_type**)malloc(sizeof(node_type*) * nb_leaves);
           for (int i = 0; i < nb_leaves; i++) {
             tmp[i] = nullptr;
           }
@@ -364,21 +379,21 @@ public:
   }
   
   template <class Item>
-  node* get_target_of_value(Item x) {
+  node_type* get_target_of_value(Item x) {
     return get_target_of_path(random_path_for(x));
   }
   
-  static void increment(node* target) {
+  static void increment(node_type* target) {
     target->increment();
   }
   
-  static bool decrement(node* target) {
+  static bool decrement(node_type* target) {
     return target->decrement();
   }
   
   template <class Item>
   void set_root_annotation(Item x) {
-    node::set_root_annotation(root, x);
+    node_type::set_root_annotation(root, x);
   }
   
 };

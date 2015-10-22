@@ -132,6 +132,12 @@ T* malloc_array(size_t n) {
   return (T*)malloc(sizeof(T) * n);
 }
 
+static constexpr double sleep_time = 10000.0;
+
+void backoff() {
+  pasl::util::microtime::microsleep(sleep_time);
+}
+
 /*---------------------------------------------------------------------*/
 
 
@@ -240,6 +246,7 @@ using edge_algorithm_type = enum {
   edge_algorithm_statreeopt,
   edge_algorithm_dyntree,
   edge_algorithm_dyntreeopt,
+  edge_algorithm_growabletree,
   edge_algorithm_simple_dyntreeopt,
   edge_algorithm_dyntreeopt_simple
 };
@@ -278,6 +285,8 @@ public:
         cell->next = orig;
         if (head.compare_exchange_strong(orig, cell)) {
           break;
+        } else {
+          backoff();
         }
       }
     }
@@ -347,6 +356,47 @@ void unary_finished(pasl::sched::thread_p t) {
   pasl::data::snzi::node* leaf = (pasl::data::snzi::node*)t;
   if (leaf->depart()) {
     node* n = pasl::data::snzi::node::get_root_annotation<node*>(leaf);
+    pasl::sched::instrategy::schedule((pasl::sched::thread_p)n);
+  }
+}
+  
+} // end namespace
+  
+namespace growabletree {
+  
+class growabletree_incounter : public incounter {
+public:
+  
+  using nzi_type = pasl::data::gsnzi::tree<>;
+  using nzi_node_type = typename nzi_type::node_type;
+  
+  nzi_type nzi;
+  
+  growabletree_incounter(node* n) {
+    nzi.set_root_annotation(n);
+  }
+  
+  bool is_activated() const {
+    return (! nzi.is_nonzero());
+  }
+  
+  void increment(node* source) {
+    nzi.get_target_of_value(source)->increment();
+  }
+  
+  status_type decrement(node* source) {
+    bool b = nzi.get_target_of_value(source)->decrement();
+    return b ? incounter::activated : incounter::not_activated;
+  }
+  
+};
+  
+void unary_finished(pasl::sched::thread_p t) {
+  using nzi_type = typename growabletree_incounter::nzi_type;
+  using nzi_node_type = typename growabletree_incounter::nzi_node_type;
+  nzi_node_type* target = (nzi_node_type*)t;
+  if (target->decrement()) {
+    node* n = nzi_node_type::get_root_annotation<node*>(target);
     pasl::sched::instrategy::schedule((pasl::sched::thread_p)n);
   }
 }
@@ -434,6 +484,8 @@ void incounter_add_to_freelist(std::atomic<incounter_node*>& freelist,
       incounter_node* next = tagged_tag_with(old_node, incounter_node::removing_tag);
       if (current->compare_exchange_strong(orig, next)) {
         return;
+      } else {
+        backoff();
       }
     } else {
       int i = random_int(0, branching_factor);
@@ -454,6 +506,8 @@ bool incounter_try_remove(incounter_node* current) {
     incounter_node* next = tagged_tag_with(orig, incounter_node::removing_tag);
     if (! (current->children[i].compare_exchange_strong(orig, next))) {
       break;
+    } else {
+      backoff();
     }
     i++;
   }
@@ -599,6 +653,8 @@ bool outset_insert(std::atomic<outset_node*>& root, node* n, const Random_int& r
       outset_node* orig = nullptr;
       if (current->compare_exchange_strong(orig, new_node)) {
         return true;
+      } else {
+        backoff();
       }
       target = current->load();
     }
@@ -628,6 +684,8 @@ void outset_add_to_freelist(std::atomic<outset_node*>& freelist, outset_node* ol
       outset_node* next = tagged_tag_with(old_node, outset_node::finished_tag);
       if (current->compare_exchange_strong(orig, next)) {
         return;
+      } else {
+        backoff();
       }
       target = tagged_pointer_of(current->load());
     }
@@ -823,6 +881,8 @@ void incounter_increment(std::atomic<incounter_node*>& root,
       incounter_node* orig = nullptr;
       if (current->compare_exchange_strong(orig, new_node)) {
         return;
+      } else {
+        backoff();
       }
     } else if (tagged_tag_of(target) == incounter_node::removing_tag) {
       current = &root;
@@ -837,6 +897,8 @@ void incounter_increment(std::atomic<incounter_node*>& root,
             delete new_node;
           }
           return;
+        } else {
+          backoff();
         }
       } else {
         int i = bits & random_bits_mask;
@@ -870,6 +932,8 @@ bool incounter_try_remove(incounter_node* current) {
     incounter_node* next = tagged_tag_with(orig, incounter_node::removing_tag);
     if (! (current->children[i].compare_exchange_strong(orig, next))) {
       break;
+    } else {
+      backoff();
     }
     i++;
   }
@@ -900,6 +964,8 @@ void incounter_add_to_freelist(std::atomic<incounter_node*>& freelist,
       incounter_node* next = tagged_tag_with(old_node, incounter_node::removing_tag);
       if (current->compare_exchange_strong(orig, next)) {
         return;
+      } else {
+        backoff();
       }
     } else {
       int i = random_int(0, branching_factor);
@@ -929,6 +995,8 @@ incounter_node* incounter_decrement_rec(incounter_node* current,
         } else {
           current->count.store(1);
         }
+      } else {
+        backoff();
       }
     }
   } else {
@@ -1053,6 +1121,8 @@ bool outset_insert(std::atomic<outset_node*>& root, node* n, const Random_int& r
       outset_node* orig = nullptr;
       if (current->compare_exchange_strong(orig, new_node)) {
         return true;
+      } else {
+        backoff();
       }
       target = current->load();
     }
@@ -1071,6 +1141,8 @@ bool outset_insert(std::atomic<outset_node*>& root, node* n, const Random_int& r
           delete new_node;
         }
         return true;
+      } else {
+        backoff();
       }
     } else if (tagged_tag_of(m) == outset_node::finished_tag) {
       if (new_node != nullptr) {
@@ -1101,6 +1173,8 @@ void outset_add_to_freelist(std::atomic<outset_node*>& freelist, outset_node* ol
       outset_node* next = tagged_tag_with(old_node, outset_node::finished_tag);
       if (current->compare_exchange_strong(orig, next)) {
         return;
+      } else {
+        backoff();
       }
       target = tagged_pointer_of(current->load());
     }
@@ -1329,6 +1403,8 @@ incounter* incounter_new(node* n) {
     return new dyntree::dyntree_incounter;
   } else if (edge_algorithm == edge_algorithm_dyntreeopt) {
     return new dyntreeopt::dyntreeopt_incounter;
+  } else if (edge_algorithm == edge_algorithm_growabletree) {
+    return new growabletree::growabletree_incounter(n);
   } else if (edge_algorithm == edge_algorithm_simple_dyntreeopt) {
     return incounter_fetch_add();
   } else if (edge_algorithm == edge_algorithm_dyntreeopt_simple) {
@@ -1344,6 +1420,8 @@ const bool enable_statreeopt = true;
 outset* outset_unary() {
   if (enable_statreeopt && edge_algorithm == edge_algorithm_statreeopt) {
     return (outset*)pasl::sched::outstrategy::direct_statreeopt_unary_new(nullptr);
+  } else if (edge_algorithm == edge_algorithm_growabletree) {
+    return (outset*)pasl::sched::outstrategy::direct_growabletree_unary_new(nullptr);
   } else {
     return (outset*)pasl::sched::outstrategy::unary_new();
   }
@@ -1361,6 +1439,8 @@ outset* outset_new() {
   } else if (edge_algorithm == edge_algorithm_dyntree) {
     return new dyntree::dyntree_outset;
   } else if (edge_algorithm == edge_algorithm_dyntreeopt) {
+    return new dyntreeopt::dyntreeopt_outset;
+  } else if (edge_algorithm == edge_algorithm_growabletree) {
     return new dyntreeopt::dyntreeopt_outset;
   } else if (edge_algorithm == edge_algorithm_simple_dyntreeopt) {
     return new dyntreeopt::dyntreeopt_outset;
@@ -1429,9 +1509,19 @@ outset::insert_status_type outset_insert(node* source, outset* source_out, node*
     auto target_in = (statreeopt::statreeopt_incounter*)target->in;
     long tg = pasl::sched::instrategy::extract_tag(target_in);
     if ((tg == 0) && (edge_algorithm == edge_algorithm_statreeopt)) {
-      auto leaf = target_in->nzi.random_leaf_of(source);
-      auto t = (pasl::sched::thread_p)leaf;
+      auto t = (pasl::sched::thread_p)target_in->nzi.random_leaf_of(source);
       source->out = pasl::sched::outstrategy::direct_statreeopt_unary_new(t);
+    } else {
+      tag = pasl::sched::outstrategy::UNARY_TAG;
+      source->out = pasl::data::tagged::create<pasl::sched::thread_p, pasl::sched::outstrategy_p>(target, tag);
+    }
+    return outset::insert_success;
+  } else if (tag == pasl::sched::outstrategy::DIRECT_GROWABLETREE_UNARY_TAG) {
+    auto target_in = (growabletree::growabletree_incounter*)target->in;
+    long tg = pasl::sched::instrategy::extract_tag(target_in);
+    if ((tg == 0) && (edge_algorithm == edge_algorithm_growabletree)) {
+      auto t = (pasl::sched::thread_p)target_in->nzi.get_target_of_value(source);
+      source->out = pasl::sched::outstrategy::direct_growabletree_unary_new(t);
     } else {
       tag = pasl::sched::outstrategy::UNARY_TAG;
       source->out = pasl::data::tagged::create<pasl::sched::thread_p, pasl::sched::outstrategy_p>(target, tag);
@@ -3882,7 +3972,7 @@ public:
 class growable_size_snzi_wrapper {
 public:
   
-  using snzi_type = pasl::data::gsnzi::tree;
+  using snzi_type = pasl::data::gsnzi::tree<>;
   using node_type = typename snzi_type::node_type;
   
   snzi_type snzi;
@@ -6266,6 +6356,9 @@ void choose_edge_algorithm() {
   });
   c.add("dyntreeopt", [&] {
     direct::edge_algorithm = direct::edge_algorithm_dyntreeopt;
+  });
+  c.add("growabletree", [&] {
+    direct::edge_algorithm = direct::edge_algorithm_growabletree;
   });
   c.add("simple_dyntreeopt", [&] {
     direct::edge_algorithm = direct::edge_algorithm_simple_dyntreeopt;
