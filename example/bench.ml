@@ -49,11 +49,15 @@ let file_results exp_name =
 let file_plots exp_name =
   Printf.sprintf "plots_%s.pdf" exp_name
 
-module ExpCS(version : string, baseline : string) = struct
+module ExpCS = struct
+
+let version = XCmd.parse_string "version"
+
+let baseline = XCmd.parse_string "baseline"
 
 let extension = match version with
-                | "slow" -> "version"
-                | _ -> "version2"
+                | "slow" -> "virtual"
+                | _ -> "virtual2"
 
 let baseline_type = match baseline with
                    | "self" -> 0
@@ -62,11 +66,11 @@ let baseline_type = match baseline with
 let name = "construction_speedup"
 
 let make () =
-  build "." ["rake-compress-construction.opt";"rake-compress-construction.opt2"] arg_virtual_build
+  build "." ["rake-compress-construction.opt";"rake-compress-construction.opts"] arg_virtual_build
 
-let mk_baseline = (mk_prog "rake-compress-construction." ^ extension) & (mk int "seq" baseline_type)
-let mk_main = (mk_prog "rake-compress-construction." ^ extension) & (mk int "seq" 0)
-let mk_n = mk int "n" 7000000
+let mk_baseline = (mk_prog ("rake-compress-construction." ^ extension)) & (mk int "seq" baseline_type)
+let mk_main = (mk_prog ("rake-compress-construction." ^ extension)) & (mk int "seq" 0)
+let mk_n = mk int "n" 1000000
 let mk_graphs = (((mk string "graph" "binary_tree") & (mk_list float "fraction" [-1.0])) ++
     ((mk string "graph" "random") & (mk_list float "fraction" [0.0; 0.3; 0.6; 1.0])))
 let mk_proc = mk_list int "proc" [1; 2; 4; 8; 10; 12; 15; 20; 25; 30; 39]
@@ -76,22 +80,24 @@ let run () =
   if not skip_baseline then begin
      Mk_runs.(call [
         Runs 3;
-        Output "plots/construction/results_baseline_" ^ baseline ^ "_" ^ version ^ ".txt";
+        Output ("plots/construction/results_baseline_" ^ baseline ^ "_" ^ version ^ ".txt");
         Args (mk_baseline & mk_n & mk_graphs)
         ]);
   end;
 
   let skip_main = XCmd.mem_flag "skip_main" in
-  Mk_runs.(call [
-    Runs 3;
-    Output "plots/construction/results_main_" ^ version ^ ".txt";
-    Args (mk_main & mk_n & mk_proc & mk_graphs)
-    ])
+  if not skip_main then begin
+    Mk_runs.(call [
+      Runs 3;
+      Output ("plots/construction/results_main_" ^ version ^ ".txt");
+      Args (mk_main & mk_n & mk_proc & mk_graphs)
+      ]);
+  end
 
 let check = nothing
 
 let plot () =
-  let results_baselines = Results.from_file "plots/construction/results_baseline_" ^ baseline ^ "_" ^ version ^ ".txt" in
+  let results_baselines = Results.from_file ("plots/construction/results_baseline_" ^ baseline ^ "_" ^ version ^ ".txt") in
   
   let formatter = 
     Env.format (Env.(
@@ -128,8 +134,8 @@ let plot () =
       X mk_proc;
       Y eval_relative;
       Y_label "relative execution time w.r.t. fastest parallel algorithm";
-      Input "plots/construction/results_main" ^ version ^ ".txt";
-      Output "plots/construction/plot_" ^ version ^ "_" ^ baseline ^ ".pdf"
+      Input ("plots/construction/results_main_" ^ version ^ ".txt");
+      Output ("plots/construction/plot_" ^ version ^ "_" ^ baseline ^ ".pdf")
       ]))
 
 
@@ -140,10 +146,7 @@ end
 let _ =
   let arg_actions = XCmd.get_others() in
   let bindings = [
-    "slowvssam_construction_speedup",                 ExpCS("slow", "sam").all;
-    "slowvsslow_construction_speedup",                ExpCS("slow", "self").all;
-    "fastvssam_construction_speedup",                 ExpCS("fast", "sam").all;
-    "fastvsfast_construction_speedup",                ExpCS("fast", "self").all;
+    "construction_speedup",                 ExpCS.all;
   ]
   in
   Pbench.execute_from_only_skip arg_actions [] bindings;

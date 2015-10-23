@@ -34,7 +34,8 @@ PROGRAMS=\
 	rake-compress-construction.cpp \
 	rake-compress-update.cpp \
 	rake-compress-check.cpp \
-	static-contract.cpp
+	static-contract.cpp \
+	check.cpp
 #       add reference to your cpp source here
 
 ####################################################################
@@ -59,15 +60,18 @@ include $(TOOLS_BUILD_FOLDER)/Makefile_options
 # (If extending the list, need to add cases for the definition
 # of COMPILE_OPTIONS_FOR further below, and also for "clean".
 
-MODES=dbg elision log sta opt seq cilk dbgfs opts
+MODES=dbg elision log sta opt seq cilk dbgfs opts dbgs stas logs
 
 # Compilation options for each mode
 
 COMPILE_OPTIONS_COMMON=-DDISABLE_INTERRUPTS -DSTATS_IDLE $(OPTIONS_ALL)
 COMPILE_OPTIONS_FOR_dbg=$(OPTIONS_DEBUG) -DSTATS -DDEBUG -DSTANDART # -DUSE_UCONTEXT  -DLOGGING
+COMPILE_OPTIONS_FOR_dbgs=$(OPTIONS_DEBUG) -DSTATS -DDEBUG -DSPECIAL
 COMPILE_OPTIONS_FOR_dbgfs=$(OPTIONS_DEBUG) -DSTATS -DDEBUG -DCONTROL_BY_FORCE_SEQUENTIAL # -DUSE_UCONTEXT  -DLOGGING
 COMPILE_OPTIONS_FOR_log=$(OPTIONS_O2) -DSTATS -DLOGGING
+COMPILE_OPTIONS_FOR_logs=$(OPTIONS_O2) -DSTATS -DLOGGING -DSPECIAL
 COMPILE_OPTIONS_FOR_sta=$(OPTIONS_O2) -DSTATS
+COMPILE_OPTIONS_FOR_stas=$(OPTIONS_O2) -DSTATS -DSPECIAL
 COMPILE_OPTIONS_FOR_seq=$(OPTIONS_O2) -DSTATS -DSEQUENTIAL_ELISION
 COMPILE_OPTIONS_FOR_opt=$(OPTIONS_O2) -DSTANDART
 COMPILE_OPTIONS_FOR_opts=$(OPTIONS_O2) -DSPECIAL
@@ -111,3 +115,16 @@ clean: clean_build clean_modes clean_generated
 # Main rules for the makefile
 
 include $(TOOLS_BUILD_FOLDER)/Makefile_modes
+
+
+#######################################################
+
+PBENCH_OCAMLCOMP=ocamlc
+
+PBENCH_PATH=~/pbench
+
+include $(PBENCH_PATH)/Makefile_common
+
+bench: bench.pbench
+	ln -sf $< $@ 
+
