@@ -101,6 +101,7 @@ int main(int argc, char** argv) {
    };
 
    auto destroy = [&] {
+#ifdef STANDART
      for (int i = 0; i < n; i++) {
        Node* start = lists[i]->head;
        while (start != NULL) {
@@ -109,6 +110,7 @@ int main(int argc, char** argv) {
          start = next;
        }
      }
+#endif
 
      if (!seq) {
        delete [] live[0];

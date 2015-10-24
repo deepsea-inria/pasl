@@ -1,10 +1,30 @@
 #include "rake-compress-primitives.hpp"
 
-const int MAX_ROUND = 21;
+#ifdef SPECIAL
+#include "granularity.hpp"
+#if defined(CONTROL_BY_FORCE_SEQUENTIAL)
+using controller_type = pasl::sched::granularity::control_by_force_sequential;
+#elif defined(CONTROL_BY_FORCE_PARALLEL)
+using controller_type = pasl::sched::granularity::control_by_force_parallel;
+#else
+using controller_type = pasl::sched::granularity::control_by_prediction;
+#endif
+using loop_controller_type = pasl::sched::granularity::loop_by_eager_binary_splitting<controller_type>;
+
+#include "filter.hpp"
+
+loop_controller_type loop1("loop1");
+loop_controller_type loop2("loop2");
+loop_controller_type loop3("loop3");
+#endif
+
+const int MAX_ROUND = 101;
 
 void initialization_construction(int n, std::vector<int>* children, int* parent) {
 #ifdef SPECIAL
-  memory = new Node*[n * MAX_ROUND];
+  N = n;
+  memory = static_cast<Node*>(operator new[] (n * MAX_ROUND * sizeof(Node)));
+/*  memory = new Node*[n * MAX_ROUND];
   for (int i = 0; i < MAX_ROUND; i++) {
     for (int j = 0; j < n; j++) {
       memory[i * n + j] = new Node(j);
@@ -12,7 +32,7 @@ void initialization_construction(int n, std::vector<int>* children, int* parent)
         memory[(i - 1) * n + j]->next = memory[i * n + j];
       }
     }
-  }
+  }*/
 #endif
 
   lists = new Node*[n];
@@ -20,7 +40,9 @@ void initialization_construction(int n, std::vector<int>* children, int* parent)
 #ifdef STANDART
     lists[i] = new Node(i);
 #elif SPECIAL
-    lists[i] = memory[i];
+//    lists[i] = memory[i];
+    lists[i] = new (memory + i) Node(i);
+//    lists[i] = new (memory + MAX_ROUND * i) Node(i);
 #endif
     lists[i]->head = lists[i];
     lists[i]->set_parent(lists[i]);
@@ -33,6 +55,12 @@ void initialization_construction(int n, std::vector<int>* children, int* parent)
     }
     lists[i]->prepare();
   }
+
+  tmp = new int[2 * n];
+  for (int i = 0; i < 2 * n; i++) {
+    tmp[i] = 0;
+  }
+
 
   live[0] = new int[n];
   for (int i = 0; i < n; i++)
@@ -48,9 +76,13 @@ void construction_round(int round) {
   }
 
 //  for (int i = 0; i < len[round % 2]; i++) {
+//#ifdef STANDART
   pasl::sched::native::parallel_for(0, len[round % 2], [&] (int i) {
+//#elif SPECIAL
+//  pasl::sched::granularity::parallel_for(loop1, 0, len[round % 2], [&] (int i) {
+//#endif
     int v = live[round % 2][i];
-    bool is_contr = is_contracted(lists[v], round);
+    bool is_contr = lists[v]->state.contracted = is_contracted(lists[v], round);
     bool is_root = lists[v]->is_root();
     if (!is_contr && !is_root) {
       copy_node(lists[v]);
@@ -64,13 +96,23 @@ void construction_round(int round) {
         live[1 - round % 2][len[1 - round % 2]++] = v;
   }*/
 
-
+//#ifdef STANDART
   len[1 - round % 2] = pbbs::sequence::filter(live[round % 2], live[1 - round % 2], len[round % 2], [&] (int v) {
     return !lists[v]->is_contracted() && !lists[v]->is_known_root();
   });
+//#elif SPECIAL
+//  len[1 - round % 2] = filter(live[round % 2], live[1 - round % 2], len[round % 2], tmp, [&] (int v) {
+//    return !lists[v]->is_contracted() && !lists[v]->is_known_root();
+//  });
+//#endif
 
+//#ifdef STANDART
   pasl::sched::native::parallel_for(0, len[1 - round % 2], [&] (int i) {
+//#elif SPECIAL
+//  pasl::sched::granularity::parallel_for(loop2, 0, len[1 - round % 2], [&] (int i) {
+//#endif
     int v = live[1 - round % 2][i];
+#ifdef STANDART
     std::set<Node*>& copy_children = lists[v]->prev->get_children();
 //    std::set<Node*> copy_children = lists[v]->get_children();
     for (auto child : copy_children) {
@@ -78,6 +120,14 @@ void construction_round(int round) {
       if (child->is_contracted())
         delete_node(child);
     }
+#elif SPECIAL
+    Node** children = lists[v]->prev->get_children();
+    for (int i = 0; i < MAX_DEGREE; i++) {
+      if (children[i] != NULL && children[i]->is_contracted()) {
+        delete_node(children[i]);
+      }
+    }
+#endif
   });
 
 /*  pasl::sched::native::parallel_for(0, len[1 - round % 2], [&] (int i) {
@@ -93,7 +143,11 @@ void construction_round(int round) {
     }
   });*/
 
+//#ifdef STANDART
   pasl::sched::native::parallel_for(0, len[1 - round % 2], [&] (int i) {
+//#elif SPECIAL
+//  pasl::sched::granularity::parallel_for(loop3, 0, len[1 - round % 2], [&] (int i) {
+//#endif
     int v = live[1 - round % 2][i];
     lists[v]->advance();
     lists[v]->prepare();
@@ -105,9 +159,15 @@ void construction_round_seq(int round) {
     std::cerr << round << " " << len[round % 2] << " " << live[round % 2][0] << std::endl;
   }
 
+/*  for (int i = 0; i < len[round % 2]; i++) {
+    std::cerr << live[round % 2][i] << " ";
+  }
+  std::cerr << std::endl;*/
+
   for (int i = 0; i < len[round % 2]; i++) {
     int v = live[round % 2][i];
-    bool is_contr = is_contracted(lists[v], round);
+    //l;
+    bool is_contr = lists[v]->state.contracted = is_contracted(lists[v], round);
     bool is_root = lists[v]->is_root();
     if (!is_contr && !is_root) {
       copy_node(lists[v]);
@@ -136,7 +196,10 @@ template<typename Round>
 void construction(int n, Round round_function) {
   int round_no = 0;
   while (len[round_no % 2] > 0) {
-    round_function(round_no);
+//    if (len[round_no % 2] < 1000000)
+//      construction_round_seq(round_no);
+//    else
+      round_function(round_no);
     round_no++;
   }
   std::cerr << "Number of rounds: " << round_no << std::endl;

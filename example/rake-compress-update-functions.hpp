@@ -145,8 +145,8 @@ void free_vertex(Node* v, int thread_id) {
   if (v->next != NULL) {
     deleted_affected_sets[thread_id].insert(v->next);
   }
-  v->next = NULL;
 #endif
+  v->next = NULL;
   lists[v->get_vertex()] = v;
   vertex_thread[v->get_vertex()] = -1;
   v->prepare();
@@ -158,13 +158,13 @@ void update_round_seq(int round) {
   old_live_affected_set.swap(live_affected_sets[0]);
   old_deleted_affected_set.swap(deleted_affected_sets[0]);
 
-
   for (Node* v : old_live_affected_set) {
+    ;
     v->state.frontier = on_frontier(v);
   }
 
   for (Node* v : old_live_affected_set) {
-    is_contracted(v, round);
+    v->state.contracted = is_contracted(v, round);
     if (v->state.frontier) {
       Node* p = v->get_parent();
       if (v->is_contracted() || p->is_affected()) {
@@ -172,16 +172,24 @@ void update_round_seq(int round) {
           make_affected(p->get_parent(), 0, true);
         }
 
-        if (is_contracted(p, round)) {
+        if (p->state.contracted = is_contracted(p, round)) {
           make_affected(p->get_parent(), 0, true);
           free_vertex(p, 0);
         } else {
           make_affected(p, 0, true);
         }
       }
+#ifdef STANDART
       for (Node* child : v->get_children()) {
+#elif SPECIAL
+      Node** children = v->get_children();
+      for (int i = 0; i < MAX_DEGREE; i++) {
+        if (children[i] == NULL)
+          continue;
+        Node* child = children[i];
+#endif
         if (v->is_contracted() || child->is_affected()) {
-          if (is_contracted(child, round)) {
+          if (child->state.contracted = is_contracted(child, round)) {
             free_vertex(child, 0);
           } else {
             make_affected(child, 0, true);
@@ -211,8 +219,16 @@ void update_round_seq(int round) {
     if (p->is_contracted()) {
       delete_node_for(p, v);
     }
-    std::set<Node*> copy_children = v->get_children();
-    for (auto u : copy_children) {
+#ifdef STANDART
+    std::set<Node*>& copy_children = v->prev->get_children();
+    for (Node* u : copy_children) {
+#elif SPECIAL
+    Node** children = v->prev->get_children();
+    for (int i = 0; i < MAX_DEGREE; i++) {
+      if (children[i] == NULL)
+        continue;
+      Node* u = children[i];
+#endif
       if (u->is_contracted()) {
         delete_node_for(u, v);
       }
@@ -232,6 +248,15 @@ void update_round_seq(int round) {
 }
 
 void update_round(int round) {
+/*  std::cerr << "affected: ";
+  for (int i = 0; i < len[round % 2]; i++) {
+    std::cerr << live[round % 2][i] << ": ";
+    for (Node* v : live_affected_sets[live[round % 2][i]]) {
+      std::cerr << v->get_vertex() << " ";
+    }
+    std::cerr << std::endl;
+  }*/
+
 //  for (int i = 0; i < set_number; i++) {
   pasl::sched::native::parallel_for(0, len[round % 2], [&] (int j) {
     int i = live[round % 2][j];
@@ -245,24 +270,32 @@ void update_round(int round) {
   pasl::sched::native::parallel_for(0, len[round % 2], [&] (int j) {
     int i = live[round % 2][j];
     for (Node* v : old_live_affected_sets[i]) {
-      is_contracted(v, round);
+      bool vcontracted = v->is_contracted();
+      v->state.contracted = is_contracted(v, round);
       if (on_frontier(v)) {
         Node* p = v->get_parent();
-        if (vertex_thread[p->get_vertex()] == -1 && (v->is_contracted() || p->is_affected())) {
+        if (vertex_thread[p->get_vertex()] == -1 && ((v->is_contracted() || vcontracted))) {// || p->is_affected())) {
           if (p->is_contracted() && v->is_contracted()) {
+            if (vertex_thread[p->get_parent()->get_vertex()] == -1)
             p->get_parent()->set_proposal(p, i);
           }
 
-          if (is_contracted(p, round)) {
+          if (is_contracted(p, round) && vcontracted) {
             if (vertex_thread[p->get_parent()->get_vertex()] == -1)
               p->get_parent()->set_proposal(p, i);
           }
-          if (vertex_thread[p->get_vertex()] == -1) {
-            p->set_proposal(v, i);
-          }
+          p->set_proposal(v, i);
         }
+#ifdef STANDART
         for (Node* c : v->get_children()) {
-          if (vertex_thread[c->get_vertex()] == -1 && (v->is_contracted() || c->is_affected())) {
+#elif SPECIAL
+        Node** children = v->get_children();
+        for (int k = 0; k < MAX_DEGREE; k++) {
+          if (children[k] == NULL)
+            continue;
+          Node* c = children[k];
+#endif
+          if (vertex_thread[c->get_vertex()] == -1 && (v->is_contracted() || vcontracted)) { // || c->is_affected())) {
             c->set_proposal(v, i);
           }
         }
@@ -279,9 +312,11 @@ void update_round(int round) {
     int i = live[round % 2][j];
     for (Node* v : old_live_affected_sets[i]) {
       Node* p = v->get_parent();
+      p->state.contracted = is_contracted(p, round);
       if (p->is_contracted() || v->is_contracted()) {
         Node* pp = p->get_parent();
         if (get_thread_id(pp) == i) {
+          pp->state.contracted = is_contracted(pp, round);
           if (!pp->is_contracted()) {
             make_affected(pp, i, true);
           }
@@ -294,8 +329,17 @@ void update_round(int round) {
           make_affected(p, i, true);
         }
       }
+#ifdef STANDART
       for (Node* u : v->get_children()) {
+#elif SPECIAL
+      Node** children = v->get_children();
+      for (int k = 0; k < MAX_DEGREE; k++) {
+        if (children[k] == NULL)
+          continue;
+        Node* u = children[k];
+#endif
         if (get_thread_id(u) == i) {
+          u->state.contracted = is_contracted(u, round);
           if (u->is_contracted()) {
             free_vertex(u, i);
           } else {
@@ -303,7 +347,7 @@ void update_round(int round) {
           }
         }
       }
-      if (v->is_contracted() || v->is_root()) {
+      if (vertex_thread[v->get_vertex()] == i && (v->is_contracted() || v->is_root())) {
         free_vertex(v, i);
       }
     }
@@ -317,8 +361,16 @@ void update_round(int round) {
         delete_node_for(v->get_parent(), v);
       }
 //      std::set<Node*> copy_children = v->get_children();
+#ifdef STANDART
       std::set<Node*>& copy_children = v->prev->get_children();
       for (Node* c : copy_children) {
+#elif SPECIAL
+      Node** children = v->prev->get_children();
+      for (int k = 0; k < MAX_DEGREE; k++) {
+        if (children[k] == NULL)
+          continue;
+        Node* c = children[k];
+#endif
         if (c->is_contracted()) {
           delete_node_for(c, v);
         }

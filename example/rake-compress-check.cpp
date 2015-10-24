@@ -15,7 +15,8 @@ struct GraphNode {
   GraphNode(State& state) {
     parent = state.parent->get_vertex();
     for (Node* child : state.children) {
-      children.insert(child->get_vertex());
+      if (child != NULL)
+        children.insert(child->get_vertex());
     }
     root = state.root;
     contracted = state.contracted;
@@ -155,6 +156,7 @@ void destroy(int n, GraphNode** a){
 }
 
 void destroy(int n) {
+#ifdef STANDART
   for (int i = 0; i < n; i++) {
     Node* start = lists[i]->head;
     while (start != NULL) {
@@ -163,6 +165,7 @@ void destroy(int n) {
       start = next;
     }
   }
+#endif
 
 //  delete [] live[0];
 //  delete [] live[1];
@@ -437,7 +440,7 @@ int main(int argc, char** argv) {
        for (int i = 0; i < 10; i++)
          test7(rand() % max_n + 10, 10);
        for (int i = 0; i < 10; i++)
-         test8(rand() % max_n + 10, 10);
+         test8(rand() % max_n + 10, 10);//
        for (int i = 0; i < 10; i++) {
          int n = rand() % max_n + 10;
          int k = rand() % (n / 2);
