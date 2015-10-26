@@ -179,10 +179,10 @@ private:
   char _padding1[cache_align_szb];
   
   std::atomic<contents_type> X;
-  char _padding2[cache_align_szb];
+  char _padding2[cache_align_szb - sizeof(std::atomic<contents_type>)];
 
   node* parent;
-  char _padding3[cache_align_szb];
+  char _padding3[cache_align_szb - sizeof(node*)];
   
   static bool is_root_node(const node* n) {
     return tagged_tag_of(n) == 1;

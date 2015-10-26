@@ -69,14 +69,16 @@ private:
   static constexpr int child_pointer_szb = sizeof(child_pointer_type);
   using aligned_child_cell_type = typename std::aligned_storage<child_pointer_szb, cache_align_szb>::type;
   
+  char _padding0[cache_align_szb];
+  
   std::atomic<bool> saturated;
-  char _padding1[cache_align_szb];
+  char _padding1[cache_align_szb - sizeof(std::atomic<bool>)];
   
   std::atomic<contents_type> X;
-  char _padding2[cache_align_szb];
+  char _padding2[cache_align_szb - sizeof(std::atomic<contents_type>)];
   
   node* parent;
-  char _padding3[cache_align_szb];
+  char _padding3[cache_align_szb - sizeof(node*)];
   
   aligned_child_cell_type children[nb_children];
   char _padding4[cache_align_szb];
