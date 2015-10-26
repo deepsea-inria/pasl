@@ -135,7 +135,16 @@ namespace snzi {
 namespace {
 static constexpr int cache_align_szb = 128;
 static constexpr double sleep_time = 10000.0;
+  
+template <class T>
+bool compare_exchange(std::atomic<T>& cell, T& expected, T desired) {
+  if (cell.compare_exchange_strong(expected, desired)) {
+    return true;
+  }
+  pasl::util::microtime::microsleep(sleep_time);
+  return false;
 }
+} // end namespace
   
 template <int height>
 class tree;
@@ -184,10 +193,6 @@ private:
     return (node*)tagged_tag_with(x, root_node_tag);
   }
   
-  static void backoff() {
-    pasl::util::microtime::microsleep(sleep_time);
-  }
-  
 public:
   
   node(node* _parent = nullptr) {
@@ -207,21 +212,18 @@ public:
         contents_type orig = x;
         contents_type next = x;
         next.c++;
-        succ = X.compare_exchange_strong(orig, next);
+        succ = compare_exchange(X, orig, next);
       }
       if (x.c == 0) {
         contents_type orig = x;
         contents_type next = x;
         next.c = one_half;
         next.v++;
-        if (X.compare_exchange_strong(orig, next)) {
+        if (compare_exchange(X, orig, next)) {
           succ = true;
           x.c = one_half;
           x.v++;
         }
-      }
-      if (! succ) {
-        backoff();
       }
       if (x.c == one_half) {
         if (! is_root_node(parent)) {
@@ -230,7 +232,7 @@ public:
         contents_type orig = x;
         contents_type next = x;
         next.c = 1;
-        if (! X.compare_exchange_strong(orig, next)) {
+        if (! compare_exchange(X, orig, next)) {
           undo_arr++;
         }
       }
@@ -251,7 +253,7 @@ public:
       contents_type orig = x;
       contents_type next = x;
       next.c--;
-      if (X.compare_exchange_strong(orig, next)) {
+      if (compare_exchange(X, orig, next)) {
         bool s = (x.c == 1);
         if (is_root_node(parent)) {
           return s;
@@ -260,8 +262,6 @@ public:
         } else {
           return false;
         }
-      } else {
-        backoff();
       }
     }
   }

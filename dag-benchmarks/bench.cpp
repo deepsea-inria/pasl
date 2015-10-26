@@ -132,11 +132,18 @@ T* malloc_array(size_t n) {
   return (T*)malloc(sizeof(T) * n);
 }
 
+namespace {
 static constexpr double sleep_time = 10000.0;
-
-void backoff() {
+template <class T>
+bool compare_exchange(std::atomic<T>& cell, T& expected, T desired) {
+  if (cell.compare_exchange_strong(expected, desired)) {
+    return true;
+  }
   pasl::util::microtime::microsleep(sleep_time);
+  return false;
 }
+} // end namespace
+
 
 /*---------------------------------------------------------------------*/
 
@@ -283,10 +290,8 @@ public:
         break;
       } else {
         cell->next = orig;
-        if (head.compare_exchange_strong(orig, cell)) {
+        if (compare_exchange(head, orig, cell)) {
           break;
-        } else {
-          backoff();
         }
       }
     }
@@ -299,7 +304,7 @@ public:
       concurrent_list_type* orig = head.load();
       concurrent_list_type* v = (concurrent_list_type*)nullptr;
       concurrent_list_type* next = tagged_tag_with(v, finished_tag);
-      if (head.compare_exchange_strong(orig, next)) {
+      if (compare_exchange(head, orig, next)) {
         todo = orig;
         break;
       }
@@ -453,7 +458,7 @@ void incounter_increment(std::atomic<incounter_node*>& root,
     incounter_node* target = current->load();
     if (target == nullptr) {
       incounter_node* orig = nullptr;
-      if (current->compare_exchange_strong(orig, new_node)) {
+      if (compare_exchange(*current, orig, new_node)) {
         return;
       }
     } else if (tagged_tag_of(target) == incounter_node::removing_tag) {
@@ -482,10 +487,8 @@ void incounter_add_to_freelist(std::atomic<incounter_node*>& freelist,
     if (target == nullptr) {
       incounter_node* orig = tagged_tag_with(target, incounter_node::removing_tag);
       incounter_node* next = tagged_tag_with(old_node, incounter_node::removing_tag);
-      if (current->compare_exchange_strong(orig, next)) {
+      if (compare_exchange(*current, orig, next)) {
         return;
-      } else {
-        backoff();
       }
     } else {
       int i = random_int(0, branching_factor);
@@ -504,10 +507,8 @@ bool incounter_try_remove(incounter_node* current) {
   while (i < branching_factor) {
     incounter_node* orig = nullptr;
     incounter_node* next = tagged_tag_with(orig, incounter_node::removing_tag);
-    if (! (current->children[i].compare_exchange_strong(orig, next))) {
+    if (! (compare_exchange(current->children[i], orig, next))) {
       break;
-    } else {
-      backoff();
     }
     i++;
   }
@@ -651,10 +652,8 @@ bool outset_insert(std::atomic<outset_node*>& root, node* n, const Random_int& r
     outset_node* target = current->load();
     if (target == nullptr) {
       outset_node* orig = nullptr;
-      if (current->compare_exchange_strong(orig, new_node)) {
+      if (compare_exchange(*current, orig, new_node)) {
         return true;
-      } else {
-        backoff();
       }
       target = current->load();
     }
@@ -682,10 +681,8 @@ void outset_add_to_freelist(std::atomic<outset_node*>& freelist, outset_node* ol
     if (target == nullptr) {
       outset_node* orig = tagged_tag_with(target, outset_node::finished_tag);
       outset_node* next = tagged_tag_with(old_node, outset_node::finished_tag);
-      if (current->compare_exchange_strong(orig, next)) {
+      if (compare_exchange(*current, orig, next)) {
         return;
-      } else {
-        backoff();
       }
       target = tagged_pointer_of(current->load());
     }
@@ -879,10 +876,8 @@ void incounter_increment(std::atomic<incounter_node*>& root,
         new_node = new incounter_node;
       }
       incounter_node* orig = nullptr;
-      if (current->compare_exchange_strong(orig, new_node)) {
+      if (compare_exchange(*current, orig, new_node)) {
         return;
-      } else {
-        backoff();
       }
     } else if (tagged_tag_of(target) == incounter_node::removing_tag) {
       current = &root;
@@ -892,13 +887,11 @@ void incounter_increment(std::atomic<incounter_node*>& root,
         current = &root;
       } else if ((count < amortization_factor) || (depth >= incounter_target_depth)) {
         int orig = count;
-        if (target->count.compare_exchange_strong(orig, orig + 1)) {
+        if (compare_exchange(target->count, orig, orig + 1)) {
           if (new_node != nullptr) {
             delete new_node;
           }
           return;
-        } else {
-          backoff();
         }
       } else {
         int i = bits & random_bits_mask;
@@ -930,10 +923,8 @@ bool incounter_try_remove(incounter_node* current) {
   while (i < branching_factor) {
     incounter_node* orig = nullptr;
     incounter_node* next = tagged_tag_with(orig, incounter_node::removing_tag);
-    if (! (current->children[i].compare_exchange_strong(orig, next))) {
+    if (! (compare_exchange(current->children[i], orig, next))) {
       break;
-    } else {
-      backoff();
     }
     i++;
   }
@@ -962,10 +953,8 @@ void incounter_add_to_freelist(std::atomic<incounter_node*>& freelist,
     if (target == nullptr) {
       incounter_node* orig = tagged_tag_with(target, incounter_node::removing_tag);
       incounter_node* next = tagged_tag_with(old_node, incounter_node::removing_tag);
-      if (current->compare_exchange_strong(orig, next)) {
+      if (compare_exchange(*current, orig, next)) {
         return;
-      } else {
-        backoff();
       }
     } else {
       int i = random_int(0, branching_factor);
@@ -986,7 +975,7 @@ incounter_node* incounter_decrement_rec(incounter_node* current,
       return nullptr;
     } else {
       int orig = count;
-      if (current->count.compare_exchange_strong(orig, orig - 1)) {
+      if (compare_exchange(current->count, orig, orig - 1)) {
         if (count > 1) {
           return tagged_tag_with<incounter_node>(removed_tag);
         }
@@ -995,8 +984,6 @@ incounter_node* incounter_decrement_rec(incounter_node* current,
         } else {
           current->count.store(1);
         }
-      } else {
-        backoff();
       }
     }
   } else {
@@ -1119,10 +1106,8 @@ bool outset_insert(std::atomic<outset_node*>& root, node* n, const Random_int& r
         new_node->contents[i].store(n);
       }
       outset_node* orig = nullptr;
-      if (current->compare_exchange_strong(orig, new_node)) {
+      if (compare_exchange(*current, orig, new_node)) {
         return true;
-      } else {
-        backoff();
       }
       target = current->load();
     }
@@ -1136,13 +1121,11 @@ bool outset_insert(std::atomic<outset_node*>& root, node* n, const Random_int& r
     node* m = target->contents[i].load();
     if (m == nullptr) {
       node* orig = nullptr;
-      if (target->contents[i].compare_exchange_strong(orig, n)) {
+      if (compare_exchange(target->contents[i], orig, n)) {
         if (new_node != nullptr) {
           delete new_node;
         }
         return true;
-      } else {
-        backoff();
       }
     } else if (tagged_tag_of(m) == outset_node::finished_tag) {
       if (new_node != nullptr) {
@@ -1171,10 +1154,8 @@ void outset_add_to_freelist(std::atomic<outset_node*>& freelist, outset_node* ol
     if (target == nullptr) {
       outset_node* orig = tagged_tag_with(target, outset_node::finished_tag);
       outset_node* next = tagged_tag_with(old_node, outset_node::finished_tag);
-      if (current->compare_exchange_strong(orig, next)) {
+      if (compare_exchange(*current, orig, next)) {
         return;
-      } else {
-        backoff();
       }
       target = tagged_pointer_of(current->load());
     }
@@ -1735,7 +1716,7 @@ void outset_finish_partial(std::atomic<outset_node*>* freelist, std::deque<outse
       while (true) {
         outset_node* child = current->children[i].load();
         outset_node* orig = child;
-        if (current->children[i].compare_exchange_strong(orig, finished_tag)) {
+        if (compare_exchange(current->children[i], orig, finished_tag)) {
           if (child != nullptr) {
             todo.push_back(child);
           }
@@ -1852,7 +1833,7 @@ void outset_finish(dyntree_outset* out) {
   std::deque<outset_node*> todo;
   outset_node* orig = out->root.load();
   while (true) {
-    if (out->root.compare_exchange_strong(orig, finished_tag)) {
+    if (compare_exchange(out->root, orig, finished_tag)) {
       break;
     }
   }
@@ -2053,7 +2034,7 @@ void outset_finish_partial(std::atomic<outset_node*>* freelist, std::deque<outse
         outset_node* child = current->children[i].load();
         outset_node* orig = child;
         outset_node* next = tagged_tag_with<outset_node>(outset_node::finished_tag);
-        if (current->children[i].compare_exchange_strong(orig, next)) {
+        if (compare_exchange(current->children[i], orig, next)) {
           if (child != nullptr) {
             todo.push_back(child);
           }
@@ -2066,7 +2047,7 @@ void outset_finish_partial(std::atomic<outset_node*>* freelist, std::deque<outse
         node* n = current->contents[i].load();
         node* orig = n;
         node* next = tagged_tag_with<node>(outset_node::finished_tag);
-        if (current->contents[i].compare_exchange_strong(orig, next)) {
+        if (compare_exchange(current->contents[i], orig, next)) {
           if (n != nullptr) {
             decrement_incounter(n);
           }
@@ -2272,7 +2253,7 @@ void outset_finish(dyntreeopt_outset* out) {
   std::deque<outset_node*> todo;
   outset_node* orig = out->root.load();
   while (true) {
-    if (out->root.compare_exchange_strong(orig, finished_tag)) {
+    if (compare_exchange(out->root, orig, finished_tag)) {
       break;
     }
   }
@@ -2513,7 +2494,7 @@ public:
           break;
         }
         int orig = 0;
-        if (next->nb_removed_children.compare_exchange_strong(orig, 1)) {
+        if (compare_exchange(next->nb_removed_children, orig, 1)) {
           return not_activated;
         }
       }
@@ -2591,7 +2572,7 @@ public:
     next->target = target;
     next->port = inport;
     outset_node* orig = nullptr;
-    if (! (outport->children[0].compare_exchange_strong(orig, next))) {
+    if (! (compare_exchange(outport->children[0], orig, next))) {
       delete next;
       return std::make_pair(insert_fail, nullptr);
     }
@@ -2604,7 +2585,7 @@ public:
     for (int i = 1; i >= 0; i--) {
       branches[i] = new outset_node;
       outset_node* orig = nullptr;
-      if (! port->children[i].compare_exchange_strong(orig, branches[i])) {
+      if (! compare_exchange(port->children[i], orig, branches[i])) {
         delete branches[i];
         return std::make_pair(nullptr, nullptr);
       }
@@ -3147,7 +3128,7 @@ void outset_finish_partial(std::deque<outset_node*>& todo) {
       while (true) {
         orig = n->children[i].load();
         outset_node* next = tagged_tag_with(orig, outset::frozen_tag);
-        if (n->children[i].compare_exchange_strong(orig, next)) {
+        if (compare_exchange(n->children[i], orig, next)) {
           break;
         }
       }
@@ -4532,7 +4513,7 @@ public:
         } else if (orig == next) {
           break;
         } else {
-          if (buffer->compare_exchange_strong(orig, next)) {
+          if (compare_exchange(*buffer, orig, next)) {
             pasl::sched::instrategy::schedule(orig);
           }
         }
@@ -5891,7 +5872,7 @@ flat_adjlist_alias<Vertex_id> get_alias_of_adjlist(const flat_adjlist<Vertex_id>
 template <class Index, class Item>
 bool try_to_mark_non_idempotent(std::atomic<Item>* visited, Index target) {
   Item orig = 0;
-  if (! visited[target].compare_exchange_strong(orig, 1))
+  if (! compare_exchange(visited[target], orig, 1))
     return false;
   return true;
 }
@@ -6062,7 +6043,7 @@ static bool pbfs_try_to_set_dist(Index target,
                                  std::atomic<Item>* dists) {
   if (dists[target].load(std::memory_order_relaxed) != unknown)
     return false;
-  else if (! dists[target].compare_exchange_strong(unknown, dist))
+  else if (! compare_exchange(dists[target], unknown, dist))
     return false;
   return true;
 }

@@ -27,7 +27,16 @@ namespace {
 static constexpr int cache_align_szb = 128;
 static constexpr int nb_children = 2;
 static constexpr double sleep_time = 10000.0;
+  
+template <class T>
+bool compare_exchange(std::atomic<T>& cell, T& expected, T desired) {
+  if (cell.compare_exchange_strong(expected, desired)) {
+    return true;
+  }
+  pasl::util::microtime::microsleep(sleep_time);
+  return false;
 }
+} // end namespace
  
 template <int saturation_upper_bound>
 class node {
@@ -86,10 +95,6 @@ private:
     return *reinterpret_cast<child_pointer_type*>(children+i);
   }
   
-  static void backoff() {
-    pasl::util::microtime::microsleep(sleep_time);
-  }
-  
 public:
   
   node(node* _parent = nullptr) {
@@ -122,14 +127,14 @@ public:
         contents_type next = x;
         next.c++;
         next.v++;
-        succ = X.compare_exchange_strong(orig, next);
+        succ = compare_exchange(X, orig, next);
       }
       if (x.c == 0) {
         contents_type orig = x;
         contents_type next = x;
         next.c = one_half;
         next.v++;
-        if (X.compare_exchange_strong(orig, next)) {
+        if (compare_exchange(X, orig, next)) {
           succ = true;
           x.c = one_half;
           x.v++;
@@ -138,9 +143,6 @@ public:
       if (succ && (x.v == saturation_upper_bound)) {
         saturated.store(true);
       }
-      if (! succ) {
-        backoff();
-      }
       if (x.c == one_half) {
         if (! is_root_node(parent)) {
           parent->increment();
@@ -148,7 +150,7 @@ public:
         contents_type orig = x;
         contents_type next = x;
         next.c = 1;
-        if (! X.compare_exchange_strong(orig, next)) {
+        if (! compare_exchange(X, orig, next)) {
           undo_arr++;
         }
       }
@@ -169,7 +171,7 @@ public:
       contents_type orig = x;
       contents_type next = x;
       next.c--;
-      if (X.compare_exchange_strong(orig, next)) {
+      if (compare_exchange(X, orig, next)) {
         bool s = (x.c == 1);
         if (is_root_node(parent)) {
           return s;
@@ -178,8 +180,6 @@ public:
         } else {
           return false;
         }
-      } else {
-        backoff();
       }
     }
   }
@@ -192,12 +192,11 @@ public:
       return orig;
     }
     node* n = new node(this);
-    if (child.compare_exchange_strong(orig, n)) {
+    if (compare_exchange(child, orig, n)) {
       created_new_child = true;
       return n;
     } else {
       delete n;
-      backoff();
       return child.load();
     }
   }
