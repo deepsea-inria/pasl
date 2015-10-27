@@ -193,6 +193,7 @@ let microbench_formatter =
       ("algo", Format_custom (fun algo -> sprintf "%s" (if algo = "portpassing" then algo else "")));
       ("edge_algo", Format_custom pretty_edge_algo);
       ("cmd", Format_custom (fun cmd -> sprintf "%s" cmd));
+      ("snzi", Format_custom (fun snzi -> snzi));
     ]
   ))                
          
@@ -412,6 +413,9 @@ let mk_snzi_alternated_mixed_duration =
 let make() =
   build "." [prog] arg_virtual_build
 
+let all_procs = XList.init (max_proc / 2) (fun i -> (i+1)*2)
+let mk_procs = mk_list int "proc" all_procs
+        
 let run() =
   Mk_runs.(call (run_modes @ [
     Output (file_results name);
@@ -428,11 +432,11 @@ let check = nothing  (* do something here *)
 let plot() =
     Mk_scatter_plot.(call ([
     Chart_opt Chart.([
-      Legend_opt Legend.([Legend_pos Bottom_right]);
+      Legend_opt Legend.([Legend_pos Top_right]);
       ]);
      Scatter_plot_opt Scatter_plot.([
          Draw_lines true; 
-         Y_axis [Axis.Lower (Some 0.); Axis.Is_log false;] ]);
+         Y_axis [Axis.Lower (Some 0.); Axis.Upper (Some 10.0e6); Axis.Is_log false;] ]);
        Formatter microbench_formatter;
        Charts mk_unit;
       Series mk_snzis;
@@ -831,10 +835,6 @@ let all () = (
   doit "large" mk_seidel_params_large)
                       
 end
-
-                 (*
-prun ./bench.sta -cmd incounter_async_nb -algo direct -edge_algo dyntreeopt -n 500000 -seed 1234 -proc 1,2,4,8,10,20,30,40 -workload 2000.0
-                      *)
 
 (*****************************************************************************)
 (** Main *)
