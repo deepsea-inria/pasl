@@ -432,7 +432,7 @@ let plot() =
       ]);
      Scatter_plot_opt Scatter_plot.([
          Draw_lines true; 
-         Y_axis [Axis.Lower (Some 0.); Axis.Is_log true;] ]);
+         Y_axis [Axis.Lower (Some 0.); Axis.Is_log false;] ]);
        Formatter microbench_formatter;
        Charts mk_unit;
       Series mk_snzis;
