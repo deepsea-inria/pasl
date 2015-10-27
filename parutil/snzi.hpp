@@ -131,6 +131,11 @@
 namespace pasl {
 namespace data {
 namespace snzi {
+  
+// pre: sizeof(ty) <= align_szb
+#define DECLARE_PADDED_FIELD(ty, name, align_szb)   \
+  ty name;                                          \
+  char _padding_for_ ## name[align_szb - sizeof(ty)]
 
 namespace {
 static constexpr int cache_align_szb = 128;
@@ -144,6 +149,21 @@ bool compare_exchange(std::atomic<T>& cell, T& expected, T desired) {
   pasl::util::microtime::microsleep(sleep_time);
   return false;
 }
+  
+template <class T>
+T* tagged_pointer_of(T* n) {
+  return pasl::data::tagged::extract_value<T*>(n);
+}
+
+template <class T>
+int tagged_tag_of(T* n) {
+  return (int)pasl::data::tagged::extract_tag<long>(n);
+}
+
+template <class T>
+T* tagged_tag_with(T* n, int t) {
+  return pasl::data::tagged::create<T*, T*>(n, (long)t);
+}
 } // end namespace
   
 template <int height>
@@ -151,21 +171,6 @@ class tree;
   
 class node {
 private:
-  
-  template <class T>
-  static T* tagged_pointer_of(T* n) {
-    return pasl::data::tagged::extract_value<T*>(n);
-  }
-  
-  template <class T>
-  static int tagged_tag_of(T* n) {
-    return (int)pasl::data::tagged::extract_tag<long>(n);
-  }
-  
-  template <class T>
-  static T* tagged_tag_with(T* n, int t) {
-    return pasl::data::tagged::create<T*, T*>(n, (long)t);
-  }
   
   using contents_type = struct {
     int c; // counter value
@@ -176,16 +181,12 @@ private:
   
   static constexpr int root_node_tag = 1;
 
-  char _padding1[cache_align_szb];
+  DECLARE_PADDED_FIELD(std::atomic<contents_type>, X, cache_align_szb);
   
-  std::atomic<contents_type> X;
-  char _padding2[cache_align_szb - sizeof(std::atomic<contents_type>)];
-
-  node* parent;
-  char _padding3[cache_align_szb - sizeof(node*)];
+  DECLARE_PADDED_FIELD(node*, parent, cache_align_szb);
   
   static bool is_root_node(const node* n) {
-    return tagged_tag_of(n) == 1;
+    return tagged_tag_of(n) == root_node_tag;
   }
   
   template <class Item>
@@ -295,6 +296,8 @@ public:
   friend class tree;
   
 };
+  
+#undef DECLARE_PADDED_FIELD
 
 template <int height = 6>
 class tree {

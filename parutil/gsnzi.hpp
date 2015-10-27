@@ -22,14 +22,11 @@
 namespace pasl {
 namespace data {
 namespace gsnzi {
-  
-  /* later: introduce padding macro/template
-   
-   PADDED(ty, name)
-     ==>
-   ty name;
-   char _pad_name[cache_align_szb - sizeof(ty)];
-   */
+
+// pre: sizeof(ty) <= align_szb
+#define DECLARE_PADDED_FIELD(ty, name, align_szb)   \
+  ty name;                                          \
+  char _padding_for_ ## name[align_szb - sizeof(ty)]
   
 namespace {
 static constexpr int cache_align_szb = 128;
@@ -72,21 +69,13 @@ private:
     int c; // counter value
     int v; // version number
   };
+
+  DECLARE_PADDED_FIELD(std::atomic<contents_type>, X, cache_align_szb);
   
-  using child_pointer_type = std::atomic<node*>;
-  static constexpr int child_pointer_szb = sizeof(child_pointer_type);
-  using aligned_child_cell_type = typename std::aligned_storage<child_pointer_szb, cache_align_szb>::type;
-  
-  char _padding0[cache_align_szb];
-  
-  std::atomic<contents_type> X;
-  char _padding2[cache_align_szb - sizeof(std::atomic<contents_type>)];
-  
-  node* parent;
-  char _padding3[cache_align_szb - sizeof(node*)];
+  DECLARE_PADDED_FIELD(node*, parent, cache_align_szb);
 
   static bool is_root_node(const node* n) {
-    return tagged_tag_of(n) == 1;
+    return tagged_tag_of(n) == root_node_tag;
   }
   
   template <class Item>
@@ -199,6 +188,8 @@ public:
   }
   
 };
+  
+#undef DECLARE_PADDED_FIELD
   
 template <
   int max_height = 6,  // must be > 1
