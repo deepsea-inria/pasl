@@ -481,10 +481,7 @@ let prog = "./bench.opt"
 
 let mk_cmd = mk string "cmd" "outset_add_duration"
 
-let mk_outsets =
-      mk string "outset" "simple"
-   ++ mk string "outset" "dyntree"
-   ++ mk string "outset" "dyntreeopt"
+let mk_edge_algos = mk_list string "edge_algo" ["simple"; "dyntreeopt"]
 
 let make() =
   build "." [prog] arg_virtual_build
@@ -498,26 +495,44 @@ let run() =
     & mk_cmd
     & mk_nb_milliseconds
     & mk_seed
-    & mk_outsets
-    & mk_proc)]))
+    & mk_edge_algos
+    & mk_procs)]))
 
 let check = nothing  (* do something here *)
 
 let plot() =
+begin
+    Mk_scatter_plot.(call ([
+    Chart_opt Chart.([
+      Legend_opt Legend.([Legend_pos Top_right]);
+      ]);
+     Scatter_plot_opt Scatter_plot.([
+         Draw_lines true; 
+         Y_axis [Axis.Lower (Some 0.); Axis.Upper (Some 10.0e6); Axis.Is_log false;] ]);
+       Formatter microbench_formatter;
+       Charts mk_unit;
+      Series mk_edge_algos;
+      X mk_procs;
+      Input (file_results name);
+      Output (file_plots name);
+      Y_label "nb_operations/second (per thread)";
+      Y eval_nb_operations_per_second;
+  ]));
   Mk_bar_plot.(call ([
       Bar_plot_opt Bar_plot.([
          X_titles_dir Vertical;
          Y_axis [Axis.Lower (Some 0.)] ]);
        Formatter microbench_formatter;
-      Charts mk_proc;
-      Series mk_outsets;
-      X mk_unit;
+      Charts mk_unit;
+      Series mk_edge_algos;
+      X mk_procs;
       Input (file_results name);
-      Output (file_plots name);
+      Output (file_plots (name^"_barplot"));
       Y_label "nb_operations/second (per thread)";
       Y eval_nb_operations_per_second;
       Y_whiskers eval_nb_operations_per_second_error;
   ]))
+  end
 
 let all () = select make run check plot
 
