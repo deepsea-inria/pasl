@@ -218,6 +218,10 @@ public:
     delta(nullptr, target, d);
   }
   
+  virtual bool is_growabletree() const {
+    return false;
+  }
+  
 };
 
 class outset : public pasl::sched::outstrategy::common {
@@ -351,11 +355,11 @@ public:
   }
   
   void increment(node* source) {
-    nzi.random_leaf_of(source)->arrive();
+    nzi.get_target_of_value(source)->increment();
   }
   
   status_type decrement(node* source) {
-    bool b = nzi.random_leaf_of(source)->depart();
+    bool b = nzi.get_target_of_value(source)->decrement();
     return b ? incounter::activated : incounter::not_activated;
   }
   
@@ -363,7 +367,7 @@ public:
   
 void unary_finished(pasl::sched::thread_p t) {
   pasl::data::snzi::node* leaf = (pasl::data::snzi::node*)t;
-  if (leaf->depart()) {
+  if (leaf->decrement()) {
     node* n = pasl::data::snzi::node::get_root_annotation<node*>(leaf);
     pasl::sched::instrategy::schedule((pasl::sched::thread_p)n);
   }
@@ -390,12 +394,19 @@ public:
   }
   
   void increment(node* source) {
-    nzi.get_target_of_value(source)->increment();
+    assert(false);
+//    nzi.get_target_of_value(source)->increment();
   }
   
   status_type decrement(node* source) {
-    bool b = nzi.get_target_of_value(source)->decrement();
-    return b ? incounter::activated : incounter::not_activated;
+    assert(false);
+    return incounter::not_activated;
+/*    bool b = nzi.get_target_of_value(source)->decrement();
+    return b ? incounter::activated : incounter::not_activated; */
+  }
+  
+  bool is_growabletree() const {
+    return true;
   }
   
 };
@@ -1007,7 +1018,7 @@ incounter_node* incounter_decrement_rec(incounter_node* current,
         }
         if (result == target) {
           current->children[k].store(nullptr);
-	  incounter_add_to_freelist(freelist, result, random_int);
+          incounter_add_to_freelist(freelist, result, random_int);
         }
         return result;
       }
@@ -1487,6 +1498,7 @@ void add_node(node* n) {
 outset::insert_status_type outset_insert(node* source, outset* source_out, node* target) {
   long tag = pasl::sched::outstrategy::extract_tag(source_out);
   assert(tag != pasl::sched::outstrategy::NOOP_TAG);
+  assert(tag != pasl::sched::outstrategy::DIRECT_GROWABLETREE_UNARY_TAG);
   if (tag == pasl::sched::outstrategy::UNARY_TAG) {
     source->out = pasl::data::tagged::create<pasl::sched::thread_p, pasl::sched::outstrategy_p>(target, tag);
     return outset::insert_success;
@@ -1494,19 +1506,8 @@ outset::insert_status_type outset_insert(node* source, outset* source_out, node*
     auto target_in = (statreeopt::statreeopt_incounter*)target->in;
     long tg = pasl::sched::instrategy::extract_tag(target_in);
     if ((tg == 0) && (edge_algorithm == edge_algorithm_statreeopt)) {
-      auto t = (pasl::sched::thread_p)target_in->nzi.random_leaf_of(source);
-      source->out = pasl::sched::outstrategy::direct_statreeopt_unary_new(t);
-    } else {
-      tag = pasl::sched::outstrategy::UNARY_TAG;
-      source->out = pasl::data::tagged::create<pasl::sched::thread_p, pasl::sched::outstrategy_p>(target, tag);
-    }
-    return outset::insert_success;
-  } else if (tag == pasl::sched::outstrategy::DIRECT_GROWABLETREE_UNARY_TAG) {
-    auto target_in = (growabletree::growabletree_incounter*)target->in;
-    long tg = pasl::sched::instrategy::extract_tag(target_in);
-    if ((tg == 0) && (edge_algorithm == edge_algorithm_growabletree)) {
       auto t = (pasl::sched::thread_p)target_in->nzi.get_target_of_value(source);
-      source->out = pasl::sched::outstrategy::direct_growabletree_unary_new(t);
+      source->out = pasl::sched::outstrategy::direct_statreeopt_unary_new(t);
     } else {
       tag = pasl::sched::outstrategy::UNARY_TAG;
       source->out = pasl::data::tagged::create<pasl::sched::thread_p, pasl::sched::outstrategy_p>(target, tag);
@@ -1517,8 +1518,23 @@ outset::insert_status_type outset_insert(node* source, outset* source_out, node*
     return source_out->insert(target);
   }
 }
+  
+void add_edge_growabletree(node* source, outset* source_out,
+                           node* target, growabletree::growabletree_incounter* target_in) {
+  auto target_nzi_node = target_in->nzi.get_target_of_value(source);
+  target_nzi_node->increment();
+  long tag = pasl::sched::outstrategy::extract_tag(source_out);
+  assert(tag == pasl::sched::outstrategy::DIRECT_GROWABLETREE_UNARY_TAG);
+  auto t = (pasl::sched::thread_p)target_nzi_node;
+  source->out = pasl::sched::outstrategy::direct_growabletree_unary_new(t);
+}
 
 void add_edge(node* source, outset* source_out, node* target, incounter* target_in) {
+  if (pasl::sched::instrategy::extract_tag(target_in) == 0 && target_in->is_growabletree()) {
+    auto t = (growabletree::growabletree_incounter*)target_in;
+    add_edge_growabletree(source, source_out, target, t);
+    return;
+  }
   increment_incounter(source, target, target_in);
   if (outset_insert(source, source_out, target) == outset::insert_fail) {
     decrement_incounter(source, target, target_in);
@@ -3940,16 +3956,16 @@ public:
   snzi_type snzi;
 
   node_type* get_target_for(int id) {
-    //    return snzi.random_leaf_of(id);
+    //    return snzi.get_target_of_value(id);
     return snzi.ith_leaf_node(id);
   }
   
   void increment(node_type* target) {
-    target->arrive();
+    target->increment();
   }
   
   void decrement(node_type* target) {
-    target->depart();
+    target->decrement();
   }
   
 };
@@ -4064,13 +4080,13 @@ public:
   template <class Random_int>
   void increment(int hash, const Random_int&) {
     int i = my_leaf_node(hash);
-    snzi.ith_leaf_node(i)->arrive();
+    snzi.ith_leaf_node(i)->increment();
   }
   
   template <class Random_int>
   bool decrement(int hash, const Random_int&) {
     int i = my_leaf_node(hash);
-    return snzi.ith_leaf_node(i)->depart();
+    return snzi.ith_leaf_node(i)->decrement();
   }
   
   bool is_activated() const {

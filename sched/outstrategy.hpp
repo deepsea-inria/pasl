@@ -382,7 +382,7 @@ const long NOOP_TAG = 1;
 const long UNARY_TAG = 2;
 const long PORTPASSING_UNARY_TAG = 3;
 const long DIRECT_STATREEOPT_UNARY_TAG = 4;
-const long DIRECT_GROWABLETREE_UNARY_TAG = 4;
+const long DIRECT_GROWABLETREE_UNARY_TAG = 5;
   
 static inline long extract_tag(outstrategy_p out) {
   return data::tagged::extract_tag<thread_p, outstrategy_p>(out);

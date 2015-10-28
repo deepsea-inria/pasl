@@ -21,21 +21,21 @@
  * point to another SNZI node.
  *
  * The following methods are provided by the SNZI class. The
- * call n.arrive() increments the counter in n by one. The call
- * n.depart() decrements the counter in n by one and returns
+ * call n.increment() increments the counter in n by one. The call
+ * n.decrement() decrements the counter in n by one and returns
  * true if the call changed the counter value to zero and
  * false otherwise. The call n.is_nonzero() returns true if the
  * counter value in n is zero and false otherwise.
  
-   void arrive();
-   bool depart();
+   void increment();
+   bool decrement();
    bool is_nonzero() const;
  
  * Calls to these three methods can occur concurrently. As specified
  * in the SNZI paper, the counter value of a SNZI node is not allowed
  * to be negative. As such, for any given SNZI node the number of
- * calls to the depart method should never outnumber the number of 
- * calls to arrive.
+ * calls to the decrement method should never outnumber the number of 
+ * calls to increment.
  *
  * In addition, this implementation provides a mechanism that can
  * be used by the client of the SNZI class to insert a word-sized
@@ -83,13 +83,13 @@
  * nonzero and false otherwise.
  *
  * We have provided two additional convenience methods. The call
- * t.random_leaf_of(x) takes a value x that must be a word-sized
+ * t.get_target_of_value(x) takes a value x that must be a word-sized
  * value of primitive type (e.g., long) and returns a leaf node
  * in the SNZI tree t that is selected pseudo randomly (by a
  * hash function) that is computed from the bits of x.
  
    template <class Item>
-   node* random_leaf_of(Item x) const;
+   node* get_target_of_value(Item x) const;
  
  * The call t.set_root_annotation(x) sets the annotation in the
  * root node to be the value x, which must be a value of primitive
@@ -204,7 +204,7 @@ public:
     X.store(init);
   }
   
-  void arrive() {
+  void increment() {
     bool succ = false;
     int undo_arr = 0;
     while (! succ) {
@@ -228,7 +228,7 @@ public:
       }
       if (x.c == one_half) {
         if (! is_root_node(parent)) {
-          parent->arrive();
+          parent->increment();
         }
         contents_type orig = x;
         contents_type next = x;
@@ -242,12 +242,12 @@ public:
       return;
     }
     while (undo_arr > 0) {
-      parent->depart();
+      parent->decrement();
       undo_arr--;
     }
   }
   
-  bool depart() {
+  bool decrement() {
     while (true) {
       contents_type x = X.load();
       assert(x.c >= 1);
@@ -259,7 +259,7 @@ public:
         if (is_root_node(parent)) {
           return s;
         } else if (s) {
-          return parent->depart();
+          return parent->decrement();
         } else {
           return false;
         }
@@ -348,7 +348,7 @@ public:
   }
   
   template <class Item>
-  node* random_leaf_of(Item x) {
+  node* get_target_of_value(Item x) {
     union {
       Item x;
       long b;

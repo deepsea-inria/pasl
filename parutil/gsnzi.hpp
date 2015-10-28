@@ -192,7 +192,7 @@ public:
 #undef DECLARE_PADDED_FIELD
   
 template <
-  int max_height = 6,  // must be > 1
+  int max_height = 6,  // must be >= 0
   int saturation_upper_bound = (1<<(max_height-1)) // any constant fraction of 2^max_height
 >
 class tree {
@@ -240,7 +240,6 @@ private:
     assert(tagged_tag_of(heap.load()) == loading_heap_tag);
     size_t szb = heap_size * sizeof(node_type);
     node_type* h = (node_type*)malloc(szb);
-    // std::memset(h, 0, szb);
     // cells at indices 0 and 1 are not used
     for (int i = 2; i < 4; i++) {
       new (&h[i]) node_type(&root);
@@ -273,7 +272,7 @@ public:
   node_type* get_target_of_path(unsigned int path) {
     node_type* h = heap.load();
     if ((h != nullptr) && (tagged_tag_of(h) != loading_heap_tag)) {
-      int i = (1 << max_height) + (path & ((1 << max_height) - 1));
+      int i = nb_leaves + (path & (nb_leaves - 1));
       assert(i >= 2 && i < heap_size);
       return &h[i];
     } else if ((h == nullptr) && (root.is_saturated())) {
@@ -289,14 +288,6 @@ public:
   template <class Item>
   node_type* get_target_of_value(Item x) {
     return get_target_of_path(random_path_for(x));
-  }
-  
-  static void increment(node_type* target) {
-    target->increment();
-  }
-  
-  static bool decrement(node_type* target) {
-    return target->decrement();
   }
   
   template <class Item>
