@@ -101,12 +101,15 @@ let mk_statreeopt_edge_algo =
 let mk_dyntree_edge_algo = mk string "edge_algo" "dyntree"
 
 let mk_dyntreeopt_edge_algo = mk string "edge_algo" "dyntreeopt"
+                                 
+let mk_growabletree_edge_algo = mk string "edge_algo" "growabletree"
 
 let mk_edge_algos =
      mk_simple_edge_algo
   ++ mk_statreeopt_edge_algo
-  ++ mk_dyntree_edge_algo
-  ++ mk_dyntreeopt_edge_algo
+  ++ mk_growabletree_edge_algo
+(*  ++ mk_dyntree_edge_algo
+  ++ mk_dyntreeopt_edge_algo *)
 
 let mk_direct_algo = mk string "algo" "direct"
        
@@ -116,7 +119,7 @@ let mk_portpassing_algo = mk string "algo" "portpassing"
        
 let mk_algos =
      mk_direct_algos
-  ++ mk_portpassing_algo
+(*  ++ mk_portpassing_algo*)
         
 let nb_milliseconds_target = 1000
 let mk_nb_milliseconds = mk int "nb_milliseconds" nb_milliseconds_target
@@ -183,6 +186,7 @@ let pretty_edge_algo edge_algo =
   | "dyntree" -> "ours (unoptimized)"
   | "dyntreeopt" -> "ours"
   | "statreeopt" -> "fixed snzi incounter + our outset"
+  | "growabletree" -> "growable snzi incounter + our outset"
   | _ -> "unknown"
       
 let microbench_formatter =
@@ -625,8 +629,8 @@ let make() =
 let mk_workloads = mk_list int "workload" (XList.init 4 (fun i -> i * 500))
         
 let mk_all_benchmarks =
-     mk_incounter_mixed_duration
-  ++ (mk_incounter_async_duration_base & mk_workloads)
+(*     mk_incounter_mixed_duration
+  ++ *) (mk_incounter_async_duration_base & mk_workloads)
   ++ (mk_incounter_async_nb_base & mk_workloads)
   ++ (mk_mixed_duration_base & mk_workloads)
        
