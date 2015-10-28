@@ -24,6 +24,10 @@
 #include <ostream>
 #include <sstream>
 
+#ifdef HAVE_HWLOC
+#include <hwloc.h>
+#endif
+
 #include "pasl.hpp"
 #include "tagged.hpp"
 #include "snzi.hpp"
@@ -4194,8 +4198,57 @@ long sum(long n, long* xs) {
   return r;
 }
 
+#ifdef HAVE_HWLOC
+hwloc_topology_t topology;
+hwloc_cpuset_t* cpusets;
+#endif
+  
+void cpu_binding_init(int nb_threads) {
+#ifdef HAVE_HWLOC
+  cpusets = new hwloc_cpuset_t[nb_threads];
+  hwloc_topology_init(&topology);
+  hwloc_topology_load(topology);
+  int depth = hwloc_get_type_or_below_depth(topology, HWLOC_OBJ_CORE);
+  if (nb_threads > hwloc_get_nbobjs_by_depth(topology, depth)) {
+    pasl::util::atomic::die("too few cores to satisfy request");
+  }
+  for (int i = 0; i < nb_threads; i++) {
+    hwloc_obj_t obj = hwloc_get_obj_by_depth(topology, depth, i);
+    if (obj == nullptr) {
+      pasl::util::atomic::die("failed to satisfy cpu binding request");
+    }
+    cpusets[i] = hwloc_bitmap_dup(obj->cpuset);
+    hwloc_bitmap_singlify(cpusets[i]);
+  }
+#endif
+}
+
+void cpu_bind(int i) {
+#ifdef HAVE_HWLOC
+  bool should_cpu_bind = pasl::util::cmdline::parse_or_default_bool("should_cpu_bind", false);
+  if (! should_cpu_bind) {
+    return;
+  }
+  if (hwloc_set_cpubind(topology, cpusets[i], 0)) {
+    char *str;
+    int error = errno;
+    //            hwloc_bitmap_asprintf(&str, obj->cpuset);
+    pasl::util::atomic::die("Couldn't bind to cpuset %s: %s\n", str, strerror(error));            
+    //free(str);
+  }
+  hwloc_bitmap_free(cpusets[i]);
+#endif
+}
+
+void cpu_binding_destroy() {
+#ifdef HAVE_HWLOC
+  delete cpusets;
+#endif
+}
+
 template <class Benchmark>
 void launch_microbenchmark(const Benchmark& benchmark, int nb_threads, int nb_milliseconds) {
+  cpu_binding_init(nb_threads);
   bool should_stop = false;
   direct::dyntree::should_deallocate_sequentially = true;
   direct::dyntreeopt::should_deallocate_sequentially = true;
@@ -4206,6 +4259,7 @@ void launch_microbenchmark(const Benchmark& benchmark, int nb_threads, int nb_mi
     counters1[i] = 0;
     counters2[i] = 0;
     threads.push_back(new std::thread([&, i] {
+      cpu_bind(i);
       benchmark(i, should_stop, counters1[i], counters2[i]);
     }));
   }
@@ -4228,6 +4282,7 @@ void launch_microbenchmark(const Benchmark& benchmark, int nb_threads, int nb_mi
   for (std::thread* t : threads) {
     delete t;
   }
+  cpu_binding_destroy();
 }
 
 void launch_outset_add_duration() {
