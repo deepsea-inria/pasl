@@ -1089,13 +1089,39 @@ public:
   
 };
 
+  
+template <class Item, int nb>
+class static_cache_aligned_array {
+private:
+
+  static constexpr int cache_align_szb = 128;
+  static constexpr int item_szb = sizeof(Item);
+
+  using aligned_item_type = typename std::aligned_storage<item_szb, cache_align_szb>::type;
+
+  aligned_item_type items[nb];
+
+  Item& at(std::size_t i) {
+    assert(i >= 0);
+    assert(i < nb);
+    return *reinterpret_cast<Item*>(items + i);
+  }
+
+public:
+
+  Item& operator[](std::size_t i) {
+    return at(i);
+  }
+
+};
+
 class outset_node {
 public:
   
   static constexpr int finished_tag = 1;
   
-  std::atomic<node*> contents[amortization_factor];
-  std::atomic<outset_node*> children[branching_factor];
+  static_cache_aligned_array<std::atomic<node*>, amortization_factor> contents;
+  static_cache_aligned_array<std::atomic<outset_node*>, branching_factor> children;
   
   outset_node() {
     for (int i = 0; i < amortization_factor; i++) {
@@ -4146,8 +4172,7 @@ void benchmark_outset_thread(int my_id,
 #ifndef USE_STL_RANDGEN
   unsigned int rng = seed+my_id;
   auto random_int = [&] (int lo, int hi) {
-    int r = random_int_in_range(rng, lo, hi);
-    return r;
+    return random_int_in_range(rng, lo, hi);
   };
 #else
   std::mt19937 generator(seed+my_id);
