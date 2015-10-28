@@ -429,7 +429,7 @@ let run() =
 
 let check = nothing  (* do something here *)            
            
-let plot() =
+let plot() = begin
     Mk_scatter_plot.(call ([
     Chart_opt Chart.([
       Legend_opt Legend.([Legend_pos Top_right]);
@@ -445,8 +445,23 @@ let plot() =
       Output (file_plots name);
       Y_label "nb_operations/second (per thread)";
       Y eval_nb_operations_per_second;
+  ]));
+  Mk_bar_plot.(call ([
+      Bar_plot_opt Bar_plot.([
+         X_titles_dir Vertical;
+         Y_axis [Axis.Lower (Some 0.)] ]);
+       Formatter microbench_formatter;
+      Charts mk_unit;
+      Series mk_snzis;
+      X mk_procs;
+      Input (file_results name);
+      Output (file_plots (name^"_barplot"));
+      Y_label "nb_operations/second (per thread)";
+      Y eval_nb_operations_per_second;
+      Y_whiskers eval_nb_operations_per_second_error;
   ]))
-
+  end
+    
 let all () = select make run check plot
 
 end
