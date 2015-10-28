@@ -139,7 +139,7 @@ namespace snzi {
 
 namespace {
 static constexpr int cache_align_szb = 128;
-static constexpr double sleep_time = 10000.0;
+static constexpr double sleep_time = 20000.0;
   
 template <class T>
 bool compare_exchange(std::atomic<T>& cell, T& expected, T desired) {

@@ -137,7 +137,7 @@ T* malloc_array(size_t n) {
 }
 
 namespace {
-static constexpr double sleep_time = 10000.0;
+static constexpr double sleep_time = 20000.0;
 template <class T>
 bool compare_exchange(std::atomic<T>& cell, T& expected, T desired) {
   if (cell.compare_exchange_strong(expected, desired)) {
