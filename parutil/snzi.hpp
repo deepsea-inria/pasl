@@ -139,14 +139,14 @@ namespace snzi {
 
 namespace {
 static constexpr int cache_align_szb = 128;
-static constexpr double sleep_time = 20000.0;
+static constexpr int backoff_nb_cycles = 1l << 17;
   
 template <class T>
 bool compare_exchange(std::atomic<T>& cell, T& expected, T desired) {
   if (cell.compare_exchange_strong(expected, desired)) {
     return true;
   }
-  pasl::util::microtime::microsleep(sleep_time);
+  pasl::util::microtime::wait_for(backoff_nb_cycles);
   return false;
 }
   
