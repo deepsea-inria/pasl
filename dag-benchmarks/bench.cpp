@@ -36,6 +36,7 @@
 #include "chunkedseq.hpp"
 #include "chunkedbag.hpp"
 #include "sequence.hpp"
+#include "outset.hpp"
 
 /***********************************************************************/
 
@@ -4183,7 +4184,7 @@ void benchmark_outset_thread(int my_id,
 #endif
   long c = 0;
   while (! should_stop) {
-    outset.add(nullptr, random_int);
+    outset.add((void*)nullptr, random_int);
     c++;
   }
   nb_operations = c;
@@ -4221,6 +4222,23 @@ public:
   template <class Random_int>
   void add(void*, const Random_int& random_int) {
     direct::dyntreeopt::outset_insert(outset.root, nullptr, random_int);
+  }
+  
+};
+  
+class growable_outset_wrapper {
+public:
+  
+  using node_type = pasl::data::outset::node<void*, 4>;
+  std::atomic<node_type*> root;
+  
+  growable_outset_wrapper() {
+    root.store(new node_type(pasl::data::outset::nb_items_for_depth(0)));
+  }
+  
+  template <class Random_int>
+  void add(void*, const Random_int& random_int) {
+    pasl::data::outset::insert(root, (void*)nullptr, random_int);
   }
   
 };
@@ -4333,6 +4351,7 @@ void launch_outset_add_duration() {
   simple_outset_wrapper* simple_outset = nullptr;
   dyntree_outset_wrapper* dyntree_outset = nullptr;
   dyntreeopt_outset_wrapper* dyntreeopt_outset = nullptr;
+  growable_outset_wrapper* growable_outset = nullptr;
   pasl::util::cmdline::argmap_dispatch c;
   c.add("simple", [&] {
     simple_outset = new simple_outset_wrapper;
@@ -4343,6 +4362,9 @@ void launch_outset_add_duration() {
   c.add("dyntreeopt", [&] {
     dyntreeopt_outset = new dyntreeopt_outset_wrapper;
   });
+  c.add("growabletree", [&] {
+    growable_outset = new growable_outset_wrapper;
+  });
   c.find_by_arg("edge_algo")();
   auto benchmark_thread = [&] (int my_id, bool& should_stop, long& counter1, long& counter2) {
     if (simple_outset != nullptr) {
@@ -4351,6 +4373,8 @@ void launch_outset_add_duration() {
       benchmark_outset_thread(my_id, *dyntree_outset, should_stop, counter1, seed);
     } else if (dyntreeopt_outset != nullptr) {
       benchmark_outset_thread(my_id, *dyntreeopt_outset, should_stop, counter1, seed);
+    } else if (growable_outset != nullptr) {
+      benchmark_outset_thread(my_id, *growable_outset, should_stop, counter1, seed);
     }
   };
   launch_microbenchmark(benchmark_thread, nb_threads, nb_milliseconds);
@@ -4366,6 +4390,8 @@ void launch_outset_add_duration() {
     dyntreeopt_outset->outset.root.store(nullptr);
     dyntreeopt_outset->outset.freelist.store(n);
     delete dyntreeopt_outset;
+  } else if (growable_outset != nullptr) {
+    delete growable_outset;
   }
 }
 
