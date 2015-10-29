@@ -185,10 +185,17 @@ let pretty_edge_algo edge_algo =
   | "simple" -> "simple serial"
   | "dyntree" -> "ours (unoptimized)"
   | "dyntreeopt" -> "ours"
-  | "statreeopt" -> "fixed snzi incounter + our outset"
-  | "growabletree" -> "growable snzi incounter + our outset"
-  | _ -> "unknown"
-      
+  | "statreeopt" -> "fixed-size SNZI incounter + our outset"
+  | "growabletree" -> "our growable SNZI incounter + our outset"
+  | _ -> "<unknown>"
+
+let pretty_snzi s =
+  match s with
+  | "fixed" -> "fixed-size SNZI tree"
+  | "growable" -> "our growable SNZI tree"
+  | "single_cell" -> "single-cell fetch-and-add counter"
+  | _ -> "<unknown>"
+           
 let microbench_formatter =
   Env.format (Env.(
     [
@@ -197,7 +204,7 @@ let microbench_formatter =
       ("algo", Format_custom (fun algo -> sprintf "%s" (if algo = "portpassing" then algo else "")));
       ("edge_algo", Format_custom pretty_edge_algo);
       ("cmd", Format_custom (fun cmd -> sprintf "%s" cmd));
-      ("snzi", Format_custom (fun snzi -> snzi));
+      ("snzi", Format_custom pretty_snzi);
     ]
   ))                
          
