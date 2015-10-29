@@ -38,7 +38,8 @@ bool compare_exchange(std::atomic<T>& cell, T& expected, T desired) {
   if (cell.compare_exchange_strong(expected, desired)) {
     return true;
   }
-  pasl::util::microtime::microsleep(sleep_time);
+//  pasl::util::microtime::microsleep(sleep_time);
+  pasl::util::microtime::wait_for(1l<<15);
   return false;
 }
   

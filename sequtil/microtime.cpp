@@ -50,6 +50,23 @@ void microsleep(double t) {
   }
 }
 
+inline uint64_t Rdtsc() {
+  unsigned int hi, lo;
+  __asm__ __volatile__("rdtsc" : "=a"(lo), "=d"(hi));
+  return  ((uint64_t) lo) | (((uint64_t) hi) << 32);
+}
+
+void RdtscWait(uint64_t n) {
+  const uint64_t start = Rdtsc();
+  while (Rdtsc() < (start + n)) {
+    __asm__("PAUSE");
+  }
+}
+
+void wait_for(long n) {
+  RdtscWait((uint64_t)n);
+}
+  
 /***********************************************************************/
 
 } // namespace

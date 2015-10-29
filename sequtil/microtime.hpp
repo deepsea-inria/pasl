@@ -48,6 +48,8 @@ double microseconds_since(microtime_t t);
 
   // t is number of cycles
 void microsleep(double t);
+  
+void wait_for(long n);
 
 // todo: present as class!
 
