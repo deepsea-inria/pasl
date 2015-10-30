@@ -488,7 +488,7 @@ let prog = "./bench.opt"
 
 let mk_cmd = mk string "cmd" "outset_add_duration"
 
-let mk_edge_algos = mk_list string "edge_algo" ["simple"; "dyntreeopt"]
+let mk_edge_algos = mk_list string "edge_algo" ["simple"; "dyntreeopt"; "growabletree"]
 
 let make() =
   build "." [prog] arg_virtual_build

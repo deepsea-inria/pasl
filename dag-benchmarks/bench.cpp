@@ -4184,7 +4184,7 @@ void benchmark_outset_thread(int my_id,
 #endif
   long c = 0;
   while (! should_stop) {
-    outset.add((void*)nullptr, random_int);
+    outset.add((void*)nullptr, random_int, my_id);
     c++;
   }
   nb_operations = c;
@@ -4196,20 +4196,22 @@ public:
   direct::simple::simple_outset outset;
   
   template <class Random_int>
-  void add(void*, const Random_int&) {
+  void add(void*, const Random_int&, int) {
     outset.insert(nullptr);
   }
   
 };
-  
+
+  void* dummyval = (void*) (((long*)nullptr) + 500);
+
 class dyntree_outset_wrapper {
 public:
   
   direct::dyntree::dyntree_outset outset;
   
   template <class Random_int>
-  void add(void*, const Random_int& random_int) {
-    direct::dyntree::outset_insert(outset.root, nullptr, random_int);
+  void add(void*, const Random_int& random_int, int) {
+    direct::dyntree::outset_insert(outset.root, (direct::node*)dummyval, random_int);
   }
   
 };
@@ -4220,25 +4222,24 @@ public:
   direct::dyntreeopt::dyntreeopt_outset outset;
   
   template <class Random_int>
-  void add(void*, const Random_int& random_int) {
-    direct::dyntreeopt::outset_insert(outset.root, nullptr, random_int);
+  void add(void*, const Random_int& random_int, int) {
+    direct::dyntreeopt::outset_insert(outset.root, (direct::node*)dummyval, random_int);
   }
   
 };
   
 class growable_outset_wrapper {
 public:
-  
-  using node_type = pasl::data::outset::node<void*, 4>;
-  std::atomic<node_type*> root;
-  
-  growable_outset_wrapper() {
-    root.store(new node_type(pasl::data::outset::nb_items_for_depth(0)));
-  }
-  
+
+  static constexpr int branching_factor = 4;
+  static constexpr int block_capacity = 4096;
+
+  pasl::data::outset::outset<direct::node*, branching_factor, block_capacity> set;
+
   template <class Random_int>
-  void add(void*, const Random_int& random_int) {
-    pasl::data::outset::insert(root, (void*)nullptr, random_int);
+  void add(void*, const Random_int& random_int, int my_id) {
+    bool b = set.insert((direct::node*)dummyval, my_id, random_int);
+    assert(b);
   }
   
 };
