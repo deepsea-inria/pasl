@@ -94,7 +94,7 @@ public:
   
 } // end namespace
 
-template <class Item, int capacity>
+template <class Item, int capacity, bool add_is_concurrent>
 class block {
 private:
 
@@ -108,6 +108,11 @@ public:
   block() {
     start = (Item*)malloc(capacity * sizeof(Item));
     head.store(start);
+    if (add_is_concurrent) {
+      for (int i = 0; i < capacity; i++) {
+        start[i] = nullptr;
+      }
+    }
   }
 
   ~block() {
@@ -130,9 +135,16 @@ public:
         failed_because_full = true;
         return;
       }
-      *orig = x;
-      if (compare_exchange(head, orig, orig + 1)) {
-        return;
+      if (add_is_concurrent) {
+        if (compare_exchange(head, orig, orig + 1)) {
+          *orig = x;
+          return;
+        }
+      } else {
+        *orig = x;
+        if (compare_exchange(head, orig, orig + 1)) {
+          return;
+        }
       }
     }    
   }
@@ -144,8 +156,10 @@ public:
       if (compare_exchange(head, orig, finished_tag)) {
         for (auto it = start; it != orig; it++) {
           Item& x = *it;
-          while (x == nullptr) {
-            // wait for insert() to commit the item
+          if (! add_is_concurrent) {
+            while (x == nullptr) {
+              // wait for try_insert() to commit the item
+            }
           }
           visit(x);
         }
@@ -162,7 +176,7 @@ public:
 
   static constexpr int finished_tag = 1;
 
-  using block_type = block<Item, block_capacity>;
+  using block_type = block<Item, block_capacity, false>;
   
   block_type items;
     
@@ -234,7 +248,7 @@ private:
   using shortcuts_type = static_cache_aligned_array<block_type*, max_nb_procs>;
 
   static constexpr int small_block_capacity = 16;
-  using small_block_type = block<Item, small_block_capacity>;
+  using small_block_type = block<Item, small_block_capacity, true>;
 
   small_block_type items;
   
