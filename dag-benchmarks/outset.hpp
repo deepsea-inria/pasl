@@ -96,12 +96,14 @@ public:
 
 template <class Item, int capacity>
 class block {
-public:
+private:
 
   static constexpr Item* finished_tag = (Item*)nullptr;
 
   Item* start;
   std::atomic<Item*> head;
+  
+public:
 
   block() {
     start = (Item*)malloc(capacity * sizeof(Item));
@@ -117,6 +119,7 @@ public:
   }
   
   void try_insert(Item x, bool& failed_because_finish, bool& failed_because_full) {
+    assert(x != nullptr);
     while (true) {
       Item* orig = head.load();
       if (orig == finished_tag) {
@@ -132,6 +135,23 @@ public:
         return;
       }
     }    
+  }
+  
+  template <class Visit>
+  void finish(const Visit& visit) {
+    while (true) {
+      Item* orig = head.load();
+      if (compare_exchange(head, orig, finished_tag)) {
+        for (auto it = start; it != orig; it++) {
+          Item& x = *it;
+          while (x == nullptr) {
+            // wait for insert() to commit the item
+          }
+          visit(x);
+        }
+        return;
+      }
+    }
   }
 
 };
@@ -162,11 +182,7 @@ public:
 
   using node_type = node<Item, branching_factor, block_capacity>;
 
-private:
-  
   std::atomic<node_type*> root;
-
-public:
 
   tree() {
     root.store(new node_type);
@@ -211,6 +227,9 @@ public:
 
   using tree_type = tree<Item, branching_factor, block_capacity>;
   using node_type = typename tree_type::node_type;
+  
+private:
+  
   using block_type = typename node_type::block_type;
   using shortcuts_type = static_cache_aligned_array<block_type*, max_nb_procs>;
 
@@ -219,12 +238,21 @@ public:
 
   small_block_type items;
   
-  tree_type t;
+  tree_type root;
   
   std::atomic<shortcuts_type*> shortcuts;
 
+public:
+  
   outset() {
     shortcuts.store(nullptr);
+  }
+  
+  ~outset() {
+    shortcuts_type* s = shortcuts.load();
+    if (s != nullptr) {
+      delete s;
+    }
   }
 
   template <class Random_int>
@@ -245,7 +273,7 @@ public:
       shortcuts_type* orig = nullptr;
       shortcuts_type* next = new shortcuts_type;
       for (int i = 0; i < next->size(); i++) {
-        node_type* n = t.try_insert(random_int);
+        node_type* n = root.try_insert(random_int);
         if (n == nullptr) {
           delete next;
           return false;
@@ -269,11 +297,69 @@ public:
       if (! failed_because_full) {
         return true;
       }
-      node_type* n = t.try_insert(random_int);
+      node_type* n = root.try_insert(random_int);
       if (n == nullptr) {
         return false;
       }
       (*s)[my_id] = &(n->items);
+    }
+  }
+  
+  node_type* get_root() {
+    return tagged_pointer_of(root.root.load());
+  }
+  
+  template <class Visit>
+  node_type* finish_init(const Visit& visit) {
+    items.finish(visit);
+    while (true) {
+      node_type* n = root.root.load();
+      node_type* orig = n;
+      node_type* next = tagged_tag_with(n, node_type::finished_tag);
+      if (compare_exchange(root.root, orig, next)) {
+        return n;
+      }
+    }
+  }
+  
+  template <class Visit>
+  static void finish_partial(const int max_nb_to_process, std::deque<node_type*>& todo, const Visit& visit) {
+    int k = 0;
+    while ((k < max_nb_to_process) && (! todo.empty())) {
+      node_type* current = todo.back();
+      todo.pop_back();
+      for (int i = 0; i < branching_factor; i++) {
+        while (true) {
+          node_type* child = current->children[i].load();
+          assert(tagged_tag_of(child) == 0);
+          node_type* orig = child;
+          node_type* next = tagged_tag_with(child, node_type::finished_tag);
+          if (compare_exchange(current->children[i], orig, next)) {
+            if (child != nullptr) {
+              todo.push_back(child);
+            }
+            break;
+          }
+        }
+      }
+      current->items.finish(visit);
+      k++;
+    }
+  }
+  
+  static void deallocate_partial(const int max_nb_to_process, std::deque<node_type*>& todo) {
+    int k = 0;
+    while ((k < max_nb_to_process) && (! todo.empty())) {
+      node_type* current = todo.back();
+      todo.pop_back();
+      for (int i = 0; i < branching_factor; i++) {
+        node_type* child = tagged_pointer_of(current->children[i].load());
+        if (child != nullptr) {
+          todo.push_back(child);
+        }
+      }
+      delete current;
+      k++;
     }
   }
 

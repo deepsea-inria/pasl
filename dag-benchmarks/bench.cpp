@@ -378,6 +378,14 @@ void unary_finished(pasl::sched::thread_p t) {
   
 namespace growabletree {
   
+  
+class growabletree_outset;
+
+void outset_tree_deallocate(growabletree_outset*);
+void outset_finish(growabletree_outset*);
+  
+bool should_deallocate_sequentially = false;
+  
 class growabletree_incounter : public incounter {
 public:
   
@@ -421,6 +429,40 @@ void unary_finished(pasl::sched::thread_p t) {
     pasl::sched::instrategy::schedule((pasl::sched::thread_p)n);
   }
 }
+
+using set_type = pasl::data::outset::outset<node*, 4, 4096>;
+using node_type = typename set_type::node_type;
+
+class growabletree_outset : public outset {
+public:
+  
+  set_type set;
+  
+  ~growabletree_outset() {
+    outset_tree_deallocate(this);
+  }
+  
+  insert_status_type insert(node* n) {
+    int my_id = pasl::sched::threaddag::get_my_id();
+    bool success = set.insert(n, my_id, [&] (int lo, int hi) {
+      return random_int(lo, hi);
+    });
+    if (success) {
+      return insert_success;
+    } else {
+      return insert_fail;
+    }
+  }
+  
+  void finish() {
+    outset_finish(this);
+  }
+  
+  void add(pasl::sched::thread_p t) {
+    assert(false);
+  }
+  
+};
   
 } // end namespace
   
@@ -1464,7 +1506,8 @@ outset* outset_new() {
   } else if (edge_algorithm == edge_algorithm_dyntreeopt) {
     return new dyntreeopt::dyntreeopt_outset;
   } else if (edge_algorithm == edge_algorithm_growabletree) {
-    return new dyntreeopt::dyntreeopt_outset;
+//    return new dyntreeopt::dyntreeopt_outset;
+    return new growabletree::growabletree_outset;
   } else if (edge_algorithm == edge_algorithm_simple_dyntreeopt) {
     return new dyntreeopt::dyntreeopt_outset;
   } else if (edge_algorithm == edge_algorithm_dyntreeopt_simple) {
@@ -2405,6 +2448,194 @@ void outset_tree_deallocate_sequential(outset_node* root) {
   d.todo.push_back(root);
   while (! d.todo.empty()) {
     outset_tree_deallocate_partial(d.todo);
+  }
+}
+
+} // end namespace
+  
+namespace growabletree {
+
+class outset_finish_parallel_rec : public node {
+public:
+  
+  enum {
+    process_block=0,
+    repeat_block,
+    exit_block
+  };
+  
+  set_type* set;
+  std::deque<node_type*> todo;
+  
+  outset_finish_parallel_rec(set_type* set, node_type* n)
+  : set(set) {
+    todo.push_back(n);
+  }
+  
+  outset_finish_parallel_rec(set_type* set, std::deque<node_type*>& _todo)
+  : set(set) {
+    _todo.swap(todo);
+  }
+  
+  void body() {
+    switch (current_block_id) {
+      case process_block: {
+        jump_to(repeat_block);
+        set->finish_partial(communication_delay, todo, [&] (node* n) {
+          decrement_incounter(n);
+        });
+        break;
+      }
+      case repeat_block: {
+        if (! todo.empty()) {
+          jump_to(process_block);
+        }
+        break;
+      }
+      default:
+        break;
+    }
+  }
+  
+  size_t size() {
+    return todo.size();
+  }
+  
+  pasl::sched::thread_p split(size_t) {
+    assert(size() >= 2);
+    auto n = todo.front();
+    todo.pop_front();
+    auto t = new outset_finish_parallel_rec(set, n);
+    prepare_node(t, incounter_ready(), outset_noop());
+    return t;
+  }
+  
+};
+
+class outset_finish_parallel : public node {
+public:
+  
+  enum {
+    entry_block=0,
+    exit_block
+  };
+  
+  growabletree_outset* out;
+  std::deque<node_type*> todo;
+  
+  outset_finish_parallel(growabletree_outset* out, std::deque<node_type*>& _todo)
+  : out(out) {
+    todo.swap(_todo);
+  }
+  
+  void body() {
+    switch (current_block_id) {
+      case entry_block: {
+        call(new outset_finish_parallel_rec(&(out->set), todo),
+             exit_block);
+        break;
+      }
+      case exit_block: {
+        assert(! out->should_deallocate_automatically);
+        break;
+      }
+      default:
+        break;
+    }
+  }
+  
+};
+
+void outset_finish(growabletree_outset* out) {
+  assert(! out->should_deallocate_automatically);
+  std::deque<node_type*> todo;
+  node_type* n = out->set.finish_init([&] (node* n) {
+    decrement_incounter(n);
+  });
+  if (n != nullptr) {
+    todo.push_back(n);
+  }
+  if (! todo.empty()) {
+    node* n;
+    n = new outset_finish_parallel(out, todo);
+    prepare_node(n, incounter_ready(), outset_noop());
+    add_node(n);
+  } else {
+    if (out->should_deallocate_automatically) {
+      delete out;
+    }
+  }
+}
+  
+class outset_tree_deallocate_parallel : public node {
+public:
+  
+  enum {
+    process_block=0,
+    repeat_block
+  };
+  
+  std::deque<node_type*> todo;
+  
+  void body() {
+    switch (current_block_id) {
+      case process_block: {
+        jump_to(repeat_block);
+        set_type::deallocate_partial(communication_delay, todo);
+        break;
+      }
+      case repeat_block: {
+        if (! todo.empty()) {
+          jump_to(process_block);
+        }
+        break;
+      }
+      default:
+        break;
+    }
+  }
+  
+  size_t size() {
+    return todo.size();
+  }
+  
+  pasl::sched::thread_p split(size_t) {
+    assert(size() >= 2);
+    auto n = todo.front();
+    todo.pop_front();
+    auto t = new outset_tree_deallocate_parallel;
+    prepare_node(t, incounter_ready(), outset_noop());
+    t->todo.push_back(n);
+    return t;
+  }
+  
+};
+  
+void outset_tree_deallocate_sequential(node_type* root) {
+  outset_tree_deallocate_parallel d;
+  d.todo.push_back(root);
+  while (! d.todo.empty()) {
+    set_type::deallocate_partial(communication_delay, d.todo);
+  }
+}
+
+void outset_tree_deallocate(growabletree_outset* out) {
+  assert(! out->should_deallocate_automatically);
+  node_type* root = out->set.get_root();
+  if (root == nullptr) {
+    return;
+  }
+  if (should_deallocate_sequentially) {
+    outset_tree_deallocate_sequential(root);
+    return;
+  }
+  outset_tree_deallocate_parallel d;
+  d.todo.push_back(root);
+  set_type::deallocate_partial(communication_delay, d.todo);
+  if (! d.todo.empty()) {
+    node* n = new outset_tree_deallocate_parallel(d);
+    prepare_node(n, incounter_ready(), outset_noop());
+    add_node(n);
   }
 }
 
