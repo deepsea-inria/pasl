@@ -4487,6 +4487,7 @@ public:
   
   void allocate_fresh_buffer_for(buffer_descriptor_type& my_descr) {
     direct::node** p = (direct::node**)malloc(sizeof(direct::node**) * buffer_sz);
+    assert(p != nullptr);
     my_descr.first = my_descr.second = p;
   }
   
