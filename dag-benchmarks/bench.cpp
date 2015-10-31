@@ -4481,31 +4481,52 @@ public:
   static constexpr int nb_buffers = 64;
   static constexpr int buffer_sz = 4096;
   
-  using buffer_descriptor_type = std::pair<direct::node**, direct::node**>;
+  using buffer_descriptor_type = struct buffer_descriptor_struct {
+    direct::node** head;
+    direct::node** start;
+    buffer_descriptor_struct* next;
+  };
   
   pasl::data::outset::static_cache_aligned_array<buffer_descriptor_type, nb_buffers> buffers;
   
   void allocate_fresh_buffer_for(buffer_descriptor_type& my_descr) {
     direct::node** p = (direct::node**)malloc(sizeof(direct::node*) * buffer_sz);
     assert(p != nullptr);
-    my_descr.first = my_descr.second = p;
+    my_descr.next = new buffer_descriptor_type(my_descr);
+    my_descr.head = p;
+    my_descr.start = p;
   }
   
   void push(buffer_descriptor_type& my_descr) {
-    *my_descr.first = (direct::node*)dummyval;
-    my_descr.first++;
+    *my_descr.head = (direct::node*)dummyval;
+    my_descr.head++;
   }
   
   perprocessor_outset_wrapper() {
     for (int i = 0; i < nb_buffers; i++) {
+      buffers[i].next = nullptr;
       allocate_fresh_buffer_for(buffers[i]);
+    }
+  }
+  
+  ~perprocessor_outset_wrapper() {
+    for (int i = 0; i < nb_buffers; i++) {
+      buffer_descriptor_type& my_descr = buffers[i];
+      free(my_descr.start);
+      buffer_descriptor_type* next = my_descr.next;
+      while (next != nullptr) {
+        free(next->start);
+        buffer_descriptor_type* tmp = next;
+        next = next->next;
+        delete tmp;
+      }
     }
   }
   
   template <class Random_int>
   void add(void*, const Random_int& random_int, int my_id) {
     buffer_descriptor_type& my_descr = buffers[my_id];
-    if (my_descr.first >= (my_descr.second + buffer_sz)) {
+    if (my_descr.head >= (my_descr.start + buffer_sz)) {
       allocate_fresh_buffer_for(my_descr);
     }
     push(my_descr);
