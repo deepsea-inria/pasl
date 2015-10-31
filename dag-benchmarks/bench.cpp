@@ -5196,7 +5196,6 @@ public:
   
   void init() {
     value_type* ptr = (value_type*)malloc(sizeof(value_type) * (n*n));
-    posix_memalign ((void**) &(ptr), 128, sizeof(double[n][n]));
     assert(ptr != nullptr);
     items.reset(ptr);
   }
