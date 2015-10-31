@@ -183,10 +183,11 @@ let mk_mixed_duration =
 let pretty_edge_algo edge_algo =
   match edge_algo with
   | "simple" -> "simple serial"
-  | "dyntree" -> "ours (unoptimized)"
-  | "dyntreeopt" -> "ours"
+  | "dyntree" -> "our original (unoptimized)"
+  | "dyntreeopt" -> "our original (optimized)"
   | "statreeopt" -> "fixed-size SNZI incounter + our outset"
   | "growabletree" -> "our growable SNZI incounter + our outset"
+  | "perprocessor" -> "per-processor buffers"
   | _ -> "<unknown>"
 
 let pretty_snzi s =
@@ -488,7 +489,7 @@ let prog = "./bench.opt"
 
 let mk_cmd = mk string "cmd" "outset_add_duration"
 
-let mk_edge_algos = mk_list string "edge_algo" ["simple"; "dyntreeopt"; "growabletree"]
+let mk_edge_algos = mk_list string "edge_algo" ["simple"; "dyntreeopt"; "growabletree"; "perprocessor";]
 
 let make() =
   build "." [prog] arg_virtual_build

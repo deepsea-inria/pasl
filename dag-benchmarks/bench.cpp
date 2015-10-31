@@ -4475,6 +4475,43 @@ public:
   
 };
   
+class perprocessor_outset_wrapper {
+public:
+  
+  static constexpr int nb_buffers = 64;
+  static constexpr int buffer_sz = 4096;
+  
+  using buffer_descriptor_type = std::pair<direct::node**, direct::node**>;
+  
+  pasl::data::outset::static_cache_aligned_array<buffer_descriptor_type, nb_buffers> buffers;
+  
+  void allocate_fresh_buffer_for(buffer_descriptor_type& my_descr) {
+    direct::node** p = (direct::node**)malloc(sizeof(direct::node**) * buffer_sz);
+    my_descr.first = my_descr.second = p;
+  }
+  
+  perprocessor_outset_wrapper() {
+    for (int i = 0; i < nb_buffers; i++) {
+      allocate_fresh_buffer_for(buffers[i]);
+    }
+  }
+  
+  template <class Random_int>
+  void add(void*, const Random_int& random_int, int my_id) {
+    buffer_descriptor_type& my_descr = buffers[my_id];
+    while (true) {
+      if (my_descr.first < (my_descr.second + buffer_sz)) {
+        *my_descr.first = (direct::node*)dummyval;
+        my_descr.first++;
+        return;
+      } else {
+        allocate_fresh_buffer_for(my_descr);
+      }
+    }
+  }
+  
+};
+  
 double since(std::chrono::time_point<std::chrono::high_resolution_clock> start) {
   auto end = std::chrono::high_resolution_clock::now();
   std::chrono::duration<double> diff = end-start;
@@ -4584,6 +4621,7 @@ void launch_outset_add_duration() {
   dyntree_outset_wrapper* dyntree_outset = nullptr;
   dyntreeopt_outset_wrapper* dyntreeopt_outset = nullptr;
   growable_outset_wrapper* growable_outset = nullptr;
+  perprocessor_outset_wrapper* perprocessor_outset = nullptr;
   pasl::util::cmdline::argmap_dispatch c;
   c.add("simple", [&] {
     simple_outset = new simple_outset_wrapper;
@@ -4597,6 +4635,9 @@ void launch_outset_add_duration() {
   c.add("growabletree", [&] {
     growable_outset = new growable_outset_wrapper;
   });
+  c.add("perprocessor", [&] {
+    perprocessor_outset = new perprocessor_outset_wrapper;
+  });
   c.find_by_arg("edge_algo")();
   auto benchmark_thread = [&] (int my_id, bool& should_stop, long& counter1, long& counter2) {
     if (simple_outset != nullptr) {
@@ -4607,6 +4648,8 @@ void launch_outset_add_duration() {
       benchmark_outset_thread(my_id, *dyntreeopt_outset, should_stop, counter1, seed);
     } else if (growable_outset != nullptr) {
       benchmark_outset_thread(my_id, *growable_outset, should_stop, counter1, seed);
+    } else if (perprocessor_outset != nullptr) {
+      benchmark_outset_thread(my_id, *perprocessor_outset, should_stop, counter1, seed);
     }
   };
   launch_microbenchmark(benchmark_thread, nb_threads, nb_milliseconds);
@@ -4624,6 +4667,8 @@ void launch_outset_add_duration() {
     delete dyntreeopt_outset;
   } else if (growable_outset != nullptr) {
     delete growable_outset;
+  } else if (perprocessor_outset != nullptr) {
+    delete perprocessor_outset;
   }
 }
 
