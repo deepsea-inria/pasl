@@ -4486,9 +4486,14 @@ public:
   pasl::data::outset::static_cache_aligned_array<buffer_descriptor_type, nb_buffers> buffers;
   
   void allocate_fresh_buffer_for(buffer_descriptor_type& my_descr) {
-    direct::node** p = (direct::node**)malloc(sizeof(direct::node**) * buffer_sz);
+    direct::node** p = (direct::node**)malloc(sizeof(direct::node*) * buffer_sz);
     assert(p != nullptr);
     my_descr.first = my_descr.second = p;
+  }
+  
+  void push(buffer_descriptor_type& my_descr) {
+    *my_descr.first = (direct::node*)dummyval;
+    my_descr.first++;
   }
   
   perprocessor_outset_wrapper() {
@@ -4500,15 +4505,10 @@ public:
   template <class Random_int>
   void add(void*, const Random_int& random_int, int my_id) {
     buffer_descriptor_type& my_descr = buffers[my_id];
-    while (true) {
-      if (my_descr.first < (my_descr.second + buffer_sz)) {
-        *my_descr.first = (direct::node*)dummyval;
-        my_descr.first++;
-        return;
-      } else {
-        allocate_fresh_buffer_for(my_descr);
-      }
+    if (my_descr.first >= (my_descr.second + buffer_sz)) {
+      allocate_fresh_buffer_for(my_descr);
     }
+    push(my_descr);
   }
   
 };
