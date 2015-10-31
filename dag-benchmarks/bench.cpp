@@ -6835,6 +6835,9 @@ void launch_graph_benchmark_for_representation(std::string bench) {
   std::atomic<vtxid_type>* dists = nullptr;
   benchmarks::read_adjlist_from_file<vtxid_type>(infile, *graph);
   auto graph_alias = benchmarks::get_alias_of_adjlist(*graph);
+  add_todo([&] {
+    read_adjlist_from_file(infile, *graph);
+  });
   if (bench == "pdfs") {
     add_measured(new benchmarks::pdfs<node, frontier_type, adjlist_alias_type>(graph_alias, source, visited));
   } else if (bench == "pbfs") {
