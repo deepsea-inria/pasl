@@ -1409,7 +1409,7 @@ public:
   }
   
   outset_type* split_and_join_with(node* n) {
-    outset_type* result = outset_new();
+    outset_type* result = allocate_future();
     prepare_node(n, incounter_ready(), result);
     return result;
   }
@@ -6335,7 +6335,7 @@ public:
   int nb_since_last_split;
   node* join;
   
-  pdfs_rec(const Adjlist_alias& graph_alias, std::atomic<int>* visited, node* join)
+  pdfs_rec(Adjlist_alias graph_alias, std::atomic<int>* visited, node* join)
   : visited(visited), join(join), graph_alias(graph_alias) {
     frontier.set_graph(graph_alias);
   }
@@ -6364,10 +6364,11 @@ public:
       }
       case loop_body: {
         nb_since_last_split +=
-        frontier.for_at_most_nb_outedges(pdfs_poll_cutoff, [&](vtxid_type other_vertex) {
-          if (try_to_mark<graph_alias_type, int, false>(graph_alias, visited, other_vertex))
-            frontier.push_vertex_back(other_vertex);
-        });
+          frontier.for_at_most_nb_outedges(pdfs_poll_cutoff, [&](vtxid_type other_vertex) {
+            if (try_to_mark<graph_alias_type, int, false>(graph_alias, visited, other_vertex)) {
+              frontier.push_vertex_back(other_vertex);
+            }
+          });
         node::jump_to(loop_header);
         break;
       }
@@ -6392,13 +6393,14 @@ public:
   }
   
   pasl::sched::thread_p split(size_t) {
+    assert(frontier.nb_outedges() >= 2);
     auto n = new pdfs_rec(graph_alias, visited, join);
     node::split_with(n, join);
     auto m = frontier.nb_outedges() / 2;
     frontier.split(m, n->frontier);
     frontier.swap(n->frontier);
     nb_since_last_split = 0;
-    return nullptr;
+    return n;
   }
   
 };
@@ -6416,13 +6418,13 @@ public:
   using vtxid_type = typename Adjlist::vtxid_type;
   using edgelist_type = typename Frontier::edgelist_type;
   
-  const Adjlist& graph;
+  Adjlist graph;
   std::atomic<int>* visited;
   std::atomic<int>** result;
   vtxid_type source;
   
-  pdfs(const Adjlist& graph, vtxid_type source, std::atomic<int>*& _result)
-  : source(source), graph(graph), result(&_result) { }
+  pdfs(Adjlist graph, vtxid_type source, std::atomic<int>** result)
+  : source(source), graph(graph), result(result) { }
   
   enum {
     entry,
@@ -6441,7 +6443,9 @@ public:
         break;
       }
       case dfs: {
-        node::finish(new pdfs_rec<node, Frontier, Adjlist>(graph, visited, this),
+        auto n = new pdfs_rec<node, Frontier, Adjlist>(graph, visited, this);
+        n->frontier.push_vertex_back(source);
+        node::finish(n,
                      exit);
         break;
       }
@@ -6481,20 +6485,19 @@ public:
   graph_alias_type graph_alias;
   Frontier prev;
   Frontier next;
-  size_t nb_outedges;
   vtxid_type dist_of_next;
   std::atomic<vtxid_type>* dists;
   Frontier* _next;
   
   std::vector<std::pair<outset_type*, Frontier*>> futures;
   
-  pbfs_process_layer(const Adjlist_alias& graph_alias,
+  pbfs_process_layer(Adjlist_alias graph_alias,
                      vtxid_type dist_of_next,
                      std::atomic<vtxid_type>* dists,
                      Frontier* _prev,
                      Frontier* _next)
   : graph_alias(graph_alias), prev(graph_alias), next(graph_alias),
-  dist_of_next(dist_of_next), dists(dists), _next(_next) {
+    dist_of_next(dist_of_next), dists(dists), _next(_next) {
     _prev->swap(prev);
   }
   
@@ -6511,12 +6514,11 @@ public:
   void body() {
     switch (node::current_block_id) {
       case entry: {
-        nb_outedges = prev.nb_outedges();
         node::jump_to(process_loop_header);
         break;
       }
       case process_loop_header: {
-        if (nb_outedges > 0) {
+        if (prev.nb_outedges() > 0) {
           node::jump_to(process_loop_body);
         } else {
           node::jump_to(concat_loop_header);
@@ -6529,7 +6531,6 @@ public:
             next.push_vertex_back(other);
           }
         });
-        nb_outedges = prev.nb_outedges();
         node::jump_to(process_loop_header);
         break;
       }
@@ -6552,6 +6553,7 @@ public:
         next.concat(*p.second);
         delete p.second;
         node::deallocate_future(p.first);
+        node::jump_to(concat_loop_header);
         break;
       }
       case exit: {
@@ -6562,14 +6564,16 @@ public:
   }
   
   size_t size() {
-    return nb_outedges;
+    return prev.nb_outedges();
   }
   
   pasl::sched::thread_p split(size_t) {
     Frontier prev2;
+    assert(prev.nb_outedges() >= 2);
     prev.split(prev.nb_outedges() / 2, prev2);
     Frontier* next2 = new Frontier(graph_alias);
     auto n = new pbfs_process_layer(graph_alias, dist_of_next, dists, &prev2, next2);
+    assert(prev2.nb_outedges() == 0);
     outset_type* out = node::split_and_join_with(n);
     futures.push_back(std::make_pair(out, next2));
     return n;
@@ -6595,8 +6599,8 @@ public:
   vtxid_type cur = 0; // either 0 or 1, depending on parity of dist
   vtxid_type nxt = 1; // either 1 or 0, depending on parity of dist
   
-  pbfs(Adjlist_alias graph_alias, vtxid_type source, std::atomic<vtxid_type>*& _result)
-  : source(source), graph_alias(graph_alias), result(&_result) {
+  pbfs(Adjlist_alias graph_alias, vtxid_type source, std::atomic<vtxid_type>** result)
+  : source(source), graph_alias(graph_alias), result(result) {
     frontiers[0].set_graph(graph_alias);
     frontiers[1].set_graph(graph_alias);
   }
@@ -6637,18 +6641,19 @@ public:
         dist++;
         if (frontiers[cur].nb_outedges() <= pbfs_cutoff) {
           frontiers[cur].for_each_outedge_when_front_and_back_empty([&] (vtxid_type other) {
-            if (pbfs_try_to_set_dist(other, unknown, dist, dists))
+            if (pbfs_try_to_set_dist(other, unknown, dist, dists)) {
               frontiers[nxt].push_vertex_back(other);
+            }
           });
           frontiers[cur].clear_when_front_and_back_empty();
+          node::jump_to(loop_header);
         } else {
-          Frontier* prev = &frontiers[cur];
-          Frontier* next = &frontiers[nxt];
-          node::call(new pbfs_process_layer<node, Frontier, adjlist_alias_type>(graph_alias,
-                                                                                dist,
-                                                                                dists,
-                                                                                prev,
-                                                                                next),
+          auto n = new pbfs_process_layer<node, Frontier, adjlist_alias_type>(graph_alias,
+                                                                              dist,
+                                                                              dists,
+                                                                              &frontiers[cur],
+                                                                              &frontiers[nxt]);
+          node::call(n,
                      loop_header);
         }
         cur = 1 - cur;
@@ -6805,7 +6810,11 @@ void report_dfs_results(const Adjlist& graph,
                         const Load_visited_fct& load_visited_fct) {
   using vtxid_type = typename Adjlist::vtxid_type;
   vtxid_type nb_vertices = graph.get_nb_vertices();
-  vtxid_type nb_visited = pbbs::sequence::plusReduce((vtxid_type*)nullptr, nb_vertices, load_visited_fct);
+  //  vtxid_type nb_visited = pbbs::sequence::plusReduce((vtxid_type*)nullptr, nb_vertices, load_visited_fct);
+  vtxid_type nb_visited = 0;
+  for (long i = 0; i < nb_vertices; i++) {
+    nb_visited += load_visited_fct(i);
+  }
   std::cout << "nb_visited\t" << nb_visited << std::endl;
 }
 
@@ -6815,9 +6824,17 @@ void report_bfs_results(const Adjlist& graph,
                          const Load_dist_fct& load_dist_fct) {
   using vtxid_type = typename Adjlist::vtxid_type;
   vtxid_type nb_vertices = graph.get_nb_vertices();
-  vtxid_type max_dist = pbbs::sequence::maxReduce((vtxid_type*)nullptr, nb_vertices, load_dist_fct);
+  //  vtxid_type max_dist = pbbs::sequence::maxReduce((vtxid_type*)nullptr, nb_vertices, load_dist_fct);
+  vtxid_type max_dist = 0;
+  for (long i = 0; i < nb_vertices; i++) {
+    max_dist = std::max(max_dist, load_dist_fct(i));
+  }
   auto is_visited = [&] (vtxid_type i) { return load_dist_fct(i) == unknown ? 0 : 1; };
-  vtxid_type nb_visited = pbbs::sequence::plusReduce((vtxid_type*)nullptr, nb_vertices, is_visited);
+  //  vtxid_type nb_visited = pbbs::sequence::plusReduce((vtxid_type*)nullptr, nb_vertices, is_visited);
+  vtxid_type nb_visited = 0;
+  for (long i = 0; i < nb_vertices; i++) {
+    nb_visited += is_visited(i);
+  }
   std::cout << "max_dist\t" << max_dist << std::endl;
   std::cout << "nb_visited\t" << nb_visited << std::endl;
 }
@@ -6831,13 +6848,12 @@ void launch_graph_benchmark_for_representation(std::string bench) {
   int source = cmdline::parse_or_default_int("source", 0);
   std::string infile = cmdline::parse_or_default_string("infile", "");
   adjlist_type* graph = new adjlist_type;
-  std::atomic<int>* visited = nullptr;
-  std::atomic<vtxid_type>* dists = nullptr;
+  std::atomic<int>** visited = new std::atomic<int>*;
+  std::atomic<vtxid_type>** dists = new std::atomic<vtxid_type>*;
+  *visited = nullptr;
+  *dists = nullptr;
   benchmarks::read_adjlist_from_file<vtxid_type>(infile, *graph);
   auto graph_alias = benchmarks::get_alias_of_adjlist(*graph);
-  add_todo([&] {
-    read_adjlist_from_file(infile, *graph);
-  });
   if (bench == "pdfs") {
     add_measured(new benchmarks::pdfs<node, frontier_type, adjlist_alias_type>(graph_alias, source, visited));
   } else if (bench == "pbfs") {
@@ -6846,18 +6862,20 @@ void launch_graph_benchmark_for_representation(std::string bench) {
     assert(false);
   }
   add_todo([=]{
-    if (visited != nullptr) {
-      report_dfs_results(*graph, [&] (vtxid_type i) { return visited[i].load(); });
-    } else if (dists != nullptr) {
+    if (*visited != nullptr) {
+      report_dfs_results(*graph, [&] (vtxid_type i) { return (*visited)[i].load(); });
+    } else if (*dists != nullptr) {
       using vtxid_type = typename Adjlist::vtxid_type;
       vtxid_type unknown = benchmarks::graph_constants<vtxid_type>::unknown_vtxid;
-      report_bfs_results(*graph, unknown, [&] (vtxid_type i) { return dists[i].load(); });
+      report_bfs_results(*graph, unknown, [&] (vtxid_type i) { return (*dists)[i].load(); });
     }
     delete graph;
-    if (visited != nullptr) {
-      free(visited);
-    } else if (dists != nullptr) {
-      free(dists);
+    if (*visited != nullptr) {
+      free(*visited);
+      delete visited;
+    } else if (*dists != nullptr) {
+      free(*dists);
+      delete dists;
     }
   });
 }
