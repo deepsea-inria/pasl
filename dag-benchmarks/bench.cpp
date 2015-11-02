@@ -1396,7 +1396,7 @@ public:
   }
   
   template <class Body>
-  void parallel_for(long lo, long hi, int cutoff, const Body& body, int continuation_block_id) {
+  void parallel_for_rng(long lo, long hi, int cutoff, const Body& body, int continuation_block_id) {
     node* consumer = this;
     node* producer = new_parallel_for(lo, hi, consumer, cutoff, body);
     prepare_node(producer, incounter_ready(), outset_unary());
@@ -1404,6 +1404,15 @@ public:
     join_with(consumer, incounter_new(this));
     add_edge(producer, consumer);
     add_node(producer);
+  }
+  
+  template <class Body>
+  void parallel_for(long lo, long hi, int cutoff, const Body& body, int continuation_block_id) {
+    parallel_for_rng(lo, hi, cutoff, [&] (long lo, long hi) {
+      for (long i = lo; i < hi; i++) {
+        body(i);
+      }
+    }, continuation_block_id);
   }
   
   template <class Body>
@@ -1684,11 +1693,8 @@ public:
     switch (node::current_block_id) {
       case process_block: {
         long n = std::min(hi, lo + (long)cutoff);
-        long i;
-        for (i = lo; i < n; i++) {
-          _body(i);
-        }
-        lo = i;
+        _body(lo, n);
+        lo += n - lo;
         node::jump_to(repeat_block);
         break;
       }
@@ -1707,10 +1713,9 @@ public:
   
   pasl::sched::thread_p split(size_t) {
     long mid = (hi + lo) / 2;
-    lazy_parallel_for_rec* n = new lazy_parallel_for_rec(mid, hi, join, cutoff, _body);
-    prepare_node(n, incounter_ready(), outset_unary());
+    auto n = new lazy_parallel_for_rec(mid, hi, join, cutoff, _body);
+    node::split_with(n, join);
     hi = mid;
-    add_edge(n, join);
     return n;
   }
   
@@ -3046,6 +3051,11 @@ public:
   
   void deallocate_future(outset* future) {
     portpassing::deallocate_future(this, future);
+  }
+  
+  template <class Body>
+  void parallel_for_rng(long lo, long hi, int cutoff, const Body& body, int continuation_block_id) {
+    assert(false);
   }
   
   template <class Body>
@@ -5531,6 +5541,86 @@ int count_nb_diffs(const matrix_type<double>& lhs,
   return nb_diffs;
 }
   
+template <class node>
+class pmemset : public node {
+public:
+  
+  char* ptr;
+  int value;
+  size_t num;
+  
+  static constexpr int cutoff = 1 << 8;
+  
+  pmemset(char* ptr, int value, size_t num)
+  : ptr(ptr), value(value), num(num) { }
+  
+  enum {
+    entry,
+    exit
+  };
+  
+  void body() {
+    switch (node::current_block_id) {
+      case entry: {
+        node::parallel_for_rng(0, num, cutoff, [&] (long lo, long hi) {
+          memset(ptr + lo, value, hi - lo);
+        }, exit);
+        break;
+      }
+      case exit: {
+#ifndef NDEBUG
+        for (size_t i = 0; i < num; i++) {
+          assert(ptr[i] == (unsigned char)value);
+        }
+#endif
+        break;
+      }
+    }
+  }
+  
+};
+  
+template <class node, class ForwardIt, class T>
+class pfill : public node {
+public:
+  
+  ForwardIt first;
+  ForwardIt last;
+  T value;
+  
+  static constexpr int cutoff = 1 << 8;
+  
+  pfill(ForwardIt first, ForwardIt last, const T& value)
+  : first(first), last(last), value(value) { }
+  
+  enum {
+    entry,
+    exit
+  };
+  
+  void body() {
+    switch (node::current_block_id) {
+      case entry: {
+        std::size_t num = last - first;
+        node::parallel_for_rng(0, num, cutoff, [&] (long lo, long hi) {
+          std::fill(first + lo, first + hi, value);
+        }, exit);
+        break;
+      }
+      case exit: {
+#ifndef NDEBUG
+        std::size_t num = last - first;
+        for (size_t i = 0; i < num; i++) {
+          assert(first[i] == value);
+        }
+#endif
+        break;
+      }
+    }
+  }
+  
+};
+  
 template <class Vertex_id_bag>
 class symmetric_vertex {
 public:
@@ -6461,13 +6551,18 @@ public:
       case entry: {
         auto nb_vertices = graph.get_nb_vertices();
         visited = malloc_array<std::atomic<int>>(nb_vertices);
-        node::parallel_for(0, nb_vertices, [&] (int i) {
-          visited[i].store(0);
-        }, dfs);
+        node::call(new pmemset<node>((char*)visited, 0, nb_vertices * sizeof(std::atomic<int>)),
+                   dfs);
         break;
       }
       case dfs: {
+#ifndef NDEBUG
+        for (long i = 0; i < graph.get_nb_vertices(); i++) {
+          assert(visited[i].load() == 0);
+        }
+#endif
         auto n = new pdfs_rec<node, Frontier, Adjlist>(graph, visited, this);
+        visited[source].store(1);
         n->frontier.push_vertex_back(source);
         node::finish(n,
                      exit);
@@ -6642,9 +6737,8 @@ public:
       case entry: {
         auto nb_vertices = graph_alias.get_nb_vertices();
         dists = malloc_array<std::atomic<vtxid_type>>(nb_vertices);
-        node::parallel_for(0, nb_vertices, [&] (int i) {
-          dists[i].store(unknown);
-        }, init_source);
+        node::call(new pfill<node, std::atomic<vtxid_type>*, vtxid_type>(dists, dists + nb_vertices, unknown),
+                   init_source);
         break;
       }
       case init_source: {
