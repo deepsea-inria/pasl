@@ -1360,11 +1360,19 @@ public:
     // nothing to do
   }
   
+  void spawn(node* n, outset* out) {
+    prepare_node(n, incounter_ready(), out);
+    add_node(n);
+  }
+  
+  void spawn(node* n) {
+    spawn(n, outset_noop());
+  }
+  
   void future(node* producer, outset* producer_out, int continuation_block_id) {
     node* consumer = this;
-    prepare_node(producer, incounter_ready(), producer_out);
     consumer->jump_to(continuation_block_id);
-    add_node(producer);
+    spawn(producer, producer_out);
   }
   
   outset* future(node* producer, int continuation_block_id) {
@@ -1401,6 +1409,10 @@ public:
   template <class Body>
   void parallel_for(long lo, long hi, const Body& body, int continuation_block_id) {
     parallel_for(lo, hi, communication_delay, body, continuation_block_id);
+  }
+  
+  void split_with(node* n) {
+    prepare_node(n, incounter_ready(), outset_noop());
   }
   
   void split_with(node* n, node* join) {
@@ -2958,6 +2970,10 @@ public:
     continue_with(this);
   }
   
+  void spawn(node* n) {
+    assert(false);
+  }
+  
   void async(node* producer, node* consumer, int continuation_block_id) {
     prepare_node(producer, incounter_ready(), outset_unary(producer));
     node* caller = this;
@@ -3048,6 +3064,10 @@ public:
   template <class Body>
   void parallel_for(long lo, long hi, const Body& body, int continuation_block_id) {
     parallel_for(lo, hi, communication_delay, body, continuation_block_id);
+  }
+  
+  void split_with(node* new_sibling) {
+    assert(false);
   }
   
   void split_with(node* new_sibling, node* join) {
@@ -5282,14 +5302,14 @@ public:
   matrix_type<std::atomic<int>>* incounters;
   matrix_type<private_clock_type>* clocks;
   
-  node* join;
+  outset_of<node>* future;
   bool initial_thread = true;
 
   seidel_async_parallel_rec(matrix_type<std::atomic<int>>* incounters,
                             matrix_type<private_clock_type>* clocks,
-                            node* join,
+                            outset_of<node>* future,
                             int N, int block_size, double* data)
-  : incounters(incounters), clocks(clocks), join(join), N(N),
+  : incounters(incounters), clocks(clocks), future(future), N(N),
   block_size(block_size), data(data) { }
   
 
@@ -5297,7 +5317,7 @@ public:
     long after = --clocks->subscript(i, j).time;
     int n = incounters->n;
     if ((after == 0) && ((i + 1) == n) && ((j + 1) == n)) {
-      // schedule the continuation at this point
+      future->finished();
     }
   }
   
@@ -5399,12 +5419,12 @@ public:
   }
   
   pasl::sched::thread_p split(size_t) {
-    auto n = new seidel_async_parallel_rec(incounters, clocks, join, N, block_size, data);
+    auto n = new seidel_async_parallel_rec(incounters, clocks, future, N, block_size, data);
     n->initial_thread = false;
     assert(size() >= 2);
     size_t half = size() / 2;
     frontier.split(half, n->frontier);
-    node::split_with(n, join);
+    node::split_with(n);
     return n;
   }
   
@@ -5429,6 +5449,7 @@ public:
   matrix_type<std::atomic<int>>* incounters;
   matrix_type<private_clock_type>* clocks;
   int nb_blocks;
+  outset_of<node>* future;
   
   seidel_async(int numiters, int N, int block_size, double* data)
   : numiters(numiters), N(N), block_size(block_size), data(data) { }
@@ -5464,11 +5485,14 @@ public:
         break;
       }
       case launch: {
-        node::finish(new seidel_async_parallel_rec<node>(incounters, clocks, this, N, block_size, data),
-                     exit);
+        future = node::allocate_future();
+        node::spawn(new seidel_async_parallel_rec<node>(incounters, clocks, future, N, block_size, data));
+        node::force(future,
+                    exit);
         break;
       }
       case exit: {
+        node::deallocate_future(future);
         delete incounters;
         delete clocks;
         break;
