@@ -512,11 +512,11 @@ let plot() =
 begin
     Mk_scatter_plot.(call ([
     Chart_opt Chart.([
-      Legend_opt Legend.([Legend_pos Top_right]);
+      Legend_opt Legend.([Legend_pos Bottom_right]);
       ]);
      Scatter_plot_opt Scatter_plot.([
          Draw_lines true; 
-         Y_axis [Axis.Lower (Some 0.); Axis.Upper (Some 10.0e6); Axis.Is_log false;] ]);
+         Y_axis [Axis.Lower (Some 0.); Axis.Upper (Some 10.0e6); Axis.Is_log true;] ]);
        Formatter microbench_formatter;
        Charts mk_unit;
       Series mk_edge_algos;
