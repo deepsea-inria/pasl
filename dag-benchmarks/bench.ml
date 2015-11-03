@@ -581,7 +581,8 @@ let prog = "./bench.opt"
 let make() =
   build "." [prog] arg_virtual_build
 
-let mk_workloads = mk_list int "workload" (XList.init 4 (fun i -> i * 500))
+let mk_workloads = mk_list int "workload" [0;]
+(*(XList.init 4 (fun i -> i * 500)) *)
         
 let mk_all_benchmarks =
 (*     mk_incounter_mixed_duration
