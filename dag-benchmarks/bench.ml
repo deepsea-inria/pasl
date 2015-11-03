@@ -98,9 +98,6 @@ let mk_statreeopt_edge_algo_with_no_defaults =
 let mk_statreeopt_edge_algo =
     mk_statreeopt_edge_algo_with_no_defaults
 
-let mk_dyntree_edge_algo = mk string "edge_algo" "dyntree"
-
-let mk_dyntreeopt_edge_algo = mk string "edge_algo" "dyntreeopt"
                                  
 let mk_growabletree_edge_algo = mk string "edge_algo" "growabletree"
 
@@ -108,8 +105,6 @@ let mk_edge_algos =
      mk_simple_edge_algo
   ++ mk_statreeopt_edge_algo
   ++ mk_growabletree_edge_algo
-(*  ++ mk_dyntree_edge_algo
-  ++ mk_dyntreeopt_edge_algo *)
 
 let mk_direct_algo = mk string "algo" "direct"
        
@@ -183,8 +178,6 @@ let mk_mixed_duration =
 let pretty_edge_algo edge_algo =
   match edge_algo with
   | "simple" -> "simple serial"
-  | "dyntree" -> "our original (unoptimized)"
-  | "dyntreeopt" -> "our original (optimized)"
   | "statreeopt" -> "our fixed-size SNZI incounter + our outset"
   | "growabletree" -> "our growable SNZI incounter + our outset"
   | "single_buffer" -> "single buffer"
@@ -210,66 +203,6 @@ let microbench_formatter =
     ]
   ))                
          
-(*****************************************************************************)
-(** Incounter-tune experiment *)
-
-module ExpIncounterTune = struct
-
-let name = "incounter_tune"
-
-let parameters = [  (4,1); (4,4); (4,8); (4,32); (4,128); (4,256); (4,512); (8,32); ]
-(*(2,1); (2,8); (2,32);*)
-                   
-let prog_of (branching_factor, amortization_factor) =
-  "./bench.opt_" ^ (string_of_int branching_factor) ^ "_" ^ (string_of_int amortization_factor)
-             
-let progs = List.map prog_of parameters
-           
-let mk_progs =
-  mk_list string "prog" progs
-
-let mk_all_benchmarks =
-     mk_incounter_mixed_duration
-  ++ mk_incounter_async_duration
-  ++ mk_incounter_async_nb
-       
-let make() =
-  build "." progs arg_virtual_build
-
-let run() =
-  Mk_runs.(call (run_modes @ [
-    Output (file_results name);
-    Timeout 1000;
-    Args (
-      mk_progs
-    & mk_all_benchmarks
-    & mk_seed
-    & mk string "algo" "direct"
-    & mk string "edge_algo" "dyntreeopt"
-    & mk_proc)]))
-
-let check = nothing  (* do something here *)
-           
-let plot() =
-  Mk_bar_plot.(call ([
-      Bar_plot_opt Bar_plot.([
-         X_titles_dir Vertical;
-         Y_axis [Axis.Lower (Some 0.)] ]);
-       Formatter microbench_formatter;
-      Charts mk_proc;
-      Series mk_progs;
-      X mk_all_benchmarks;
-      Input (file_results name);
-      Output (file_plots name);
-      Y_label "nb_operations/second (per thread)";
-      Y eval_nb_operations_per_second;
-      Y_whiskers eval_nb_operations_per_second_error;
-  ]))
-                
-let all () = select make run check plot
-
-end
-
 (*****************************************************************************)
 (** SNZI-tune experiment *)
 
@@ -341,8 +274,6 @@ let prog = "./bench.opt"
 let mk_edge_algos =
       mk_simple_edge_algo
    ++ mk_statreeopt_edge_algo
-   ++ mk_dyntree_edge_algo
-   ++ mk_dyntreeopt_edge_algo
 
 let make() =
   build "." [prog] arg_virtual_build
@@ -712,7 +643,7 @@ let run() =
     Timeout 1000;
     Args (
       mk_prog prog
-    & (mk_cmds & mk_direct_algo & mk_dyntreeopt_edge_algo)
+    & (mk_cmds & mk_direct_algo & mk_growabletree_edge_algo)
     & mk_seed
     & mk_procs)]))
 
@@ -885,7 +816,6 @@ end
 let _ =
   let arg_actions = XCmd.get_others() in
   let bindings = [
-    "incounter_tune",                 ExpIncounterTune.all;
     "snzi_tune",                      ExpSNZITune.all;
     "scalability",                    ExpScalability.all;
     "incounter_mixed_duration",       ExpIncounterMixedDuration.all;
