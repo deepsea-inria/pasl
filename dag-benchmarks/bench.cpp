@@ -4564,6 +4564,42 @@ public:
   
 };
   
+class single_buffer_outset_wrapper {
+public:
+  
+  static constexpr int buffer_sz = 4096;
+
+  using buffer_type = pasl::data::outset::block<direct::node*, buffer_sz, true>;
+  
+  static std::atomic<buffer_type*> buffer;
+  
+  single_buffer_outset_wrapper() {
+    buffer.store(new buffer_type);
+  }
+  
+  template <class Random_int>
+  void add(void*, const Random_int& random_int, int my_id) {
+    while (true) {
+      buffer_type* b = buffer.load();
+      bool failed_because_finish = false;
+      bool failed_because_full = false;
+      b->try_insert((direct::node*)dummyval, failed_because_finish, failed_because_full);
+      assert(! failed_because_finish);
+      if (failed_because_full) {
+        buffer_type* new_buffer = new buffer_type;
+        if (! compare_exchange(buffer, b, new_buffer)) {
+          delete new_buffer;
+        }
+      } else {
+        break;
+      }
+    }
+  }
+  
+};
+
+std::atomic<typename single_buffer_outset_wrapper::buffer_type*> single_buffer_outset_wrapper::buffer;
+  
 double since(std::chrono::time_point<std::chrono::high_resolution_clock> start) {
   auto end = std::chrono::high_resolution_clock::now();
   std::chrono::duration<double> diff = end-start;
@@ -4674,6 +4710,7 @@ void launch_outset_add_duration() {
   dyntreeopt_outset_wrapper* dyntreeopt_outset = nullptr;
   growable_outset_wrapper* growable_outset = nullptr;
   perprocessor_outset_wrapper* perprocessor_outset = nullptr;
+  single_buffer_outset_wrapper* single_buffer_outset = nullptr;
   pasl::util::cmdline::argmap_dispatch c;
   c.add("simple", [&] {
     simple_outset = new simple_outset_wrapper;
@@ -4690,6 +4727,9 @@ void launch_outset_add_duration() {
   c.add("perprocessor", [&] {
     perprocessor_outset = new perprocessor_outset_wrapper;
   });
+  c.add("single_buffer", [&] {
+    single_buffer_outset = new single_buffer_outset_wrapper;
+  });
   c.find_by_arg("edge_algo")();
   auto benchmark_thread = [&] (int my_id, bool& should_stop, long& counter1, long& counter2) {
     if (simple_outset != nullptr) {
@@ -4702,6 +4742,8 @@ void launch_outset_add_duration() {
       benchmark_outset_thread(my_id, *growable_outset, should_stop, counter1, seed);
     } else if (perprocessor_outset != nullptr) {
       benchmark_outset_thread(my_id, *perprocessor_outset, should_stop, counter1, seed);
+    } else if (single_buffer_outset != nullptr) {
+      benchmark_outset_thread(my_id, *single_buffer_outset, should_stop, counter1, seed);
     }
   };
   launch_microbenchmark(benchmark_thread, nb_threads, nb_milliseconds);
@@ -4721,6 +4763,8 @@ void launch_outset_add_duration() {
     delete growable_outset;
   } else if (perprocessor_outset != nullptr) {
     delete perprocessor_outset;
+  } else if (single_buffer_outset != nullptr) {
+    delete single_buffer_outset;
   }
 }
 

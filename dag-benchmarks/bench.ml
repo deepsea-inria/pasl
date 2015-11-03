@@ -185,14 +185,15 @@ let pretty_edge_algo edge_algo =
   | "simple" -> "simple serial"
   | "dyntree" -> "our original (unoptimized)"
   | "dyntreeopt" -> "our original (optimized)"
-  | "statreeopt" -> "fixed-size SNZI incounter + our outset"
+  | "statreeopt" -> "our fixed-size SNZI incounter + our outset"
   | "growabletree" -> "our growable SNZI incounter + our outset"
+  | "single_buffer" -> "single buffer"
   | "perprocessor" -> "per-processor buffers"
   | _ -> "<unknown>"
 
 let pretty_snzi s =
   match s with
-  | "fixed" -> "fixed-size SNZI tree"
+  | "fixed" -> "our fixed-size SNZI tree"
   | "growable" -> "our growable SNZI tree"
   | "single_cell" -> "single-cell fetch-and-add counter"
   | _ -> "<unknown>"
@@ -489,7 +490,7 @@ let prog = "./bench.opt"
 
 let mk_cmd = mk string "cmd" "outset_add_duration"
 
-let mk_edge_algos = mk_list string "edge_algo" ["simple"; "dyntreeopt"; "growabletree"; "perprocessor";]
+let mk_edge_algos = mk_list string "edge_algo" ["simple"; "growabletree"; "perprocessor"; "single_buffer";]
 
 let make() =
   build "." [prog] arg_virtual_build
