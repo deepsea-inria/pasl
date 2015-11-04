@@ -965,7 +965,7 @@ let doit id (mk_numiters, mk_seidel_params) =
   let path_to_openstream_seidel = path_to_openstream ^ "/examples/seidel" in
                              
   let make() = (
-    build "." [prog] arg_virtual_build;
+    build "." ["bench.opt"] arg_virtual_build;
     build path_to_openstream_seidel ["stream_seidel";"cilk_seidel";] arg_virtual_build;
   )
   in
@@ -990,6 +990,7 @@ let doit id (mk_numiters, mk_seidel_params) =
       ("N", Format_custom (fun n -> sprintf "size %s" n));
       ("block_size_lg", Format_custom (fun n -> sprintf "tile %d" (1 lsl (int_of_string n))));
       ("system", Format_custom (fun n -> sprintf "%s" n));
+      ("cmd", Format_custom (fun n -> sprintf "" ));
     ]
   ))                
   in
