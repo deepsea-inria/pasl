@@ -3475,7 +3475,7 @@ public:
   
 };
   
-long mixed_nb_cutoff = 1;
+long mixed_nb_cutoff = 2048;
   
 template <class node>
 class mixed_nb_future : public node {
