@@ -5445,11 +5445,6 @@ void launch_sequential_baseline_benchmark(const Benchmark& benchmark) {
 }
 
 int main(int argc, char** argv) {
-#ifdef USE_FREELIST_MALLOC
-  pthread_key_create(&direct::dyntreeopt::thread_current_pointer, nullptr);
-  pthread_key_create(&direct::dyntreeopt::thread_last_pointer, nullptr);
-  pthread_key_create(&direct::dyntreeopt::thread_freelist_pointer, nullptr);
-#endif
   cmdline::set(argc, argv);
   benchmarks::workload = pasl::util::cmdline::parse_or_default_double("workload", 0.0);
   std::string cmd = pasl::util::cmdline::parse_string(cmd_param);
