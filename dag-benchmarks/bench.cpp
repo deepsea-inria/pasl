@@ -4954,6 +4954,62 @@ bool try_to_mark(const Adjlist& graph,
     return try_to_mark_non_idempotent<vtxid_type,Item>(visited, target);
   }
 }
+  
+template <class Number, class Size>
+void fill_array_seq(Number* array, Size sz, Number val) {
+  memset(array, val, sz*sizeof(Number));
+  // for (Size i = Size(0); i < sz; i++)
+  //   array[i] = val;
+}
+  
+template <
+class Adjlist_seq,
+bool report_nb_edges_processed = false,
+bool report_nb_vertices_visited = false
+>
+int* dfs_by_vertexid_array(const adjlist<Adjlist_seq>& graph,
+                           typename adjlist<Adjlist_seq>::vtxid_type source,
+                           long* nb_edges_processed = nullptr,
+                           long* nb_vertices_visited = nullptr,
+                           int* visited_from_caller = nullptr) {
+  using vtxid_type = typename adjlist<Adjlist_seq>::vtxid_type;
+  if (report_nb_edges_processed)
+    *nb_edges_processed = 0;
+  if (report_nb_vertices_visited)
+    *nb_vertices_visited = 1;
+  vtxid_type nb_vertices = graph.get_nb_vertices();
+  int* visited;
+  if (visited_from_caller != nullptr) {
+    visited = visited_from_caller;
+    // don't need to initialize visited
+  } else {
+    visited = malloc_array<int>(nb_vertices);
+    fill_array_seq(visited, nb_vertices, 0);
+  }
+  LOG_BASIC(ALGO_PHASE);
+  vtxid_type* frontier = malloc_array<vtxid_type>(nb_vertices);
+  vtxid_type frontier_size = 0;
+  frontier[frontier_size++] = source;
+  visited[source] = 1;
+  while (frontier_size > 0) {
+    vtxid_type vertex = frontier[--frontier_size];
+    vtxid_type degree = graph.adjlists[vertex].get_out_degree();
+    vtxid_type* neighbors = graph.adjlists[vertex].get_out_neighbors();
+    if (report_nb_edges_processed)
+      (*nb_edges_processed) += degree;
+    for (vtxid_type edge = 0; edge < degree; edge++) {
+      vtxid_type other = neighbors[edge];
+      if (visited[other])
+        continue;
+      if (report_nb_vertices_visited)
+        (*nb_vertices_visited)++;
+      visited[other] = 1;
+      frontier[frontier_size++] = other;
+    }
+  }
+  free(frontier);
+  return visited;
+}
 
 int pdfs_split_cutoff = 128;
 int pdfs_poll_cutoff = 16;
@@ -5101,6 +5157,54 @@ public:
   
 };
 
+#define PUSH_ZERO_ARITY_VERTICES 0
+
+template <class Adjlist_seq>
+typename adjlist<Adjlist_seq>::vtxid_type*
+bfs_by_dual_arrays(const adjlist<Adjlist_seq>& graph,
+                   typename adjlist<Adjlist_seq>::vtxid_type source) {
+  using vtxid_type = typename adjlist<Adjlist_seq>::vtxid_type;
+  vtxid_type unknown = graph_constants<vtxid_type>::unknown_vtxid;
+  vtxid_type nb_vertices = graph.get_nb_vertices();
+  vtxid_type* dists = malloc_array<vtxid_type>(nb_vertices);
+  std::fill(dists, dists+nb_vertices, unknown);
+  LOG_BASIC(ALGO_PHASE);
+  vtxid_type* stacks[2];
+  stacks[0] = malloc_array<vtxid_type>(graph.get_nb_vertices());
+  stacks[1] = malloc_array<vtxid_type>(graph.get_nb_vertices());
+  vtxid_type nbs[2]; // size of the stacks
+  nbs[0] = 0;
+  nbs[1] = 0;
+  vtxid_type cur = 0; // either 0 or 1, depending on parity of dist
+  vtxid_type nxt = 1; // either 1 or 0, depending on parity of dist
+  vtxid_type dist = 0;
+  dists[source] = 0;
+  stacks[cur][nbs[cur]++] = source;
+  while (nbs[cur] > 0) {
+    vtxid_type nb = nbs[cur];
+    for (vtxid_type ix = 0; ix < nb; ix++) {
+      vtxid_type vertex = stacks[cur][ix];
+      vtxid_type degree = graph.adjlists[vertex].get_out_degree();
+      vtxid_type* neighbors = graph.adjlists[vertex].get_out_neighbors();
+      for (vtxid_type edge = 0; edge < degree; edge++) {
+        vtxid_type other = neighbors[edge];
+        if (dists[other] != unknown)
+          continue;
+        dists[other] = dist+1;
+        if (PUSH_ZERO_ARITY_VERTICES || graph.adjlists[other].get_out_degree() > 0)
+          stacks[nxt][nbs[nxt]++] = other;
+      }
+    }
+    nbs[cur] = 0;
+    cur = 1 - cur;
+    nxt = 1 - nxt;
+    dist++;
+  }
+  free(stacks[0]);
+  free(stacks[1]);
+  return dists;
+}
+  
 int pbfs_cutoff = 1024;
 int pbfs_polling_cutoff = 1024;
 
@@ -5475,35 +5579,59 @@ void launch_graph_benchmark_for_representation(std::string bench) {
   int source = cmdline::parse_or_default_int("source", 0);
   std::string infile = cmdline::parse_or_default_string("infile", "");
   adjlist_type* graph = new adjlist_type;
-  std::atomic<int>** visited = new std::atomic<int>*;
-  std::atomic<vtxid_type>** dists = new std::atomic<vtxid_type>*;
-  *visited = nullptr;
-  *dists = nullptr;
+  std::atomic<int>** pdfs_visited = new std::atomic<int>*;
+  int** dfs_visited = new int*;
+  std::atomic<vtxid_type>** pbfs_dists = new std::atomic<vtxid_type>*;
+  vtxid_type** bfs_dists = new vtxid_type*;
+  *dfs_visited = nullptr;
+  *pdfs_visited = nullptr;
+  *bfs_dists = nullptr;
+  *pbfs_dists = nullptr;
   benchmarks::read_adjlist_from_file<vtxid_type>(infile, *graph);
   auto graph_alias = benchmarks::get_alias_of_adjlist(*graph);
-  if (bench == "pdfs") {
-    add_measured(new benchmarks::pdfs<node, frontier_type, adjlist_alias_type>(graph_alias, source, visited));
+  if (bench == "dfs") {
+    add_measured([=] {
+      *dfs_visited = benchmarks::dfs_by_vertexid_array(*graph, source);
+    });
+  } else if (bench == "pdfs") {
+    add_measured(new benchmarks::pdfs<node, frontier_type, adjlist_alias_type>(graph_alias, source, pdfs_visited));
+  } else if (bench == "bfs") {
+    add_measured([=] {
+      *bfs_dists = benchmarks::bfs_by_dual_arrays(*graph, source);
+    });
   } else if (bench == "pbfs") {
-    add_measured(new benchmarks::pbfs<node, frontier_type, adjlist_alias_type>(graph_alias, source, dists));
+    add_measured(new benchmarks::pbfs<node, frontier_type, adjlist_alias_type>(graph_alias, source, pbfs_dists));
   } else {
     assert(false);
   }
   add_todo([=]{
-    if (*visited != nullptr) {
-      report_dfs_results(*graph, [&] (vtxid_type i) { return (*visited)[i].load(); });
-    } else if (*dists != nullptr) {
+    if (*dfs_visited != nullptr) {
+      report_dfs_results(*graph, [&] (vtxid_type i) { return (*dfs_visited)[i]; });
+    } else if (*pdfs_visited != nullptr) {
+      report_dfs_results(*graph, [&] (vtxid_type i) { return (*pdfs_visited)[i].load(); });
+    } else if (*bfs_dists != nullptr) {
       using vtxid_type = typename Adjlist::vtxid_type;
       vtxid_type unknown = benchmarks::graph_constants<vtxid_type>::unknown_vtxid;
-      report_bfs_results(*graph, unknown, [&] (vtxid_type i) { return (*dists)[i].load(); });
+      report_bfs_results(*graph, unknown, [&] (vtxid_type i) { return (*bfs_dists)[i]; });
+    } else if (*pbfs_dists != nullptr) {
+      using vtxid_type = typename Adjlist::vtxid_type;
+      vtxid_type unknown = benchmarks::graph_constants<vtxid_type>::unknown_vtxid;
+      report_bfs_results(*graph, unknown, [&] (vtxid_type i) { return (*pbfs_dists)[i].load(); });
     }
     delete graph;
-    if (*visited != nullptr) {
-      free(*visited);
-      delete visited;
-    } else if (*dists != nullptr) {
-      free(*dists);
-      delete dists;
+    if (*dfs_visited != nullptr) {
+      free(*dfs_visited);
+    } else if (*pdfs_visited != nullptr) {
+      free(*pdfs_visited);
+    } else if (*bfs_dists != nullptr) {
+      free(*bfs_dists);
+    } else if (*pbfs_dists != nullptr) {
+      free(*pbfs_dists);
     }
+    delete dfs_visited;
+    delete pdfs_visited;
+    delete bfs_dists;
+    delete pbfs_dists;
   });
 }
 
@@ -5573,8 +5701,14 @@ void choose_command() {
   c.add("seidel_async", [&] {
     do_seidel<benchmarks::seidel_async<node>>();
   });
+  c.add("dfs", [&] {
+    launch_graph_benchmark<node>("dfs");
+  });
   c.add("pdfs", [&] {
     launch_graph_benchmark<node>("pdfs");
+  });
+  c.add("bfs", [&] {
+    launch_graph_benchmark<node>("bfs");
   });
   c.add("pbfs", [&] {
     launch_graph_benchmark<node>("pbfs");
