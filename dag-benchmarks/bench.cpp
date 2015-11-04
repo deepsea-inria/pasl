@@ -3475,7 +3475,7 @@ public:
   
 };
   
-long mixed_nb_cutoff = 1024;
+long mixed_nb_cutoff = 1;
   
 template <class node>
 class mixed_nb_future : public node {
@@ -3527,7 +3527,7 @@ public:
     switch (node::current_block_id) {
       case entry: {
         if (nb <= mixed_nb_cutoff) {
-          pasl::util::microtime::wait_for(1<<11);
+          //pasl::util::microtime::wait_for(1<<11);
         } else {
           future = node::future(new mixed_nb_rec(nb / 2),
                                 loop);
