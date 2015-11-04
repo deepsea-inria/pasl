@@ -94,7 +94,7 @@ public:
   
 } // end namespace
 
-template <class Item, int capacity, bool add_is_concurrent>
+template <class Item, int capacity, bool multiadd>
 class block {
 private:
 
@@ -108,7 +108,7 @@ public:
   block() {
     start = (Item*)malloc(capacity * sizeof(Item));
     head.store(start);
-    if (add_is_concurrent) {
+    if (multiadd) {
       for (int i = 0; i < capacity; i++) {
         start[i] = nullptr;
       }
@@ -135,7 +135,7 @@ public:
         failed_because_full = true;
         return;
       }
-      if (add_is_concurrent) {
+      if (multiadd) {
         if (compare_exchange(head, orig, orig + 1)) {
           *orig = x;
           return;
@@ -155,13 +155,13 @@ public:
       Item* orig = head.load();
       if (compare_exchange(head, orig, finished_tag)) {
         for (auto it = start; it != orig; it++) {
-          Item& x = *it;
-          if (! add_is_concurrent) {
-            while (x == nullptr) {
+          if (multiadd) {
+            while (*it == nullptr) {
               // wait for try_insert() to commit the item
+              pasl::util::microtime::wait_for(512);
             }
           }
-          visit(x);
+          visit(*it);
         }
         return;
       }
@@ -264,6 +264,7 @@ public:
   
   ~outset() {
     shortcuts_type* s = shortcuts.load();
+    shortcuts.store(nullptr);
     if (s != nullptr) {
       delete s;
     }

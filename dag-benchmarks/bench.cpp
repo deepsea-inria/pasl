@@ -725,6 +725,7 @@ void increment_incounter(node* source, node* target) {
 void decrement_incounter(node* source, node* target, incounter* target_in) {
   long tag = pasl::sched::instrategy::extract_tag(target_in);
   assert(tag != pasl::sched::instrategy::READY_TAG);
+  assert(target_in != nullptr);
   if (tag == pasl::sched::instrategy::UNARY_TAG) {
     pasl::sched::instrategy::schedule(target);
   } else if (tag == pasl::sched::instrategy::FETCH_ADD_TAG) {
@@ -1049,9 +1050,11 @@ void outset_finish(growabletree_outset* out) {
   if (n != nullptr) {
     todo.push_back(n);
   }
+  out->set.finish_partial(communication_delay, todo, [&] (node* n) {
+    decrement_incounter(n);
+  });
   if (! todo.empty()) {
-    node* n;
-    n = new outset_finish_parallel(out, todo);
+    node* n = new outset_finish_parallel(out, todo);
     prepare_node(n, incounter_ready(), outset_noop());
     add_node(n);
   } else {
@@ -4955,13 +4958,6 @@ bool try_to_mark(const Adjlist& graph,
   }
 }
   
-template <class Number, class Size>
-void fill_array_seq(Number* array, Size sz, Number val) {
-  memset(array, val, sz*sizeof(Number));
-  // for (Size i = Size(0); i < sz; i++)
-  //   array[i] = val;
-}
-  
 template <
 class Adjlist_seq,
 bool report_nb_edges_processed = false,
@@ -4984,7 +4980,7 @@ int* dfs_by_vertexid_array(const adjlist<Adjlist_seq>& graph,
     // don't need to initialize visited
   } else {
     visited = malloc_array<int>(nb_vertices);
-    fill_array_seq(visited, nb_vertices, 0);
+    std::memset(visited, 0, nb_vertices * sizeof(int));
   }
   LOG_BASIC(ALGO_PHASE);
   vtxid_type* frontier = malloc_array<vtxid_type>(nb_vertices);
@@ -5315,8 +5311,8 @@ public:
   }
   
   pasl::sched::thread_p split(size_t) {
-    Frontier prev2;
     assert(prev.nb_outedges() >= 2);
+    Frontier prev2;
     prev.split(prev.nb_outedges() / 2, prev2);
     Frontier* next2 = new Frontier(graph_alias);
     auto n = new pbfs_process_layer(graph_alias, dist_of_next, dists, &prev2, next2);

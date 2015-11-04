@@ -72,6 +72,26 @@ let eval_nb_operations_per_second_error = fun env all_results results ->
   let (_, stddev) = XFloat.list_mean_and_stddev ps in
   stddev
 
+let eval_speedup mk_baseline baseline_results_file_name = fun env all_results results ->
+  let baseline_results = Results.from_file baseline_results_file_name in 
+  if baseline_results = [] then Pbench.warning ("no results for baseline: " ^ Env.to_string env);
+  let env = mk_baseline & from_env (Env.filter_keys ["kind"; "size"] env) in
+  let baseline_results = Results.filter_by_params env baseline_results in
+  let tp = Results.get_mean_of "exectime" results in
+  let t1 = Results.get_mean_of "exectime" baseline_results in
+  t1 /. tp
+
+let eval_speedup_stddev mk_baseline baseline_results_file_name = fun env all_results results ->
+  let baseline_results = Results.from_file baseline_results_file_name in
+  if baseline_results = [] then Pbench.warning ("no results for baseline: " ^ Env.to_string env);
+  let env = mk_baseline & from_env (Env.filter_keys ["kind"; "size"] env) in
+  let baseline_results = Results.filter_by_params env baseline_results in
+  let t1 = Results.get_mean_of "exectime" baseline_results in
+  try let times = Results.get Env.as_float "exectime" results in
+      let speedups = List.map (fun tp -> t1 /. tp) times in
+      XFloat.list_stddev speedups
+  with Results.Missing_key _ -> nan
+    
 (*****************************************************************************)
 (* Fixed constants *)
 
@@ -681,6 +701,109 @@ let all () = select make run check plot
 end
 
 (*****************************************************************************)
+(** Parallel BFS experiment *)
+
+module ExpPBFS = struct
+
+let name = "pbfs"
+
+let baseline_name = "bfs"
+             
+let prog = "./search.virtual"
+
+let ligra_path = "../../ligra/"
+
+let ligra_binaries = ["ligra.cilk_32"; "ligra.cilk_64";]
+
+let synthetic_graphs_path = "../../synthetic_graphs"
+let real_graphs_path = "../../real_graphs"
+
+let path_of_synthetic name = synthetic_graphs_path ^ "/" ^ name ^ ".adj_bin"
+
+let path_of_real name = real_graphs_path ^ "/" ^ name ^ ".adj_bin"
+                       
+let mk_synthetic_graph (name, nbbits) =
+    mk string "infile" (path_of_synthetic name)
+  & mk string "graph" name
+  & mk int "bits" nbbits
+
+let mk_real_graph (name, nbbits) =
+    mk string "infile" (path_of_real name)
+  & mk string "graph" name
+  & mk int "bits" nbbits
+
+let synthetic_graphs = [("cube_medium", 32); (*("rmat24_medium", 64) *)]
+let real_graphs = [("cage15", 32)]
+
+let mk_synthetic_graphs = List.map mk_synthetic_graph synthetic_graphs
+let mk_real_graphs = List.map mk_real_graph real_graphs
+
+let foldl f xs = List.fold_left f (List.hd xs) (List.tl xs)
+                              
+let mk_all_graphs =
+     foldl (fun x y -> x ++ y) mk_synthetic_graphs
+  ++ foldl (fun x y -> x ++ y) mk_real_graphs
+
+let mk_baseline_cmd =
+  mk string "cmd" "bfs"
+                    
+let mk_baseline =
+    mk_prog prog
+  & mk_algos
+  & mk_baseline_cmd
+  & mk_all_graphs
+
+let mk_cmds =
+  mk_list string "cmd" ["pbfs";"pbbs_pbfs_cilk";]
+
+let mk_proc = mk int "proc" max_proc
+
+let mk_args =
+  ( (mk_algos & (mk string "cmd" "pbfs"))
+    ++ mk string "cmd" "pbbs_pbfs"
+                 
+let make() = begin
+    build "." ["bench.opt"] arg_virtual_build;
+    build ligra_path ligra_binaries arg_virtual_build;
+  end
+  
+let run() = begin
+  Mk_runs.(call (run_modes @ [
+    Output (file_results baseline_name);
+    Timeout 1000;
+    Args mk_baseline]));
+  Mk_runs.(call (run_modes @ [
+    Output (file_results name);
+    Timeout 1000;
+    Args (
+      mk_prog prog
+    & mk_args
+    & mk_proc)]))
+  end
+            
+let check = nothing  (* do something here *)
+            
+let plot() =
+  Mk_bar_plot.(call ([
+    Bar_plot_opt Bar_plot.([
+       X_titles_dir Vertical;
+       Y_axis [Axis.Lower (Some 0.)] ]);
+     Formatter microbench_formatter;
+    Charts mk_unit;
+    Series mk_args;
+    X mk_all_graphs;
+    Input (file_results name);
+    Output (file_plots name);
+    Y_label "speedup";
+    Y (eval_speedup mk_baseline (file_results baseline_name));
+    Y_whiskers (eval_speedup_stddev mk_baseline);
+  ]))
+               
+let all () = select make run check plot
+
+end
+
+(*****************************************************************************)
 (** Gauss-Seidel experiment *)
 
 module ExpSeidel = struct
@@ -832,6 +955,7 @@ let _ =
     "incounter_async_duration",       ExpIncounterAsyncDuration.all;
     "mixed_duration",                 ExpMixedDuration.all;
     "async_finish_versus_fork_join",  ExpAsyncFinishVersusForkJoin.all;
+    "pbfs",                           ExpPBFS.all;
     "seidel",                         ExpSeidel.all;
     "snzi_alternated_duration",       ExpSNZIAlternatedDuration.all;
   ]
