@@ -166,6 +166,14 @@ let mk_incounter_forkjoin_nb_base =
 let mk_incounter_forkjoin_nb =
     mk_incounter_forkjoin_nb_base
   & mk_workload
+
+let mk_mixed_nb_base =
+    mk string "cmd" "mixed_nb"
+  & mk_incounter_nb
+
+let mk_mixed_nb =
+    mk_mixed_nb_base
+  & mk_workload
       
 let mk_mixed_duration_base =
     mk string "cmd" "mixed_duration"
@@ -585,10 +593,10 @@ let mk_workloads = mk_list int "workload" [0;]
 (*(XList.init 4 (fun i -> i * 500)) *)
         
 let mk_all_benchmarks =
-(*     mk_incounter_mixed_duration
-  ++ *) (mk_incounter_async_duration_base & mk_workloads)
+     (mk_incounter_async_duration_base & mk_workloads)
   ++ (mk_incounter_async_nb_base & mk_workloads)
   ++ (mk_mixed_duration_base & mk_workloads)
+  ++ (mk_mixed_nb_base & mk_workloads)
        
 let run() =
   Mk_runs.(call (run_modes @ [

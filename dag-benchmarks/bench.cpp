@@ -182,6 +182,9 @@ outset* outset_noop();
 outset* outset_new();
 template <class Body>
 node* new_parallel_for(long, long, node*, int, const Body&);
+template <class Body>
+node* new_parallel_for(long, long, node*, const Body&);
+
   
 class incounter : public pasl::sched::instrategy::common {
 public:
@@ -564,6 +567,17 @@ public:
   }
   
   template <class Body>
+  void parallel_for_nested(long lo, long hi, const Body& body, int continuation_block_id) {
+    node* consumer = this;
+    node* producer = new_parallel_for(lo, hi, consumer, body);
+    prepare_node(producer, incounter_ready(), outset_unary());
+    prepare_for_transfer(continuation_block_id);
+    join_with(consumer, incounter_new(this));
+    add_edge(producer, consumer);
+    add_node(producer);
+  }
+  
+  template <class Body>
   void parallel_for_rng(long lo, long hi, int cutoff, const Body& body, int continuation_block_id) {
     node* consumer = this;
     node* producer = new_parallel_for(lo, hi, consumer, cutoff, body);
@@ -822,7 +836,7 @@ void continue_with(node* n) {
 }
   
 template <class Body>
-class lazy_parallel_for_rec : public node {
+class lazy_parallel_for_0_rec : public node {
 public:
   
   long lo;
@@ -831,28 +845,29 @@ public:
   int cutoff;
   Body _body;
   
-  lazy_parallel_for_rec(long lo, long hi, node* join, int cutoff, const Body& _body)
+  lazy_parallel_for_0_rec(long lo, long hi, node* join, int cutoff, const Body& _body)
   : lo(lo), hi(hi), join(join), cutoff(cutoff), _body(_body) { }
   
   enum {
-    process_block,
-    repeat_block,
+    loop_header,
+    loop_body,
     exit
   };
   
   void body() {
     switch (node::current_block_id) {
-      case process_block: {
+      case loop_header: {
+        if (lo < hi) {
+          node::jump_to(loop_body);
+        }
+        break;
+      }
+      case loop_body: {
+        assert(lo < hi);
         long n = std::min(hi, lo + (long)cutoff);
         _body(lo, n);
         lo += n - lo;
-        node::jump_to(repeat_block);
-        break;
-      }
-      case repeat_block: {
-        if (lo < hi) {
-          node::jump_to(process_block);
-        }
+        node::jump_to(loop_header);
         break;
       }
     }
@@ -864,7 +879,57 @@ public:
   
   pasl::sched::thread_p split(size_t) {
     long mid = (hi + lo) / 2;
-    auto n = new lazy_parallel_for_rec(mid, hi, join, cutoff, _body);
+    auto n = new lazy_parallel_for_0_rec(mid, hi, join, cutoff, _body);
+    node::split_with(n, join);
+    hi = mid;
+    return n;
+  }
+  
+};
+
+template <class Body>
+class lazy_parallel_for_n_rec : public node {
+public:
+  
+  long lo;
+  long hi;
+  node* join;
+  Body _body;
+  
+  lazy_parallel_for_n_rec(long lo, long hi, node* join, const Body& _body)
+  : lo(lo), hi(hi), join(join), _body(_body) { }
+  
+  enum {
+    loop_header,
+    loop_body,
+    exit
+  };
+  
+  void body() {
+    switch (node::current_block_id) {
+      case loop_header: {
+        if (lo < hi) {
+          node::jump_to(loop_body);
+        }
+        break;
+      }
+      case loop_body: {
+        assert(lo < hi);
+        node::async(_body(lo), join,
+                    loop_header);
+        lo++;
+        break;
+      }
+    }
+  }
+  
+  size_t size() {
+    return hi - lo;
+  }
+  
+  pasl::sched::thread_p split(size_t) {
+    long mid = (hi + lo) / 2;
+    auto n = new lazy_parallel_for_n_rec(mid, hi, join, _body);
     node::split_with(n, join);
     hi = mid;
     return n;
@@ -873,8 +938,13 @@ public:
 };
   
 template <class Body>
+node* new_parallel_for(long lo, long hi, node* join, const Body& body) {
+  return new lazy_parallel_for_n_rec<Body>(lo, hi, join, body);
+}
+  
+template <class Body>
 node* new_parallel_for(long lo, long hi, node* join, int cutoff, const Body& body) {
-  return new lazy_parallel_for_rec<Body>(lo, hi, join, cutoff, body);
+  return new lazy_parallel_for_0_rec<Body>(lo, hi, join, cutoff, body);
 }
   
 namespace growabletree {
@@ -1458,6 +1528,11 @@ public:
   
   void deallocate_future(outset* future) {
     portpassing::deallocate_future(this, future);
+  }
+  
+  template <class Body>
+  void parallel_for_nested(long lo, long hi, const Body& body, int continuation_block_id) {
+    assert(false);
   }
   
   template <class Body>
@@ -3393,6 +3468,111 @@ public:
       case exit: {
         node::deallocate_future(producer);
         std::cout << "nb_operations  " << mixed_duration_counter.sum() << std::endl;
+        break;
+      }
+    }
+  }
+  
+};
+  
+long mixed_nb_cutoff = 1024;
+  
+template <class node>
+class mixed_nb_future : public node {
+public:
+  
+  enum {
+    entry,
+    exit
+  };
+  
+  outset_of<node>* future;
+  
+  mixed_nb_future(outset_of<node>* future)
+  : future(future) { }
+  
+  void body() {
+    switch (node::current_block_id) {
+      case entry: {
+        node::force(future,
+                    exit);
+        break;
+      }
+      case exit: {
+        break;
+      }
+    }
+  }
+  
+};
+  
+template <class node>
+class mixed_nb_rec : public node {
+public:
+  
+  enum {
+    entry,
+    loop,
+    exit
+  };
+  
+  long nb;
+  
+  outset_of<node>* future;
+  
+  mixed_nb_rec(long nb)
+  : nb(nb) { }
+  
+  void body() {
+    switch (node::current_block_id) {
+      case entry: {
+        if (nb <= mixed_nb_cutoff) {
+          pasl::util::microtime::wait_for(1<<11);
+        } else {
+          future = node::future(new mixed_nb_rec(nb / 2),
+                                loop);
+        }
+        break;
+      }
+      case loop: {
+        auto b = [&] (long) {
+          return new mixed_duration_force<node>(future);
+        };
+        node::parallel_for_nested(0, nb, b,
+                                  exit);
+        break;
+      }
+      case exit: {
+        node::deallocate_future(future);
+        break;
+      }
+    }
+  }
+  
+};
+
+template <class node>
+class mixed_nb : public node {
+public:
+  
+  enum {
+    entry,
+    exit
+  };
+  
+  long nb;
+  
+  mixed_nb(long nb)
+  : nb(nb) { }
+  
+  void body() {
+    switch (node::current_block_id) {
+      case entry: {
+        node::call(new mixed_nb_rec<node>(nb),
+                   exit);
+        break;
+      }
+      case exit: {
         break;
       }
     }
@@ -5359,6 +5539,10 @@ void choose_command() {
   c.add("mixed_duration", [&] {
     int nb_milliseconds = cmdline::parse_int("nb_milliseconds");
     add_measured(new benchmarks::mixed_duration<node>(nb_milliseconds));
+  });
+  c.add("mixed_nb", [&] {
+    int n = cmdline::parse_or_default_int("n", 1);
+    add_measured(new benchmarks::mixed_nb<node>(n));
   });
   c.add("incounter_async_nb", [&] {
     int n = cmdline::parse_or_default_int("n", 1);
