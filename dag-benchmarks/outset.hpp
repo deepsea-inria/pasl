@@ -158,7 +158,7 @@ public:
           if (multiadd) {
             while (*it == nullptr) {
               // wait for try_insert() to commit the item
-              pasl::util::microtime::wait_for(512);
+              pasl::util::microtime::wait_for(128);
             }
           }
           visit(*it);
