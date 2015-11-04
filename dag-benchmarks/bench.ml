@@ -215,6 +215,9 @@ let microbench_formatter =
       ("edge_algo", Format_custom pretty_edge_algo);
       ("cmd", Format_custom pretty_cmd);
       ("snzi", Format_custom pretty_snzi);
+      ("graph", Format_custom (fun x -> x));
+      ("infile", Format_custom (fun x -> ""));
+      ("bits", Format_custom (fun x -> ""));
     ]
   ))                
          

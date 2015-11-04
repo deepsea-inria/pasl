@@ -152,9 +152,10 @@ public:
   template <class Visit>
   void finish(const Visit& visit) {
     while (true) {
-      Item* orig = head.load();
+      Item* h = head.load();
+      Item* orig = h;
       if (compare_exchange(head, orig, finished_tag)) {
-        for (auto it = start; it != orig; it++) {
+        for (auto it = start; it != h; it++) {
           if (multiadd) {
             while (*it == nullptr) {
               // wait for try_insert() to commit the item
@@ -338,9 +339,9 @@ public:
   }
   
   template <class Visit>
-  static void finish_partial(const int max_nb_to_process, std::deque<node_type*>& todo, const Visit& visit) {
+  static void finish_nb(const int nb, std::deque<node_type*>& todo, const Visit& visit) {
     int k = 0;
-    while ((k < max_nb_to_process) && (! todo.empty())) {
+    while ((k < nb) && (! todo.empty())) {
       node_type* current = todo.back();
       todo.pop_back();
       for (int i = 0; i < branching_factor; i++) {
@@ -362,9 +363,9 @@ public:
     }
   }
   
-  static void deallocate_partial(const int max_nb_to_process, std::deque<node_type*>& todo) {
+  static void deallocate_nb(const int nb, std::deque<node_type*>& todo) {
     int k = 0;
-    while ((k < max_nb_to_process) && (! todo.empty())) {
+    while ((k < nb) && (! todo.empty())) {
       node_type* current = todo.back();
       todo.pop_back();
       for (int i = 0; i < branching_factor; i++) {

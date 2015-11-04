@@ -976,7 +976,7 @@ public:
     switch (current_block_id) {
       case process_block: {
         jump_to(repeat_block);
-        set->finish_partial(communication_delay, todo, [&] (node* n) {
+        set->finish_nb(communication_delay, todo, [&] (node* n) {
           decrement_incounter(n);
         });
         break;
@@ -1050,7 +1050,7 @@ void outset_finish(growabletree_outset* out) {
   if (n != nullptr) {
     todo.push_back(n);
   }
-  out->set.finish_partial(communication_delay, todo, [&] (node* n) {
+  out->set.finish_nb(communication_delay, todo, [&] (node* n) {
     decrement_incounter(n);
   });
   if (! todo.empty()) {
@@ -1078,7 +1078,7 @@ public:
     switch (current_block_id) {
       case process_block: {
         jump_to(repeat_block);
-        set_type::deallocate_partial(communication_delay, todo);
+        set_type::deallocate_nb(communication_delay, todo);
         break;
       }
       case repeat_block: {
@@ -1112,7 +1112,7 @@ void outset_tree_deallocate_sequential(node_type* root) {
   outset_tree_deallocate_parallel d;
   d.todo.push_back(root);
   while (! d.todo.empty()) {
-    set_type::deallocate_partial(communication_delay, d.todo);
+    set_type::deallocate_nb(communication_delay, d.todo);
   }
 }
 
@@ -1128,7 +1128,7 @@ void outset_tree_deallocate(growabletree_outset* out) {
   }
   outset_tree_deallocate_parallel d;
   d.todo.push_back(root);
-  set_type::deallocate_partial(communication_delay, d.todo);
+  set_type::deallocate_nb(communication_delay, d.todo);
   if (! d.todo.empty()) {
     node* n = new outset_tree_deallocate_parallel(d);
     prepare_node(n, incounter_ready(), outset_noop());
@@ -5201,8 +5201,8 @@ bfs_by_dual_arrays(const adjlist<Adjlist_seq>& graph,
   return dists;
 }
   
-int pbfs_cutoff = 1024;
-int pbfs_polling_cutoff = 1024;
+int pbfs_cutoff = 128;
+int pbfs_polling_cutoff = 128;
 
 template <class Index, class Item>
 static bool pbfs_try_to_set_dist(Index target,
