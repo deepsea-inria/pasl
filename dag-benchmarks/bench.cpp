@@ -3573,6 +3573,7 @@ public:
         break;
       }
       case exit: {
+        std::cout << "nb_operations " << nb << std::endl;
         break;
       }
     }
