@@ -590,7 +590,7 @@ public:
   
   template <class Body>
   void parallel_for(long lo, long hi, int cutoff, const Body& body, int continuation_block_id) {
-    parallel_for_rng(lo, hi, cutoff, [&] (long lo, long hi) {
+    parallel_for_rng(lo, hi, cutoff, [=] (long lo, long hi) {
       for (long i = lo; i < hi; i++) {
         body(i);
       }
@@ -3998,25 +3998,25 @@ public:
         incounters = new matrix_type<std::atomic<int>>(n);
         clocks = new matrix_type<private_clock_type>(n);
         nb_blocks = n * n;
-        node::parallel_for(0, nb_blocks, [&] (long i) {
+        node::parallel_for(0, nb_blocks, [=] (long i) {
           clocks->items[i].time = numiters;
         }, init_incounters);
         break;
       }
       case init_incounters: {
-        node::parallel_for(0, nb_blocks, [&] (long i) {
+        node::parallel_for(0, nb_blocks, [=] (long i) {
           incounters->items[i].store(2);
         }, init_first_row_incounters);
         break;
       }
       case init_first_row_incounters: {
-        node::parallel_for(0, n, [&] (int i) {
+        node::parallel_for(0, n, [=] (int i) {
           incounters->subscript(i, 0).store(1);
         }, init_first_col_incounters);
         break;
       }
       case init_first_col_incounters: {
-        node::parallel_for(0, n, [&] (int i) {
+        node::parallel_for(0, n, [=] (int i) {
           incounters->subscript(0, i).store(1);
         }, launch);
         break;
