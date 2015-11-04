@@ -75,7 +75,7 @@ let eval_nb_operations_per_second_error = fun env all_results results ->
 let eval_speedup mk_baseline baseline_results_file_name = fun env all_results results ->
   let baseline_results = Results.from_file baseline_results_file_name in 
   if baseline_results = [] then Pbench.warning ("no results for baseline: " ^ Env.to_string env);
-  let env = mk_baseline & from_env (Env.filter_keys ["kind"; "size"] env) in
+  let env = mk_baseline & from_env (Env.filter_keys ["edge_algo"; "algo"; "cmd";] env) in
   let baseline_results = Results.filter_by_params env baseline_results in
   let tp = Results.get_mean_of "exectime" results in
   let t1 = Results.get_mean_of "exectime" baseline_results in
@@ -84,7 +84,7 @@ let eval_speedup mk_baseline baseline_results_file_name = fun env all_results re
 let eval_speedup_stddev mk_baseline baseline_results_file_name = fun env all_results results ->
   let baseline_results = Results.from_file baseline_results_file_name in
   if baseline_results = [] then Pbench.warning ("no results for baseline: " ^ Env.to_string env);
-  let env = mk_baseline & from_env (Env.filter_keys ["kind"; "size"] env) in
+  let env = mk_baseline & from_env (Env.filter_keys ["edge_algo"; "algo"; "cmd";] env) in
   let baseline_results = Results.filter_by_params env baseline_results in
   let t1 = Results.get_mean_of "exectime" baseline_results in
   try let times = Results.get Env.as_float "exectime" results in
@@ -749,18 +749,14 @@ let mk_baseline_cmd =
                     
 let mk_baseline =
     mk_prog prog
-  & mk_algos
-  & mk_baseline_cmd
   & mk_all_graphs
-
-let mk_cmds =
-  mk_list string "cmd" ["pbfs";"pbbs_pbfs_cilk";]
-
+  & mk_baseline_cmd
+      
 let mk_proc = mk int "proc" max_proc
 
-let mk_args =
-  ( (mk_algos & (mk string "cmd" "pbfs"))
-    ++ mk string "cmd" "pbbs_pbfs"
+let mk_cmds =
+    (mk_algos & (mk string "cmd" "pbfs"))
+  ++ mk string "cmd" "pbbs_pbfs_cilk"
                  
 let make() = begin
     build "." ["bench.opt"] arg_virtual_build;
@@ -777,7 +773,8 @@ let run() = begin
     Timeout 1000;
     Args (
       mk_prog prog
-    & mk_args
+    & mk_cmds
+    & mk_all_graphs
     & mk_proc)]))
   end
             
@@ -790,13 +787,13 @@ let plot() =
        Y_axis [Axis.Lower (Some 0.)] ]);
      Formatter microbench_formatter;
     Charts mk_unit;
-    Series mk_args;
+    Series mk_cmds;
     X mk_all_graphs;
     Input (file_results name);
     Output (file_plots name);
     Y_label "speedup";
-    Y (eval_speedup mk_baseline (file_results baseline_name));
-    Y_whiskers (eval_speedup_stddev mk_baseline);
+    Y (eval_speedup mk_baseline (file_results baseline_name)); 
+(*    Y_whiskers (eval_speedup mk_baseline (file_results baseline_name));  *)
   ]))
                
 let all () = select make run check plot

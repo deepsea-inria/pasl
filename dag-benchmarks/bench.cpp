@@ -5482,7 +5482,8 @@ void add_measured(std::function<void()> f) {
 
 bool should_force_simple_algorithm() {
   bool result = false;
-  if (cmdline::parse_or_default_string("cmd","") == "seidel_forkjoin") {
+  std::string cmd = cmdline::parse_or_default_string("cmd","");
+  if (cmd == "bfs" || cmd == "dfs") {
     result = true;
   }
   return result;
