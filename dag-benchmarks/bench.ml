@@ -97,7 +97,6 @@ let mk_statreeopt_edge_algo_with_no_defaults =
 
 let mk_statreeopt_edge_algo =
     mk_statreeopt_edge_algo_with_no_defaults
-
                                  
 let mk_growabletree_edge_algo = mk string "edge_algo" "growabletree"
 
@@ -106,15 +105,7 @@ let mk_edge_algos =
   ++ mk_statreeopt_edge_algo
   ++ mk_growabletree_edge_algo
 
-let mk_direct_algo = mk string "algo" "direct"
-       
-let mk_direct_algos = mk_direct_algo & mk_edge_algos
-
-let mk_portpassing_algo = mk string "algo" "portpassing"
-       
-let mk_algos =
-     mk_direct_algos
-(*  ++ mk_portpassing_algo*)
+let mk_algos = mk_edge_algos
         
 let nb_milliseconds_target = 1000
 let mk_nb_milliseconds = mk int "nb_milliseconds" nb_milliseconds_target
@@ -204,7 +195,7 @@ let pretty_cmd cmd =
   | "pbbs_pbfs_cilk" -> "PBBS PBFS (Cilk)"
   | "pbfs" -> "PBFS"
   | "pdfs" -> "PDFS"
-  | _ -> "<unknown>"
+  | _ -> cmd
            
 let microbench_formatter =
   Env.format (Env.(
@@ -614,7 +605,7 @@ let run() =
     Timeout 1000;
     Args (
       mk_prog prog
-    & (mk_all_benchmarks & mk_direct_algo & mk_edge_algos)
+    & (mk_all_benchmarks & mk_edge_algos)
     & mk_seed
     & mk_procs)]))
 
@@ -662,7 +653,7 @@ let run() =
     Timeout 1000;
     Args (
       mk_prog prog
-    & (mk_cmds & mk_direct_algo & mk_growabletree_edge_algo)
+    & (mk_cmds & mk_growabletree_edge_algo)
     & mk_seed
     & mk_procs)]))
 

@@ -18,10 +18,6 @@
 #include "messagestrategy.hpp"
 #include "tagged.hpp"
 
-namespace portpassing {
-void portpassing_finished(pasl::sched::thread_p);
-}
-
 namespace direct {
 namespace statreeopt {
 void unary_finished(pasl::sched::thread_p t);
@@ -380,7 +376,6 @@ public:
   
 const long NOOP_TAG = 1;
 const long UNARY_TAG = 2;
-const long PORTPASSING_UNARY_TAG = 3;
 const long DIRECT_STATREEOPT_UNARY_TAG = 4;
 const long DIRECT_GROWABLETREE_UNARY_TAG = 5;
   
@@ -401,15 +396,6 @@ static inline outstrategy_p noop_new() {
   return data::tagged::create<thread_p, outstrategy_p>(NULL, NOOP_TAG);
 #else
   return new noop();
-#endif
-}
-  
-static inline outstrategy_p portpassing_unary_new(thread_p t) {
-#ifndef DEBUG_OPTIM_STRATEGY
-  return data::tagged::create<thread_p, outstrategy_p>(t, PORTPASSING_UNARY_TAG);
-#else
-  assert(false);
-  return nullptr;
 #endif
 }
   
@@ -435,7 +421,6 @@ static inline outstrategy_p direct_growabletree_unary_new(thread_p t) {
 
 static inline void add(outstrategy_p& out, thread_p td) {
   long tag = extract_tag(out);
-  assert(tag != PORTPASSING_UNARY_TAG);
   assert(tag != DIRECT_STATREEOPT_UNARY_TAG);
   assert(tag != DIRECT_GROWABLETREE_UNARY_TAG);
   if (tag > 0) {
@@ -459,8 +444,6 @@ static inline void finished(thread_p t, outstrategy_p out) {
     thread_p tjoin = data::tagged::extract_value<thread_p, outstrategy_p>(out);
     if (tag == UNARY_TAG)
       decr_dependencies(tjoin);
-    else if (tag == PORTPASSING_UNARY_TAG)
-      portpassing::portpassing_finished(tjoin);
     else if (tag == DIRECT_STATREEOPT_UNARY_TAG)
       direct::statreeopt::unary_finished(tjoin);
     else if (tag == DIRECT_GROWABLETREE_UNARY_TAG)
