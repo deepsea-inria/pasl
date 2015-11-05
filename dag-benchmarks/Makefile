@@ -55,7 +55,8 @@ include $(TOOLS_BUILD_FOLDER)/Makefile_options
 
 MODES=dbg log sta opt seq cilk \
       opt_4_1 opt_4_4 opt_4_8 opt_4_32 opt_4_128 opt_12_32 opt_4_256 opt_4_512 opt_8_32 \
-      opt_snzi_0 opt_snzi_1 opt_snzi_2 opt_snzi_3 opt_snzi_4 opt_snzi_5 opt_snzi_6 opt_snzi_7
+      opt_snzi_0 opt_snzi_1 opt_snzi_2 opt_snzi_3 opt_snzi_4 opt_snzi_5 opt_snzi_6 opt_snzi_7 \
+      opt_snzi_8 opt_snzi_9 opt_snzi_10
 #      opt_2_1 opt_2_8 opt_2_32 opt_4_8 opt_4_32 opt_4_128 opt_12_32
 
 # Compilation options for each mode
@@ -88,6 +89,9 @@ COMPILE_OPTIONS_FOR_opt_snzi_4=$(COMPILE_OPTIONS_FOR_opt)    -DSNZI_TREE_HEIGHT=
 COMPILE_OPTIONS_FOR_opt_snzi_5=$(COMPILE_OPTIONS_FOR_opt)    -DSNZI_TREE_HEIGHT=5
 COMPILE_OPTIONS_FOR_opt_snzi_6=$(COMPILE_OPTIONS_FOR_opt)    -DSNZI_TREE_HEIGHT=6
 COMPILE_OPTIONS_FOR_opt_snzi_7=$(COMPILE_OPTIONS_FOR_opt)    -DSNZI_TREE_HEIGHT=7
+COMPILE_OPTIONS_FOR_opt_snzi_8=$(COMPILE_OPTIONS_FOR_opt)    -DSNZI_TREE_HEIGHT=8
+COMPILE_OPTIONS_FOR_opt_snzi_9=$(COMPILE_OPTIONS_FOR_opt)    -DSNZI_TREE_HEIGHT=9
+COMPILE_OPTIONS_FOR_opt_snzi_10=$(COMPILE_OPTIONS_FOR_opt)   -DSNZI_TREE_HEIGHT=10
 
 # Folders where to find all the header files and main sources
 

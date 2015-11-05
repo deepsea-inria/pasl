@@ -128,7 +128,11 @@ let mk_incounter_mixed_duration =
   & mk_incr_probs
   & mk_nb_milliseconds
 
-let mk_workload = mk int "workload" 2000
+let mk_snzi_alternated_mixed_duration =
+    mk string "cmd" "snzi_alternated_duration"
+  & mk_nb_milliseconds
+      
+let mk_workload = mk int "workload" 0
                      
 let incounter_nb = 10000000
 
@@ -219,7 +223,7 @@ module ExpSNZITune = struct
 
 let name = "snzi_tune"
 
-let heights = XList.init 7 (fun i -> i)
+let heights = XList.init 10 (fun i -> i + 1)
                    
 let prog_of height =
   "./bench.opt_snzi_" ^ (string_of_int height)
@@ -230,10 +234,15 @@ let mk_progs =
   mk_list string "prog" progs
 
 let mk_all_benchmarks =
-     mk_incounter_mixed_duration
+     mk_snzi_alternated_mixed_duration
   ++ mk_incounter_async_duration
   ++ mk_incounter_async_nb
-       
+
+let mk_edge_algos =
+  mk_list string "edge_algo" ["statreeopt"; "growabletree"]
+
+let mk_proc = mk int "proc" max_proc
+          
 let make() =
   build "." progs arg_virtual_build
 
@@ -245,8 +254,7 @@ let run() =
       mk_progs
     & mk_all_benchmarks
     & mk_seed
-    & mk string "algo" "direct"
-    & mk string "edge_algo" "statreeopt"
+    & mk_edge_algos
     & mk_proc)]))
 
 let check = nothing  (* do something here *)
@@ -257,7 +265,7 @@ let plot() =
          X_titles_dir Vertical;
          Y_axis [Axis.Lower (Some 0.)] ]);
        Formatter microbench_formatter;
-      Charts mk_proc;
+      Charts (mk_edge_algos & mk_proc);
       Series mk_progs;
       X mk_all_benchmarks;
       Input (file_results name);
@@ -357,11 +365,7 @@ let name = "snzi_alternated_duration"
 let prog = "./bench.opt"
 
 let mk_snzis =
-  mk_list string "snzi" ["fixed"; "growable"; "single_cell";]
-
-let mk_snzi_alternated_mixed_duration =
-    mk string "cmd" name
-  & mk_nb_milliseconds
+  mk_list string "edge_algo" ["simple"; "statreeopt"; "growabletree";]
 
 let make() =
   build "." [prog] arg_virtual_build

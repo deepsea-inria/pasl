@@ -120,6 +120,12 @@ int random_int(int lo, int hi) {
 /*---------------------------------------------------------------------*/
 /* Globals */
 
+#ifndef SNZI_TREE_HEIGHT
+#define SNZI_TREE_HEIGHT 9
+#endif
+  
+constexpr int snzi_tree_height = SNZI_TREE_HEIGHT;
+
 int communication_delay = 512;
 
 bool should_communicate() {
@@ -328,13 +334,7 @@ public:
 } // end namespace
   
 namespace statreeopt {
-  
-#ifndef SNZI_TREE_HEIGHT
-#define SNZI_TREE_HEIGHT 6
-#endif
-  
-constexpr int snzi_tree_height = SNZI_TREE_HEIGHT;
-  
+   
 class statreeopt_incounter : public incounter {
 public:
       
@@ -382,7 +382,7 @@ bool should_deallocate_sequentially = false;
 class growabletree_incounter : public incounter {
 public:
   
-  using nzi_type = pasl::data::gsnzi::tree<>;
+  using nzi_type = pasl::data::gsnzi::tree<snzi_tree_height>;
   using nzi_node_type = typename nzi_type::node_type;
   
   nzi_type nzi;
@@ -1630,11 +1630,10 @@ public:
   
 };
 
-  
 class fixed_size_snzi_wrapper {
 public:
   
-  using snzi_type = pasl::data::snzi::tree<direct::statreeopt::snzi_tree_height>;
+  using snzi_type = pasl::data::snzi::tree<snzi_tree_height>;
   using node_type = typename snzi_type::node_type;
   
   snzi_type snzi;
@@ -1753,7 +1752,7 @@ public:
 class snzi_incounter_wrapper {
 public:
   
-  pasl::data::snzi::tree<direct::statreeopt::snzi_tree_height> snzi;
+  pasl::data::snzi::tree<snzi_tree_height> snzi;
   
   snzi_incounter_wrapper() { }
   
@@ -1778,7 +1777,7 @@ public:
   }
   
 };
-
+  
 template <class Outset>
 void benchmark_outset_thread(int my_id,
                              Outset& outset,
@@ -2113,16 +2112,16 @@ void launch_snzi_alternated_duration() {
   growable_size_snzi_wrapper* growable_snzi = nullptr;
   single_cell_snzi_wrapper* single_cell_snzi = nullptr;
   pasl::util::cmdline::argmap_dispatch c;
-  c.add("fixed", [&] {
+  c.add("statreeopt", [&] {
     fixed_snzi = new fixed_size_snzi_wrapper;
   });
-  c.add("growable", [&] {
+  c.add("growabletree", [&] {
     growable_snzi = new growable_size_snzi_wrapper;
   });
-  c.add("single_cell", [&] {
+  c.add("simple", [&] {
     single_cell_snzi = new single_cell_snzi_wrapper;
   });
-  c.find_by_arg("snzi")();
+  c.find_by_arg("edge_algo")();
   auto benchmark_thread = [&] (int my_id, bool& should_stop, long& counter1, long& counter2) {
     if (fixed_snzi != nullptr) {
       benchmark_snzi_thread(my_id, *fixed_snzi, should_stop, counter1, counter2, seed);
