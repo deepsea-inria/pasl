@@ -106,6 +106,7 @@ private:
 public:
 
   block() {
+    assert(sizeof(Item) == sizeof(void*));
     start = (Item*)malloc(capacity * sizeof(Item));
     head.store(start);
     if (multiadd) {
@@ -126,23 +127,24 @@ public:
   void try_insert(Item x, bool& failed_because_finish, bool& failed_because_full) {
     assert(x != nullptr);
     while (true) {
-      Item* orig = head.load();
-      if (orig == finished_tag) {
+      Item* h = head.load();
+      if (h == finished_tag) {
         failed_because_finish = true;
         return;
       }
-      if (orig >= (start + capacity)) {
+      if (h >= (start + capacity)) {
         failed_because_full = true;
         return;
       }
+      Item* orig = h;
       if (multiadd) {
-        if (compare_exchange(head, orig, orig + 1)) {
-          *orig = x;
+        if (compare_exchange(head, orig, h + 1)) {
+          *h = x;
           return;
         }
       } else {
-        *orig = x;
-        if (compare_exchange(head, orig, orig + 1)) {
+        *h = x;
+        if (compare_exchange(head, orig, h + 1)) {
           return;
         }
       }
@@ -290,7 +292,7 @@ public:
       shortcuts_type* next = new shortcuts_type;
       for (int i = 0; i < next->size(); i++) {
         node_type* n = root.try_insert(random_int);
-        if (n == nullptr) {
+        if (n == nullptr) { // failed due to finish()
           delete next;
           return false;
         }
@@ -337,6 +339,8 @@ public:
       }
     }
   }
+  
+  // todo: modify behavior to poll more often
   
   template <class Visit>
   static void finish_nb(const int nb, std::deque<node_type*>& todo, const Visit& visit) {
