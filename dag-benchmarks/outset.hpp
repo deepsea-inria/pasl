@@ -105,6 +105,38 @@ private:
   cell_type* start;
   std::atomic<cell_type*> head;
   
+  bool try_insert_item_at(cell_type& cell, Item x) {
+    assert(multiadd);
+    while (true) {
+      Item y = cell.load();
+      if (tagged_tag_of(y) == finished_tag) {
+        return false;
+      }
+      assert(y == nullptr);
+      Item orig = y;
+      Item next = x;
+      if (compare_exchange(cell, orig, next)) {
+        return true;
+      }
+    }
+  }
+  
+  Item try_finish_item_at(cell_type& cell) {
+    assert(multiadd);
+    while (true) {
+      Item y = cell.load();
+      assert(tagged_tag_of(y) != finished_tag);
+      if (y != nullptr) {
+        return y;
+      }
+      Item orig = nullptr;
+      Item next = tagged_tag_with((Item)  nullptr, finished_tag);
+      if (compare_exchange(cell, orig, next)) {
+        return nullptr;
+      }
+    }
+  }
+  
 public:
 
   block() {
@@ -143,7 +175,9 @@ public:
       cell_type* orig = h;
       if (multiadd) {
         if (compare_exchange(head, orig, h + 1)) {
-          h->store(x);
+          if (! try_insert_item_at(*h, x)) {
+            failed_because_finish = true;
+          }
           return;
         }
       } else {
@@ -164,12 +198,15 @@ public:
       if (compare_exchange(head, orig, next)) {
         for (cell_type* it = start; it != h; it++) {
           if (multiadd) {
-            while (it->load() == nullptr) {
-              // wait for try_insert() to commit the item
-              pasl::util::microtime::wait_for(128);
+            Item x = try_finish_item_at(*it);
+            if (x != nullptr) {
+              visit(x);
             }
+          } else {
+            Item x = it->load();
+            assert(x != nullptr);
+            visit(x);
           }
-          visit(it->load());
         }
         return;
       }
