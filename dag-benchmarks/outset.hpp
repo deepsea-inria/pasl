@@ -92,32 +92,36 @@ public:
   
 };
   
+static constexpr int finished_tag = 1;
+  
 } // end namespace
 
 template <class Item, int capacity, bool multiadd>
 class block {
 private:
+  
+  using cell_type = std::atomic<Item>;
 
-  static constexpr Item* finished_tag = (Item*)nullptr;
-
-  Item* start;
-  std::atomic<Item*> head;
+  cell_type* start;
+  std::atomic<cell_type*> head;
   
 public:
 
   block() {
     assert(sizeof(Item) == sizeof(void*));
-    start = (Item*)malloc(capacity * sizeof(Item));
+    start = (cell_type*)malloc(capacity * sizeof(cell_type));
     head.store(start);
     if (multiadd) {
       for (int i = 0; i < capacity; i++) {
-        start[i] = nullptr;
+        start[i].store(nullptr);
       }
     }
   }
 
   ~block() {
     free(start);
+    start = nullptr;
+    head.store(nullptr);
   }
 
   bool is_full() const {
@@ -127,8 +131,8 @@ public:
   void try_insert(Item x, bool& failed_because_finish, bool& failed_because_full) {
     assert(x != nullptr);
     while (true) {
-      Item* h = head.load();
-      if (h == finished_tag) {
+      cell_type* h = head.load();
+      if (tagged_tag_of(h) == finished_tag) {
         failed_because_finish = true;
         return;
       }
@@ -136,14 +140,14 @@ public:
         failed_because_full = true;
         return;
       }
-      Item* orig = h;
+      cell_type* orig = h;
       if (multiadd) {
         if (compare_exchange(head, orig, h + 1)) {
-          *h = x;
+          h->store(x);
           return;
         }
       } else {
-        *h = x;
+        h->store(x);
         if (compare_exchange(head, orig, h + 1)) {
           return;
         }
@@ -154,17 +158,18 @@ public:
   template <class Visit>
   void finish(const Visit& visit) {
     while (true) {
-      Item* h = head.load();
-      Item* orig = h;
-      if (compare_exchange(head, orig, finished_tag)) {
-        for (auto it = start; it != h; it++) {
+      cell_type* h = head.load();
+      cell_type* orig = h;
+      cell_type* next = tagged_tag_with<cell_type>(nullptr, finished_tag);
+      if (compare_exchange(head, orig, next)) {
+        for (cell_type* it = start; it != h; it++) {
           if (multiadd) {
-            while (*it == nullptr) {
+            while (it->load() == nullptr) {
               // wait for try_insert() to commit the item
               pasl::util::microtime::wait_for(128);
             }
           }
-          visit(*it);
+          visit(it->load());
         }
         return;
       }
@@ -176,8 +181,6 @@ public:
 template <class Item, int branching_factor, int block_capacity>
 class node {
 public:
-
-  static constexpr int finished_tag = 1;
 
   using block_type = block<Item, block_capacity, false>;
   
@@ -221,7 +224,7 @@ public:
         }
         target = current->load();
       }
-      if (tagged_tag_of(target) == node_type::finished_tag) {
+      if (tagged_tag_of(target) == finished_tag) {
         if (new_node != nullptr) {
           delete new_node;
           new_node = nullptr;
@@ -333,7 +336,7 @@ public:
     while (true) {
       node_type* n = root.root.load();
       node_type* orig = n;
-      node_type* next = tagged_tag_with(n, node_type::finished_tag);
+      node_type* next = tagged_tag_with(n, finished_tag);
       if (compare_exchange(root.root, orig, next)) {
         return n;
       }
@@ -353,7 +356,7 @@ public:
           node_type* child = current->children[i].load();
           assert(tagged_tag_of(child) == 0);
           node_type* orig = child;
-          node_type* next = tagged_tag_with(child, node_type::finished_tag);
+          node_type* next = tagged_tag_with(child, finished_tag);
           if (compare_exchange(current->children[i], orig, next)) {
             if (child != nullptr) {
               todo.push_back(child);
