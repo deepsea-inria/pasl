@@ -160,30 +160,32 @@ public:
     return head.load() >= (start + capacity);
   }
   
-  void try_insert(Item x, bool& failed_because_finish, bool& failed_because_full) {
+  using try_insert_result_type = enum {
+    succeeded, failed_because_finish, failed_because_full
+  };
+  
+  try_insert_result_type try_insert(Item x) {
     assert(x != nullptr);
     while (true) {
       cell_type* h = head.load();
       if (tagged_tag_of(h) == finished_tag) {
-        failed_because_finish = true;
-        return;
+        return failed_because_finish;
       }
       if (h >= (start + capacity)) {
-        failed_because_full = true;
-        return;
+        return failed_because_full;
       }
       cell_type* orig = h;
       if (multiadd) {
         if (compare_exchange(head, orig, h + 1)) {
           if (! try_insert_item_at(*h, x)) {
-            failed_because_finish = true;
+            return failed_because_finish;
           }
-          return;
+          return succeeded;
         }
       } else {
         h->store(x);
         if (compare_exchange(head, orig, h + 1)) {
-          return;
+          return succeeded;
         }
       }
     }    
@@ -316,13 +318,10 @@ public:
   template <class Random_int>
   bool insert(Item x, int my_id, const Random_int& random_int) {
     if (! items.is_full()) {
-      bool failed_because_finish = false;
-      bool failed_because_full = false;
-      items.try_insert(x, failed_because_finish, failed_because_full);
-      if (failed_because_finish) {
+      auto status = items.try_insert(x);
+      if (status == items.failed_because_finish) {
         return false;
-      }
-      if (! failed_because_full) {
+      } else if (status == items.succeeded) {
         return true;
       }
     }
@@ -346,15 +345,13 @@ public:
     assert(s != nullptr); 
     while (true) {
       block_type* b = (*s)[my_id];
-      bool failed_because_finish = false;
-      bool failed_because_full = false;
-      b->try_insert(x, failed_because_finish, failed_because_full);
-      if (failed_because_finish) {
+      auto status = b->try_insert(x);
+      if (status == b->failed_because_finish) {
         return false;
-      }
-      if (! failed_because_full) {
+      } else if (status == b->succeeded) {
         return true;
       }
+      assert(status == b->failed_because_full);
       node_type* n = root.try_insert(random_int);
       if (n == nullptr) {
         return false;

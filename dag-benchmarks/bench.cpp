@@ -1911,11 +1911,9 @@ public:
   void add(void*, const Random_int& random_int, int my_id) {
     while (true) {
       buffer_type* b = buffer.load();
-      bool failed_because_finish = false;
-      bool failed_because_full = false;
-      b->try_insert((direct::node*)dummyval, failed_because_finish, failed_because_full);
-      assert(! failed_because_finish);
-      if (failed_because_full) {
+      auto status = b->try_insert((direct::node*)dummyval);
+      assert(status != b->failed_because_finish);
+      if (status == b->failed_because_full) {
         buffer_type* new_buffer = new buffer_type;
         if (! compare_exchange(buffer, b, new_buffer)) {
           delete new_buffer;
