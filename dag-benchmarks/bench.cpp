@@ -1878,7 +1878,7 @@ public:
     buffer_descriptor_struct* next;
   };
   
-  pasl::data::outset::static_cache_aligned_array<buffer_descriptor_type, nb_buffers> buffers;
+  pasl::data::outset::cache_aligned_fixed_capacity_array<buffer_descriptor_type, nb_buffers> buffers;
   
   void allocate_fresh_buffer_for(buffer_descriptor_type& my_descr) {
     direct::node** p = (direct::node**)malloc(sizeof(direct::node*) * buffer_sz);
