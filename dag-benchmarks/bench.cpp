@@ -126,7 +126,7 @@ int random_int(int lo, int hi) {
   
 constexpr int snzi_tree_height = SNZI_TREE_HEIGHT;
 
-int communication_delay = 512;
+int communication_delay = 128;
 
 bool should_communicate() {
   return pasl::sched::threaddag::my_sched()->should_call_communicate();
