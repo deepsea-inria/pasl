@@ -58,7 +58,7 @@ bool compare_exchange(std::atomic<T>& cell, T& expected, T desired) {
 }
   
 template <class Item, int nb>
-class static_cache_aligned_array {
+class cache_aligned_fixed_capacity_array {
 private:
   
   static constexpr int cache_align_szb = 128;
@@ -236,7 +236,7 @@ public:
   
   block_type items;
     
-  static_cache_aligned_array<std::atomic<node*>, branching_factor> children;
+  cache_aligned_fixed_capacity_array<std::atomic<node*>, branching_factor> children;
 
   node() {
     for (int i = 0; i < branching_factor; i++) {
@@ -303,7 +303,7 @@ public:
 private:
   
   using block_type = typename node_type::block_type;
-  using shortcuts_type = static_cache_aligned_array<block_type*, max_nb_procs>;
+  using shortcuts_type = cache_aligned_fixed_capacity_array<block_type*, max_nb_procs>;
 
   static constexpr int small_block_capacity = 16;
   using small_block_type = block<Item, small_block_capacity, true>;
