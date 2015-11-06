@@ -5007,8 +5007,8 @@ int* dfs_by_vertexid_array(const adjlist<Adjlist_seq>& graph,
   return visited;
 }
 
-int pdfs_split_cutoff = 128;
-int pdfs_poll_cutoff = 16;
+int pdfs_split_cutoff = 1024;
+int pdfs_poll_cutoff = 256;
 
 template <class node, class Frontier, class Adjlist_alias>
 class pdfs_rec : public node {
@@ -5202,7 +5202,7 @@ bfs_by_dual_arrays(const adjlist<Adjlist_seq>& graph,
 }
   
 int pbfs_cutoff = 128;
-int pbfs_polling_cutoff = 128;
+int pbfs_polling_cutoff = 256;
 
 template <class Index, class Item>
 static bool pbfs_try_to_set_dist(Index target,
