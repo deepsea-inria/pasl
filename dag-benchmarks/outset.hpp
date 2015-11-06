@@ -96,7 +96,7 @@ static constexpr int finished_tag = 1;
   
 } // end namespace
 
-template <class Item, int capacity, bool multiadd>
+template <class Item, int capacity, bool concurrent_inserts>
 class block {
 public:
   
@@ -104,11 +104,11 @@ public:
   
 private:
 
-  cell_type* start;
+  cell_type start[capacity];
   std::atomic<cell_type*> head;
   
   static bool try_insert_item_at(cell_type& cell, Item x) {
-    assert(multiadd);
+    assert(concurrent_inserts);
     while (true) {
       Item y = cell.load();
       if (tagged_tag_of(y) == finished_tag) {
@@ -124,7 +124,7 @@ private:
   }
   
   static Item try_finish_item_at(cell_type& cell) {
-    assert(multiadd);
+    assert(concurrent_inserts);
     while (true) {
       Item y = cell.load();
       assert(tagged_tag_of(y) != finished_tag);
@@ -143,9 +143,8 @@ public:
 
   block() {
     assert(sizeof(Item) == sizeof(void*));
-    start = (cell_type*)malloc(capacity * sizeof(cell_type));
     head.store(start);
-    if (multiadd) {
+    if (concurrent_inserts) {
       for (int i = 0; i < capacity; i++) {
         start[i].store(nullptr);
       }
@@ -153,8 +152,6 @@ public:
   }
 
   ~block() {
-    free(start);
-    start = nullptr;
     head.store(nullptr);
   }
 
@@ -163,7 +160,8 @@ public:
   }
   
   using try_insert_result_type = enum {
-    succeeded, failed_because_finish, failed_because_full
+    succeeded_and_not_filled, succeeded_and_filled,
+    failed_because_finish, failed_because_full
   };
   
   try_insert_result_type try_insert(Item x) {
@@ -177,17 +175,25 @@ public:
         return failed_because_full;
       }
       cell_type* orig = h;
-      if (multiadd) {
+      if (concurrent_inserts) {
         if (compare_exchange(head, orig, h + 1)) {
           if (! try_insert_item_at(*h, x)) {
             return failed_because_finish;
           }
-          return succeeded;
+          if (start + capacity == h + 1) {
+            return succeeded_and_filled;
+          } else {
+            return succeeded_and_not_filled;
+          }
         }
       } else {
         h->store(x);
         if (compare_exchange(head, orig, h + 1)) {
-          return succeeded;
+          if (start + capacity == h + 1) {
+            return succeeded_and_filled;
+          } else {
+            return succeeded_and_not_filled;
+          }
         }
       }
     }    
@@ -207,7 +213,7 @@ public:
   template <class Visit>
   static void finish_rng(cell_type* lo, cell_type* hi, const Visit& visit) {
     for (cell_type* it = lo; it != hi; it++) {
-      if (multiadd) {
+      if (concurrent_inserts) {
         Item x = try_finish_item_at(*it);
         if (x != nullptr) {
           visit(x);
@@ -255,7 +261,7 @@ public:
   std::atomic<node_type*> root;
 
   tree() {
-    root.store(new node_type);
+    root.store(nullptr);
   }
 
   template <class Random_int>
@@ -268,9 +274,10 @@ public:
         if (new_node == nullptr) {
           new_node = new node_type;
         }
+        assert(new_node != nullptr);
         node_type* orig = nullptr;
         if (compare_exchange(*current, orig, new_node)) {
-          break;
+          return new_node;
         }
         target = current->load();
       }
@@ -279,12 +286,12 @@ public:
           delete new_node;
           new_node = nullptr;
         }
-        break;
+        assert(new_node == nullptr);
+        return nullptr;
       }
       int i = random_int(0, branching_factor);
       current = &(target->children[i]);
     }
-    return new_node;
   }
     
 };
@@ -310,7 +317,7 @@ private:
 
   small_block_type items;
   
-  tree_type root;
+  tree_type blocks;
   
   std::atomic<shortcuts_type*> shortcuts;
 
@@ -334,38 +341,49 @@ public:
       auto status = items.try_insert(x);
       if (status == items.failed_because_finish) {
         return false;
-      } else if (status == items.succeeded) {
+      } else if (status == items.succeeded_and_not_filled) {
+        return true;
+      } else if (status == items.succeeded_and_filled) {
+        node_type* root = blocks.try_insert(random_int);
+        if (root == nullptr) {
+          return true;
+        }
+        shortcuts_type* new_shortcuts = new shortcuts_type;
+        (*new_shortcuts)[0] = &(root->items);
+        for (int i = 1; i < new_shortcuts->size(); i++) {
+          node_type* n = blocks.try_insert(random_int);
+          if (n == nullptr) {
+            delete new_shortcuts;
+            return true;
+          }
+          (*new_shortcuts)[i] = &(n->items);
+        }
+        shortcuts.store(new_shortcuts);
         return true;
       }
+      assert(status == items.failed_because_full);
     }
-    shortcuts_type* s = shortcuts.load();
-    if (s == nullptr) {
-      shortcuts_type* orig = nullptr;
-      shortcuts_type* next = new shortcuts_type;
-      for (int i = 0; i < next->size(); i++) {
-        node_type* n = root.try_insert(random_int);
-        if (n == nullptr) { // failed due to finish()
-          delete next;
+    assert(items.is_full());
+    while (true) {
+      shortcuts_type* s = shortcuts.load();
+      if (s == nullptr) {
+        if (tagged_tag_of(blocks.root.load()) == finished_tag) {
           return false;
         }
-        (*next)[i] = &(n->items);
+        pasl::util::microtime::wait_for(64);
+        continue;
       }
-      if (! compare_exchange(shortcuts, orig, next)) {
-        delete next;
-      }
-      s = shortcuts.load();
-    }  
-    assert(s != nullptr); 
-    while (true) {
+      assert(s != nullptr);
       block_type* b = (*s)[my_id];
       auto status = b->try_insert(x);
       if (status == b->failed_because_finish) {
         return false;
-      } else if (status == b->succeeded) {
+      } else if (   (status == b->succeeded_and_filled)
+                 || (status == b->succeeded_and_not_filled) ) {
         return true;
       }
       assert(status == b->failed_because_full);
-      node_type* n = root.try_insert(random_int);
+      node_type* n = blocks.try_insert(random_int);
       if (n == nullptr) {
         return false;
       }
@@ -374,17 +392,17 @@ public:
   }
   
   node_type* get_root() {
-    return tagged_pointer_of(root.root.load());
+    return tagged_pointer_of(blocks.root.load());
   }
   
   template <class Visit>
   node_type* finish_init(const Visit& visit) {
     items.finish(visit);
     while (true) {
-      node_type* n = root.root.load();
+      node_type* n = blocks.root.load();
       node_type* orig = n;
       node_type* next = tagged_tag_with(n, finished_tag);
-      if (compare_exchange(root.root, orig, next)) {
+      if (compare_exchange(blocks.root, orig, next)) {
         return n;
       }
     }
