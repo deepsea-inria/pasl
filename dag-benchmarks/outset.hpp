@@ -57,7 +57,7 @@ bool compare_exchange(std::atomic<T>& cell, T& expected, T desired) {
   return false;
 }
   
-template <class Item, int nb>
+template <class Item, int capacity>
 class cache_aligned_fixed_capacity_array {
 private:
   
@@ -66,11 +66,11 @@ private:
   
   using aligned_item_type = typename std::aligned_storage<item_szb, cache_align_szb>::type;
   
-  aligned_item_type items[nb];
+  aligned_item_type items[capacity];
   
   Item& at(std::size_t i) {
     assert(i >= 0);
-    assert(i < nb);
+    assert(i < capacity);
     return *reinterpret_cast<Item*>(items + i);
   }
   
@@ -81,7 +81,7 @@ public:
   }
 
   std::size_t size() const {
-    return nb;
+    return capacity;
   }
 
   void init(Item x) {
