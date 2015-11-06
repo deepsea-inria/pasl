@@ -444,10 +444,12 @@ static inline void finished(thread_p t, outstrategy_p out) {
     thread_p tjoin = data::tagged::extract_value<thread_p, outstrategy_p>(out);
     if (tag == UNARY_TAG)
       decr_dependencies(tjoin);
+#ifdef ENABLE_DAG_MACHINE
     else if (tag == DIRECT_STATREEOPT_UNARY_TAG)
       direct::statreeopt::unary_finished(tjoin);
     else if (tag == DIRECT_GROWABLETREE_UNARY_TAG)
       direct::growabletree::unary_finished(tjoin);
+#endif
     else
       util::atomic::die("bogus tag (finished)");
   } else {

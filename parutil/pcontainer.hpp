@@ -74,7 +74,7 @@ void for_each_segment(const Container& cont, const Body& body) {
     src.second = mid;
   };
   struct { } dummy;
-  using dummy_type = typeof(dummy);
+  using dummy_type = decltype(dummy);
   auto join = [] (dummy_type, dummy_type) { };
   auto _body = [&] (input_type& in, dummy_type& out) {
     iterator_type beg = in.first;
@@ -132,7 +132,7 @@ void transfer_contents_to_array(Container_src& src, Pointer dst) {
     }
   };
   struct { } dummy;
-  using dummy_type = typeof(dummy);
+  using dummy_type = decltype(dummy);
   auto cutoff = [] (input_type& f) {
     return f.first->size() <= size_type(native::loop_cutoff);
   };
