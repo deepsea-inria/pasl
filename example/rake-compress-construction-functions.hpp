@@ -33,6 +33,7 @@ void initialization_construction(int n, std::vector<int>* children, int* parent)
       }
     }
   }*/
+//  std::cerr << sizeof(Node) << std::endl;
 #endif
 
   lists = new Node*[n];
@@ -76,11 +77,11 @@ void construction_round(int round) {
   }
 
 //  for (int i = 0; i < len[round % 2]; i++) {
-//#ifdef STANDART
+#ifdef STANDART
   pasl::sched::native::parallel_for(0, len[round % 2], [&] (int i) {
-//#elif SPECIAL
-//  pasl::sched::granularity::parallel_for(loop1, 0, len[round % 2], [&] (int i) {
-//#endif
+#elif SPECIAL
+  pasl::sched::granularity::parallel_for(loop1, 0, len[round % 2], [&] (int i) {
+#endif
     int v = live[round % 2][i];
     bool is_contr = lists[v]->state.contracted = is_contracted(lists[v], round);
     bool is_root = lists[v]->is_root();
@@ -106,11 +107,11 @@ void construction_round(int round) {
 //  });
 //#endif
 
-//#ifdef STANDART
+#ifdef STANDART
   pasl::sched::native::parallel_for(0, len[1 - round % 2], [&] (int i) {
-//#elif SPECIAL
-//  pasl::sched::granularity::parallel_for(loop2, 0, len[1 - round % 2], [&] (int i) {
-//#endif
+#elif SPECIAL
+  pasl::sched::granularity::parallel_for(loop2, 0, len[1 - round % 2], [&] (int i) {
+#endif
     int v = live[1 - round % 2][i];
 #ifdef STANDART
     std::set<Node*>& copy_children = lists[v]->prev->get_children();
@@ -143,11 +144,11 @@ void construction_round(int round) {
     }
   });*/
 
-//#ifdef STANDART
+#ifdef STANDART
   pasl::sched::native::parallel_for(0, len[1 - round % 2], [&] (int i) {
-//#elif SPECIAL
-//  pasl::sched::granularity::parallel_for(loop3, 0, len[1 - round % 2], [&] (int i) {
-//#endif
+#elif SPECIAL
+  pasl::sched::granularity::parallel_for(loop3, 0, len[1 - round % 2], [&] (int i) {
+#endif
     int v = live[1 - round % 2][i];
     lists[v]->advance();
     lists[v]->prepare();

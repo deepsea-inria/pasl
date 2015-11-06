@@ -1,6 +1,14 @@
 #include "rake-compress-primitives.hpp"
 #include <unordered_map>
 
+#ifdef SPECIAL
+loop_controller_type update_loop1("update_loop1");
+loop_controller_type update_loop2("update_loop2");
+loop_controller_type update_loop3("update_loop3");
+loop_controller_type update_loop4("update_loop4");
+loop_controller_type update_loop5("update_loop5");
+#endif
+
 int* ids;
 std::unordered_set<Node*>* old_live_affected_sets;
 std::unordered_set<Node*>* old_deleted_affected_sets;
@@ -258,7 +266,11 @@ void update_round(int round) {
   }*/
 
 //  for (int i = 0; i < set_number; i++) {
+#ifdef STANDART
   pasl::sched::native::parallel_for(0, len[round % 2], [&] (int j) {
+#elif SPECIAL
+  pasl::sched::granularity::parallel_for(update_loop1, 0, len[round % 2], [&] (int j) {
+#endif
     int i = live[round % 2][j];
     old_live_affected_sets[i].clear();
     live_affected_sets[i].swap(old_live_affected_sets[i]);
@@ -267,7 +279,11 @@ void update_round(int round) {
   });
 
 //  for (int i = 0; i < set_number; i++) {
+#ifdef STANDART
   pasl::sched::native::parallel_for(0, len[round % 2], [&] (int j) {
+#elif SPECIAL
+  pasl::sched::granularity::parallel_for(update_loop2, 0, len[round % 2], [&] (int j) {
+#endif
     int i = live[round % 2][j];
     for (Node* v : old_live_affected_sets[i]) {
       bool vcontracted = v->is_contracted();
@@ -308,7 +324,11 @@ void update_round(int round) {
   });
 
 //  for (int i = 0; i < set_number; i++) {
+#ifdef STANDART
   pasl::sched::native::parallel_for(0, len[round % 2], [&] (int j) {
+#elif SPECIAL
+  pasl::sched::granularity::parallel_for(update_loop3, 0, len[round % 2], [&] (int j) {
+#endif
     int i = live[round % 2][j];
     for (Node* v : old_live_affected_sets[i]) {
       Node* p = v->get_parent();
@@ -354,7 +374,11 @@ void update_round(int round) {
   });
 
 //  for (int i = 0; i < set_number; i++) {
+#ifdef STANDART
   pasl::sched::native::parallel_for(0, len[round % 2], [&] (int j) {
+#elif SPECIAL
+  pasl::sched::granularity::parallel_for(update_loop4, 0, len[round % 2], [&] (int j) {
+#endif
     int i = live[round % 2][j];
     for (Node* v : live_affected_sets[i]) {
       if (v->get_parent()->is_contracted()) {
@@ -379,7 +403,11 @@ void update_round(int round) {
   });
 
 //  for (int i = 0; i < set_number; i++) {
+#ifdef STANDART
   pasl::sched::native::parallel_for(0, len[round % 2], [&] (int j) {
+#elif SPECIAL
+  pasl::sched::granularity::parallel_for(update_loop5, 0, len[round % 2], [&] (int j) {
+#endif
     int i = live[round % 2][j];
     for (Node* v : live_affected_sets[i]) {
       v->advance();
