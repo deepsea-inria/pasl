@@ -426,6 +426,8 @@ using node_type = typename set_type::node_type;
 class growabletree_outset : public outset {
 public:
   
+  using item_iterator = typename set_type::item_iterator;
+  
   set_type set;
   
   ~growabletree_outset() {
@@ -932,6 +934,8 @@ namespace growabletree {
 class outset_finish_parallel_rec : public node {
 public:
   
+  using item_iterator = typename growabletree_outset::item_iterator;
+  
   enum {
     process_block=0,
     repeat_block,
@@ -939,15 +943,23 @@ public:
   };
   
   set_type* set;
+  item_iterator lo;
+  item_iterator hi;
   std::deque<node_type*> todo;
   
+  outset_finish_parallel_rec(set_type* set, item_iterator lo, item_iterator hi)
+  : set(set), lo(lo), hi(hi) { }
+  
   outset_finish_parallel_rec(set_type* set, node_type* n)
-  : set(set) {
+  : set(set), lo(nullptr), hi(nullptr) {
     todo.push_back(n);
   }
   
-  outset_finish_parallel_rec(set_type* set, std::deque<node_type*>& _todo)
-  : set(set) {
+  outset_finish_parallel_rec(set_type* set,
+                             item_iterator lo,
+                             item_iterator hi,
+                             std::deque<node_type*>& _todo)
+  : set(set), lo(lo), hi(hi) {
     _todo.swap(todo);
   }
   
@@ -955,13 +967,13 @@ public:
     switch (current_block_id) {
       case process_block: {
         jump_to(repeat_block);
-        set->finish_nb(communication_delay, todo, [&] (node* n) {
+        set->finish_nb(communication_delay, lo, hi, todo, [&] (node* n) {
           decrement_incounter(n);
         });
         break;
       }
       case repeat_block: {
-        if (! todo.empty()) {
+        if ((! todo.empty()) || ((hi - lo) > 0)) {
           jump_to(process_block);
         }
         break;
@@ -972,16 +984,26 @@ public:
   }
   
   size_t size() {
-    return todo.size();
+    return (hi - lo) + todo.size();
   }
   
   pasl::sched::thread_p split(size_t) {
     assert(size() >= 2);
-    auto n = todo.front();
-    todo.pop_front();
-    auto t = new outset_finish_parallel_rec(set, n);
-    prepare_node(t, incounter_ready(), outset_noop());
-    return t;
+    if (todo.empty()) {
+      std::size_t nb = hi - lo;
+      assert(nb >= 2);
+      item_iterator hi_next = lo + (nb / 2);
+      auto t = new outset_finish_parallel_rec(set, hi_next, hi);
+      hi = hi_next;
+      prepare_node(t, incounter_ready(), outset_noop());
+      return t;
+    } else {
+      auto n = todo.front();
+      todo.pop_front();
+      auto t = new outset_finish_parallel_rec(set, n);
+      prepare_node(t, incounter_ready(), outset_noop());
+      return t;
+    }
   }
   
 };
@@ -989,23 +1011,30 @@ public:
 class outset_finish_parallel : public node {
 public:
   
+  using item_iterator = typename growabletree_outset::item_iterator;
+  
   enum {
     entry_block=0,
     exit_block
   };
   
   growabletree_outset* out;
+  item_iterator lo;
+  item_iterator hi;
   std::deque<node_type*> todo;
   
-  outset_finish_parallel(growabletree_outset* out, std::deque<node_type*>& _todo)
-  : out(out) {
+  outset_finish_parallel(growabletree_outset* out,
+                         item_iterator lo,
+                         item_iterator hi,
+                         std::deque<node_type*>& _todo)
+  : out(out), lo(lo), hi(hi) {
     todo.swap(_todo);
   }
   
   void body() {
     switch (current_block_id) {
       case entry_block: {
-        call(new outset_finish_parallel_rec(&(out->set), todo),
+        call(new outset_finish_parallel_rec(&(out->set), lo, hi, todo),
              exit_block);
         break;
       }
@@ -1021,6 +1050,7 @@ public:
 };
 
 void outset_finish(growabletree_outset* out) {
+  using item_iterator = typename growabletree_outset::item_iterator;
   assert(! out->should_deallocate_automatically);
   std::deque<node_type*> todo;
   node_type* n = out->set.finish_init([&] (node* n) {
@@ -1029,11 +1059,13 @@ void outset_finish(growabletree_outset* out) {
   if (n != nullptr) {
     todo.push_back(n);
   }
-  out->set.finish_nb(communication_delay, todo, [&] (node* n) {
+  item_iterator lo = nullptr;
+  item_iterator hi = nullptr;
+  out->set.finish_nb(communication_delay, lo, hi, todo, [&] (node* n) {
     decrement_incounter(n);
   });
   if (! todo.empty()) {
-    node* n = new outset_finish_parallel(out, todo);
+    node* n = new outset_finish_parallel(out, lo, hi, todo);
     prepare_node(n, incounter_ready(), outset_noop());
     add_node(n);
   } else {

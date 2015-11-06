@@ -98,14 +98,16 @@ static constexpr int finished_tag = 1;
 
 template <class Item, int capacity, bool multiadd>
 class block {
-private:
+public:
   
   using cell_type = std::atomic<Item>;
+  
+private:
 
   cell_type* start;
   std::atomic<cell_type*> head;
   
-  bool try_insert_item_at(cell_type& cell, Item x) {
+  static bool try_insert_item_at(cell_type& cell, Item x) {
     assert(multiadd);
     while (true) {
       Item y = cell.load();
@@ -121,7 +123,7 @@ private:
     }
   }
   
-  Item try_finish_item_at(cell_type& cell) {
+  static Item try_finish_item_at(cell_type& cell) {
     assert(multiadd);
     while (true) {
       Item y = cell.load();
@@ -191,28 +193,37 @@ public:
     }    
   }
   
-  template <class Visit>
-  void finish(const Visit& visit) {
+  std::pair<cell_type*, cell_type*> finish_init() {
     while (true) {
       cell_type* h = head.load();
       cell_type* orig = h;
       cell_type* next = tagged_tag_with<cell_type>(nullptr, finished_tag);
       if (compare_exchange(head, orig, next)) {
-        for (cell_type* it = start; it != h; it++) {
-          if (multiadd) {
-            Item x = try_finish_item_at(*it);
-            if (x != nullptr) {
-              visit(x);
-            }
-          } else {
-            Item x = it->load();
-            assert(x != nullptr);
-            visit(x);
-          }
-        }
-        return;
+        return std::make_pair(start, h);
       }
     }
+  }
+  
+  template <class Visit>
+  static void finish_rng(cell_type* lo, cell_type* hi, const Visit& visit) {
+    for (cell_type* it = lo; it != hi; it++) {
+      if (multiadd) {
+        Item x = try_finish_item_at(*it);
+        if (x != nullptr) {
+          visit(x);
+        }
+      } else {
+        Item x = it->load();
+        assert(x != nullptr);
+        visit(x);
+      }
+    }
+  }
+  
+  template <class Visit>
+  void finish(const Visit& visit) {
+    auto rng = finish_init();
+    finish_rng(rng.first, rng.second, visit);
   }
 
 };
@@ -286,6 +297,8 @@ public:
 
   using tree_type = tree<Item, branching_factor, block_capacity>;
   using node_type = typename tree_type::node_type;
+  using item_cell_type = typename node_type::block_type::cell_type;
+  using item_iterator = item_cell_type*;
   
 private:
   
@@ -377,30 +390,37 @@ public:
     }
   }
   
-  // todo: modify behavior to poll more often
-  
-  template <class Visit>
-  static void finish_nb(const int nb, std::deque<node_type*>& todo, const Visit& visit) {
+  template <class Visit, class Deque>
+  static void finish_nb(const std::size_t nb, item_iterator& lo, item_iterator& hi, Deque& todo, const Visit& visit) {
     int k = 0;
-    while ((k < nb) && (! todo.empty())) {
-      node_type* current = todo.back();
-      todo.pop_back();
-      for (int i = 0; i < branching_factor; i++) {
-        while (true) {
-          node_type* child = current->children[i].load();
-          assert(tagged_tag_of(child) == 0);
-          node_type* orig = child;
-          node_type* next = tagged_tag_with(child, finished_tag);
-          if (compare_exchange(current->children[i], orig, next)) {
-            if (child != nullptr) {
-              todo.push_back(child);
+    while ( (k < nb) && ((! todo.empty()) || ((hi - lo) > 0)) ) {
+      if ((hi - lo) > 0) {
+        item_iterator lo_next = std::min(hi, lo + (nb - k));
+        block_type::finish_rng(lo, lo_next, visit);
+        k += lo_next - lo;
+        lo = lo_next;
+      } else {
+        assert(! todo.empty());
+        node_type* current = todo.back();
+        todo.pop_back();
+        for (int i = 0; i < branching_factor; i++) {
+          while (true) {
+            node_type* child = current->children[i].load();
+            assert(tagged_tag_of(child) == 0);
+            node_type* orig = child;
+            node_type* next = tagged_tag_with(child, finished_tag);
+            if (compare_exchange(current->children[i], orig, next)) {
+              if (child != nullptr) {
+                todo.push_back(child);
+              }
+              break;
             }
-            break;
           }
         }
+        auto rng = current->items.finish_init();
+        lo = rng.first;
+        hi = rng.second;
       }
-      current->items.finish(visit);
-      k++;
     }
   }
   
