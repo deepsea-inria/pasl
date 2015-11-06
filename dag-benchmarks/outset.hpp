@@ -57,8 +57,8 @@ bool compare_exchange(std::atomic<T>& cell, T& expected, T desired) {
   return false;
 }
   
-template <class Item, int nb>
-class static_cache_aligned_array {
+template <class Item, int capacity>
+class cache_aligned_fixed_capacity_array {
 private:
   
   static constexpr int cache_align_szb = 128;
@@ -66,11 +66,11 @@ private:
   
   using aligned_item_type = typename std::aligned_storage<item_szb, cache_align_szb>::type;
   
-  aligned_item_type items[nb];
+  aligned_item_type items[capacity];
   
   Item& at(std::size_t i) {
     assert(i >= 0);
-    assert(i < nb);
+    assert(i < capacity);
     return *reinterpret_cast<Item*>(items + i);
   }
   
@@ -81,7 +81,7 @@ public:
   }
 
   std::size_t size() const {
-    return nb;
+    return capacity;
   }
 
   void init(Item x) {
@@ -92,81 +92,144 @@ public:
   
 };
   
+static constexpr int finished_tag = 1;
+  
 } // end namespace
 
-template <class Item, int capacity, bool multiadd>
+template <class Item, int capacity, bool concurrent_inserts>
 class block {
+public:
+  
+  using cell_type = std::atomic<Item>;
+  
 private:
 
-  static constexpr Item* finished_tag = (Item*)nullptr;
-
-  Item* start;
-  std::atomic<Item*> head;
+  cell_type start[capacity];
+  std::atomic<cell_type*> head;
+  
+  static bool try_insert_item_at(cell_type& cell, Item x) {
+    assert(concurrent_inserts);
+    while (true) {
+      Item y = cell.load();
+      if (tagged_tag_of(y) == finished_tag) {
+        return false;
+      }
+      assert(y == nullptr);
+      Item orig = y;
+      Item next = x;
+      if (compare_exchange(cell, orig, next)) {
+        return true;
+      }
+    }
+  }
+  
+  static Item try_finish_item_at(cell_type& cell) {
+    assert(concurrent_inserts);
+    while (true) {
+      Item y = cell.load();
+      assert(tagged_tag_of(y) != finished_tag);
+      if (y != nullptr) {
+        return y;
+      }
+      Item orig = nullptr;
+      Item next = tagged_tag_with((Item)  nullptr, finished_tag);
+      if (compare_exchange(cell, orig, next)) {
+        return nullptr;
+      }
+    }
+  }
   
 public:
 
   block() {
-    start = (Item*)malloc(capacity * sizeof(Item));
+    assert(sizeof(Item) == sizeof(void*));
     head.store(start);
-    if (multiadd) {
+    if (concurrent_inserts) {
       for (int i = 0; i < capacity; i++) {
-        start[i] = nullptr;
+        start[i].store(nullptr);
       }
     }
   }
 
   ~block() {
-    free(start);
+    head.store(nullptr);
   }
 
   bool is_full() const {
     return head.load() >= (start + capacity);
   }
   
-  void try_insert(Item x, bool& failed_because_finish, bool& failed_because_full) {
+  using try_insert_result_type = enum {
+    succeeded_and_not_filled, succeeded_and_filled,
+    failed_because_finish, failed_because_full
+  };
+  
+  try_insert_result_type try_insert(Item x) {
     assert(x != nullptr);
     while (true) {
-      Item* orig = head.load();
-      if (orig == finished_tag) {
-        failed_because_finish = true;
-        return;
+      cell_type* h = head.load();
+      if (tagged_tag_of(h) == finished_tag) {
+        return failed_because_finish;
       }
-      if (orig >= (start + capacity)) {
-        failed_because_full = true;
-        return;
+      if (h >= (start + capacity)) {
+        return failed_because_full;
       }
-      if (multiadd) {
-        if (compare_exchange(head, orig, orig + 1)) {
-          *orig = x;
-          return;
+      cell_type* orig = h;
+      if (concurrent_inserts) {
+        if (compare_exchange(head, orig, h + 1)) {
+          if (! try_insert_item_at(*h, x)) {
+            return failed_because_finish;
+          }
+          if (start + capacity == h + 1) {
+            return succeeded_and_filled;
+          } else {
+            return succeeded_and_not_filled;
+          }
         }
       } else {
-        *orig = x;
-        if (compare_exchange(head, orig, orig + 1)) {
-          return;
+        h->store(x);
+        if (compare_exchange(head, orig, h + 1)) {
+          if (start + capacity == h + 1) {
+            return succeeded_and_filled;
+          } else {
+            return succeeded_and_not_filled;
+          }
         }
       }
     }    
   }
   
-  template <class Visit>
-  void finish(const Visit& visit) {
+  std::pair<cell_type*, cell_type*> finish_init() {
     while (true) {
-      Item* h = head.load();
-      Item* orig = h;
-      if (compare_exchange(head, orig, finished_tag)) {
-        for (auto it = start; it != h; it++) {
-          if (multiadd) {
-            while (*it == nullptr) {
-              // wait for try_insert() to commit the item
-              pasl::util::microtime::wait_for(128);
-            }
-          }
-          visit(*it);
-        }
-        return;
+      cell_type* h = head.load();
+      cell_type* orig = h;
+      cell_type* next = tagged_tag_with<cell_type>(nullptr, finished_tag);
+      if (compare_exchange(head, orig, next)) {
+        return std::make_pair(start, h);
       }
     }
+  }
+  
+  template <class Visit>
+  static void finish_rng(cell_type* lo, cell_type* hi, const Visit& visit) {
+    for (cell_type* it = lo; it != hi; it++) {
+      if (concurrent_inserts) {
+        Item x = try_finish_item_at(*it);
+        if (x != nullptr) {
+          visit(x);
+        }
+      } else {
+        Item x = it->load();
+        assert(x != nullptr);
+        visit(x);
+      }
+    }
+  }
+  
+  template <class Visit>
+  void finish(const Visit& visit) {
+    auto rng = finish_init();
+    finish_rng(rng.first, rng.second, visit);
   }
 
 };
@@ -175,13 +238,11 @@ template <class Item, int branching_factor, int block_capacity>
 class node {
 public:
 
-  static constexpr int finished_tag = 1;
-
   using block_type = block<Item, block_capacity, false>;
   
   block_type items;
     
-  static_cache_aligned_array<std::atomic<node*>, branching_factor> children;
+  cache_aligned_fixed_capacity_array<std::atomic<node*>, branching_factor> children;
 
   node() {
     for (int i = 0; i < branching_factor; i++) {
@@ -200,7 +261,7 @@ public:
   std::atomic<node_type*> root;
 
   tree() {
-    root.store(new node_type);
+    root.store(nullptr);
   }
 
   template <class Random_int>
@@ -213,23 +274,24 @@ public:
         if (new_node == nullptr) {
           new_node = new node_type;
         }
+        assert(new_node != nullptr);
         node_type* orig = nullptr;
         if (compare_exchange(*current, orig, new_node)) {
-          break;
+          return new_node;
         }
         target = current->load();
       }
-      if (tagged_tag_of(target) == node_type::finished_tag) {
+      if (tagged_tag_of(target) == finished_tag) {
         if (new_node != nullptr) {
           delete new_node;
           new_node = nullptr;
         }
-        break;
+        assert(new_node == nullptr);
+        return nullptr;
       }
       int i = random_int(0, branching_factor);
       current = &(target->children[i]);
     }
-    return new_node;
   }
     
 };
@@ -242,18 +304,20 @@ public:
 
   using tree_type = tree<Item, branching_factor, block_capacity>;
   using node_type = typename tree_type::node_type;
+  using item_cell_type = typename node_type::block_type::cell_type;
+  using item_iterator = item_cell_type*;
   
 private:
   
   using block_type = typename node_type::block_type;
-  using shortcuts_type = static_cache_aligned_array<block_type*, max_nb_procs>;
+  using shortcuts_type = cache_aligned_fixed_capacity_array<block_type*, max_nb_procs>;
 
   static constexpr int small_block_capacity = 16;
   using small_block_type = block<Item, small_block_capacity, true>;
 
   small_block_type items;
   
-  tree_type root;
+  tree_type blocks;
   
   std::atomic<shortcuts_type*> shortcuts;
 
@@ -274,46 +338,52 @@ public:
   template <class Random_int>
   bool insert(Item x, int my_id, const Random_int& random_int) {
     if (! items.is_full()) {
-      bool failed_because_finish = false;
-      bool failed_because_full = false;
-      items.try_insert(x, failed_because_finish, failed_because_full);
-      if (failed_because_finish) {
+      auto status = items.try_insert(x);
+      if (status == items.failed_because_finish) {
         return false;
-      }
-      if (! failed_because_full) {
+      } else if (status == items.succeeded_and_not_filled) {
+        return true;
+      } else if (status == items.succeeded_and_filled) {
+        node_type* root = blocks.try_insert(random_int);
+        if (root == nullptr) {
+          return true;
+        }
+        shortcuts_type* new_shortcuts = new shortcuts_type;
+        (*new_shortcuts)[0] = &(root->items);
+        for (int i = 1; i < new_shortcuts->size(); i++) {
+          node_type* n = blocks.try_insert(random_int);
+          if (n == nullptr) {
+            delete new_shortcuts;
+            return true;
+          }
+          (*new_shortcuts)[i] = &(n->items);
+        }
+        shortcuts.store(new_shortcuts);
         return true;
       }
+      assert(status == items.failed_because_full);
     }
-    shortcuts_type* s = shortcuts.load();
-    if (s == nullptr) {
-      shortcuts_type* orig = nullptr;
-      shortcuts_type* next = new shortcuts_type;
-      for (int i = 0; i < next->size(); i++) {
-        node_type* n = root.try_insert(random_int);
-        if (n == nullptr) {
-          delete next;
+    assert(items.is_full());
+    while (true) {
+      shortcuts_type* s = shortcuts.load();
+      if (s == nullptr) {
+        if (tagged_tag_of(blocks.root.load()) == finished_tag) {
           return false;
         }
-        (*next)[i] = &(n->items);
+        pasl::util::microtime::wait_for(64);
+        continue;
       }
-      if (! compare_exchange(shortcuts, orig, next)) {
-        delete next;
-      }
-      s = shortcuts.load();
-    }  
-    assert(s != nullptr); 
-    while (true) {
+      assert(s != nullptr);
       block_type* b = (*s)[my_id];
-      bool failed_because_finish = false;
-      bool failed_because_full = false;
-      b->try_insert(x, failed_because_finish, failed_because_full);
-      if (failed_because_finish) {
+      auto status = b->try_insert(x);
+      if (status == b->failed_because_finish) {
         return false;
-      }
-      if (! failed_because_full) {
+      } else if (   (status == b->succeeded_and_filled)
+                 || (status == b->succeeded_and_not_filled) ) {
         return true;
       }
-      node_type* n = root.try_insert(random_int);
+      assert(status == b->failed_because_full);
+      node_type* n = blocks.try_insert(random_int);
       if (n == nullptr) {
         return false;
       }
@@ -322,44 +392,53 @@ public:
   }
   
   node_type* get_root() {
-    return tagged_pointer_of(root.root.load());
+    return tagged_pointer_of(blocks.root.load());
   }
   
   template <class Visit>
   node_type* finish_init(const Visit& visit) {
     items.finish(visit);
     while (true) {
-      node_type* n = root.root.load();
+      node_type* n = blocks.root.load();
       node_type* orig = n;
-      node_type* next = tagged_tag_with(n, node_type::finished_tag);
-      if (compare_exchange(root.root, orig, next)) {
+      node_type* next = tagged_tag_with(n, finished_tag);
+      if (compare_exchange(blocks.root, orig, next)) {
         return n;
       }
     }
   }
   
-  template <class Visit>
-  static void finish_nb(const int nb, std::deque<node_type*>& todo, const Visit& visit) {
+  template <class Visit, class Deque>
+  static void finish_nb(const std::size_t nb, item_iterator& lo, item_iterator& hi, Deque& todo, const Visit& visit) {
     int k = 0;
-    while ((k < nb) && (! todo.empty())) {
-      node_type* current = todo.back();
-      todo.pop_back();
-      for (int i = 0; i < branching_factor; i++) {
-        while (true) {
-          node_type* child = current->children[i].load();
-          assert(tagged_tag_of(child) == 0);
-          node_type* orig = child;
-          node_type* next = tagged_tag_with(child, node_type::finished_tag);
-          if (compare_exchange(current->children[i], orig, next)) {
-            if (child != nullptr) {
-              todo.push_back(child);
+    while ( (k < nb) && ((! todo.empty()) || ((hi - lo) > 0)) ) {
+      if ((hi - lo) > 0) {
+        item_iterator lo_next = std::min(hi, lo + (nb - k));
+        block_type::finish_rng(lo, lo_next, visit);
+        k += lo_next - lo;
+        lo = lo_next;
+      } else {
+        assert(! todo.empty());
+        node_type* current = todo.back();
+        todo.pop_back();
+        for (int i = 0; i < branching_factor; i++) {
+          while (true) {
+            node_type* child = current->children[i].load();
+            assert(tagged_tag_of(child) == 0);
+            node_type* orig = child;
+            node_type* next = tagged_tag_with(child, finished_tag);
+            if (compare_exchange(current->children[i], orig, next)) {
+              if (child != nullptr) {
+                todo.push_back(child);
+              }
+              break;
             }
-            break;
           }
         }
+        auto rng = current->items.finish_init();
+        lo = rng.first;
+        hi = rng.second;
       }
-      current->items.finish(visit);
-      k++;
     }
   }
   
