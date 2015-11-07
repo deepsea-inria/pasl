@@ -132,7 +132,7 @@ private:
         return y;
       }
       Item orig = nullptr;
-      Item next = tagged_tag_with((Item)  nullptr, finished_tag);
+      Item next = tagged_tag_with((Item)nullptr, finished_tag);
       if (compare_exchange(cell, orig, next)) {
         return nullptr;
       }
@@ -205,6 +205,7 @@ public:
       cell_type* orig = h;
       cell_type* next = tagged_tag_with<cell_type>(nullptr, finished_tag);
       if (compare_exchange(head, orig, next)) {
+        assert(h <= start + capacity);
         return std::make_pair(start, h);
       }
     }
