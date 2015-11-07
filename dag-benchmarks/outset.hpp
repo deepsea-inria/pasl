@@ -87,6 +87,8 @@ public:
 };
   
 static constexpr int finished_tag = 1;
+
+static constexpr int creating_shortcuts_tag = 3;
   
 } // end namespace
 
@@ -307,10 +309,35 @@ private:
   using small_block_type = block<Item, small_block_capacity, true>;
 
   small_block_type items;
-  
+
   tree_type blocks;
-  
+
   std::atomic<shortcuts_type*> shortcuts;
+
+  template <class Random_int>
+  void create_shortcuts(const Random_int& random_int) {
+    while (true) {
+      shortcuts_type* s = shortcuts.load();
+      if (tagged_tag_of(s) == finished_tag) {
+        return;
+      }
+      shortcuts_type* orig = s;
+      shortcuts_type* next = tagged_tag_with(s, creating_shortcuts_tag);
+      if (compare_exchange(shortcuts, orig, next)) {
+        break;
+      }
+    }
+    node_type* root = blocks.try_insert(random_int);
+    assert(root != nullptr);
+    shortcuts_type* new_shortcuts = new shortcuts_type;
+    (*new_shortcuts)[0] = &(root->items);
+    for (int i = 1; i < new_shortcuts->size(); i++) {
+      node_type* n = blocks.try_insert(random_int);
+      assert(n != nullptr);
+      (*new_shortcuts)[i] = &(n->items);
+    }
+    shortcuts.store(new_shortcuts);
+  }
 
 public:
   
@@ -319,7 +346,7 @@ public:
   }
   
   ~outset() {
-    shortcuts_type* s = shortcuts.load();
+    shortcuts_type* s = tagged_pointer_of(shortcuts.load());
     shortcuts.store(nullptr);
     if (s != nullptr) {
       delete s;
@@ -335,21 +362,7 @@ public:
       } else if (status == items.succeeded_and_not_filled) {
         return true;
       } else if (status == items.succeeded_and_filled) {
-        node_type* root = blocks.try_insert(random_int);
-        if (root == nullptr) {
-          return true;
-        }
-        shortcuts_type* new_shortcuts = new shortcuts_type;
-        (*new_shortcuts)[0] = &(root->items);
-        for (int i = 1; i < new_shortcuts->size(); i++) {
-          node_type* n = blocks.try_insert(random_int);
-          if (n == nullptr) {
-            delete new_shortcuts;
-            return true;
-          }
-          (*new_shortcuts)[i] = &(n->items);
-        }
-        shortcuts.store(new_shortcuts);
+        create_shortcuts(random_int);
         return true;
       }
       assert(status == items.failed_because_full);
@@ -357,11 +370,11 @@ public:
     assert(items.is_full());
     while (true) {
       shortcuts_type* s = shortcuts.load();
-      if (s == nullptr) {
-        if (tagged_tag_of(blocks.root.load()) == finished_tag) {
-          return false;
-        }
-        pasl::util::microtime::wait_for(64);
+      if (tagged_tag_of(s) == finished_tag) {
+        return false;
+      }
+      if ( (s == nullptr) || (tagged_tag_of(s) == creating_shortcuts_tag) ) {
+        pasl::util::microtime::wait_for(128);
         continue;
       }
       assert(s != nullptr);
@@ -388,6 +401,19 @@ public:
   
   template <class Visit>
   node_type* finish_init(const Visit& visit) {
+    while (true) {
+      shortcuts_type* s = shortcuts.load();
+      assert(tagged_tag_of(s) != finished_tag);
+      if (tagged_tag_of(s) == creating_shortcuts_tag) {
+        pasl::util::microtime::wait_for(128);
+        continue;
+      }
+      shortcuts_type* orig = s;
+      shortcuts_type* next = tagged_tag_with(s, finished_tag);
+      if (compare_exchange(shortcuts, orig, next)) {
+        break;
+      }
+    }
     items.finish(visit);
     while (true) {
       node_type* n = blocks.root.load();
