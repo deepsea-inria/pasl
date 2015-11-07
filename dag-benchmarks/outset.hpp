@@ -83,12 +83,6 @@ public:
   std::size_t size() const {
     return capacity;
   }
-
-  void init(Item x) {
-    for (int i = 0; i < size(); i++) {
-      at(i) = x;
-    }
-  }
   
 };
   
@@ -149,10 +143,6 @@ public:
         start[i].store(nullptr);
       }
     }
-  }
-
-  ~block() {
-    head.store(nullptr);
   }
 
   bool is_full() const {
