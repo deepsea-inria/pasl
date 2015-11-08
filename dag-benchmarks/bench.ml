@@ -1032,8 +1032,8 @@ let mk_seidel_params_small =
     mk_list int "numiters" ns
   in
   (mk_numiters, (mk int "N" 256) & (mk int "block_size_lg" 6))
-      
-let mk_seidel_params_large =
+
+let mk_seidel_params_medium =
   let mk_numiters =
     let nb = 20 in
     let ns = XList.init nb (fun i -> (i+1) * 10) in
@@ -1041,8 +1041,18 @@ let mk_seidel_params_large =
   in
   (mk_numiters, (mk int "N" 1024) & (mk int "block_size_lg" 7))
 
+      
+let mk_seidel_params_large =
+  let mk_numiters =
+    let nb = 20 in
+    let ns = XList.init nb (fun i -> (i+1) * 10) in
+    mk_list int "numiters" ns
+  in
+  (mk_numiters, (mk int "N" 8192) & (mk int "block_size_lg" 8))
+
 let all () = begin
     doit "small" mk_seidel_params_small;
+    doit "medium" mk_seidel_params_medium;
     doit "large" mk_seidel_params_large
   end
                       
