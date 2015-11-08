@@ -1017,7 +1017,8 @@ let doit id (mk_numiters, mk_seidel_params) =
         X mk_numiters;
         Input (file_results name);
         Output (file_plots name);
-        Y_label "speedup";
+        X_label "Number of iterations";
+        Y_label "Speedup vs. sequential";
         Y eval_y;
     ]))
   in
