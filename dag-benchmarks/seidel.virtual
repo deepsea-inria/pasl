@@ -44,11 +44,13 @@ OPENSTREAM=/home/rainey/open-stream/examples/seidel
 
 case $SYS in
      cilk)
-     ( CILK_NWORKERS=$P; $OPENSTREAM/cilk_seidel -n $N -b $B -r $I )
+     ( CILK_NWORKERS=$P; numactl --interleave=all $OPENSTREAM/cilk_seidel -n $N -b $B -r $I )
+#     echo "CILK_NWORKERS=$P; numactl --interleave=all $OPENSTREAM/cilk_seidel -n $N -b $B -r $I"
      ;;
      openstream)
      ( OMP_NUM_THREADS=$P; $OPENSTREAM/stream_seidel -n $N -b $B -r $I )
-     ;;
+#     echo "OMP_NUM_THREADS=$P; $OPENSTREAM/stream_seidel -n $N -b $B -r $I"
+     ;; 
      pasl)
      ./bench.opt $ALLARGS
      ;;
