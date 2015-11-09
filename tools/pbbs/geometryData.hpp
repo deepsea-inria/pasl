@@ -136,8 +136,8 @@ template <class intT, class uintT>
 point3d* uniform3d(bool inSphere, bool onSphere, intT n) {
   point3d* Points = newA(point3d,n);
   sched::native::parallel_for(intT(0), n, [&] (intT i) {
-    if (inSphere) Points[i] = randInUnitSphere3d(i);
-    else if (onSphere) Points[i] = randOnUnitSphere3d(i);
+    if (inSphere) Points[i] = randInUnitSphere3d<intT,uintT>(i);
+    else if (onSphere) Points[i] = randOnUnitSphere3d<intT,uintT>(i);
     else Points[i] = rand3d<intT, uintT>(i);
   });
   return Points;

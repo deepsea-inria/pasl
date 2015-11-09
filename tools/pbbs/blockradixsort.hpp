@@ -78,7 +78,7 @@ namespace pbbs {
       intT* oA = (intT*) (BK+blocks);
       intT* oB = (intT*) (BK+2*blocks);
       
-      native::parallel_for(intT(0), blocks, [&] (intT i) {
+      native::parallel_for1(intT(0), blocks, [&] (intT i) {
         intT od = i*nn;
         intT nni = min(max<intT>(n-od,0),nn);
         radixBlock(A+od, B, Tmp+od, cnts + m*i, oB + m*i, od, nni, m, extract);
@@ -136,7 +136,7 @@ namespace pbbs {
         intT* offsets = BK[0];
         intT remain = numBK - BUCKETS - 1;
         float y = remain / (float) n;
-        native::parallel_for(intT(0), intT(BUCKETS), [&] (intT i) {
+        native::parallel_for1(intT(0), intT(BUCKETS), [&] (intT i) {
           intT segOffset = offsets[i];
           intT segNextOffset = (i == BUCKETS-1) ? n : offsets[i+1];
           intT segLen = segNextOffset - segOffset;

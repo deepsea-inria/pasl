@@ -29,12 +29,12 @@ VERBOSE_DEPENDENCIES=0
 
 PROGRAMS=\
 	fib.cpp \
-	hull.cpp \
 	bhut.cpp \
-	sequence.cpp \
-	graph.cpp \
 	cholesky.cpp \
-	sort.cpp
+	sort.cpp \
+	nbody.cpp \
+	neighbors.cpp \
+	suffix.cpp
 #       add reference to your cpp source here
 
 ####################################################################
@@ -64,7 +64,7 @@ MODES=dbg log sta opt seq cilk
 # Compilation options for each mode
 
 COMPILE_OPTIONS_COMMON=-DDISABLE_INTERRUPTS -DSTATS_IDLE $(OPTIONS_ALL)
-COMPILE_OPTIONS_FOR_dbg=$(OPTIONS_DEBUG) -DSTATS -DDEBUG # -DUSE_UCONTEXT  -DLOGGING
+COMPILE_OPTIONS_FOR_dbg=$(OPTIONS_DEBUG) -DSTATS -DDEBUG -DSEQUENTIAL_ELISION # -DUSE_UCONTEXT  -DLOGGING
 COMPILE_OPTIONS_FOR_log=$(OPTIONS_O2) -DSTATS -DLOGGING
 COMPILE_OPTIONS_FOR_sta=$(OPTIONS_O2) -DSTATS
 COMPILE_OPTIONS_FOR_seq=$(OPTIONS_O2) -DSTATS -DSEQUENTIAL_ELISION

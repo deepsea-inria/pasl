@@ -1153,7 +1153,247 @@ let myformatter =
     [
       ("type", Format_custom (fun n -> ""));
       ("infile", Format_custom label_of_infile);
-            ("prog", Format_custom (fun n -> if n = prog then "ours" else "cilk"));
+      ("prog", Format_custom (fun n -> if n = prog then "ours" else "cilk"));
+    ]
+      
+  ))                
+             
+let plot() =
+  Mk_bar_plot.(call ([
+    Bar_plot_opt Bar_plot.([
+       X_titles_dir Vertical;
+       Y_axis [Axis.Lower (Some 0.)] ]);
+     Formatter myformatter;
+    Charts mk_unit;
+    Series mk_parallel_progs;
+    X mk_infiles;
+    Input (file_results name);
+    Output (file_plots name);
+    Y_label "speedup";
+    Y eval_speedup; 
+    Y_whiskers eval_speedup_stddev;
+  ]))
+               
+let all () = select make run check plot
+
+end
+
+(*****************************************************************************)
+(** Nearest-neighbors experiment *)
+
+module ExpNearestNeighbors = struct
+
+let name = "neighbors"
+
+let baseline_name = "neighbors"
+             
+let prog = name ^ ".opt"
+                    
+let cilk_prog = name ^ ".cilk"
+                    
+let seqdata_path = "/home/rainey/pbbsdata/"
+
+let ns = [ (seqdata_path^"uniform2dpoints", "Uniform 2d");
+           (seqdata_path^"plummer2dpoints", "Plummer 2d");
+           (seqdata_path^"uniform3dpoints", "Uniform 2d");
+           (seqdata_path^"plummer3dpoints", "Plummer 3d");
+         ]
+
+
+let label_of_infile infile =
+  List.assoc infile ns
+                     
+let mk_infile n d =
+  (mk string "infile" (seqdata_path ^ n)) & (mk int "dimensions" d)
+                     
+let mk_infiles =
+     (mk_infile "uniform2dpoints" 2)
+  ++ (mk_infile "plummer2dpoints" 2)
+  ++ (mk_infile "uniform3dpoints" 3)
+  ++ (mk_infile "plummer3dpoints" 3)
+       
+let mk_baseline =
+  mk_prog prog
+
+let mk_ours =
+  mk_prog prog
+
+let mk_cilk =
+  mk_prog cilk_prog
+
+let mk_parallel_progs =
+  mk_ours ++ mk_cilk
+          
+let mk_proc = mk int "proc" max_proc
+                 
+let make() = begin
+    build "../example" ["neighbors.opt"; "neighbors.cilk"] arg_virtual_build;
+    ignore(XSys.command_as_bool "ln -s ../example/neighbors.opt neighbors.opt");
+    ignore(XSys.command_as_bool "ln -s ../example/neighbors.cilk neighbors.cilk")
+  end
+  
+let run() = begin
+  Mk_runs.(call (run_modes @ [
+    Output (file_results baseline_name);
+    Timeout 1000;
+    Args (mk_baseline & mk_infiles)]));
+  Mk_runs.(call (run_modes @ [
+    Output (file_results name);
+    Timeout 1000;
+    Args (
+      mk_parallel_progs
+    & mk_proc
+    & mk_infiles)]))
+  end
+            
+let check = nothing  (* do something here *)
+
+let eval_speedup = fun env all_results results ->
+  let baseline_results_file_name = file_results baseline_name in
+  let baseline_results = Results.from_file baseline_results_file_name in 
+  if baseline_results = [] then Pbench.warning ("no results for baseline: " ^ Env.to_string env);
+  let infile = Env.get_as_string env "infile" in
+  let baseline_env = mk_baseline & mk string "infile" infile in
+  let baseline_results = Results.filter_by_params baseline_env baseline_results in
+  let tp = Results.get_mean_of "exectime" results in
+  let t1 = Results.get_mean_of "exectime" baseline_results in
+  t1 /. tp
+
+let eval_speedup_stddev = fun env all_results results ->
+  let baseline_results_file_name = file_results baseline_name in
+  let baseline_results = Results.from_file baseline_results_file_name in 
+  if baseline_results = [] then Pbench.warning ("no results for baseline: " ^ Env.to_string env);
+  let infile = Env.get_as_string env "infile" in
+  let baseline_env = mk_baseline & mk string "infile" infile in
+  let baseline_results = Results.filter_by_params baseline_env baseline_results in
+  let t1 = Results.get_mean_of "exectime" baseline_results in
+  try let times = Results.get Env.as_float "exectime" results in
+      let speedups = List.map (fun tp -> t1 /. tp) times in
+      XFloat.list_stddev speedups
+  with Results.Missing_key _ -> nan
+
+let myformatter =
+  Env.format (Env.(
+    [
+      ("infile", Format_custom label_of_infile);
+      ("prog", Format_custom (fun n -> if n = prog then "ours" else "cilk"));
+    ]
+      
+  ))                
+             
+let plot() =
+  Mk_bar_plot.(call ([
+    Bar_plot_opt Bar_plot.([
+       X_titles_dir Vertical;
+       Y_axis [Axis.Lower (Some 0.)] ]);
+     Formatter myformatter;
+    Charts mk_unit;
+    Series mk_parallel_progs;
+    X mk_infiles;
+    Input (file_results name);
+    Output (file_plots name);
+    Y_label "speedup";
+    Y eval_speedup; 
+    Y_whiskers eval_speedup_stddev;
+  ]))
+               
+let all () = select make run check plot
+
+end
+
+(*****************************************************************************)
+(** Suffix-array experiment *)
+
+module ExpSuffixArray = struct
+
+let name = "suffix"
+
+let baseline_name = "suffix"
+             
+let prog = name ^ ".opt"
+                    
+let cilk_prog = name ^ ".cilk"
+                    
+let seqdata_path = "/home/rainey/pbbsdata/"
+
+let ns = [ (seqdata_path^"trigramSeq_10M", "Trigram sequence (10M)");
+         ]
+
+
+let label_of_infile infile =
+  List.assoc infile ns
+                     
+let mk_infile n =
+  (mk string "infile" (seqdata_path ^ n))
+                     
+let mk_infiles =
+     (mk_infile "trigramSeq_10M")
+       
+let mk_baseline =
+  mk_prog prog
+
+let mk_ours =
+  mk_prog prog
+
+let mk_cilk =
+  mk_prog cilk_prog
+
+let mk_parallel_progs =
+  mk_ours ++ mk_cilk
+          
+let mk_proc = mk int "proc" max_proc
+                 
+let make() = begin
+    build "../example" ["suffix.opt"; "suffix.cilk"] arg_virtual_build;
+    ignore(XSys.command_as_bool "ln -s ../example/suffix.opt suffix.opt");
+    ignore(XSys.command_as_bool "ln -s ../example/suffix.cilk suffix.cilk")
+  end
+  
+let run() = begin
+  Mk_runs.(call (run_modes @ [
+    Output (file_results baseline_name);
+    Timeout 1000;
+    Args (mk_baseline & mk_infiles)]));
+  Mk_runs.(call (run_modes @ [
+    Output (file_results name);
+    Timeout 1000;
+    Args (
+      mk_parallel_progs
+    & mk_proc
+    & mk_infiles)]))
+  end
+            
+let check = nothing  (* do something here *)
+
+let eval_speedup = fun env all_results results ->
+  let baseline_results_file_name = file_results baseline_name in
+  let baseline_results = Results.from_file baseline_results_file_name in 
+  if baseline_results = [] then Pbench.warning ("no results for baseline: " ^ Env.to_string env);
+  let infile = Env.get_as_string env "infile" in
+  let baseline_env = mk_baseline & mk string "infile" infile in
+  let baseline_results = Results.filter_by_params baseline_env baseline_results in
+  let tp = Results.get_mean_of "exectime" results in
+  let t1 = Results.get_mean_of "exectime" baseline_results in
+  t1 /. tp
+
+let eval_speedup_stddev = fun env all_results results ->
+  let baseline_results_file_name = file_results baseline_name in
+  let baseline_results = Results.from_file baseline_results_file_name in 
+  if baseline_results = [] then Pbench.warning ("no results for baseline: " ^ Env.to_string env);
+  let infile = Env.get_as_string env "infile" in
+  let baseline_env = mk_baseline & mk string "infile" infile in
+  let baseline_results = Results.filter_by_params baseline_env baseline_results in
+  let t1 = Results.get_mean_of "exectime" baseline_results in
+  try let times = Results.get Env.as_float "exectime" results in
+      let speedups = List.map (fun tp -> t1 /. tp) times in
+      XFloat.list_stddev speedups
+  with Results.Missing_key _ -> nan
+
+let myformatter =
+  Env.format (Env.(
+    [
+      ("infile", Format_custom label_of_infile);
+      ("prog", Format_custom (fun n -> if n = prog then "ours" else "cilk"));
     ]
       
   ))                
@@ -1196,6 +1436,8 @@ let _ =
     "seidel",                         ExpSeidel.all;
     "snzi_alternated_duration",       ExpSNZIAlternatedDuration.all;
     "sort",                           ExpSort.all;
+    "neighbors",                      ExpNearestNeighbors.all;
+    "suffix",                         ExpSuffixArray.all;
   ]
   in
   Pbench.execute_from_only_skip arg_actions [] bindings;

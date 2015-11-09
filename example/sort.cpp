@@ -27,13 +27,13 @@ void doit(int argc, char** argv) {
   intT n = 0;
   intT r;
   auto init = [&] {
-    std::string doublesstr = pasl::util::cmdline::parse_or_default_string("doubles", "");
-    std::string stringsstr = pasl::util::cmdline::parse_or_default_string("strings", "");    
-    if (doublesstr != "") {
+    std::string infile = pasl::util::cmdline::parse_or_default_string("infile", "");
+    std::string ftype = pasl::util::cmdline::parse_or_default_string("type", "");
+    if (ftype == "doubles") {
       char* s = (char*)doublesstr.c_str();
       new (&doubles) seqData(readSequenceFromFile<long>(s));
       assert(doubles.A != nullptr);
-    } else if (stringsstr != "") {
+    } else if (ftype == "strings") {
       char* s = (char*)stringsstr.c_str();
       new (&strings) seqData(readSequenceFromFile<long>(s));
     } else {
