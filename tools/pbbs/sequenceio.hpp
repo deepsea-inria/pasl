@@ -73,13 +73,20 @@ namespace benchIO {
   struct seqData {
     void* A; long n; elementType dt;
     char* O; // used for strings to store pointer to character array
+    seqData() : A(nullptr), O(nullptr) { }
+    seqData(const seqData& other) {
+      A = other.A;
+      n = other.n;
+      dt = other.dt;
+      O = other.O;
+    }
     seqData(void* _A, long _n, elementType _dt) :
     A(_A), O(NULL), n(_n), dt(_dt) {}
     seqData(void* _A, char* _O, long _n, elementType _dt) :
     A(_A), O(_O), n(_n), dt(_dt) {}
     void del() {
       if (O) free(O);
-      free(A);
+      if (A) free(A);
     }
   };
   

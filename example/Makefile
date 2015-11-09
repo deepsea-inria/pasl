@@ -33,7 +33,8 @@ PROGRAMS=\
 	bhut.cpp \
 	sequence.cpp \
 	graph.cpp \
-	cholesky.cpp
+	cholesky.cpp \
+	sort.cpp
 #       add reference to your cpp source here
 
 ####################################################################

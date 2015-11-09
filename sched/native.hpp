@@ -624,11 +624,9 @@ void parallel_for(Number lo, Number hi, const Body& body) {
 #if defined(SEQUENTIAL_ELISION)
   for (Number i = lo; i < hi; i++)
     body(i);
-    /* cilk_for not yet supported by mainline gcc
 #elif defined(USE_CILK_RUNTIME)
   cilk_for (Number i = lo; i < hi; i++)
     body(i);
-    */
 #else
   struct { } output;
   using output_type = decltype(output);
@@ -645,11 +643,9 @@ void parallel_for1(Number lo, Number hi, const Body& body) {
 #if defined(SEQUENTIAL_ELISION)
   for (Number i = lo; i < hi; i++)
     body(i);
-    /* cilk_for not yet supported by mainline gcc
 #elif defined(USE_CILK_RUNTIME)
   _Pragma("cilk grainsize = 1") cilk_for (Number i = lo; i < hi; i++)
     body(i);
-    */
 #else
   struct { } output;
   using range_type = std::pair<Number, Number>;

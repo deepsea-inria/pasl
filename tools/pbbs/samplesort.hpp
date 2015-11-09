@@ -22,9 +22,10 @@
 
 #include <iostream>
 #include <algorithm>
+#include <math.h>
+
 #include "utils.hpp"
 #include "sequence.hpp"
-#include "math.h"
 #include "quicksort.hpp"
 #include "transpose.hpp"
 
@@ -93,7 +94,7 @@ void sampleSort (E* A, intT n, BinPred f) {
     intT *offsetB = newA(intT, numR*numSegs);
     
     // sort each row and merge with samples to get counts
-    native::parallel_for(intT(0), numR, [&] (intT r) {
+    native::parallel_for1(intT(0), numR, [&] (intT r) {
       intT offset = r * rowSize;
       intT size =  (r < numR - 1) ? rowSize : n - offset;
       sampleSort(A+offset, size, f);
@@ -112,7 +113,7 @@ void sampleSort (E* A, intT n, BinPred f) {
     free(B); free(offsetA); free(segSizes);
     
     // sort the columns
-    native::parallel_for(intT(0), numSegs, [&] (intT i) {
+    native::parallel_for1(intT(0), numSegs, [&] (intT i) {
       intT offset = offsetB[i*numR];
       if (i == 0) {
         sampleSort(A, offsetB[numR], f); // first segment
