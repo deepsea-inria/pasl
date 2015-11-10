@@ -1188,7 +1188,7 @@ let plot() =
     X mk_infiles;
     Input (file_results name);
     Output (file_plots name);
-    Y_label "speedup";
+    Y_label "Speedup vs. sequential";
     Y eval_speedup; 
     Y_whiskers eval_speedup_stddev;
   ]))
@@ -1311,7 +1311,7 @@ let plot() =
     X mk_infiles;
     Input (file_results name);
     Output (file_plots name);
-    Y_label "speedup";
+    Y_label "Speedup vs. sequential";
     Y eval_speedup; 
     Y_whiskers eval_speedup_stddev;
   ]))
@@ -1428,7 +1428,7 @@ let plot() =
     X mk_infiles;
     Input (file_results name);
     Output (file_plots name);
-    Y_label "speedup";
+    Y_label "Speedup vs. sequential";
     Y eval_speedup; 
     Y_whiskers eval_speedup_stddev;
   ]))
