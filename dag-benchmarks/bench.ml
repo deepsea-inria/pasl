@@ -9,6 +9,7 @@ let system = XSys.command_must_succeed_or_virtual
 let arg_virtual_run = XCmd.mem_flag "virtual_run"
 let arg_virtual_build = XCmd.mem_flag "virtual_build"
 let arg_nb_runs = XCmd.parse_or_default_int "runs" 1
+let arg_baseline_nb_runs = XCmd.parse_or_default_int "baseline_runs" 1                                            
 let arg_mode = "normal"   (* later: investigate the purpose of "mode" *)
 let arg_skips = XCmd.parse_or_default_list_string "skip" []
 let arg_onlys = XCmd.parse_or_default_list_string "only" []
@@ -18,6 +19,12 @@ let run_modes =
     Mode (mode_of_string arg_mode);
     Virtual arg_virtual_run;
     Runs arg_nb_runs; ])
+
+let baseline_run_modes =
+  Mk_runs.([
+    Mode (mode_of_string arg_mode);
+    Virtual arg_virtual_run;
+    Runs arg_baseline_nb_runs; ])
 
 (*****************************************************************************)
 (** Steps *)
@@ -757,7 +764,7 @@ let make() = begin
   end
   
 let run() = begin
-  Mk_runs.(call (run_modes @ [
+  Mk_runs.(call (baseline_run_modes @ [
     Output (file_results baseline_name);
     Timeout 1000;
     Args mk_baseline]));
@@ -854,7 +861,7 @@ let make() = begin
   end
   
 let run() = begin
-  Mk_runs.(call (run_modes @ [
+  Mk_runs.(call (baseline_run_modes @ [
     Output (file_results baseline_name);
     Timeout 1000;
     Args mk_baseline]));
@@ -921,6 +928,8 @@ module ExpSeidel = struct
 
 let name = "seidel"
 
+let baseline_name = "seidel_baseline"               
+
 let prog = "./seidel.virtual"
 
 let mk_proc = mk int "proc" max_proc
@@ -979,11 +988,16 @@ let doit id (mk_numiters, mk_seidel_params) mk_block_sz_lg_theirs mk_block_sz_lg
   )
   in
   
-  let run() =
+  let run() = begin
+    Mk_runs.(call (baseline_run_modes @ [
+      Output (file_results baseline_name);
+      Timeout 1000;
+      Args mk_seidel_sequential]));
     Mk_runs.(call (run_modes @ [
       Output (file_results name);
       Timeout 1000;
-      Args (mk_seidel_sequential ++ mk_parallels)]))
+      Args mk_parallels]))
+    end
   in
               
   let check = nothing  (* do something here *)
@@ -1007,7 +1021,8 @@ let doit id (mk_numiters, mk_seidel_params) mk_block_sz_lg_theirs mk_block_sz_lg
   let plot() =
     let eval_y env all_results results = 
       let results = ~~ Results.filter_by_params results mk_params_parallel in
-      let baseline_results = ~~ Results.filter_by_params all_results mk_params_baseline in
+      let baseline_results_file_name = file_results baseline_name in
+      let baseline_results = Results.from_file baseline_results_file_name in 
       let baseline_env = ~~ Env.filter env (fun k -> List.mem k ["N";"numiters";"block_size_lg";]) in
       let baseline_results = ~~ Results.filter baseline_results baseline_env in
       if baseline_results = [] then Pbench.warning ("no results for baseline: " ^ Env.to_string env);
@@ -1068,7 +1083,7 @@ module ExpSort = struct
 
 let name = "sort"
 
-let baseline_name = "sort"
+let baseline_name = "sort_baseline"
              
 let prog = name ^ ".opt"
                     
@@ -1112,7 +1127,7 @@ let make() = begin
   end
   
 let run() = begin
-  Mk_runs.(call (run_modes @ [
+  Mk_runs.(call (baseline_run_modes @ [
     Output (file_results baseline_name);
     Timeout 1000;
     Args mk_baseline]));
@@ -1188,7 +1203,7 @@ module ExpNearestNeighbors = struct
 
 let name = "neighbors"
 
-let baseline_name = "neighbors"
+let baseline_name = "neighbors_baseline"
              
 let prog = name ^ ".opt"
                     
@@ -1236,7 +1251,7 @@ let make() = begin
   end
   
 let run() = begin
-  Mk_runs.(call (run_modes @ [
+  Mk_runs.(call (baseline_run_modes @ [
     Output (file_results baseline_name);
     Timeout 1000;
     Args (mk_baseline & mk_infiles)]));
@@ -1311,7 +1326,7 @@ module ExpSuffixArray = struct
 
 let name = "suffix"
 
-let baseline_name = "suffix"
+let baseline_name = "suffix_baseline"
              
 let prog = name ^ ".opt"
                     
@@ -1353,7 +1368,7 @@ let make() = begin
   end
   
 let run() = begin
-  Mk_runs.(call (run_modes @ [
+  Mk_runs.(call (baseline_run_modes @ [
     Output (file_results baseline_name);
     Timeout 1000;
     Args (mk_baseline & mk_infiles)]));
