@@ -1040,7 +1040,9 @@ let doit id (mk_numiters, mk_seidel_params) mk_block_sz_lg_theirs mk_block_sz_lg
            Y_axis [Axis.Lower (Some 0.); Axis.Is_log true;] ]);
          Formatter formatter;
         Charts (mk_seidel_params);
-        Series ((mk_seidel_async & mk_algos) ++ mk_seidel_cilk ++ mk_seidel_openstream);
+        Series ((mk_seidel_async & mk_block_sz_lg_ours & mk_algos)
+                ++ (mk_seidel_cilk & mk_block_sz_lg_theirs)
+                ++ (mk_seidel_openstream & mk_block_sz_lg_theirs)); 
         X mk_numiters;
         Input (file_results name);
         Output (file_plots name);
@@ -1055,18 +1057,18 @@ let doit id (mk_numiters, mk_seidel_params) mk_block_sz_lg_theirs mk_block_sz_lg
 let mk_seidel_params_small =
   let nb = 20 in
   let ns = XList.init nb (fun i -> (i+1) * 100) in
-  (mk_list int "numiters" ns, (mk int "N" 256))
+  (mk_list int "numiters" ns, mk int "N" 256)
 
 let mk_seidel_params_medium =
   let nb = 20 in
   let ns = XList.init nb (fun i -> (i+1) * 10) in
-  (mk_list int "numiters" ns, (mk int "N" 1024))
+  (mk_list int "numiters" ns, mk int "N" 1024)
 
       
 let mk_seidel_params_large =
   let nb = 20 in
   let ns = XList.init nb (fun i -> (i+1) * 10) in
-  (mk_list int "numiters" ns, (mk int "N" 8192))
+  (mk_list int "numiters" ns, mk int "N" 8192)
 
 let all () = begin
     doit "small" mk_seidel_params_small (mk int "block_size_lg" 6) (mk int "block_size_lg" 4); 
