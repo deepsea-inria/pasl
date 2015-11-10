@@ -2125,6 +2125,8 @@ void launch_incounter_mixed_duration() {
     } else {
       assert(false);
     }
+    counter1 *= 2;
+    counter2 *= 2;
   };
   launch_microbenchmark(benchmark_thread, nb_threads, nb_milliseconds);
   if (simple_incounter != nullptr) {
@@ -2164,6 +2166,8 @@ void launch_snzi_alternated_duration() {
     } else {
       assert(false);
     }
+    counter1 *= 2;
+    counter2 *= 2;
   };
   launch_microbenchmark(benchmark_thread, nb_threads, nb_milliseconds);
   if (fixed_snzi != nullptr) {
@@ -2516,7 +2520,7 @@ public:
         break;
       }
       case exit: {
-        std::cout << "nb_operations " << nb << std::endl;
+        std::cout << "nb_operations " << (5 * nb) << std::endl;
         break;
       }
     }
@@ -2584,7 +2588,7 @@ public:
         break;
       }
       case exit: {
-        printf("nb_operations %d\n", n);
+        printf("nb_operations %d\n", 3 * n);
         break;
       }
     }

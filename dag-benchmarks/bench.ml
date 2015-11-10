@@ -180,9 +180,9 @@ let mk_mixed_duration =
       
 let pretty_edge_algo edge_algo =
   match edge_algo with
-  | "simple" -> "simple serial"
-  | "statreeopt" -> "our fixed-size SNZI incounter + our outset"
-  | "growabletree" -> "our growable SNZI incounter + our outset"
+  | "simple" -> "simple"
+  | "statreeopt" -> "ours fixed"
+  | "growabletree" -> "ours growable"
   | "single_buffer" -> "single buffer"
   | "perprocessor" -> "per-processor buffers"
   | _ -> "<unknown>"
@@ -199,6 +199,10 @@ let pretty_cmd cmd =
   | "pbbs_pbfs_cilk" -> "PBBS PBFS (Cilk)"
   | "pbfs" -> "PBFS"
   | "pdfs" -> "PDFS"
+  | "incounter_async_duration" -> "" (* "Incounter microbenchmark (duration 1ms)"*)
+  | "incounter_async_nb" -> "" (* "Incounter microbenchmark (n=10m)" *)
+  | "mixed_duration" -> "" (* "Mixed microbenchmark (duration 1ms)" *)
+  | "mixed_nb" -> "" (* "Mixed microbenchmark (n=10m)"                           *)
   | _ -> cmd
            
 let microbench_formatter =
@@ -213,6 +217,9 @@ let microbench_formatter =
       ("graph", Format_custom (fun x -> x));
       ("infile", Format_custom (fun x -> ""));
       ("bits", Format_custom (fun x -> ""));
+      ("workload", Format_custom (fun x -> ""));
+      ("nb_milliseconds", Format_custom (fun x -> ""));
+      ("n", Format_custom (fun x -> ""));
     ]
   ))                
          
@@ -458,6 +465,7 @@ begin
     Mk_scatter_plot.(call ([
     Chart_opt Chart.([
       Legend_opt Legend.([Legend_pos Bottom_right]);
+      Title "Outset-add microbenchmark (duration 1ms)";
       ]);
      Scatter_plot_opt Scatter_plot.([
          Draw_lines true; 
@@ -717,8 +725,8 @@ let mk_real_graph (name, nbbits) =
   & mk string "graph" name
   & mk int "bits" nbbits
 
-let synthetic_graphs = [("cube_large", 64); ("rmat24_large", 64);]
-let real_graphs = [("cage15", 32)]
+let synthetic_graphs = [("cube_large", 64); ("rmat24_large", 64); ("phased_mix_100_large", 64);]
+let real_graphs = [("cage15", 32); ("europe", 32); ("wikipedia-20070206", 32);]
 
 let mk_synthetic_graphs = List.map mk_synthetic_graph synthetic_graphs
 let mk_real_graphs = List.map mk_real_graph real_graphs
@@ -933,7 +941,7 @@ let mk_seidel_cilk =
 let mk_seidel_openstream =
   mk string "system" "openstream"
      
-let doit id (mk_numiters, mk_seidel_params) =
+let doit id (mk_numiters, mk_seidel_params) mk_block_sz_lg_theirs mk_block_sz_lg_ours =
   let name = name^"_"^id in
   
   let mk_seidel_config =
@@ -946,6 +954,7 @@ let doit id (mk_numiters, mk_seidel_params) =
       mk_seidel_config
     & mk string "cmd" "seidel_sequential"
     & mk_system_pasl
+    & mk_block_sz_lg_theirs
     & mk_params_baseline
   in
   
@@ -957,7 +966,9 @@ let doit id (mk_numiters, mk_seidel_params) =
         
   let mk_parallels =
       mk_parallel_shared
-    & ( (mk_seidel_async & mk_algos) ++ mk_seidel_cilk ++ mk_seidel_openstream )
+      & (  (mk_seidel_async & mk_algos & mk_block_sz_lg_ours)
+        ++ (mk_seidel_cilk & mk_block_sz_lg_theirs)
+        ++ (mk_seidel_openstream & mk_block_sz_lg_theirs) )
   in
   
   let path_to_openstream_seidel = path_to_openstream ^ "/examples/seidel" in
@@ -1026,34 +1037,26 @@ let doit id (mk_numiters, mk_seidel_params) =
   select make run check plot
 
 let mk_seidel_params_small =
-  let mk_numiters =
-    let nb = 20 in
-    let ns = XList.init nb (fun i -> (i+1) * 100) in
-    mk_list int "numiters" ns
-  in
-  (mk_numiters, (mk int "N" 256) & (mk int "block_size_lg" 6))
+  let nb = 20 in
+  let ns = XList.init nb (fun i -> (i+1) * 100) in
+  (mk_list int "numiters" ns, (mk int "N" 256))
 
 let mk_seidel_params_medium =
-  let mk_numiters =
-    let nb = 20 in
-    let ns = XList.init nb (fun i -> (i+1) * 10) in
-    mk_list int "numiters" ns
-  in
-  (mk_numiters, (mk int "N" 1024) & (mk int "block_size_lg" 7))
+  let nb = 20 in
+  let ns = XList.init nb (fun i -> (i+1) * 10) in
+  (mk_list int "numiters" ns, (mk int "N" 1024))
 
       
 let mk_seidel_params_large =
-  let mk_numiters =
-    let nb = 20 in
-    let ns = XList.init nb (fun i -> (i+1) * 10) in
-    mk_list int "numiters" ns
-  in
-  (mk_numiters, (mk int "N" 8192) & (mk int "block_size_lg" 8))
+  let nb = 20 in
+  let ns = XList.init nb (fun i -> (i+1) * 10) in
+  (mk_list int "numiters" ns, (mk int "N" 8192))
 
 let all () = begin
-    doit "small" mk_seidel_params_small;
-    doit "medium" mk_seidel_params_medium;
-    doit "large" mk_seidel_params_large
+    doit "small" mk_seidel_params_small (mk int "block_size_lg" 6) (mk int "block_size_lg" 4); 
+    doit "medium" mk_seidel_params_medium  (mk int "block_size_lg" 7)  (mk int "block_size_lg" 4);
+    doit "large" mk_seidel_params_large  (mk int "block_size_lg" 8)  (mk int "block_size_lg" 4);
+    ()
   end
                       
 end
