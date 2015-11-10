@@ -1040,9 +1040,9 @@ let doit id (mk_numiters, mk_seidel_params) mk_block_sz_lg_theirs mk_block_sz_lg
            Y_axis [Axis.Lower (Some 0.); Axis.Is_log true;] ]);
          Formatter formatter;
         Charts (mk_seidel_params);
-        Series ((mk_seidel_async & mk_block_sz_lg_ours & mk_algos)
-                ++ (mk_seidel_cilk & mk_block_sz_lg_theirs)
-                ++ (mk_seidel_openstream & mk_block_sz_lg_theirs)); 
+        Series ((mk_seidel_async & mk_algos)
+                ++ (mk_seidel_cilk)
+                ++ (mk_seidel_openstream)); 
         X mk_numiters;
         Input (file_results name);
         Output (file_plots name);
