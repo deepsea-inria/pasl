@@ -187,7 +187,7 @@ let mk_mixed_duration =
       
 let pretty_edge_algo edge_algo =
   match edge_algo with
-  | "simple" -> "simple"
+  | "simple" -> "single cell"
   | "statreeopt" -> "ours fixed"
   | "growabletree" -> "ours growable"
   | "single_buffer" -> "single buffer"
@@ -732,7 +732,7 @@ let mk_real_graph (name, nbbits) =
   & mk string "graph" name
   & mk int "bits" nbbits
 
-let synthetic_graphs = [("cube_large", 64); ("rmat24_large", 64); ("phased_mix_100_large", 64);]
+let synthetic_graphs = [("cube_large", 64); ("unbalanced_tree_trunk_first", 64); ("phased_mix_100_large", 64);]
 let real_graphs = [("cage15", 32); ("europe", 32); ("wikipedia-20070206", 32);]
 
 let mk_synthetic_graphs = List.map mk_synthetic_graph synthetic_graphs
@@ -952,6 +952,7 @@ let mk_seidel_openstream =
      
 let doit id (mk_numiters, mk_seidel_params) mk_block_sz_lg_theirs mk_block_sz_lg_ours =
   let name = name^"_"^id in
+  let baseline_name = baseline_name^"_"^id in
   
   let mk_seidel_config =
       mk_prog prog
@@ -1070,7 +1071,7 @@ let mk_seidel_params_large =
 let all () = begin
     doit "small" mk_seidel_params_small (mk int "block_size_lg" 6) (mk int "block_size_lg" 4); 
     doit "medium" mk_seidel_params_medium  (mk int "block_size_lg" 7)  (mk int "block_size_lg" 4);
-    doit "large" mk_seidel_params_large  (mk int "block_size_lg" 8)  (mk int "block_size_lg" 4);
+    doit "large" mk_seidel_params_large  (mk int "block_size_lg" 8)  (mk int "block_size_lg" 4); 
     ()
   end
                       
