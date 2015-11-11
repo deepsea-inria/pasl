@@ -53,7 +53,7 @@ include $(TOOLS_BUILD_FOLDER)/Makefile_options
 # (If extending the list, need to add cases for the definition
 # of COMPILE_OPTIONS_FOR further below, and also for "clean".
 
-MODES=dbg log sta opt seq cilk \
+MODES=dbg log sta opt seq cilk opt3 \
       opt_4_1 opt_4_4 opt_4_8 opt_4_32 opt_4_128 opt_12_32 opt_4_256 opt_4_512 opt_8_32 \
       opt_snzi_0 opt_snzi_1 opt_snzi_2 opt_snzi_3 opt_snzi_4 opt_snzi_5 opt_snzi_6 opt_snzi_7 \
       opt_snzi_8 opt_snzi_9 opt_snzi_10

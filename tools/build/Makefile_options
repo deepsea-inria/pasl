@@ -150,7 +150,7 @@ COMPILER+= -std=c++11
 OPTIONS_ARCH_NATIVE=-march=native
 OPTIONS_DEBUG=-O0 -g -DDEBUG 
 OPTIONS_O2=-DNDEBUG -O2 -fno-optimize-sibling-calls 
-OPTIONS_O3=-Ofast -funsafe-loop-optimizations -DNDEBUG
+OPTIONS_O3=-O3 -ffast-math -fno-optimize-sibling-calls -DNDEBUG
 
 
 ####################################################################

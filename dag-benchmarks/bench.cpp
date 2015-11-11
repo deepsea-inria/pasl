@@ -2696,7 +2696,9 @@ public:
   }
   
   void init() {
-    value_type* ptr = (value_type*)malloc(sizeof(value_type) * (n*n));
+    std::size_t szb = sizeof(value_type) * (n*n);
+    value_type* ptr = (value_type*)malloc(szb);
+    posix_memalign ((void**) &(ptr), 128, szb);
     assert(ptr != nullptr);
     items.reset(ptr);
   }
@@ -2759,8 +2761,8 @@ void seidel_sequential(int numiters, int N, int block_size, double* data) {
 }
   
 using private_clock_type = struct {
-  long time;
-  void* _padding[7];
+  int time;
+  char _padding[128 - sizeof(int)];
 };
   
 template <class node>
@@ -2782,7 +2784,7 @@ public:
   int N; int block_size; double* data;
   matrix_type<std::atomic<int>>* incounters;
   matrix_type<private_clock_type>* clocks;
-  
+
   outset_of<node>* future;
   bool initial_thread = true;
 
@@ -2795,7 +2797,7 @@ public:
   
 
   void advance_time(int i, int j) {
-    long after = --clocks->subscript(i, j).time;
+    int after = --clocks->subscript(i, j).time;
     int n = incounters->n;
     if ((after == 0) && ((i + 1) == n) && ((j + 1) == n)) {
       future->finished();
@@ -2917,8 +2919,7 @@ public:
   
   enum {
     entry,
-    init_first_row_incounters,
-    init_first_col_incounters,
+    init_first_row_col_incounters,
     init_incounters,
     launch,
     exit
@@ -2950,17 +2951,12 @@ public:
       case init_incounters: {
         node::parallel_for(0, nb_blocks, [=] (long i) {
           incounters->items[i].store(2);
-        }, init_first_row_incounters);
+        }, init_first_row_col_incounters);
         break;
       }
-      case init_first_row_incounters: {
+      case init_first_row_col_incounters: {
         node::parallel_for(0, n, [=] (int i) {
           incounters->subscript(i, 0).store(1);
-        }, init_first_col_incounters);
-        break;
-      }
-      case init_first_col_incounters: {
-        node::parallel_for(0, n, [=] (int i) {
           incounters->subscript(0, i).store(1);
         }, launch);
         break;

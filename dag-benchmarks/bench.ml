@@ -1073,7 +1073,7 @@ let mk_seidel_params_large =
 let all () = begin
     doit "small" mk_seidel_params_small (mk int "block_size_lg" 6) (mk int "block_size_lg" 4); 
     doit "medium" mk_seidel_params_medium  (mk int "block_size_lg" 7)  (mk int "block_size_lg" 4);
-    doit "large" mk_seidel_params_large  (mk int "block_size_lg" 8)  (mk int "block_size_lg" 5); 
+    doit "large" mk_seidel_params_large  (mk int "block_size_lg" 8)  (mk int "block_size_lg" 4);
     ()
   end
                       
