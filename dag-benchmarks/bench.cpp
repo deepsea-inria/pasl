@@ -2662,6 +2662,7 @@ public:
   
 };
 
+static inline
 int row_major_index_of(int n, int i, int j) {
   return i * n + j;
 }
@@ -2759,11 +2760,45 @@ void seidel_sequential(int numiters, int N, int block_size, double* data) {
     }
   }
 }
-  
-using private_clock_type = struct {
-  int time;
-  char _padding[128 - sizeof(int)];
+
+template <class Item>
+class padded {
+private:
+  static constexpr int cache_align_szb = 128;
+  Item x;
+  char _padding[cache_align_szb - sizeof(Item)];
+public:
+  padded() {
+    assert(sizeof(Item) <= cache_align_szb);
+  }
+  Item& operator()() {
+    return x;
+  }
 };
+
+using private_clock_type = padded<int>;
+
+using atomic_counter_type = padded<std::atomic<int>>;
+
+int N; int block_size; double* data;
+matrix_type<atomic_counter_type>* incounters;
+matrix_type<private_clock_type>* clocks;
+
+int block_dimensions;
+atomic_counter_type* incounters_data;
+private_clock_type* clocks_data;
+
+static inline
+std::atomic<int>& incounter_at(int i, int j) {
+  return row_major_address_of(incounters_data, block_dimensions, i, j)();
+}
+
+static inline
+int& clock_at(int i, int j) {
+  return row_major_address_of(clocks_data, block_dimensions, i, j)();
+}
+
+typename direct::node::outset_type* future;
   
 template <class node>
 class seidel_async_parallel_rec : public node {
@@ -2780,24 +2815,12 @@ public:
     loop_body,
     exit
   };
-  
-  int N; int block_size; double* data;
-  matrix_type<std::atomic<int>>* incounters;
-  matrix_type<private_clock_type>* clocks;
 
-  outset_of<node>* future;
   bool initial_thread = true;
-
-  seidel_async_parallel_rec(matrix_type<std::atomic<int>>* incounters,
-                            matrix_type<private_clock_type>* clocks,
-                            outset_of<node>* future,
-                            int N, int block_size, double* data)
-  : incounters(incounters), clocks(clocks), future(future), N(N),
-  block_size(block_size), data(data) { }
-  
+  char _padding[128];
 
   void advance_time(int i, int j) {
-    int after = --clocks->subscript(i, j).time;
+    int after = --clock_at(i, j);
     int n = incounters->n;
     if ((after == 0) && ((i + 1) == n) && ((j + 1) == n)) {
       future->finished();
@@ -2819,11 +2842,11 @@ public:
     if ((j == 0) || ((j + 1) == n)) {
       nb_neighbors--;
     }
-    incounters->subscript(i, j).store(nb_neighbors);
+    incounter_at(i, j).store(nb_neighbors);
   }
   
   void decr_block(int i, int j) {
-    if (--incounters->subscript(i, j) == 0) {
+    if (--incounter_at(i, j) == 0) {
       frontier.push_back(std::make_pair(i, j));
     }
   }
@@ -2842,7 +2865,7 @@ public:
     } else {
       assert(false);
     }
-    if (clocks->subscript(i, j).time == 0) {
+    if (clock_at(i, j) == 0) {
       return;
     }
     if ((i > 0) && (j > 0)) {
@@ -2902,7 +2925,7 @@ public:
   }
   
   pasl::sched::thread_p split(size_t) {
-    auto n = new seidel_async_parallel_rec(incounters, clocks, future, N, block_size, data);
+    auto n = new seidel_async_parallel_rec;
     n->initial_thread = false;
     assert(size() >= 2);
     size_t half = size() / 2;
@@ -2920,50 +2943,45 @@ public:
   enum {
     entry,
     init_first_row_col_incounters,
-    init_incounters,
     launch,
     exit
   };
   
-  int numiters; int N; int block_size; double* data;
-  
-  int n;
-  matrix_type<std::atomic<int>>* incounters;
-  matrix_type<private_clock_type>* clocks;
+  int numiters;
   int nb_blocks;
-  outset_of<node>* future;
   
-  seidel_async(int numiters, int N, int block_size, double* data)
-  : numiters(numiters), N(N), block_size(block_size), data(data) { }
+  seidel_async(int _numiters, int _N, int _block_size, double* _data)
+    : numiters(_numiters) {
+    N = _N;
+    block_size = _block_size;
+    data = _data;
+  }
   
   void body() {
     switch (node::current_block_id) {
       case entry: {
-        n = (N - 2) / block_size;
-        incounters = new matrix_type<std::atomic<int>>(n);
-        clocks = new matrix_type<private_clock_type>(n);
-        nb_blocks = n * n;
+        block_dimensions = (N - 2) / block_size;
+        incounters = new matrix_type<atomic_counter_type>(block_dimensions);
+        clocks = new matrix_type<private_clock_type>(block_dimensions);
+        incounters_data = &(incounters->items[0]);
+        clocks_data = &(clocks->items[0]);
+        nb_blocks = block_dimensions * block_dimensions;
         node::parallel_for(0, nb_blocks, [=] (long i) {
-          clocks->items[i].time = numiters;
-        }, init_incounters);
-        break;
-      }
-      case init_incounters: {
-        node::parallel_for(0, nb_blocks, [=] (long i) {
-          incounters->items[i].store(2);
+          clocks->items[i]() = numiters;
+          (incounters->items[i]()).store(2);
         }, init_first_row_col_incounters);
         break;
       }
       case init_first_row_col_incounters: {
-        node::parallel_for(0, n, [=] (int i) {
-          incounters->subscript(i, 0).store(1);
-          incounters->subscript(0, i).store(1);
+        node::parallel_for(0, block_dimensions, [=] (int i) {
+          incounter_at(i, 0).store(1);
+          incounter_at(0, i).store(1);
         }, launch);
         break;
       }
       case launch: {
         future = node::allocate_future();
-        node::spawn(new seidel_async_parallel_rec<node>(incounters, clocks, future, N, block_size, data));
+        node::spawn(new seidel_async_parallel_rec<node>);
         node::force(future,
                     exit);
         break;
