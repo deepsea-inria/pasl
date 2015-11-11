@@ -126,6 +126,7 @@ public:
     this->should_not_deallocate = should_not_deallocate;
   }
   ///@}
+  
 };
   
 /*---------------------------------------------------------------------*/

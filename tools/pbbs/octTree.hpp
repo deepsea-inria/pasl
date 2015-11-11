@@ -211,7 +211,7 @@ class gTreeNode {
       //cout << endl;
       // Give each child its appropriate center and size
       // The centers are offset by size/4 in each of the dimensions
-      native::parallel_for(int(0), quadrants, [&] (int i) {
+      native::parallel_for1(int(0), quadrants, [&] (int i) {
         point newcenter = center.offsetPoint(i, size/4.0);
         intT l = ((i == quadrants-1) ? n : offsets[i+1]) - offsets[i];
         children[i] = newTree(S + offsets[i], l, newcenter, size/2.0);

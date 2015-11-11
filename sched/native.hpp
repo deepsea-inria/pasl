@@ -661,6 +661,25 @@ void parallel_for1(Number lo, Number hi, const Body& body) {
 #endif
 }
 
+template <class Number, class Body>
+void parallel_for_cutoff(Number lo, Number hi, int cutoff, const Body& body) {
+#if defined(SEQUENTIAL_ELISION)
+  for (Number i = lo; i < hi; i++)
+    body(i);
+#elif defined(USE_CILK_RUNTIME)
+  cilk_for (Number i = lo; i < hi; i++)
+    body(i);
+#else
+  struct { } output;
+  using output_type = decltype(output);
+  auto join = [] (output_type,output_type) { };
+  auto _body = [&body] (Number i, output_type) {
+    body(i);
+  };
+  combine(lo, hi, output, join, _body, cutoff);
+#endif
+}
+
 /***********************************************************************/
 
 

@@ -16,8 +16,17 @@ struct strCmp {
     char* s1 = s1c, *s2 = s2c;
     while (*s1 && *s1==*s2) {s1++; s2++;};
     return (*s1 < *s2);
-  }
+  } 
 };
+
+template <class E, class BinPred>
+void comparisonSort(E* A, long n, BinPred f) {
+#ifdef SEQUENTIAL_ELISION
+  std::sort(A,A+n,f);
+#else
+  sampleSort(A, n, f);
+#endif
+}
 
 template <class intT>
 void doit(int argc, char** argv) {
@@ -29,12 +38,11 @@ void doit(int argc, char** argv) {
   auto init = [&] {
     std::string infile = pasl::util::cmdline::parse_or_default_string("infile", "");
     std::string ftype = pasl::util::cmdline::parse_or_default_string("type", "");
+    char* s = (char*)infile.c_str();
     if (ftype == "doubles") {
-      char* s = (char*)doublesstr.c_str();
       new (&doubles) seqData(readSequenceFromFile<long>(s));
       assert(doubles.A != nullptr);
     } else if (ftype == "strings") {
-      char* s = (char*)stringsstr.c_str();
       new (&strings) seqData(readSequenceFromFile<long>(s));
     } else {
       n = (intT)pasl::util::cmdline::parse_or_default_int64("n", 100000);
@@ -44,11 +52,11 @@ void doit(int argc, char** argv) {
   };
   auto run = [&] (bool sequential) {
     if (seq != nullptr) {
-      pbbs::sampleSort(seq, n, less<intT>());
+      comparisonSort(seq, (long)n, less<intT>());
     } else if (doubles.A != nullptr) {
-      pbbs::sampleSort((double*)doubles.A, doubles.n, less<double>());
+      comparisonSort((double*)doubles.A, (long)doubles.n, less<double>());
     } else if (strings.A != nullptr) {
-      pbbs::sampleSort((char**) strings.A, strings.n, strCmp());
+      comparisonSort((char**) strings.A, (long)strings.n, strCmp());
     }
   };
   auto output = [&] {

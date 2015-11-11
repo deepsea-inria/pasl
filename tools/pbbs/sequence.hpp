@@ -28,13 +28,14 @@ namespace pbbs {
       x[i] = v;
     });
   }
-  
+
+  /*
   template <class E, class intT>
   static E* newArray(intT n, E v) {
     E* x = (E*) malloc(n*sizeof(E));
     brokenCompiler__(n, x, v);
     return x;
-  }
+    } */
   
   namespace sequence {
     

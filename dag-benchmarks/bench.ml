@@ -1067,7 +1067,7 @@ let mk_seidel_params_medium =
       
 let mk_seidel_params_large =
   let nb = 20 in
-  let ns = XList.init nb (fun i -> (i+1) * 10) in
+  let ns = XList.init nb (fun i -> (i+1)) in
   (mk_list int "numiters" ns, mk int "N" 8192)
 
 let all () = begin
@@ -1105,12 +1105,12 @@ let mk_infile n t =
   (mk string "infile" (seqdata_path ^ n)) & (mk string "type" t)
                      
 let mk_infiles =
-     (mk_infile "almostsortedseq" "double")
-  ++ (mk_infile "exptseq" "double")
-  ++ (mk_infile "randomseq" "double")
+     (mk_infile "almostsortedseq" "doubles")
+  ++ (mk_infile "exptseq" "doubles")
+  ++ (mk_infile "randomseq" "doubles") 
           
 let mk_baseline =
-  mk_prog prog
+  mk_prog (name ^ ".seq")
 
 let mk_ours =
   mk_prog prog
@@ -1124,8 +1124,9 @@ let mk_parallel_progs =
 let mk_proc = mk int "proc" max_proc
                  
 let make() = begin
-    build "../example" ["sort.opt"; "sort.cilk"] arg_virtual_build;
+    build "../example" ["sort.opt"; "sort.cilk"; "sort.seq"] arg_virtual_build;
     ignore(XSys.command_as_bool "ln -s ../example/sort.opt sort.opt");
+    ignore(XSys.command_as_bool "ln -s ../example/sort.seq sort.seq");
     ignore(XSys.command_as_bool "ln -s ../example/sort.cilk sort.cilk")
   end
   
@@ -1133,7 +1134,9 @@ let run() = begin
   Mk_runs.(call (baseline_run_modes @ [
     Output (file_results baseline_name);
     Timeout 1000;
-    Args mk_baseline]));
+    Args (
+        mk_baseline
+      & mk_infiles)]));
   Mk_runs.(call (run_modes @ [
     Output (file_results name);
     Timeout 1000;
@@ -1365,8 +1368,9 @@ let mk_parallel_progs =
 let mk_proc = mk int "proc" max_proc
                  
 let make() = begin
-    build "../example" ["suffix.opt"; "suffix.cilk"] arg_virtual_build;
+    build "../example" ["suffix.seq"; "suffix.opt"; "suffix.cilk"] arg_virtual_build;
     ignore(XSys.command_as_bool "ln -s ../example/suffix.opt suffix.opt");
+    ignore(XSys.command_as_bool "ln -s ../example/suffix.seq suffix.seq");
     ignore(XSys.command_as_bool "ln -s ../example/suffix.cilk suffix.cilk")
   end
   
