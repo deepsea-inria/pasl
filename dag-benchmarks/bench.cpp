@@ -334,11 +334,18 @@ public:
 } // end namespace
   
 namespace statreeopt {
+
+#ifndef STATREEOPT_SNZI_TREE_HEIGHT
+#define STATREEOPT_SNZI_TREE_HEIGHT 9
+#endif
+  
+constexpr int statreeopt_snzi_tree_height = STATREEOPT_SNZI_TREE_HEIGHT;
+
    
 class statreeopt_incounter : public incounter {
 public:
       
-  pasl::data::snzi::tree<snzi_tree_height> nzi;
+  pasl::data::snzi::tree<statreeopt_snzi_tree_height> nzi;
   
   statreeopt_incounter(node* n) {
     nzi.set_root_annotation(n);
@@ -1662,10 +1669,12 @@ public:
   
 };
 
+static constexpr int alternating_microbench_snzi_height = 6;
+
 class fixed_size_snzi_wrapper {
 public:
   
-  using snzi_type = pasl::data::snzi::tree<snzi_tree_height>;
+  using snzi_type = pasl::data::snzi::tree<alternating_microbench_snzi_height>;
   using node_type = typename snzi_type::node_type;
   
   snzi_type snzi;
@@ -1688,7 +1697,7 @@ public:
 class growable_size_snzi_wrapper {
 public:
   
-  using snzi_type = pasl::data::gsnzi::tree<>;
+  using snzi_type = pasl::data::gsnzi::tree<alternating_microbench_snzi_height>;
   using node_type = typename snzi_type::node_type;
   
   snzi_type snzi;
@@ -4270,7 +4279,7 @@ public:
   
   pasl::sched::thread_p split(size_t) {
     assert(prev.nb_outedges() >= 2);
-    Frontier prev2;
+    Frontier prev2(graph_alias);
     prev.split(prev.nb_outedges() / 2, prev2);
     Frontier* next2 = new Frontier(graph_alias);
     auto n = new pbfs_process_layer(graph_alias, dist_of_next, dists, &prev2, next2);
