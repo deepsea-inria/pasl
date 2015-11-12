@@ -861,7 +861,7 @@ let mk_cmds =
   ++ mk string "cmd" "our_pseudodfs"
         
 let make() = begin
-    build "." ["bench.opt"] arg_virtual_build;
+    build "." ["bench.opt"; "bench.seq";] arg_virtual_build;
     build ligra_path ligra_binaries arg_virtual_build;
   end
   

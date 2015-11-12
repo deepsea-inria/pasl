@@ -662,11 +662,9 @@ incounter* incounter_new(node* n) {
     return nullptr;
   }
 }
-  
-const bool enable_statreeopt = true;
 
 outset* outset_unary() {
-  if (enable_statreeopt && edge_algorithm == edge_algorithm_statreeopt) {
+  if (edge_algorithm == edge_algorithm_statreeopt) {
     return (outset*)pasl::sched::outstrategy::direct_statreeopt_unary_new(nullptr);
   } else if (edge_algorithm == edge_algorithm_growabletree) {
     return (outset*)pasl::sched::outstrategy::direct_growabletree_unary_new(nullptr);
@@ -701,7 +699,6 @@ void increment_incounter(node* source, node* target, incounter* target_in) {
     pasl::data::tagged::atomic_fetch_and_add<pasl::sched::instrategy_p>(&(target->in), 1l);
   } else {
     assert(tag == 0);
-    source = enable_statreeopt ? source : nullptr;
     target_in->delta(source, target, +1L);
   }
 }
@@ -723,7 +720,6 @@ void decrement_incounter(node* source, node* target, incounter* target_in) {
     }
   } else {
     assert(tag == 0);
-    source = enable_statreeopt ? source : nullptr;
     target_in->delta(source, target, -1L);
   }
 }

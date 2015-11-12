@@ -10,21 +10,41 @@ then
     else
         outcmd="../../ligra/ligra.cilk_64 -algo pbbs_pbfs_cilk $@"
     fi
+    if hash numactl 2>/dev/null;
+    then
+        outcmd="numactl --interleave=all $outcmd"
+    fi
+    
 elif [[ $incmd == *"-cmd our_lazy_pbfs"* ]]
 then
     outcmd="../../new-sc15-graph/graph/bench/search.opt2 -algo our_lazy_pbfs -delta 50 -load from_file -idempotent 0 $@"
+    if hash numactl 2>/dev/null;
+    then
+        outcmd="numactl --interleave=all $outcmd"
+    fi
+        
 elif [[ $incmd == *"-cmd our_pseudodfs"* ]]
 then
     outcmd="../../new-sc15-graph/graph/bench/search.opt2 -algo our_pseudodfs -delta 50 -load from_file -idempotent 0 $@"
+    if hash numactl 2>/dev/null;
+    then
+        outcmd="numactl --interleave=all $outcmd"
+    fi
+
+elif [[ $incmd == *"-cmd bfs"* ]]
+then
+    outcmd="./bench.seq $@"
+    outcmd="$outcmd -numa_alloc_interleaved 0"
+    
+elif [[ $incmd == *"-cmd dfs"* ]]
+then
+    outcmd="./bench.seq $@"
+    outcmd="$outcmd -numa_alloc_interleaved 0"
+    
 else
     outcmd="./bench.opt $@"
+
 fi
 
-# use numactl to force interleaved allocation of pages, if
-# numactl is accessible via the command line
-if hash numactl 2>/dev/null;
-then
-    outcmd="numactl --interleave=all $outcmd"
-fi
 
 $outcmd
