@@ -3082,7 +3082,7 @@ public:
   ForwardIt last;
   T value;
   
-  static constexpr int cutoff = 1 << 8;
+  static constexpr int cutoff = 1 << 7;
   
   pfill(ForwardIt first, ForwardIt last, const T& value)
   : first(first), last(last), value(value) { }

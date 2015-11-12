@@ -9,7 +9,13 @@ then
         outcmd="../../ligra/ligra.cilk_32 -algo pbbs_pbfs_cilk $@"
     else
         outcmd="../../ligra/ligra.cilk_64 -algo pbbs_pbfs_cilk $@"
-    fi    
+    fi
+elif [[ $incmd == *"-cmd our_lazy_pbfs"* ]]
+then
+    outcmd="../../new-sc15-graph/graph/bench/search.opt2 -algo our_lazy_pbfs -delta 50 -load from_file -idempotent 0 $@"
+elif [[ $incmd == *"-cmd our_pseudodfs"* ]]
+then
+    outcmd="../../new-sc15-graph/graph/bench/search.opt2 -algo our_pseudodfs -delta 50 -load from_file -idempotent 0 $@"
 else
     outcmd="./bench.opt $@"
 fi

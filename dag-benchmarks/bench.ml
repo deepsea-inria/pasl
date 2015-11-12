@@ -210,6 +210,8 @@ let pretty_cmd cmd =
   | "incounter_async_nb" -> "" (* "Incounter microbenchmark (n=10m)" *)
   | "mixed_duration" -> "" (* "Mixed microbenchmark (duration 1ms)" *)
   | "mixed_nb" -> "" (* "Mixed microbenchmark (n=10m)"                           *)
+  | "our_lazy_pbfs" -> "ACR PBFS"
+  | "our_pseudodfs" -> "ACR PDFS"
   | _ -> cmd
            
 let microbench_formatter =
@@ -715,8 +717,8 @@ let ligra_path = "../../ligra/"
 
 let ligra_binaries = ["ligra.cilk_32"; "ligra.cilk_64";]
 
-let synthetic_graphs_path = "../../synthetic_graphs"
-let real_graphs_path = "../../real_graphs"
+let synthetic_graphs_path = "~/synthetic_graphs"
+let real_graphs_path = "~/real_graphs"
 
 let path_of_synthetic name = synthetic_graphs_path ^ "/" ^ name ^ ".adj_bin"
 
@@ -757,9 +759,11 @@ let mk_proc = mk int "proc" max_proc
 let mk_cmds =
     (mk_algos & (mk string "cmd" "pbfs"))
   ++ mk string "cmd" "pbbs_pbfs_cilk"
-                 
+  ++ mk string "cmd" "our_lazy_pbfs"
+        
 let make() = begin
     build "." ["bench.opt"] arg_virtual_build;
+    build "../../new-sc15-graph/graph/bench/" ["search.opt2"] arg_virtual_build;
     build ligra_path ligra_binaries arg_virtual_build;
   end
   
@@ -854,7 +858,8 @@ let mk_proc = mk int "proc" max_proc
 let mk_cmds =
     (mk_algos & (mk string "cmd" "pdfs"))
   ++ mk string "cmd" "pbbs_pbfs_cilk"
-                 
+  ++ mk string "cmd" "our_pseudodfs"
+        
 let make() = begin
     build "." ["bench.opt"] arg_virtual_build;
     build ligra_path ligra_binaries arg_virtual_build;
