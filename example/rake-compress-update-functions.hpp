@@ -332,7 +332,14 @@ void update_round(int round) {
     int i = live[round % 2][j];
     for (Node* v : old_live_affected_sets[i]) {
       Node* p = v->get_parent();
-      p->state.contracted = is_contracted(p, round);
+      if (get_thread_id(p) == i) {
+        p->state.contracted = is_contracted(p, round);
+        if (p->is_contracted()) {
+          free_vertex(p, i);
+        } else {
+          make_affected(p, i, true);
+        }
+      }
       if (p->is_contracted() || v->is_contracted()) {
         Node* pp = p->get_parent();
         if (get_thread_id(pp) == i) {
@@ -342,13 +349,13 @@ void update_round(int round) {
           }
         }
       }
-      if (get_thread_id(p) == i) {
+/*      if (get_thread_id(p) == i) {
         if (p->is_contracted()) {
           free_vertex(p, i);
         } else {
           make_affected(p, i, true);
         }
-      }
+      }*/
 #ifdef STANDART
       for (Node* u : v->get_children()) {
 #elif SPECIAL
