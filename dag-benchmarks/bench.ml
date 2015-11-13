@@ -734,8 +734,8 @@ let mk_real_graph (name, nbbits) =
   & mk string "graph" name
   & mk int "bits" nbbits
 
-let synthetic_graphs = [("cube_large", 64); ("unbalanced_tree_trunk_first_large", 64); ("phased_mix_100_large", 64);]
-let real_graphs = [("cage15", 32); ("europe", 32); ("wikipedia-20070206", 32);]
+let synthetic_graphs = [("cube_large", 64); ("grid_sq_large", 64)]
+let real_graphs = [("cage15", 32); ("europe", 32); ("delaunay", 32); ("livejournal1", 32);]
 
 let mk_synthetic_graphs = List.map mk_synthetic_graph synthetic_graphs
 let mk_real_graphs = List.map mk_real_graph real_graphs
@@ -819,7 +819,7 @@ let plot() =
     X mk_all_graphs;
     Input (file_results name);
     Output (file_plots name);
-    Y_label "speedup";
+    Y_label "Speedup vs. sequential";
     Y eval_speedup; 
     Y_whiskers eval_speedup_stddev;
   ]))
@@ -857,7 +857,7 @@ let mk_proc = mk int "proc" max_proc
 
 let mk_cmds =
     (mk_algos & (mk string "cmd" "pdfs"))
-  ++ mk string "cmd" "pbbs_pbfs_cilk"
+    (*  ++ mk string "cmd" "pbbs_pbfs_cilk"*)
   ++ mk string "cmd" "our_pseudodfs"
         
 let make() = begin
@@ -917,7 +917,7 @@ let plot() =
     X mk_all_graphs;
     Input (file_results name);
     Output (file_plots name);
-    Y_label "speedup";
+    Y_label "Speedup vs. sequential";
     Y eval_speedup; 
     Y_whiskers eval_speedup_stddev;
   ]))
