@@ -917,7 +917,8 @@ let plot() =
     X mk_all_graphs;
     Input (file_results name);
     Output (file_plots name);
-    Y_label "Speedup vs. sequential";
+    Y_label "Speedup vs. sequential"
+    ;
     Y eval_speedup; 
     Y_whiskers eval_speedup_stddev;
   ]))
@@ -983,7 +984,7 @@ let doit id (mk_numiters, mk_seidel_params) mk_block_sz_lg_theirs mk_block_sz_lg
       mk_parallel_shared
       & (  (mk_seidel_async & mk_algos & mk_block_sz_lg_ours)
         ++ (mk_seidel_cilk & mk_block_sz_lg_theirs)
-        ++ (mk_seidel_openstream & mk_block_sz_lg_theirs) )
+        (*++ (mk_seidel_openstream & mk_block_sz_lg_theirs)*) )
   in
   
   let path_to_openstream_seidel = path_to_openstream ^ "/examples/seidel" in
@@ -1047,7 +1048,7 @@ let doit id (mk_numiters, mk_seidel_params) mk_block_sz_lg_theirs mk_block_sz_lg
         Charts (mk_seidel_params);
         Series ((mk_seidel_async & mk_algos)
                 ++ (mk_seidel_cilk)
-                ++ (mk_seidel_openstream)); 
+               (*++ (mk_seidel_openstream) *)); 
         X mk_numiters;
         Input (file_results name);
         Output (file_plots name);
