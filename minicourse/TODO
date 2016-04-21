@@ -1,3 +1,5 @@
+- use the move operator explicitly so that costs are clear.
+  return by explicit move.
 
 - add unit test generators for exercises
 - add data generators for benchmarking
