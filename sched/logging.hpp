@@ -19,7 +19,7 @@
 #include <algorithm>
 #include <assert.h>
 
-#include "perworker.hpp"
+#include "workerlocal.hpp"
 #include "classes.hpp"
 #include "localityrange.hpp"
 

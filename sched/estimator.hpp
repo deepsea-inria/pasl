@@ -12,7 +12,7 @@
 
 #include <string>
 
-#include "perworker.hpp"
+#include "workerlocal.hpp"
 #include "callback.hpp"
 
 /***********************************************************************/

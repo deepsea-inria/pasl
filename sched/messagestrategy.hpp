@@ -16,7 +16,7 @@
 #include "worker.hpp"
 #include "classes.hpp"
 #include "pcb.hpp"
-#include "perworker.hpp"
+#include "workerlocal.hpp"
 
 /**
  * \defgroup messagestrategy Inter-worker message-passing communication

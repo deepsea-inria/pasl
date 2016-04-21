@@ -2,7 +2,7 @@
  * Rainey
  * All rights reserved.
  *
- * \file perworker.hpp
+ * \file workerlocal.hpp
  * \brief Per-worker local storage
  *
  */

@@ -18,7 +18,7 @@
 #include <algorithm>
 
 #include "classes.hpp"
-#include "perworker.hpp"
+#include "workerlocal.hpp"
 
 namespace pasl {
 namespace util {
