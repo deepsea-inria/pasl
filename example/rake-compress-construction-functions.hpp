@@ -18,7 +18,7 @@ loop_controller_type loop2("loop2");
 loop_controller_type loop3("loop3");
 #endif
 
-const int MAX_ROUND = 101;
+const int MAX_ROUND = 104;
 
 void initialization_construction(int n, std::vector<int>* children, int* parent) {
 #ifdef SPECIAL
