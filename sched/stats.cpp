@@ -7,7 +7,7 @@
  */
 
 #include "stats.hpp"
-#include "cmdline.hpp"
+#include "pcmdline.hpp"
 
 namespace pasl {
 namespace util {

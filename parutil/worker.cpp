@@ -11,7 +11,7 @@
 
 #include "worker.hpp"
 #include "machine.hpp"
-#include "cmdline.hpp"
+#include "pcmdline.hpp"
 //#include "logging.hpp"
 //#include "stats.hpp"
 

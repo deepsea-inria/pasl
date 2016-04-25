@@ -14,7 +14,7 @@
 #include <numa.h>
 #endif
 
-#include "cmdline.hpp"
+#include "pcmdline.hpp"
 #include "threaddag.hpp"
 #include "native.hpp"
 

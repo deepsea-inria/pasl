@@ -8,7 +8,7 @@
 
 #include <deque>
 
-#include "cmdline.hpp"
+#include "pcmdline.hpp"
 #include "callback.hpp"
 #include "threaddag.hpp"
 #include "machine.hpp"

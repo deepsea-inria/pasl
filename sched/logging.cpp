@@ -6,7 +6,7 @@
  */
 
 #include "logging.hpp"
-#include "cmdline.hpp"
+#include "pcmdline.hpp"
 
 namespace pasl {
 namespace util {

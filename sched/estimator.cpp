@@ -15,7 +15,7 @@
 
 #include "logging.hpp"
 #include "stats.hpp"
-#include "cmdline.hpp"
+#include "pcmdline.hpp"
 #include "estimator.hpp"
 
 /***********************************************************************/

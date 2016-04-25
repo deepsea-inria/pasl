@@ -15,7 +15,7 @@
 #include "atomic.hpp"
 #include "workstealing.hpp"
 #include "barrier.hpp"
-#include "cmdline.hpp"
+#include "pcmdline.hpp"
 
 namespace pasl {
 namespace sched {

@@ -13,7 +13,7 @@
 
 #include "machine.hpp"
 #include "worker.hpp"
-#include "cmdline.hpp"
+#include "pcmdline.hpp"
 #include "atomic.hpp"
 
 namespace pasl {
