@@ -1665,7 +1665,11 @@ public:
   
 };
 
+#ifdef SNZI_TREE_HEIGHT
+static constexpr int alternating_microbench_snzi_height = SNZI_TREE_HEIGHT;
+#else
 static constexpr int alternating_microbench_snzi_height = 6;
+#endif
 
 class fixed_size_snzi_wrapper {
 public:
@@ -1676,8 +1680,8 @@ public:
   snzi_type snzi;
 
   node_type* get_target_for(int id) {
-    //    return snzi.get_target_of_value(id);
-    return snzi.ith_leaf_node(id);
+    // return snzi.get_target_of_value(id);
+    return snzi.ith_leaf_node(id % snzi.get_nb_leaf_nodes());
   }
   
   void increment(node_type* target) {
@@ -1777,7 +1781,7 @@ public:
   
   template <class Random_int>
   bool decrement(int, const Random_int&) {
-    return counter-- == 0;
+    return --counter == 0;
   }
   
   bool is_activated() const {

@@ -239,7 +239,7 @@ module ExpSNZITune = struct
 
 let name = "snzi_tune"
 
-let heights = XList.init 10 (fun i -> i + 1)
+let heights = XList.init 5 (fun i -> i + 1)
                    
 let prog_of height =
   "./bench.opt_snzi_" ^ (string_of_int height)
@@ -249,33 +249,80 @@ let progs = List.map prog_of heights
 let mk_progs =
   mk_list string "prog" progs
 
+let mk_prog = mk_prog "./bench.opt_snzi_1"
+
+let all_procs = XList.init (max_proc)  (fun i -> (i+1))
+let mk_procs = mk_list int "proc" all_procs
+
 let mk_all_benchmarks =
      mk_snzi_alternated_mixed_duration
-  ++ mk_incounter_async_duration
-  ++ mk_incounter_async_nb
+(*  ++ mk_incounter_async_duration
+  ++ mk_incounter_async_nb *)
 
-let mk_edge_algos =
-  mk_list string "edge_algo" ["statreeopt"; "growabletree"]
-
-let mk_proc = mk int "proc" max_proc
-          
 let make() =
   build "." progs arg_virtual_build
+
+let mk_snzi = mk_progs & (mk string "edge_algo" "statreeopt")
+
+let mk_simple = mk_prog & (mk string "edge_algo" "simple")
 
 let run() =
   Mk_runs.(call (run_modes @ [
     Output (file_results name);
     Timeout 1000;
     Args (
-      mk_progs
+      (mk_snzi
+    ++ mk_simple)
     & mk_all_benchmarks
     & mk_seed
-    & mk_edge_algos
-    & mk_proc)]))
+    & mk_procs)]))
 
 let check = nothing  (* do something here *)
+
+let pretty_edge_algo edge_algo =
+  match edge_algo with
+  | "simple" -> "Fetch & Add"
+  | "statreeopt" -> ""
+  | _ -> "<unknown>"
+
+let microbench_formatter =
+  Env.format (Env.(
+    [
+      ("branching_factor", Format_custom (fun n -> sprintf "B=%s" n));
+      ("nb_levels", Format_custom (fun n -> sprintf "D=%s" n));
+      ("algo", Format_custom (fun algo -> sprintf "%s" (if algo = "portpassing" then algo else "")));
+      ("edge_algo", Format_custom pretty_edge_algo);
+      ("cmd", Format_custom pretty_cmd);
+      ("snzi", Format_custom pretty_snzi);
+      ("graph", Format_custom (fun x -> x));
+      ("infile", Format_custom (fun x -> ""));
+      ("bits", Format_custom (fun x -> ""));
+      ("workload", Format_custom (fun x -> ""));
+      ("nb_milliseconds", Format_custom (fun x -> ""));
+      ("n", Format_custom (fun x -> ""));
+      (*      ("prog", Format_custom (fun prog -> ""));*)
+    ]
+  ))                
            
 let plot() =
+      Mk_scatter_plot.(call ([
+    Chart_opt Chart.([
+      Legend_opt Legend.([Legend_pos Top_right]);
+      ]);
+     Scatter_plot_opt Scatter_plot.([
+         Draw_lines true; 
+         Y_axis [ (*Axis.Lower (Some 0.); *) Axis.Is_log true; ] ]);
+       Formatter microbench_formatter;
+       Charts mk_unit;
+      Series (mk_snzi ++ mk_simple);
+      X mk_procs;
+      X_label "Number of cores";
+      Input (file_results name);
+      Output (file_plots name);
+      Y_label "Number of operations per second per core";
+      Y eval_nb_operations_per_second;
+                            ]))
+      (*
   Mk_bar_plot.(call ([
       Bar_plot_opt Bar_plot.([
          X_titles_dir Vertical;
@@ -289,7 +336,7 @@ let plot() =
       Y_label "nb_operations/second (per thread)";
       Y eval_nb_operations_per_second;
       Y_whiskers eval_nb_operations_per_second_error;
-  ]))
+  ])) *) 
                 
 let all () = select make run check plot
 
