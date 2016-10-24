@@ -354,7 +354,8 @@ let plot () =
 
   let eval_relative = fun env all_results results ->
     let construction_results =  ~~ Results.filter_by_params results_construction (
-         from_env (Env.filter_keys ["graph"; "fraction"; "proc"] env)
+(**         from_env (Env.filter_keys ["graph"; "fraction"; "proc"] env)**)
+          from_env (Env.add (Env.filter_keys ["graph"; "fraction"] env) "proc" (Env.Vint 1))
        ) in
     if construction_results = [] then Pbench.warning ("no results for construction: " ^ Env.to_string env);
     let update = Results.get_mean_of "exectime" results in
@@ -372,7 +373,7 @@ let plot () =
       Series mk_proc;
       X mk_ks;
       Y eval_relative;
-      Y_label "Static Run-time / Dynamic Run-time";
+      Y_label "Static sequential / Dynamic run-time";
       Input ("plots/construction_update_comparison/results_update_" ^ version ^ scale_type ^ ".txt");
       Output ("plots/construction_update_comparison/plot_" ^ version ^ scale_type ^ ".pdf");
       ]))
