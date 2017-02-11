@@ -122,13 +122,13 @@ include $(TOOLS_BUILD_FOLDER)/Makefile_modes
 # TODO FOR LATER
 
 # $(USE_CORD)
-ifeq (0,1)
-	CORD=/home/mrainey/Installs/gc-7.0
-	C_FLAGS += -DHAVE_CORD
-	LD_FLAGS += -lcord -lgccpp -lgc
-	INCLUDES += -I$(CORD)/include
-	LIBS += -L/home/mrainey/Installs/boehm-gc/lib
-endif
+# ifeq (0,1)
+# 	CORD=/home/mrainey/Installs/gc-7.0
+# 	C_FLAGS += -DHAVE_CORD
+# 	LD_FLAGS += -lcord -lgccpp -lgc
+# 	INCLUDES += -I$(CORD)/include
+# 	LIBS += -L/home/mrainey/Installs/boehm-gc/lib
+# endif
 
 
 ####################################################################
@@ -137,7 +137,7 @@ endif
 PBENCH_OCAMLCOMP=ocamlc
 
 ifeq ($(PBENCH_PATH),)
-   PBENCH_PATH=~/pbench
+   PBENCH_PATH=../../../pbench
 endif
 
 include $(PBENCH_PATH)/Makefile_common
