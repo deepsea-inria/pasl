@@ -157,11 +157,13 @@ void generate_graph_by_nb_edges(Adjlist& graph) {
 }
 
 static inline void parse_fname(std::string fname, std::string& base, std::string& extension) {
-  if (fname == "")
+  auto i = fname.find_last_of(".");
+  if (i != std::string::npos) {
+    extension = fname.substr(i + 1);
+    base = fname.substr(0, fname.size() - i - 1);
+  } else {
     util::atomic::die("bogus filename");
-  std::stringstream ss(fname);
-  std::getline(ss, base, '.');
-  std::getline(ss, extension);
+  }
 }
 
 template <class Adjlist>
