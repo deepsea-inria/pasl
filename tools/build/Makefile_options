@@ -250,8 +250,8 @@ OPTIONS_cilk=-fcilkplus -lcilkrts -DUSE_CILK_RUNTIME $(CILKRTS_OPTIONS)
 ####################################################################
 # HWLOC support
 
-HWLOC_FLAGS=$(shell pkg-config --define-variable=HWLOC_INSTALL=$(HWLOC_INSTALL_PATH) --cflags $(HWLOC_PATH)/lib/pkgconfig/hwloc.pc)
-HWLOC_LIBS=$(shell pkg-config --define-variable=HWLOC_INSTALL=$(HWLOC_INSTALL_PATH) --libs $(HWLOC_PATH)/lib/pkgconfig/hwloc.pc)
+HWLOC_FLAGS=$(shell pkg-config --define-variable=HWLOC_INSTALL=$(HWLOC_INSTALL_PATH) --cflags $(HWLOC_PATH)/hwloc.pc)
+HWLOC_LIBS=$(shell pkg-config --define-variable=HWLOC_INSTALL=$(HWLOC_INSTALL_PATH) --libs $(HWLOC_PATH)/hwloc.pc)
 OPTIONS_HWLOC_ALL=-DHAVE_HWLOC $(HWLOC_FLAGS) $(HWLOC_LIBS)
 
 OPTIONS_HWLOC=

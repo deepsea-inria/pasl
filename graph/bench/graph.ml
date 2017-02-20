@@ -804,7 +804,7 @@ let graph_renaming =
 
 let mk_graph_outputs_all_manual : Params.t =
    let mk_file file = (* ?todo: rename "outfile" into "output_file" *)
-      mk string "outfile" (sprintf "nonsynthetic-data/%s.adj_bin" file) in
+      mk string "outfile" (sprintf "../../../sc15-graphs/%s.adj_bin" file) in
     let mk_manual file ?timeout size bits source =
        let timeout = XOption.unsome_or (XOption.unsome_or (timeout_for_size size) timeout) arg_timeout_opt in
          (mk_file file)
