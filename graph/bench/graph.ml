@@ -2295,9 +2295,9 @@ let plot () =
      in
      Mk_bar_plot.(call ([
        Bar_plot_opt Bar_plot.([
-          Chart_opt Chart.([Dimensions (20.,7.) ]);
+          Chart_opt Chart.([Dimensions (20.,9.) ]);
           X_titles_dir Vertical;
-          Y_axis [Axis.Lower (Some 0.); Axis.Upper (Some 40.) ] ]);
+          Y_axis [Axis.Lower (Some 0.); Axis.Upper (Some (1.5 *. (float_of_int arg_proc))) ] ]);
        Formatter (fun env -> Env.format (barplot_formatter_with_maxdist env) env);
        Charts (mk_sizes);
        Series (mk_our_parallel_dfs ++ mk_cong_parallel_dfs ++ mk_pbbs_pbfs_cilk ++ mk_ligra);
