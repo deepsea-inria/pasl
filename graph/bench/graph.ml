@@ -2245,6 +2245,8 @@ let check () =
    Results.check_consistent_output_filter_by_params
       "result" (mk_graph_files & mk_traversals) results
 
+let use_max_dist = false (* TEMPORARY: activate this if bfs results are available to know max_dist *)
+
 let plot () =
    let results = Results.from_file (file_results name) in
    let results_baseline = Results.from_file (file_results ExpBaselines.name) in
@@ -2290,7 +2292,7 @@ let plot () =
      let barplot_formatter_with_maxdist env =
         ["kind", Env.Format_custom (fun s -> 
           (* let env = Env.add (Env.filter_keys ["size"] env) "kind" (Env.Vstring s) in  --useless line*)
-          sprintf "%s (D=%s)" (graph_renamer s) (string_of_exp_range (max_dist_for env)))] 
+          if use_max_dist then sprintf "%s (D=%s)" (graph_renamer s) (string_of_exp_range (max_dist_for env)) else (graph_renamer s))] 
         @ barplot_formatter 
      in
      Mk_bar_plot.(call ([
@@ -2326,7 +2328,7 @@ let plot () =
      let barplot_formatter_with_maxdist env =
         ["kind", Env.Format_custom (fun s -> 
           (* let env = Env.add (Env.filter_keys ["size"] env) "kind" (Env.Vstring s) in  --useless line*)
-          sprintf "%s (D=%s)" (graph_renamer s) (string_of_exp_range (max_dist_for env)))] 
+          if use_max_dist then sprintf "%s (D=%s)" (graph_renamer s) (string_of_exp_range (max_dist_for env)) else (graph_renamer s))] 
         @ barplot_formatter 
      in
      Mk_bar_plot.(call ([
@@ -2396,7 +2398,7 @@ let plot () =
      let barplot_formatter_with_maxdist env =
         ["kind", Env.Format_custom (fun s -> 
           (* let env = Env.add (Env.filter_keys ["size"] env) "kind" (Env.Vstring s) in  --useless line*)
-          sprintf "%s (D=%s)" (graph_renamer s) (string_of_exp_range (max_dist_for env)))] 
+          if use_max_dist then sprintf "%s (D=%s)" (graph_renamer s) (string_of_exp_range (max_dist_for env)) else (graph_renamer s))] 
         @ barplot_formatter 
         in
      Mk_bar_plot.(call ([
@@ -2446,7 +2448,7 @@ let plot () =
      let barplot_formatter_with_maxdist env =
         ["kind", Env.Format_custom (fun s -> 
           (* let env = Env.add (Env.filter_keys ["size"] env) "kind" (Env.Vstring s) in  --useless line*)
-          sprintf "%s (D=%s)" (graph_renamer s) (string_of_exp_range (max_dist_for env)))] 
+          if use_max_dist then sprintf "%s (D=%s)" (graph_renamer s) (string_of_exp_range (max_dist_for env)) else (graph_renamer s))]  
         @ barplot_formatter 
         in
         Mk_bar_plot.(call ([
