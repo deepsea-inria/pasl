@@ -12,7 +12,7 @@
 #include "graphio.hpp"
 #include "rmat.hpp"
 
- #include "quickcheck.hh"
+
 
 #ifndef _PASL_GRAPHGENERATORS_H_
 #define _PASL_GRAPHGENERATORS_H_
@@ -574,7 +574,7 @@ public:
 };
 
 static inline void generate(generator_type& ty) {
-  quickcheck::generate(NB_GENERATORS-1, ty.ty);
+  //  quickcheck::generate(NB_GENERATORS-1, ty.ty);
 }
 
 template <class Edge_bag>
@@ -647,8 +647,8 @@ void generate(size_t& _tgt_nb_edges, edgelist<Edge_bag>& graph) {
   edgeid_type tgt_nb_edges((vtxid_type)_tgt_nb_edges);
   static const edgeid_type max_nb_edges = 10000;
   tgt_nb_edges = std::min(tgt_nb_edges, max_nb_edges);
-  size_t scale;
-  quickcheck::generate(50, scale);
+  size_t scale = rand() % 50;
+  //  quickcheck::generate(50, scale);
   tgt_nb_edges *= edgeid_type(scale);
   generator_type which_generator;
   generate(which_generator);
